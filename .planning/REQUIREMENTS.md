@@ -83,38 +83,38 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| PREP-01 | — | Pending |
-| PREP-02 | — | Pending |
-| PREP-03 | — | Pending |
-| SAMP-01 | — | Pending |
-| SAMP-02 | — | Pending |
-| SCORE-01 | — | Pending |
-| SCORE-02 | — | Pending |
-| SCORE-03 | — | Pending |
-| ANAL-01 | — | Pending |
-| ANAL-02 | — | Pending |
-| ANAL-03 | — | Pending |
-| OUT-01 | — | Pending |
-| OUT-02 | — | Pending |
-| OUT-03 | — | Pending |
-| OUT-04 | — | Pending |
-| OUT-05 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| DOCS-01 | — | Pending |
-| DOCS-02 | — | Pending |
-| DOCS-03 | — | Pending |
-| DOCS-04 | — | Pending |
+| CLI-01 | Phase 5 | Pending |
+| CLI-02 | Phase 5 | Pending |
+| CLI-03 | Phase 5 | Pending |
+| PREP-01 | Phase 2 | Pending |
+| PREP-02 | Phase 2 | Pending |
+| PREP-03 | Phase 2 | Pending |
+| SAMP-01 | Phase 4 | Pending |
+| SAMP-02 | Phase 4 | Pending |
+| SCORE-01 | Phase 3 | Pending |
+| SCORE-02 | Phase 3 | Pending |
+| SCORE-03 | Phase 3 | Pending |
+| ANAL-01 | Phase 6 | Pending |
+| ANAL-02 | Phase 6 | Pending |
+| ANAL-03 | Phase 6 | Pending |
+| OUT-01 | Phase 7 | Pending |
+| OUT-02 | Phase 7 | Pending |
+| OUT-03 | Phase 7 | Pending |
+| OUT-04 | Phase 6 | Pending |
+| OUT-05 | Phase 6 | Pending |
+| TEST-01 | Phase 1 | Pending |
+| TEST-02 | Phase 7 | Pending |
+| TEST-03 | Phase 8 | Pending |
+| DOCS-01 | Phase 8 | Pending |
+| DOCS-02 | Phase 8 | Pending |
+| DOCS-03 | Phase 8 | Pending |
+| DOCS-04 | Phase 8 | Pending |
 
 **Coverage:**
 - v1 requirements: 26 total
-- Mapped to phases: 0 (updated during roadmap creation)
-- Unmapped: 26 ⚠️ (roadmap pending)
+- Mapped to phases: 26 (all mapped)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-19*
-*Last updated: 2026-04-19 after initial definition*
+*Last updated: 2026-04-19 after roadmap creation (8 phases)*

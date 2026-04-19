@@ -1,36 +1,69 @@
-# State: HybriDock-Pep
+# Project State
+
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-04-19)
+
+**Core value:** Ranking peptide binding poses with physics-backed scores that are more accurate than ML or Vina alone — so the top-1 result can be trusted for real scientific decisions.
+**Current focus:** Phase 1 — Foundation
 
 ## Current Position
 
-Phase: Not started (roadmap being created)
-Plan: —
-Status: Defining roadmap
-Last activity: 2026-04-19 — Milestone v1.0 started
+Phase: 1 of 8 (Foundation)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-04-19 — Roadmap created (8 phases, 26/26 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0
+- Average duration: —
+- Total execution time: 0 hours
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
+
+**Recent Trend:** —
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
-- Two-environment architecture is non-negotiable: `rapidock-env` (Python 3.9, PyTorch 2.7, CUDA 12.8) and `score-env` (Python 3.11, Vina 1.2.7, OpenMM 8.4)
-- PyTorch 2.7 + CUDA 12.8 required for native Blackwell sm_120 support (not 2.3/12.4 as spec says)
-- PULCHRA must be v3.04 exactly — build from source, do not use Bioconda 3.06
-- fair-esm 2.0.0 is highest fragility point (abandoned upstream) — smoke test import first
-- Use Vina Python API (not subprocess) for per-pose scoring to avoid fork+exec × 100
-- scikit-learn clustering: use `average` linkage with precomputed RMSD metric (Ward requires Euclidean)
-- Cluster over contact-zone Cα only (not full peptide) to avoid terminal-residue RMSD dominance
+### Decisions
 
-## Decisions
+- PyTorch 2.7 + CUDA 12.8 (not 2.3/12.4) — first native sm_120; emulation only on older stack
+- Vina Python API for scoring — avoids 100 fork+exec cycles per run
+- Contact-zone Ca RMSD for clustering — terminal residues dominate full-peptide RMSD and corrupt cluster quality
+- Skip PyRosetta relax by default — ref2015 alignment failure on C-terminal cysteine (§16.1)
+- AD4 scoring in parallel with Vina — provides charge signal Vina ignores; discrepancy flags electrostatics-dominated binding
+- Two separate conda envs — rapidock-env (Python 3.9) and score-env (Python 3.11); incompatible stacks
 
-| Decision | Rationale |
-|----------|-----------|
-| PyTorch 2.7 + CUDA 12.8 | First native sm_120 support; 2.3/12.4 is emulation only |
-| Vina Python API for scoring | Avoids 100 fork+exec cycles per run |
-| contact-zone Cα RMSD for clustering | Terminal residues dominate full-peptide RMSD and corrupt cluster quality |
-| Skip PyRosetta relax by default | ref2015 alignment failure on C-terminal cysteine (§16.1) |
-| AD4 scoring in parallel with Vina | Provides charge signal Vina ignores; discrepancy flags electrostatics-dominated binding |
+### Pending Todos
 
-## Blockers
+None yet.
 
-(none)
+### Blockers/Concerns
 
-## Pending Todos
+- fair-esm 2.0.0 import against PyTorch 2.7 is unverified — validate on day one of Phase 4
+- PyG cu128 prebuilt wheels for PyTorch 2.7.0 may not exist — have source build fallback ready
+- PULCHRA must be built from source at exactly v3.04 — Bioconda ships 3.06 (aromatic side-chain bug)
 
-(none)
+## Deferred Items
+
+| Category | Item | Status | Deferred At |
+|----------|------|--------|-------------|
+| v2 | MM-GBSA --refine-topk (OPT-01) | v2 scope | Roadmap creation |
+| v2 | --skip-sampling reuse flag (OPT-02) | v2 scope | Roadmap creation |
+| v2 | Cluster dendrogram plot (VIZ-01) | v2 scope | Roadmap creation |
+
+## Session Continuity
+
+Last session: 2026-04-19
+Stopped at: Roadmap created, STATE.md initialized, REQUIREMENTS.md traceability updated
+Resume file: None
