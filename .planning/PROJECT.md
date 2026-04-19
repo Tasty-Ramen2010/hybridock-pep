@@ -1,5 +1,17 @@
 # HybriDock-Pep
 
+## Current Milestone: v1.0 Core Pipeline
+
+**Goal:** Build and ship the complete hybrid peptide docking tool — from CLI scaffold to benchmarked, documented pipeline — ready for iGEM 2026 submission.
+
+**Target features:**
+- CLI entry point with `dock`, `calibrate`, `benchmark`, `prep` subcommands
+- Two-environment pipeline: RAPiDock GPU sampling + physics-based rescoring (Vina + AD4 + entropy correction)
+- RMSD clustering, ensemble statistics, convergence/silhouette plots
+- Full reproducibility metadata (`run_metadata.json`)
+- Smoke test, MDM2/p53 integration test, benchmark suite
+- README, INSTALL.md, architecture docs, tutorial notebook
+
 ## What This Is
 
 A hybrid peptide docking tool for the iGEM 2026 Best Software Tool award. It combines a diffusion-based generative model (RAPiDock) for stochastic pose sampling with physics-based rescoring (AutoDock Vina, AutoDock4, backbone entropy correction, and optional MM-GBSA) to produce trustworthy binding pose rankings and free energy estimates for any peptide sequence against any receptor PDB. Developed by the Denmark High School iGEM 2026 dry lab team.
