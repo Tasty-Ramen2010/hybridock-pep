@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Ranking peptide binding poses with physics-backed scores that are more accurate than ML or Vina alone — so the top-1 result can be trusted for real scientific decisions.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 2 — Preparation Pipeline
 
 ## Current Position
 
-Phase: 1 of 8 (Foundation)
-Plan: 2 of 2 in current phase
-Status: Phase complete — advancing to Phase 2
-Last activity: 2026-04-20 — Plan 01-02 complete (package scaffold + core models + CLI stub + tests)
+Phase: 2 of 8 (Preparation Pipeline)
+Plan: 0 of ? in current phase
+Status: Discussion complete — ready for planning
+Last activity: 2026-04-20 — Phase 2 discuss complete; 02-CONTEXT.md written
 
 Progress: [██░░░░░░░░] 13% (2 of 16 plans complete)
 
@@ -68,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-20
-Stopped at: Completed 01-02-PLAN.md — package scaffold, core models, CLI stub, tests
-Resume file: .planning/phases/02-preparation/ (Phase 2, first plan)
+Stopped at: Phase 2 discuss complete — 02-CONTEXT.md and 02-DISCUSSION-LOG.md written
+Resume file: /gsd-plan-phase 2
