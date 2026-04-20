@@ -451,3 +451,308 @@ class TestPrepareSingleLigandWorker:
         result = _prepare_single_ligand((3, bad_path, tmp_path))
         assert isinstance(result, PoseFailure)
         assert result.error_msg != ""
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (02-03): prep/grids.py — generate_ad4_maps + _build_gpf
+# ---------------------------------------------------------------------------
+
+
+class TestGridsImports:
+    """PREP-03: Module-level import and structural requirements."""
+
+    def test_importable(self) -> None:
+        from hybridock_pep.prep.grids import generate_ad4_maps  # noqa: F401
+
+    def test_build_gpf_importable(self) -> None:
+        from hybridock_pep.prep.grids import _build_gpf  # noqa: F401
+
+    def test_future_annotations_present(self) -> None:
+        """from __future__ import annotations must be first non-comment line."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "grids.py"
+        )
+        lines = source.read_text().splitlines()
+        code_lines = [ln for ln in lines if ln.strip() and not ln.startswith("#")]
+        assert code_lines[0] == "from __future__ import annotations", (
+            f"Expected 'from __future__ import annotations', got: {code_lines[0]!r}"
+        )
+
+    def test_no_bare_except(self) -> None:
+        """No bare 'except:' allowed (project convention)."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "grids.py"
+        )
+        content = source.read_text()
+        assert "except:" not in content, "Bare except: found"
+
+    def test_no_template_reference(self) -> None:
+        """GPF is programmatic — no template file on disk (D-04)."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "grids.py"
+        )
+        content = source.read_text().lower()
+        assert "template" not in content, "Template reference found — GPF must be programmatic"
+
+
+class TestBuildGpf:
+    """Unit tests for _build_gpf — no subprocess needed."""
+
+    @pytest.fixture()
+    def config(self, tmp_path: Path):
+        """Minimal DockConfig for GPF testing."""
+        from hybridock_pep.models import DockConfig
+
+        receptor = Path(__file__).parent / "fixtures" / "receptor_tiny.pdb"
+        return DockConfig(
+            peptide_sequence="ALA",
+            receptor_path=receptor,
+            site_coords=(22.5, 14.1, 38.7),
+            box_size=20.0,
+            output_dir=tmp_path / "out",
+        )
+
+    def test_ligand_types_contains_hd(self, config, tmp_path: Path) -> None:
+        """ligand_types line must contain HD — required for receptor.HD.map generation."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_text = _build_gpf(config, maps_dir)
+        # Find the ligand_types line
+        ligand_line = next(
+            (ln for ln in gpf_text.splitlines() if ln.startswith("ligand_types")), None
+        )
+        assert ligand_line is not None, "ligand_types line missing from GPF"
+        assert "HD" in ligand_line, f"HD not in ligand_types line: {ligand_line!r}"
+
+    def test_gridcenter_matches_site_coords(self, config, tmp_path: Path) -> None:
+        """gridcenter line must match DockConfig.site_coords."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_text = _build_gpf(config, maps_dir)
+        assert "gridcenter 22.5 14.1 38.7" in gpf_text
+
+    def test_npts_derived_from_box_size(self, config, tmp_path: Path) -> None:
+        """npts = int(box_size / 0.375) for a cubic box."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_text = _build_gpf(config, maps_dir)
+        # box_size=20.0, spacing=0.375 -> npts=53
+        expected_npts = int(20.0 / 0.375)
+        npts_line = next(
+            (ln for ln in gpf_text.splitlines() if ln.startswith("npts")), None
+        )
+        assert npts_line is not None, "npts line missing from GPF"
+        parts = npts_line.split()
+        assert parts[1] == str(expected_npts), f"npts x mismatch: {npts_line!r}"
+        assert parts[2] == str(expected_npts), f"npts y mismatch: {npts_line!r}"
+        assert parts[3] == str(expected_npts), f"npts z mismatch: {npts_line!r}"
+
+    def test_receptor_line_is_filename_only(self, config, tmp_path: Path) -> None:
+        """receptor line must be 'receptor receptor.pdbqt' — filename, not full path."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_text = _build_gpf(config, maps_dir)
+        receptor_line = next(
+            (ln for ln in gpf_text.splitlines() if ln.startswith("receptor ") and "pdbqt" in ln),
+            None,
+        )
+        assert receptor_line is not None, "receptor line missing from GPF"
+        assert receptor_line == "receptor receptor.pdbqt", (
+            f"receptor line should be filename-only, got: {receptor_line!r}"
+        )
+
+    def test_hd_map_line_present(self, config, tmp_path: Path) -> None:
+        """map receptor.HD.map line must appear in GPF."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_text = _build_gpf(config, maps_dir)
+        assert "map receptor.HD.map" in gpf_text
+
+    def test_spacing_is_0375(self, config, tmp_path: Path) -> None:
+        """spacing line must be 0.375."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_text = _build_gpf(config, maps_dir)
+        assert "spacing 0.375" in gpf_text
+
+
+class TestGenerateAd4Maps:
+    """PREP-03: Behavioral tests for generate_ad4_maps — autogrid4 mocked."""
+
+    @pytest.fixture()
+    def config(self, tmp_path: Path):
+        from hybridock_pep.models import DockConfig
+
+        receptor = Path(__file__).parent / "fixtures" / "receptor_tiny.pdb"
+        return DockConfig(
+            peptide_sequence="ALA",
+            receptor_path=receptor,
+            site_coords=(22.5, 14.1, 38.7),
+            box_size=20.0,
+            output_dir=tmp_path / "out",
+        )
+
+    @pytest.fixture()
+    def receptor_pdbqt(self, tmp_path: Path) -> Path:
+        """Minimal receptor PDBQT file for testing."""
+        pdbqt = tmp_path / "receptor.pdbqt"
+        pdbqt.write_text("ATOM      1  CA  ALA A   1       1.000   2.000   3.000  0.00  0.00    +0.000 C\n")
+        return pdbqt
+
+    def _make_autogrid4_side_effect(self, maps_dir: Path, write_hd: bool = True):
+        """Return a side_effect function that simulates autogrid4 writing map files."""
+        import subprocess
+
+        def side_effect(cmd, **kwargs):
+            cwd = Path(kwargs.get("cwd", maps_dir))
+            # Write expected map files
+            for atom_type in ["C", "A", "N", "O", "S", "H"]:
+                (cwd / f"receptor.{atom_type}.map").write_text(f"fake {atom_type} map\n")
+            (cwd / "receptor.e.map").write_text("fake e map\n")
+            (cwd / "receptor.d.map").write_text("fake d map\n")
+            if write_hd:
+                (cwd / "receptor.HD.map").write_text("fake HD map\n")
+            result = MagicMock()
+            result.returncode = 0
+            result.stderr = ""
+            return result
+
+        return side_effect
+
+    def test_returns_maps_dir_on_success(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
+        """generate_ad4_maps returns the maps directory Path on success."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        maps_dir = config.output_dir / "maps"
+        with patch(
+            "hybridock_pep.prep.grids.subprocess.run",
+            side_effect=self._make_autogrid4_side_effect(maps_dir),
+        ):
+            result = generate_ad4_maps(config, receptor_pdbqt)
+        assert result == maps_dir
+
+    def test_maps_dir_created_if_absent(self, config, receptor_pdbqt: Path) -> None:
+        """generate_ad4_maps creates output_dir/maps/ if it does not exist."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        maps_dir = config.output_dir / "maps"
+        assert not maps_dir.exists()
+
+        with patch(
+            "hybridock_pep.prep.grids.subprocess.run",
+            side_effect=self._make_autogrid4_side_effect(maps_dir),
+        ):
+            generate_ad4_maps(config, receptor_pdbqt)
+
+        assert maps_dir.exists()
+
+    def test_gpf_written_to_maps_dir(self, config, receptor_pdbqt: Path) -> None:
+        """GPF file is written to output_dir/maps/receptor.gpf."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        maps_dir = config.output_dir / "maps"
+        with patch(
+            "hybridock_pep.prep.grids.subprocess.run",
+            side_effect=self._make_autogrid4_side_effect(maps_dir),
+        ):
+            generate_ad4_maps(config, receptor_pdbqt)
+
+        gpf_path = maps_dir / "receptor.gpf"
+        assert gpf_path.exists(), "receptor.gpf not written to maps_dir"
+
+    def test_hd_map_guard_raises_prep_error_when_missing(
+        self, config, receptor_pdbqt: Path
+    ) -> None:
+        """PrepError raised with verbatim D-05 message when HD.map is absent."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+        from hybridock_pep.prep import PrepError
+
+        maps_dir = config.output_dir / "maps"
+        with patch(
+            "hybridock_pep.prep.grids.subprocess.run",
+            side_effect=self._make_autogrid4_side_effect(maps_dir, write_hd=False),
+        ):
+            with pytest.raises(PrepError, match="receptor.HD.map not found after autogrid4"):
+                generate_ad4_maps(config, receptor_pdbqt)
+
+    def test_hd_map_guard_exact_message(self, config, receptor_pdbqt: Path) -> None:
+        """PrepError message matches verbatim D-05 specification."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+        from hybridock_pep.prep import PrepError
+
+        maps_dir = config.output_dir / "maps"
+        with patch(
+            "hybridock_pep.prep.grids.subprocess.run",
+            side_effect=self._make_autogrid4_side_effect(maps_dir, write_hd=False),
+        ):
+            with pytest.raises(PrepError) as exc_info:
+                generate_ad4_maps(config, receptor_pdbqt)
+        expected = (
+            "receptor.HD.map not found after autogrid4 — AD4 scoring will fail. "
+            "Check your atom types in the GPF."
+        )
+        assert str(exc_info.value) == expected
+
+    def test_autogrid4_called_with_cwd_maps_dir(self, config, receptor_pdbqt: Path) -> None:
+        """autogrid4 subprocess is called with cwd=maps_dir (string)."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        maps_dir = config.output_dir / "maps"
+        with patch("hybridock_pep.prep.grids.subprocess.run") as mock_run:
+            mock_run.side_effect = self._make_autogrid4_side_effect(maps_dir)
+            generate_ad4_maps(config, receptor_pdbqt)
+
+        call_kwargs = mock_run.call_args[1]
+        assert "cwd" in call_kwargs, "cwd not passed to subprocess.run"
+        assert str(call_kwargs["cwd"]) == str(maps_dir)
+
+    def test_nonzero_exit_raises_prep_error(self, config, receptor_pdbqt: Path) -> None:
+        """Non-zero autogrid4 exit raises PrepError with returncode and stderr."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+        from hybridock_pep.prep import PrepError
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "autogrid4: fatal error"
+
+        with patch("hybridock_pep.prep.grids.subprocess.run", return_value=mock_result):
+            with pytest.raises(PrepError, match="autogrid4 failed"):
+                generate_ad4_maps(config, receptor_pdbqt)
+
+    def test_receptor_pdbqt_copied_to_maps_dir(self, config, receptor_pdbqt: Path) -> None:
+        """receptor.pdbqt is copied into maps_dir before autogrid4 runs."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        maps_dir = config.output_dir / "maps"
+        with patch(
+            "hybridock_pep.prep.grids.subprocess.run",
+            side_effect=self._make_autogrid4_side_effect(maps_dir),
+        ):
+            generate_ad4_maps(config, receptor_pdbqt)
+
+        receptor_copy = maps_dir / "receptor.pdbqt"
+        assert receptor_copy.exists(), "receptor.pdbqt not copied into maps_dir"
