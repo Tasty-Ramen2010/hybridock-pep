@@ -7,7 +7,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 ## Phases
 
 - [x] **Phase 1: Foundation** - Both conda environments set up, core dataclasses defined, package scaffold in place, smoke test passing
-- [ ] **Phase 2: Preparation Pipeline** - Receptor and ligand PDBQT preparation wrappers working, autogrid4 AD4 map generation validated
+- [x] **Phase 2: Preparation Pipeline** - Receptor and ligand PDBQT preparation wrappers working, autogrid4 AD4 map generation validated *(complete 2026-04-20)*
 - [ ] **Phase 3: Scoring Core** - Vina and AD4 per-pose scoring implemented, entropy correction with α calibration working
 - [ ] **Phase 4: Sampling Integration** - RAPiDock subprocess wrapper running 100 poses, pose I/O parsing, provenance metadata written
 - [ ] **Phase 5: CLI & Driver** - Single entry point with all subcommands, pre-run validation, seed propagation, full two-stage orchestration
