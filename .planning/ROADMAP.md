@@ -42,7 +42,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 **Plans**: 4 plans
   - [x] 02-01-PLAN.md — PrepError + test fixtures + prep/receptor.py (PREP-01)
   - [x] 02-02-PLAN.md — prep/ligand.py Meeko batch converter (PREP-02)
-  - [ ] 02-03-PLAN.md — prep/grids.py GPF builder + autogrid4 + HD map guard (PREP-03)
+  - [x] 02-03-PLAN.md — prep/grids.py GPF builder + autogrid4 + HD map guard (PREP-03)
   - [ ] 02-04-PLAN.md — tests/test_prep.py covering all three modules (PREP-01, PREP-02, PREP-03)
 
 ### Phase 3: Scoring Core
@@ -118,7 +118,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-04-20 |
-| 2. Preparation Pipeline | 2/4 | In Progress|  |
+| 2. Preparation Pipeline | 3/4 | In Progress|  |
 | 3. Scoring Core | 0/? | Not started | - |
 | 4. Sampling Integration | 0/? | Not started | - |
 | 5. CLI & Driver | 0/? | Not started | - |
