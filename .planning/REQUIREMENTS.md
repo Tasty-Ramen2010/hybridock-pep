@@ -13,9 +13,9 @@
 
 ### Preparation
 
-- [ ] **PREP-01**: User can prepare a receptor PDB as PDBQT (pdbfixer cleaning → ADFRsuite `prepare_receptor4.py` wrapper)
+- [x] **PREP-01**: User can prepare a receptor PDB as PDBQT (pdbfixer cleaning → ADFRsuite `prepare_receptor4.py` wrapper)
 - [x] **PREP-02**: Pipeline prepares all 100 diffusion poses as PDBQT in batch (Meeko, stateless per-pose, parallelized)
-- [ ] **PREP-03**: Pipeline generates AutoDock4 affinity maps via `autogrid4`; aborts with clear error if `receptor.HD.map` is missing after generation
+- [x] **PREP-03**: Pipeline generates AutoDock4 affinity maps via `autogrid4`; aborts with clear error if `receptor.HD.map` is missing after generation
 
 ### Sampling
 
@@ -86,9 +86,9 @@
 | CLI-01 | Phase 5 | Pending |
 | CLI-02 | Phase 5 | Pending |
 | CLI-03 | Phase 5 | Pending |
-| PREP-01 | Phase 2 | Pending |
+| PREP-01 | Phase 2 | Complete |
 | PREP-02 | Phase 2 | Complete |
-| PREP-03 | Phase 2 | Pending |
+| PREP-03 | Phase 2 | Complete |
 | SAMP-01 | Phase 4 | Pending |
 | SAMP-02 | Phase 4 | Pending |
 | SCORE-01 | Phase 3 | Pending |

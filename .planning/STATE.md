@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md — grids.py GPF builder + autogrid4 + HD map guard
-last_updated: "2026-04-20T20:41:00.000Z"
+stopped_at: Completed 02-04-PLAN.md — TestReceptorPrep, TestLigandBatch, TestGrids in test_prep.py
+last_updated: "2026-04-20T21:10:00.000Z"
 last_activity: 2026-04-20
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 38
 ---
 
 # Project State
@@ -21,31 +21,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Ranking peptide binding poses with physics-backed scores that are more accurate than ML or Vina alone — so the top-1 result can be trusted for real scientific decisions.
-**Current focus:** Phase 2 — Preparation Pipeline
+**Current focus:** Phase 3 — Scoring Core
 
 ## Current Position
 
-Phase: 2 of 8 (Preparation Pipeline)
-Plan: 4 of 4 in current phase
-Status: Ready to execute
+Phase: 2 of 8 (Preparation Pipeline — COMPLETE)
+Plan: 4 of 4 in phase 2 (all done)
+Status: Phase 2 complete; ready for Phase 3
 Last activity: 2026-04-20
 
-Progress: [████░░░░░░] 25% (4 of 16 plans complete)
+Progress: [███░░░░░░░] 38% (6 of 16 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2
-- Average duration: 3.5 min
-- Total execution time: 0.12 hours
+- Total plans completed: 6
+- Average duration: 4.0 min
+- Total execution time: 0.40 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 2 | 7 min | 3.5 min |
-| 02-preparation | 3 | 13 min | 4.3 min |
+| 02-preparation | 4 | 19 min | 4.8 min |
 
 **Recent Trend:** On track
 
@@ -71,6 +71,7 @@ Progress: [████░░░░░░] 25% (4 of 16 plans complete)
 - prepare_ligand_batch() collect-all-failures: len(successes)+len(failures)==len(inputs) always; batch never raises on per-pose errors
 - _build_gpf() generates GPF programmatically from DockConfig — no template file; ligand_types includes HD for receptor.HD.map generation
 - generate_ad4_maps() hard-aborts with PrepError (verbatim D-05 message) if receptor.HD.map missing — prevents silent vina --scoring ad4 failure downstream
+- All hybridock_pep imports kept lazy in test_prep.py — pytest-cov triggers numpy double-import error in Python 3.13 base env; coverage measured via coverage run
 
 ### Pending Todos
 
@@ -81,6 +82,7 @@ None yet.
 - fair-esm 2.0.0 import against PyTorch 2.7 is unverified — validate on day one of Phase 4
 - PyG cu128 prebuilt wheels for PyTorch 2.7.0 may not exist — have source build fallback ready
 - PULCHRA must be built from source at exactly v3.04 — Bioconda ships 3.06 (aromatic side-chain bug)
+- pytest --cov flag fails in Python 3.13 base env (numpy double-import conflict with pytest-cov hooks) — use score-env (Python 3.11) or coverage run for coverage measurement
 
 ## Deferred Items
 
@@ -93,5 +95,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-20
-Stopped at: Completed 02-03-PLAN.md — grids.py GPF builder + autogrid4 + HD map guard
+Stopped at: Completed 02-04-PLAN.md — TestReceptorPrep, TestLigandBatch, TestGrids in test_prep.py
 Resume file: None
