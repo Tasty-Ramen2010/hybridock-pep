@@ -26,7 +26,9 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   2. `conda env create -f envs/score-env.yml && pip install -e .` completes without error and `hybridock-pep --help` prints usage
   3. `bash scripts/smoke_test.sh` exits 0 on a correctly configured machine and exits non-zero with a diagnostic message for any missing dependency (CUDA capability, ADFRsuite on PATH, Vina version)
   4. `DockConfig`, `PoseRecord`, `ScoredPose`, and `PoseFailure` dataclasses are importable from `hybridock_pep` with full type annotations
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 01-01-PLAN.md — Conda envs + smoke test + INSTALL.md (TEST-01)
+  - [ ] 01-02-PLAN.md — Python package scaffold + core models + CLI stub + tests
 
 ### Phase 2: Preparation Pipeline
 **Goal**: Receptor PDB and per-pose ligand PDBQT preparation are fully automated and validated, and AD4 affinity maps are generated with a hard abort if the HD map is missing
@@ -111,7 +113,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/2 | Not started | - |
 | 2. Preparation Pipeline | 0/? | Not started | - |
 | 3. Scoring Core | 0/? | Not started | - |
 | 4. Sampling Integration | 0/? | Not started | - |
