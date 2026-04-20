@@ -1,0 +1,22 @@
+name: rapidock-env
+channels:
+  - pytorch
+  - nvidia
+  - pyg
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pytorch=2.7.*
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.8
+  - pyg::pyg
+  - conda-forge::mdanalysis>=2.7
+  - conda-forge::e3nn>=0.5
+  - conda-forge::rdkit>=2024.03
+  - conda-forge::numpy>=1.26
+  - pip:
+      # Rosetta relax (license-restricted): install manually per INSTALL.md after env creation.
+      # RAPiDock commit SHA is pinned in Phase 4; placeholder here is intentional.
+      - "git+https://github.com/huifengzhao/RAPiDock.git@PINNED_SHA_TBD_PHASE_4"

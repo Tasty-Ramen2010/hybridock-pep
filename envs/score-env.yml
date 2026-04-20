@@ -1,0 +1,17 @@
+name: score-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - conda-forge::numpy>=1.26
+  - conda-forge::scipy>=1.13
+  - conda-forge::scikit-learn>=1.4
+  - conda-forge::matplotlib>=3.8
+  - conda-forge::biopython>=1.83
+  - conda-forge::openmm>=8.1
+  - conda-forge::pdbfixer>=1.9
+  - pip:
+      - "pydantic>=2.0"
+      - "meeko>=0.5"
+      - "vina>=1.2.5"
