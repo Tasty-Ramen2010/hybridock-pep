@@ -6,7 +6,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 
 ## Phases
 
-- [ ] **Phase 1: Foundation** - Both conda environments set up, core dataclasses defined, package scaffold in place, smoke test passing
+- [x] **Phase 1: Foundation** - Both conda environments set up, core dataclasses defined, package scaffold in place, smoke test passing
 - [ ] **Phase 2: Preparation Pipeline** - Receptor and ligand PDBQT preparation wrappers working, autogrid4 AD4 map generation validated
 - [ ] **Phase 3: Scoring Core** - Vina and AD4 per-pose scoring implemented, entropy correction with α calibration working
 - [ ] **Phase 4: Sampling Integration** - RAPiDock subprocess wrapper running 100 poses, pose I/O parsing, provenance metadata written
@@ -28,7 +28,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   4. `DockConfig`, `PoseRecord`, `ScoredPose`, and `PoseFailure` dataclasses are importable from `hybridock_pep` with full type annotations
 **Plans**: 2 plans
   - [x] 01-01-PLAN.md — Conda envs + smoke test + INSTALL.md (TEST-01)
-  - [ ] 01-02-PLAN.md — Python package scaffold + core models + CLI stub + tests
+  - [x] 01-02-PLAN.md — Python package scaffold + core models + CLI stub + tests
 
 ### Phase 2: Preparation Pipeline
 **Goal**: Receptor PDB and per-pose ligand PDBQT preparation are fully automated and validated, and AD4 affinity maps are generated with a hard abort if the HD map is missing
@@ -113,7 +113,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In progress | - |
+| 1. Foundation | 2/2 | Complete | 2026-04-20 |
 | 2. Preparation Pipeline | 0/? | Not started | - |
 | 3. Scoring Core | 0/? | Not started | - |
 | 4. Sampling Integration | 0/? | Not started | - |

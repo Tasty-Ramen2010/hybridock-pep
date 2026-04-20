@@ -10,24 +10,24 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 1 of 8 (Foundation)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-04-20 — Plan 01-01 complete (conda envs + smoke test + INSTALL.md)
+Plan: 2 of 2 in current phase
+Status: Phase complete — advancing to Phase 2
+Last activity: 2026-04-20 — Plan 01-02 complete (package scaffold + core models + CLI stub + tests)
 
-Progress: [█░░░░░░░░░] 6% (1 of 16 plans complete)
+Progress: [██░░░░░░░░] 13% (2 of 16 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 3 min
-- Total execution time: 0.05 hours
+- Total plans completed: 2
+- Average duration: 3.5 min
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 1 | 3 min | 3 min |
+| 01-foundation | 2 | 7 min | 3.5 min |
 
 **Recent Trend:** On track
 
@@ -43,6 +43,9 @@ Progress: [█░░░░░░░░░] 6% (1 of 16 plans complete)
 - Skip PyRosetta relax by default — ref2015 alignment failure on C-terminal cysteine (§16.1)
 - AD4 scoring in parallel with Vina — provides charge signal Vina ignores; discrepancy flags electrostatics-dominated binding
 - Two separate conda envs — rapidock-env (Python 3.9) and score-env (Python 3.11); incompatible stacks
+- DockConfig frozen=True (immutable) — config crosses subprocess boundary and must not mutate
+- run_id auto-generated via @model_validator(mode='before') — must resolve before field validators fire
+- ScoredPose extends PoseRecord via @dataclass inheritance — parent fields required, child fields defaulted
 
 ### Pending Todos
 
@@ -65,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-20
-Stopped at: Completed 01-01-PLAN.md — conda envs, smoke test, INSTALL.md
-Resume file: .planning/phases/01-foundation/01-02-PLAN.md
+Stopped at: Completed 01-02-PLAN.md — package scaffold, core models, CLI stub, tests
+Resume file: .planning/phases/02-preparation/ (Phase 2, first plan)
