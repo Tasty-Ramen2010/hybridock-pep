@@ -44,7 +44,7 @@
 
 ### Testing
 
-- [ ] **TEST-01**: `scripts/smoke_test.sh` checks: RTX 5070 CUDA compute capability, ADFRsuite on PATH, Vina version ≥ 1.2.5; exits non-zero with diagnostic message on any failure
+- [x] **TEST-01**: `scripts/smoke_test.sh` checks: RTX 5070 CUDA compute capability, ADFRsuite on PATH, Vina version ≥ 1.2.5; exits non-zero with diagnostic message on any failure
 - [ ] **TEST-02**: Integration test on MDM2/p53 (PDB 2OY2, peptide `ETFSDLWKLLPE`) passes when corrected ΔG < −3 kcal/mol; tagged `pytest -m slow`
 - [ ] **TEST-03**: Benchmark suite runs on 10 reference complexes and achieves Pearson r ≥ 0.55 on held-out test set and ≥ 0.10 improvement over Vina-alone
 
