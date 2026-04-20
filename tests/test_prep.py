@@ -1,10 +1,25 @@
 """Tests for hybridock_pep.prep — PREP-01, PREP-02, PREP-03."""
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# NOTE: hybridock_pep imports (which pull in numpy) are kept inside test methods/fixtures
+# to avoid pytest-cov double-import conflicts in the system Python 3.13 environment.
+# The three classes below (TestReceptorPrep, TestLigandBatch, TestGrids) use lazy imports
+# in the same style as the rest of this file.
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(scope="session")
+def meeko_available() -> None:
+    """Session-scoped fixture that skips if meeko is not installed."""
+    pytest.importorskip("meeko", reason="meeko not installed (score-env only)")
+
 
 # ---------------------------------------------------------------------------
 # Task 1: PrepError + fixtures
@@ -756,3 +771,333 @@ class TestGenerateAd4Maps:
 
         receptor_copy = maps_dir / "receptor.pdbqt"
         assert receptor_copy.exists(), "receptor.pdbqt not copied into maps_dir"
+
+
+# ---------------------------------------------------------------------------
+# Plan 02-04: Required class names — TestReceptorPrep, TestLigandBatch, TestGrids
+# These classes satisfy the acceptance criteria for plan 02-04 (class names,
+# monkeypatch style, exact match strings). Existing classes above are preserved.
+# ---------------------------------------------------------------------------
+
+
+class TestReceptorPrep:
+    """PREP-01 contract tests using pytest monkeypatch style (02-04 acceptance criteria)."""
+
+    @pytest.fixture()
+    def config(self, tmp_path: Path):
+        from hybridock_pep.models import DockConfig
+
+        return DockConfig(
+            peptide_sequence="LISDAELEAIFEADC",
+            receptor_path=FIXTURES_DIR / "receptor_tiny.pdb",
+            site_coords=(22.5, 14.1, 38.7),
+            box_size=20.0,
+            output_dir=tmp_path / "out",
+        )
+
+    def _mock_ntf(self, monkeypatch, tmp_path: Path) -> None:
+        """Set up NamedTemporaryFile mock so receptor.py path resolution works."""
+        tmp_file1 = tmp_path / "tmp_cleaned.pdb"
+        tmp_file1.write_text("")
+        tmp_file2 = tmp_path / "tmp_fixed.pdb"
+        tmp_file2.write_text("")
+
+        ntf_ctx1 = MagicMock()
+        ntf_ctx1.__enter__ = MagicMock(return_value=ntf_ctx1)
+        ntf_ctx1.__exit__ = MagicMock(return_value=False)
+        ntf_ctx1.name = str(tmp_file1)
+
+        ntf_ctx2 = MagicMock()
+        ntf_ctx2.__enter__ = MagicMock(return_value=ntf_ctx2)
+        ntf_ctx2.__exit__ = MagicMock(return_value=False)
+        ntf_ctx2.name = str(tmp_file2)
+
+        call_count = {"n": 0}
+        contexts = [ntf_ctx1, ntf_ctx2]
+
+        def ntf_side_effect(*args, **kwargs):
+            ctx = contexts[call_count["n"] % 2]
+            call_count["n"] += 1
+            return ctx
+
+        monkeypatch.setattr("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile", ntf_side_effect)
+
+    def test_prepare_receptor_calls_prepare_receptor4(
+        self, config, tmp_path: Path, monkeypatch
+    ) -> None:
+        """prepare_receptor calls prepare_receptor4.py and returns receptor.pdbqt path."""
+        from hybridock_pep.prep.receptor import prepare_receptor
+
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(list(cmd))
+            return mock_result
+
+        monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", fake_run)
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        self._mock_ntf(monkeypatch, tmp_path)
+
+        result = prepare_receptor(config)
+
+        assert result == config.output_dir / "receptor.pdbqt"
+        assert len(calls) == 1, "subprocess.run should have been called exactly once"
+        assert calls[0][0] == "prepare_receptor4.py", (
+            f"First arg to subprocess must be 'prepare_receptor4.py', got: {calls[0][0]!r}"
+        )
+
+    def test_prepare_receptor_nonzero_exit_raises_prep_error(
+        self, config, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Non-zero returncode from prepare_receptor4.py raises PrepError containing stderr."""
+        from hybridock_pep.prep import PrepError
+        from hybridock_pep.prep.receptor import prepare_receptor
+
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="fatal: bad input"
+        )
+        monkeypatch.setattr(
+            "hybridock_pep.prep.receptor.subprocess.run", lambda *a, **kw: mock_result
+        )
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        self._mock_ntf(monkeypatch, tmp_path)
+
+        with pytest.raises(PrepError, match="fatal: bad input"):
+            prepare_receptor(config)
+
+    def test_prepare_receptor_always_regenerates(
+        self, config, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Calling prepare_receptor twice with the same config raises no exception (no cache guard)."""
+        from hybridock_pep.prep.receptor import prepare_receptor
+
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        ntf_calls = [0]
+
+        # Need to provide enough temp file mocks for two calls (2 calls × 2 NTF each = 4)
+        tmp_files = [tmp_path / f"tmp_{i}.pdb" for i in range(4)]
+        for f in tmp_files:
+            f.write_text("")
+
+        contexts = []
+        for f in tmp_files:
+            ctx = MagicMock()
+            ctx.__enter__ = MagicMock(return_value=ctx)
+            ctx.__exit__ = MagicMock(return_value=False)
+            ctx.name = str(f)
+            contexts.append(ctx)
+
+        def ntf_side_effect(*args, **kwargs):
+            idx = ntf_calls[0] % len(contexts)
+            ntf_calls[0] += 1
+            return contexts[idx]
+
+        monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", lambda *a, **kw: mock_result)
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        monkeypatch.setattr("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile", ntf_side_effect)
+
+        # Must not raise on either call
+        prepare_receptor(config)
+        prepare_receptor(config)
+
+    def test_pdbfixer_called_before_subprocess(
+        self, config, tmp_path: Path, monkeypatch
+    ) -> None:
+        """pdbfixer findMissingResidues/findMissingAtoms/addMissingHydrogens called before subprocess."""
+        from hybridock_pep.prep.receptor import prepare_receptor
+
+        call_order: list[str] = []
+
+        class SpyFixer:
+            def __init__(self, filename: str):
+                self.topology = MagicMock()
+                self.positions = MagicMock()
+
+            def findMissingResidues(self):
+                call_order.append("findMissingResidues")
+
+            def findMissingAtoms(self):
+                call_order.append("findMissingAtoms")
+
+            def addMissingHydrogens(self, ph: float):
+                call_order.append(f"addMissingHydrogens({ph})")
+
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        def spy_subprocess(*args, **kwargs):
+            call_order.append("subprocess.run")
+            return mock_result
+
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", SpyFixer)
+        monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", spy_subprocess)
+        self._mock_ntf(monkeypatch, tmp_path)
+
+        prepare_receptor(config)
+
+        assert "findMissingResidues" in call_order
+        assert "findMissingAtoms" in call_order
+        assert any("addMissingHydrogens" in c for c in call_order)
+        # All three pdbfixer methods must appear before subprocess.run
+        subprocess_idx = call_order.index("subprocess.run")
+        for method in ("findMissingResidues", "findMissingAtoms"):
+            assert call_order.index(method) < subprocess_idx, (
+                f"{method} was not called before subprocess.run"
+            )
+
+
+class TestLigandBatch:
+    """PREP-02 contract tests — collect-all-failures semantics (02-04 acceptance criteria)."""
+
+    @pytest.fixture()
+    def pose_tiny(self) -> Path:
+        return FIXTURES_DIR / "pose_tiny.pdb"
+
+    def test_batch_single_pose_success(
+        self, tmp_path: Path, pose_tiny: Path, meeko_available
+    ) -> None:
+        """Single valid pose produces one success and zero failures."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        successes, failures = prepare_ligand_batch(
+            [pose_tiny], tmp_path / "pdbqt_out", max_workers=1
+        )
+        assert len(successes) == 1, f"Expected 1 success, got {len(successes)}"
+        assert len(failures) == 0, f"Expected 0 failures, got {len(failures)}"
+        assert successes[0].exists(), f"PDBQT file not written: {successes[0]}"
+
+    def test_batch_missing_pdb_collected_as_failure(self, tmp_path: Path) -> None:
+        """A nonexistent PDB path is collected as a PoseFailure with stage='prep'."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        bad_path = tmp_path / "nonexistent_pose.pdb"
+        successes, failures = prepare_ligand_batch(
+            [bad_path], tmp_path / "pdbqt_out", max_workers=1
+        )
+        assert len(failures) == 1, f"Expected 1 failure, got {len(failures)}"
+        assert failures[0].stage == "prep", (
+            f"Expected stage='prep', got {failures[0].stage!r}"
+        )
+        assert len(successes) == 0, f"Expected 0 successes, got {len(successes)}"
+
+    def test_batch_successes_plus_failures_equals_input(
+        self, tmp_path: Path, pose_tiny: Path
+    ) -> None:
+        """len(successes) + len(failures) always equals len(input paths)."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        bad_path = tmp_path / "missing.pdb"
+        pdb_paths = [pose_tiny, bad_path]
+        successes, failures = prepare_ligand_batch(
+            pdb_paths, tmp_path / "pdbqt_out", max_workers=1
+        )
+        assert len(successes) + len(failures) == 2, (
+            f"successes ({len(successes)}) + failures ({len(failures)}) != 2"
+        )
+
+
+class TestGrids:
+    """PREP-03 contract tests — GPF content + HD map guard (02-04 acceptance criteria)."""
+
+    @pytest.fixture()
+    def config(self, tmp_path: Path):
+        from hybridock_pep.models import DockConfig
+
+        return DockConfig(
+            peptide_sequence="LISDAELEAIFEADC",
+            receptor_path=FIXTURES_DIR / "receptor_tiny.pdb",
+            site_coords=(22.5, 14.1, 38.7),
+            box_size=20.0,
+            output_dir=tmp_path / "out",
+        )
+
+    @pytest.fixture()
+    def receptor_pdbqt(self, tmp_path: Path) -> Path:
+        pdbqt = tmp_path / "receptor.pdbqt"
+        pdbqt.write_text(
+            "ATOM      1  CA  ALA A   1       1.000   2.000   3.000  0.00  0.00    +0.000 C\n"
+        )
+        return pdbqt
+
+    def test_build_gpf_contains_hd_type(self, config, tmp_path: Path) -> None:
+        """ligand_types line in GPF must contain HD."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_content = _build_gpf(config, maps_dir)
+        assert "HD" in gpf_content, "HD not found anywhere in GPF"
+        assert "ligand_types C A N O S H HD" in gpf_content, (
+            f"Expected 'ligand_types C A N O S H HD' in GPF, got:\n{gpf_content}"
+        )
+
+    def test_build_gpf_npts_from_box_size(self, config, tmp_path: Path) -> None:
+        """npts must equal int(box_size / 0.375) = 53 for box_size=20.0."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_content = _build_gpf(config, maps_dir)
+        expected = int(20.0 / 0.375)  # 53
+        assert f"npts {expected} {expected} {expected}" in gpf_content, (
+            f"Expected 'npts 53 53 53' in GPF, got:\n{gpf_content}"
+        )
+
+    def test_build_gpf_gridcenter_from_site_coords(self, config, tmp_path: Path) -> None:
+        """gridcenter line must match DockConfig.site_coords exactly."""
+        from hybridock_pep.prep.grids import _build_gpf
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        gpf_content = _build_gpf(config, maps_dir)
+        assert "gridcenter 22.5 14.1 38.7" in gpf_content, (
+            f"Expected 'gridcenter 22.5 14.1 38.7' in GPF, got:\n{gpf_content}"
+        )
+
+    def test_generate_ad4_maps_hd_map_missing_raises(
+        self,
+        config,
+        receptor_pdbqt: Path,
+        monkeypatch,
+    ) -> None:
+        """PrepError raised with 'receptor.HD.map not found after autogrid4' when HD.map absent."""
+        from hybridock_pep.prep import PrepError
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        def fake_autogrid4_no_hd(cmd, **kwargs):
+            # Run succeeds but does NOT write receptor.HD.map
+            return mock_result
+
+        monkeypatch.setattr("hybridock_pep.prep.grids.subprocess.run", fake_autogrid4_no_hd)
+
+        with pytest.raises(PrepError, match="receptor.HD.map not found after autogrid4"):
+            generate_ad4_maps(config, receptor_pdbqt)
+
+    def test_generate_ad4_maps_success_returns_maps_dir(
+        self,
+        config,
+        receptor_pdbqt: Path,
+        monkeypatch,
+    ) -> None:
+        """generate_ad4_maps returns output_dir/maps/ when HD.map is present."""
+        from hybridock_pep.prep.grids import generate_ad4_maps
+
+        maps_dir = config.output_dir / "maps"
+
+        def fake_autogrid4(*args, **kwargs):
+            cwd = Path(kwargs.get("cwd", str(maps_dir)))
+            (cwd / "receptor.HD.map").write_text("fake HD map")
+            return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr("hybridock_pep.prep.grids.subprocess.run", fake_autogrid4)
+
+        result = generate_ad4_maps(config, receptor_pdbqt)
+
+        assert result == config.output_dir / "maps"
+        assert result.is_dir()
