@@ -254,3 +254,200 @@ class TestPrepareReceptor:
             mock_fixer.findMissingResidues.assert_called_once()
             mock_fixer.findMissingAtoms.assert_called_once()
             mock_fixer.addMissingHydrogens.assert_called_once_with(7.4)
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (02-02): prep/ligand.py — prepare_ligand_batch + _prepare_single_ligand
+# ---------------------------------------------------------------------------
+
+
+class TestLigandBatchImports:
+    """PREP-02: Module-level imports and structural requirements."""
+
+    def test_importable(self) -> None:
+        from hybridock_pep.prep.ligand import prepare_ligand_batch  # noqa: F401
+
+    def test_worker_importable(self) -> None:
+        from hybridock_pep.prep.ligand import _prepare_single_ligand  # noqa: F401
+
+    def test_worker_is_module_level(self) -> None:
+        """_prepare_single_ligand must be defined at module level (not a closure)."""
+        import inspect
+        import hybridock_pep.prep.ligand as ligand_mod
+
+        func = ligand_mod._prepare_single_ligand
+        # qualname has no '.<locals>.' segment for module-level functions
+        assert "<locals>" not in func.__qualname__, (
+            f"_prepare_single_ligand appears to be a closure: {func.__qualname__!r}"
+        )
+
+    def test_uses_process_pool_executor(self) -> None:
+        """Source must use ProcessPoolExecutor, not ThreadPoolExecutor."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "ligand.py"
+        )
+        content = source.read_text()
+        assert "ProcessPoolExecutor" in content
+        assert "ThreadPoolExecutor" not in content
+
+    def test_meeko_import_inside_worker(self) -> None:
+        """from meeko import must appear inside the worker, not at module top level."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "ligand.py"
+        )
+        lines = source.read_text().splitlines()
+        # Top-level lines (non-indented) must not import meeko
+        top_level_meeko = [
+            ln for ln in lines if ln.startswith("from meeko") or ln.startswith("import meeko")
+        ]
+        assert not top_level_meeko, (
+            f"meeko imported at top level (not inside worker): {top_level_meeko}"
+        )
+
+    def test_no_bare_except(self) -> None:
+        """No bare 'except:' allowed (project convention)."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "ligand.py"
+        )
+        content = source.read_text()
+        assert "except:" not in content, "Bare except: found — use 'except Exception as e:'"
+
+    def test_future_annotations_present(self) -> None:
+        """from __future__ import annotations must be first non-comment line."""
+        source = (
+            Path(__file__).parent.parent
+            / "src"
+            / "hybridock_pep"
+            / "prep"
+            / "ligand.py"
+        )
+        lines = source.read_text().splitlines()
+        code_lines = [ln for ln in lines if ln.strip() and not ln.startswith("#")]
+        assert code_lines[0] == "from __future__ import annotations", (
+            f"Expected 'from __future__ import annotations', got: {code_lines[0]!r}"
+        )
+
+
+class TestLigandBatchBehavior:
+    """PREP-02: Behavioral tests for prepare_ligand_batch."""
+
+    @pytest.fixture()
+    def pose_tiny(self) -> Path:
+        return Path(__file__).parent / "fixtures" / "pose_tiny.pdb"
+
+    def test_success_plus_failure_sums_to_n(self, tmp_path: Path, pose_tiny: Path) -> None:
+        """len(successes) + len(failures) == len(input_paths) for any input."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+        from hybridock_pep.models import PoseFailure
+
+        # Two paths: one valid, one nonexistent
+        bad_path = tmp_path / "nonexistent.pdb"
+        pdb_paths = [pose_tiny, bad_path]
+        successes, failures = prepare_ligand_batch(pdb_paths, tmp_path / "pdbqt_out")
+        assert len(successes) + len(failures) == 2
+
+    def test_success_returns_path_objects(self, tmp_path: Path, pose_tiny: Path) -> None:
+        """Successful poses return Path objects pointing to written PDBQT files."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        successes, failures = prepare_ligand_batch(
+            [pose_tiny], tmp_path / "pdbqt_out"
+        )
+        if successes:
+            for p in successes:
+                assert isinstance(p, Path), f"Expected Path, got {type(p)}"
+                assert p.suffix == ".pdbqt"
+
+    def test_failures_are_pose_failure_records(self, tmp_path: Path) -> None:
+        """Failed poses return PoseFailure with stage='prep'."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+        from hybridock_pep.models import PoseFailure
+
+        bad_path = tmp_path / "definitely_missing.pdb"
+        successes, failures = prepare_ligand_batch(
+            [bad_path], tmp_path / "pdbqt_out"
+        )
+        assert len(failures) == 1
+        assert isinstance(failures[0], PoseFailure)
+        assert failures[0].stage == "prep"
+        assert failures[0].pose_idx == 0
+
+    def test_no_exception_propagates_from_batch(self, tmp_path: Path) -> None:
+        """prepare_ligand_batch never raises on per-pose failures."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        # All paths nonexistent — should return failures, not raise
+        bad_paths = [tmp_path / f"missing_{i}.pdb" for i in range(3)]
+        try:
+            successes, failures = prepare_ligand_batch(bad_paths, tmp_path / "out")
+        except Exception as exc:  # noqa: BLE001
+            pytest.fail(f"prepare_ligand_batch raised unexpectedly: {exc!r}")
+
+    def test_output_dir_created_if_absent(self, tmp_path: Path, pose_tiny: Path) -> None:
+        """output_dir is created by prepare_ligand_batch if it does not exist."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        out_dir = tmp_path / "nested" / "pdbqt"
+        assert not out_dir.exists()
+        prepare_ligand_batch([pose_tiny], out_dir)
+        assert out_dir.exists()
+
+    def test_pdbqt_written_to_output_dir(self, tmp_path: Path, pose_tiny: Path) -> None:
+        """Each successful PDBQT is written to output_dir / (stem + .pdbqt)."""
+        from hybridock_pep.prep.ligand import prepare_ligand_batch
+
+        out_dir = tmp_path / "pdbqt_out"
+        successes, failures = prepare_ligand_batch([pose_tiny], out_dir)
+        if successes:
+            expected = out_dir / (pose_tiny.stem + ".pdbqt")
+            assert expected.exists(), f"Expected PDBQT not found: {expected}"
+
+
+class TestPrepareSingleLigandWorker:
+    """Unit tests for _prepare_single_ligand (module-level worker)."""
+
+    def test_returns_pose_failure_on_bad_path(self, tmp_path: Path) -> None:
+        """Worker returns PoseFailure when PDB path does not exist."""
+        from hybridock_pep.prep.ligand import _prepare_single_ligand
+        from hybridock_pep.models import PoseFailure
+
+        bad_path = tmp_path / "no_such_file.pdb"
+        result = _prepare_single_ligand((7, bad_path, tmp_path))
+        assert isinstance(result, PoseFailure)
+        assert result.pose_idx == 7
+        assert result.stage == "prep"
+
+    def test_returns_path_on_valid_pose(self, tmp_path: Path) -> None:
+        """Worker returns a Path when a valid pose PDB is provided."""
+        from hybridock_pep.prep.ligand import _prepare_single_ligand
+
+        pose_tiny = Path(__file__).parent / "fixtures" / "pose_tiny.pdb"
+        result = _prepare_single_ligand((0, pose_tiny, tmp_path))
+        # May succeed (Path) or fail (PoseFailure) depending on Meeko availability
+        from pathlib import Path as _Path
+        from hybridock_pep.models import PoseFailure
+        assert isinstance(result, (_Path, PoseFailure)), (
+            f"Unexpected return type: {type(result)}"
+        )
+
+    def test_pose_failure_has_error_msg(self, tmp_path: Path) -> None:
+        """PoseFailure returned by worker has a non-empty error_msg."""
+        from hybridock_pep.prep.ligand import _prepare_single_ligand
+        from hybridock_pep.models import PoseFailure
+
+        bad_path = tmp_path / "missing.pdb"
+        result = _prepare_single_ligand((3, bad_path, tmp_path))
+        assert isinstance(result, PoseFailure)
+        assert result.error_msg != ""
