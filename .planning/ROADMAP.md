@@ -54,7 +54,11 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   2. Given a pose PDBQT and AD4 affinity maps, `vina --scoring ad4` returns an AD4 score in parallel with the Vina score; any positive AD4 score is flagged as an anomaly in output
   3. Given a `calibration.json` with α in range 0.2–1.2 kcal/mol/residue, `entropy.py` computes the backbone entropy correction; α outside this range causes an immediate abort with a diagnostic message
   4. `scripts/calibrate_alpha.py` runs on the training set and writes a valid `calibration.json`; unit tests in `test_scoring.py` cover all three scoring modules
-**Plans**: TBD
+**Plans**: 4 plans
+  - [ ] 03-01-PLAN.md — scoring/vina.py: Vina Python API batch scorer + grid boundary check (SCORE-01)
+  - [ ] 03-02-PLAN.md — scoring/ad4.py: AD4 Vina(sf_name='ad4') + load_maps + anomaly flag (SCORE-02)
+  - [ ] 03-03-PLAN.md — scoring/entropy.py + data/calibration.json: hybrid formula, α/β validation, fit_calibration() (SCORE-03)
+  - [ ] 03-04-PLAN.md — scripts/calibrate_alpha.py + complete tests/test_scoring.py + data/training_complexes.csv (SCORE-01, SCORE-02, SCORE-03)
 
 ### Phase 4: Sampling Integration
 **Goal**: RAPiDock runs 100 stochastic inference passes from score-env via a subprocess wrapper, all poses are parsed into PoseRecord objects, and every run writes complete provenance metadata
@@ -119,7 +123,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-04-20 |
 | 2. Preparation Pipeline | 4/4 | Complete | 2026-04-20 |
-| 3. Scoring Core | 0/? | Not started | - |
+| 3. Scoring Core | 0/4 | Not started | - |
 | 4. Sampling Integration | 0/? | Not started | - |
 | 5. CLI & Driver | 0/? | Not started | - |
 | 6. Analysis & Plots | 0/? | Not started | - |
