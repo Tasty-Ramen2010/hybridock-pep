@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 02-01-PLAN.md — PrepError, receptor.py, test fixtures
+last_updated: "2026-04-20T20:32:32.178Z"
+last_activity: 2026-04-20
+progress:
+  total_phases: 8
+  completed_phases: 1
+  total_plans: 6
+  completed_plans: 4
+  percent: 67
+---
+
 # Project State
 
 ## Project Reference
@@ -10,15 +26,16 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 2 of 8 (Preparation Pipeline)
-Plan: 1 of 4 in current phase
-Status: In progress — 02-01 complete
-Last activity: 2026-04-20 — 02-01 complete; PrepError, receptor.py, fixtures
+Plan: 3 of 4 in current phase
+Status: Ready to execute
+Last activity: 2026-04-20
 
 Progress: [███░░░░░░░] 19% (3 of 16 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 2
 - Average duration: 3.5 min
 - Total execution time: 0.12 hours
@@ -50,6 +67,8 @@ Progress: [███░░░░░░░] 19% (3 of 16 plans complete)
 - PrepError(RuntimeError) defined in prep/errors.py — raised by prepare_receptor4.py non-zero exit and (future) autogrid4 HD map missing
 - _filter_pdb_lines() pre-filters raw PDB text before pdbfixer — drops non-water HETATM and altLoc B/C/... to prevent "Unknown Receptor Type" in autogrid4
 - prepare_receptor() always regenerates PDBQT (no caching guard) — pdbfixer 3-step then prepare_receptor4.py subprocess with hard abort on non-zero exit
+- Meeko import inside try block in _prepare_single_ligand — catches rdkit/import errors as PoseFailure instead of propagating from ProcessPoolExecutor worker
+- prepare_ligand_batch() collect-all-failures: len(successes)+len(failures)==len(inputs) always; batch never raises on per-pose errors
 
 ### Pending Todos
 
@@ -72,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-20
-Stopped at: Completed 02-01-PLAN.md — PrepError, receptor.py, test fixtures
+Stopped at: Completed 02-02-PLAN.md — ligand.py Meeko batch PDBQT converter
 Resume file: None
