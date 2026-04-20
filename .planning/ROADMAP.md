@@ -39,7 +39,11 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   2. Given 100 pose PDB files, Meeko converts all 100 to PDBQT in a single stateless parallelized batch with no file left behind
   3. After running `autogrid4`, the pipeline verifies `receptor.HD.map` exists and aborts with a clear error message if it is missing
   4. Unit tests in `test_prep.py` cover receptor prep, ligand batch prep, and the HD-map guard; all pass
-**Plans**: TBD
+**Plans**: 4 plans
+  - [ ] 02-01-PLAN.md — PrepError + test fixtures + prep/receptor.py (PREP-01)
+  - [ ] 02-02-PLAN.md — prep/ligand.py Meeko batch converter (PREP-02)
+  - [ ] 02-03-PLAN.md — prep/grids.py GPF builder + autogrid4 + HD map guard (PREP-03)
+  - [ ] 02-04-PLAN.md — tests/test_prep.py covering all three modules (PREP-01, PREP-02, PREP-03)
 
 ### Phase 3: Scoring Core
 **Goal**: Every pose can be independently scored by Vina and AD4 in parallel, and the backbone entropy correction produces a calibrated hybrid score with α validated against the allowed range
@@ -114,7 +118,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-04-20 |
-| 2. Preparation Pipeline | 0/? | Not started | - |
+| 2. Preparation Pipeline | 0/4 | Not started | - |
 | 3. Scoring Core | 0/? | Not started | - |
 | 4. Sampling Integration | 0/? | Not started | - |
 | 5. CLI & Driver | 0/? | Not started | - |
