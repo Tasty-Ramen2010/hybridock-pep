@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 2 of 8 (Preparation Pipeline)
-Plan: 0 of ? in current phase
-Status: Discussion complete — ready for planning
-Last activity: 2026-04-20 — Phase 2 discuss complete; 02-CONTEXT.md written
+Plan: 1 of 4 in current phase
+Status: In progress — 02-01 complete
+Last activity: 2026-04-20 — 02-01 complete; PrepError, receptor.py, fixtures
 
-Progress: [██░░░░░░░░] 13% (2 of 16 plans complete)
+Progress: [███░░░░░░░] 19% (3 of 16 plans complete)
 
 ## Performance Metrics
 
@@ -28,6 +28,7 @@ Progress: [██░░░░░░░░] 13% (2 of 16 plans complete)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 2 | 7 min | 3.5 min |
+| 02-preparation | 1 | 3 min | 3 min |
 
 **Recent Trend:** On track
 
@@ -46,6 +47,9 @@ Progress: [██░░░░░░░░] 13% (2 of 16 plans complete)
 - DockConfig frozen=True (immutable) — config crosses subprocess boundary and must not mutate
 - run_id auto-generated via @model_validator(mode='before') — must resolve before field validators fire
 - ScoredPose extends PoseRecord via @dataclass inheritance — parent fields required, child fields defaulted
+- PrepError(RuntimeError) defined in prep/errors.py — raised by prepare_receptor4.py non-zero exit and (future) autogrid4 HD map missing
+- _filter_pdb_lines() pre-filters raw PDB text before pdbfixer — drops non-water HETATM and altLoc B/C/... to prevent "Unknown Receptor Type" in autogrid4
+- prepare_receptor() always regenerates PDBQT (no caching guard) — pdbfixer 3-step then prepare_receptor4.py subprocess with hard abort on non-zero exit
 
 ### Pending Todos
 
@@ -68,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-20
-Stopped at: Phase 2 discuss complete — 02-CONTEXT.md and 02-DISCUSSION-LOG.md written
-Resume file: /gsd-plan-phase 2
+Stopped at: Completed 02-01-PLAN.md — PrepError, receptor.py, test fixtures
+Resume file: None
