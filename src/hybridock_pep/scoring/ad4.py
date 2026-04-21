@@ -18,12 +18,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from hybridock_pep.models import PoseFailure, ScoredPose
-
-if TYPE_CHECKING:
-    from vina import Vina as _VinaType
 
 try:
     from vina import Vina
@@ -74,9 +70,7 @@ def score_ad4_batch(
     # Belt-and-suspenders: verify HD map exists before calling load_maps()
     hd_map = maps_dir / "receptor.HD.map"
     if not hd_map.exists():
-        raise FileNotFoundError(
-            f"AD4 HD map not found: {hd_map}. Run prep/grids.py first."
-        )
+        raise FileNotFoundError(f"AD4 HD map not found: {hd_map}. Run prep/grids.py first.")
 
     map_prefix = str(maps_dir / "receptor")
     logger.info("AD4 scorer: %d poses, maps_prefix=%s", len(poses), map_prefix)
@@ -102,9 +96,7 @@ def score_ad4_batch(
             scored.append(pose)
 
         except Exception as e:  # noqa: BLE001 — per-pose isolation required (D-07)
-            logger.warning(
-                "Pose %d AD4 scoring failed: %s: %s", pose.pose_idx, type(e).__name__, e
-            )
+            logger.warning("Pose %d AD4 scoring failed: %s: %s", pose.pose_idx, type(e).__name__, e)
             failures.append(
                 PoseFailure(
                     pose_idx=pose.pose_idx,

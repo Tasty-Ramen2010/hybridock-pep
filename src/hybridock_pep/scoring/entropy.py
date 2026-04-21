@@ -135,9 +135,7 @@ def apply_hybrid_score(
 
     pose.entropy_correction = alpha * n_residues
     pose.hybrid_score = (
-        pose.vina_score
-        + beta * (pose.ad4_score - pose.vina_score)
-        + pose.entropy_correction
+        pose.vina_score + beta * (pose.ad4_score - pose.vina_score) + pose.entropy_correction
     )
     _log.debug(
         "Pose %d: vina=%.3f ad4=%.3f ec=%.3f hybrid=%.3f",
@@ -195,7 +193,7 @@ def fit_calibration(
             (v + beta * (a - v) + alpha * nr) - dg
             for v, a, nr, dg in zip(vina_scores, ad4_scores, n_residues_list, delta_g)
         ]
-        return float(sum(r ** 2 for r in residuals))
+        return float(sum(r**2 for r in residuals))
 
     x0 = np.array([0.65, 0.22])
     bounds = [(0.2, 1.2), (0.0, 0.5)]
@@ -214,7 +212,9 @@ def fit_calibration(
 
     rmse = float(np.sqrt(np.mean([(h - d) ** 2 for h, d in zip(hybrids, delta_g)])))
 
-    _log.info("fit_calibration: alpha=%.4f beta=%.4f r=%.3f rmse=%.3f", alpha, beta, pearson_r, rmse)
+    _log.info(
+        "fit_calibration: alpha=%.4f beta=%.4f r=%.3f rmse=%.3f", alpha, beta, pearson_r, rmse
+    )
     return {
         "alpha": alpha,
         "beta": beta,
