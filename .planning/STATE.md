@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md — entropy correction with D-01 hybrid formula, load_calibration() validation, fit_calibration() scipy L-BFGS-B; 25 scoring tests passing
-last_updated: "2026-04-21T13:03:35.661Z"
+stopped_at: Completed 03-04-PLAN.md — calibrate_alpha.py thin wrapper, training_complexes.csv D-08 schema, 30 scoring tests passing, 96% coverage
+last_updated: "2026-04-21T13:09:04.192Z"
 last_activity: 2026-04-21
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 90
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 3 of 8 (Scoring Core — IN PROGRESS)
-Plan: 3 of 4 in phase 3 (03-01 complete)
+Plan: 4 of 4 in phase 3 (03-01 complete)
 Status: Ready to execute
 Last activity: 2026-04-21
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [█████████░] 90%
 *Updated after each plan completion*
 | Phase 03-scoring-core P02 | 1158 | 2 tasks | 3 files |
 | Phase 03-scoring-core P03 | 5 | 2 tasks | 4 files |
+| Phase 03-scoring-core P04 | 191 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,10 @@ Progress: [█████████░] 90%
 - apply_hybrid_score() does NOT validate alpha/beta — validation is load_calibration()'s sole responsibility (separation of concerns, T-03-09)
 - RT = 0.592 kcal/mol hardcoded at 298K in fit_calibration(); not a CLI parameter in v1 (D-09)
 - scipy installed in base Python test env to unblock TestEntropy; production target is score-env (score-env.yml)
+- calibrate_alpha.py aborts with ValueError if --scores-json not provided — live scoring wired in Phase 5; Phase 3 requires pre-computed scores
+- n_residues derived from len(peptide_sequence) in training CSV, not scores JSON — CSV is authoritative source of sequence info
+- Post-write self-check: load_calibration() called after write_calibration() to validate alpha/beta convergence before caller proceeds
+- black --target-version py311 required in base Python 3.13 env — without it, AST safety check fails on py314-targeted output
 
 ### Pending Todos
 
@@ -106,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21T13:03:35.652Z
-Stopped at: Completed 03-03-PLAN.md — entropy correction with D-01 hybrid formula, load_calibration() validation, fit_calibration() scipy L-BFGS-B; 25 scoring tests passing
+Last session: 2026-04-21T13:09:04.181Z
+Stopped at: Completed 03-04-PLAN.md — calibrate_alpha.py thin wrapper, training_complexes.csv D-08 schema, 30 scoring tests passing, 96% coverage
 Resume file: None
