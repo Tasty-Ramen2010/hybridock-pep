@@ -16,12 +16,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
-
 from hybridock_pep.models import DockConfig, PoseFailure, ScoredPose
-
-if TYPE_CHECKING:
-    from vina import Vina as _VinaType
 
 try:
     from vina import Vina
@@ -175,9 +170,7 @@ def score_vina_batch(
             scored.append(pose)
 
         except Exception as e:  # noqa: BLE001 — per-pose isolation required (D-07)
-            logger.warning(
-                "Pose %d scoring failed: %s: %s", pose.pose_idx, type(e).__name__, e
-            )
+            logger.warning("Pose %d scoring failed: %s: %s", pose.pose_idx, type(e).__name__, e)
             failures.append(
                 PoseFailure(
                     pose_idx=pose.pose_idx,
