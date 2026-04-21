@@ -7,5 +7,6 @@ exported from their respective modules as they are implemented.
 from __future__ import annotations
 
 from hybridock_pep.scoring.vina import check_grid_boundary, score_vina_batch
+from hybridock_pep.scoring.ad4 import score_ad4_batch
 
-__all__ = ["check_grid_boundary", "score_vina_batch"]
+__all__ = ["check_grid_boundary", "score_vina_batch", "score_ad4_batch"]
