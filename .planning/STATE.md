@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md — AD4 scorer with load_maps(), is_ad4_anomaly flagging; 15 scoring tests passing
-last_updated: "2026-04-21T12:58:05.391Z"
+stopped_at: Completed 03-03-PLAN.md — entropy correction with D-01 hybrid formula, load_calibration() validation, fit_calibration() scipy L-BFGS-B; 25 scoring tests passing
+last_updated: "2026-04-21T13:03:35.661Z"
 last_activity: 2026-04-21
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
-  percent: 80
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 3 of 8 (Scoring Core — IN PROGRESS)
-Plan: 2 of 4 in phase 3 (03-01 complete)
+Plan: 3 of 4 in phase 3 (03-01 complete)
 Status: Ready to execute
 Last activity: 2026-04-21
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [████████░░] 80%
 
 *Updated after each plan completion*
 | Phase 03-scoring-core P02 | 1158 | 2 tasks | 3 files |
+| Phase 03-scoring-core P03 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Progress: [████████░░] 80%
 - float(v.score()[0]) used throughout scoring — prevents raw numpy array type comparisons leaking into downstream arithmetic
 - load_maps(str(maps_dir / 'receptor')) not set_receptor(): AD4 C++ binding raises RuntimeError on set_receptor with sf_name='ad4'; map prefix without extension resolves to HD/C/etc map files by Vina internals
 - is_ad4_anomaly = ad4_score > 0 (strict positive, not zero): per D-06, zero score is not anomalous; positive score indicates repulsive/unphysical binding; pose still in scored list (informational flag)
+- apply_hybrid_score() does NOT validate alpha/beta — validation is load_calibration()'s sole responsibility (separation of concerns, T-03-09)
+- RT = 0.592 kcal/mol hardcoded at 298K in fit_calibration(); not a CLI parameter in v1 (D-09)
+- scipy installed in base Python test env to unblock TestEntropy; production target is score-env (score-env.yml)
 
 ### Pending Todos
 
@@ -102,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21T12:58:05.382Z
-Stopped at: Completed 03-02-PLAN.md — AD4 scorer with load_maps(), is_ad4_anomaly flagging; 15 scoring tests passing
+Last session: 2026-04-21T13:03:35.652Z
+Stopped at: Completed 03-03-PLAN.md — entropy correction with D-01 hybrid formula, load_calibration() validation, fit_calibration() scipy L-BFGS-B; 25 scoring tests passing
 Resume file: None

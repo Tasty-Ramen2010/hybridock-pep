@@ -27,7 +27,8 @@
 - [ ] **SCORE-01**: Pipeline scores each pose with `vina --score_only` via the Vina Python API; validates all atom coordinates against grid boundaries before scoring and logs any clipped poses to `run_metadata.json` (never silently drops)
 - [x] **SCORE-02
 **: Pipeline scores each pose with `vina --scoring ad4` in parallel with Vina; flags any positive AD4 scores as anomalies in output
-- [ ] **SCORE-03**: Pipeline applies backbone entropy correction using calibrated α loaded from `calibration.json`; validates α is in range 0.2–1.2 kcal/mol/residue and aborts if outside
+- [x] **SCORE-03
+**: Pipeline applies backbone entropy correction using calibrated α loaded from `calibration.json`; validates α is in range 0.2–1.2 kcal/mol/residue and aborts if outside
 
 ### Analysis
 
