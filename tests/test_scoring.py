@@ -420,12 +420,176 @@ class TestAD4Scorer:
 
 
 # ---------------------------------------------------------------------------
-# SCORE-03: Entropy correction (stub — implemented in plan 03-03)
+# SCORE-03: Entropy correction (SCORE-03, plan 03-03)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="implemented in plan 03-03")
 class TestEntropy:
-    pass
+    """Tests for apply_hybrid_score(), load_calibration(), and fit_calibration()."""
+
+    def test_apply_hybrid_score_formula(self, tmp_path: Path) -> None:
+        """D-01 formula: hybrid = vina + beta*(ad4-vina) + alpha*n_residues.
+
+        vina=-6.0, ad4=-7.0, alpha=0.65, beta=0.22, n_residues=15
+        hybrid = -6.0 + 0.22*(-7.0 - -6.0) + 0.65*15
+               = -6.0 - 0.22 + 9.75 = 3.53
+        entropy_correction = 0.65 * 15 = 9.75
+        """
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score
+
+        ca = np.zeros((15, 3), dtype=np.float64)
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "pose_0.pdb",
+            sequence="A" * 15,
+            ca_coords=ca,
+            vina_score=-6.0,
+            ad4_score=-7.0,
+        )
+        apply_hybrid_score(pose, alpha=0.65, beta=0.22, n_residues=15)
+        assert abs(pose.hybrid_score - 3.53) < 1e-6, f"hybrid={pose.hybrid_score}"
+        assert abs(pose.entropy_correction - 9.75) < 1e-6, f"ec={pose.entropy_correction}"
+
+    def test_apply_hybrid_score_beta_zero(self, tmp_path: Path) -> None:
+        """beta=0 -> hybrid = vina + alpha*n_residues (AD4 not blended)."""
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score
+
+        ca = np.zeros((10, 3), dtype=np.float64)
+        pose = ScoredPose(
+            pose_idx=1,
+            pdb_path=tmp_path / "pose_1.pdb",
+            sequence="A" * 10,
+            ca_coords=ca,
+            vina_score=-5.0,
+            ad4_score=-9.0,
+        )
+        apply_hybrid_score(pose, alpha=0.65, beta=0.0, n_residues=10)
+        expected_hybrid = -5.0 + 0.0 * (-9.0 - (-5.0)) + 0.65 * 10
+        assert abs(pose.hybrid_score - expected_hybrid) < 1e-6
+        assert abs(pose.entropy_correction - 6.5) < 1e-6
+
+    def test_apply_hybrid_score_beta_one_rejected(self, tmp_path: Path) -> None:
+        """apply_hybrid_score does NOT validate beta; beta=1.0 still computes without raising.
+
+        Validation is in load_calibration only (per plan spec).
+        """
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score
+
+        ca = np.zeros((5, 3), dtype=np.float64)
+        pose = ScoredPose(
+            pose_idx=2,
+            pdb_path=tmp_path / "pose_2.pdb",
+            sequence="AAAAA",
+            ca_coords=ca,
+            vina_score=-4.0,
+            ad4_score=-6.0,
+        )
+        # Must not raise — no validation in apply_hybrid_score
+        apply_hybrid_score(pose, alpha=0.65, beta=1.0, n_residues=5)
+        expected = -4.0 + 1.0 * (-6.0 - (-4.0)) + 0.65 * 5
+        assert abs(pose.hybrid_score - expected) < 1e-6
+
+    def test_load_calibration_valid(self, tmp_path: Path) -> None:
+        """Valid calibration JSON with alpha=0.65, beta=0.22 returns dict without error."""
+        import json
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        cal_path = tmp_path / "calibration.json"
+        cal_data = {
+            "alpha": 0.65,
+            "beta": 0.22,
+            "n_complexes": 10,
+            "pearson_r": 0.71,
+            "rmse_kcal_mol": 1.2,
+            "calibrated_at": "2026-04-20T00:00:00+00:00",
+            "training_csv": "data/training_complexes.csv",
+        }
+        cal_path.write_text(json.dumps(cal_data))
+        result = load_calibration(cal_path)
+        assert abs(result["alpha"] - 0.65) < 1e-9
+        assert abs(result["beta"] - 0.22) < 1e-9
+
+    def test_load_calibration_alpha_too_high(self, tmp_path: Path) -> None:
+        """alpha=1.5 raises ValueError quoting value and range [0.2, 1.2]."""
+        import json
+        import pytest
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        cal_path = tmp_path / "calibration.json"
+        cal_path.write_text(json.dumps({"alpha": 1.5, "beta": 0.22}))
+        with pytest.raises(ValueError) as exc_info:
+            load_calibration(cal_path)
+        msg = str(exc_info.value)
+        assert "α=1.500" in msg, f"Expected 'α=1.500' in: {msg}"
+        assert "[0.2, 1.2]" in msg, f"Expected '[0.2, 1.2]' in: {msg}"
+
+    def test_load_calibration_alpha_too_low(self, tmp_path: Path) -> None:
+        """alpha=0.1 raises ValueError quoting value and range [0.2, 1.2]."""
+        import json
+        import pytest
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        cal_path = tmp_path / "calibration.json"
+        cal_path.write_text(json.dumps({"alpha": 0.1, "beta": 0.22}))
+        with pytest.raises(ValueError) as exc_info:
+            load_calibration(cal_path)
+        msg = str(exc_info.value)
+        assert "α=0.100" in msg, f"Expected 'α=0.100' in: {msg}"
+        assert "[0.2, 1.2]" in msg, f"Expected '[0.2, 1.2]' in: {msg}"
+
+    def test_load_calibration_beta_too_high(self, tmp_path: Path) -> None:
+        """beta=0.6 raises ValueError quoting value and range [0.0, 0.5]."""
+        import json
+        import pytest
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        cal_path = tmp_path / "calibration.json"
+        cal_path.write_text(json.dumps({"alpha": 0.65, "beta": 0.6}))
+        with pytest.raises(ValueError) as exc_info:
+            load_calibration(cal_path)
+        msg = str(exc_info.value)
+        assert "β=0.600" in msg, f"Expected 'β=0.600' in: {msg}"
+        assert "[0.0, 0.5]" in msg, f"Expected '[0.0, 0.5]' in: {msg}"
+
+    def test_load_calibration_missing_file(self, tmp_path: Path) -> None:
+        """FileNotFoundError raised when calibration file does not exist."""
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        with pytest.raises(FileNotFoundError):
+            load_calibration(tmp_path / "nonexistent_calibration.json")
+
+    def test_fit_calibration_bounds_respected(self) -> None:
+        """fit_calibration returns alpha in [0.2,1.2] and beta in [0.0,0.5] via L-BFGS-B."""
+        from hybridock_pep.scoring.entropy import fit_calibration
+
+        vina_scores = [-5.0, -6.0, -7.0, -4.0, -8.0]
+        ad4_scores = [-5.5, -6.5, -7.5, -4.5, -8.5]
+        n_residues = [10, 12, 15, 8, 20]
+        pkd_list = [5.0, 6.0, 7.0, 4.0, 8.0]
+
+        result = fit_calibration(vina_scores, ad4_scores, n_residues, pkd_list)
+        assert 0.2 <= result["alpha"] <= 1.2, f"alpha={result['alpha']} out of bounds"
+        assert 0.0 <= result["beta"] <= 0.5, f"beta={result['beta']} out of bounds"
+
+    def test_pkd_to_delta_g_conversion(self) -> None:
+        """RT=0.592 kcal/mol; ΔG = -0.592 * pKd. With n_residues=0 and vina=ad4=ΔG, trivial fit."""
+        from hybridock_pep.scoring.entropy import fit_calibration
+
+        # With n_residues=0 (alpha drops out) and vina=ad4=-3.552 (beta drops out),
+        # hybrid=-3.552 for any alpha, beta -> perfectly matches ΔG=-0.592*6.0=-3.552
+        result = fit_calibration(
+            vina_scores=[-3.552],
+            ad4_scores=[-3.552],
+            n_residues_list=[0],
+            experimental_pkd=[6.0],
+        )
+        assert "alpha" in result, "Result dict must contain 'alpha'"
+        assert "beta" in result, "Result dict must contain 'beta'"
 
 
 # ---------------------------------------------------------------------------
