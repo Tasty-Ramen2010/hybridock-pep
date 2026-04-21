@@ -198,15 +198,225 @@ class TestVinaScorer:
 
 
 # ---------------------------------------------------------------------------
-# SCORE-02: AD4 scorer (stub — implemented in plan 03-02)
+# SCORE-02: AD4 scorer (plan 03-02)
 # ---------------------------------------------------------------------------
 
 import pytest
 
 
-@pytest.mark.skip(reason="implemented in plan 03-02")
 class TestAD4Scorer:
-    pass
+    """Tests for score_ad4_batch() (SCORE-02).
+
+    All Vina calls mocked via mock.patch("hybridock_pep.scoring.ad4.Vina").
+    Lazy imports inside each test function per STATE.md convention.
+    """
+
+    def test_score_ad4_batch_uses_load_maps_not_set_receptor(self) -> None:
+        """Source of ad4.py must contain 'load_maps' and must NOT contain 'set_receptor'."""
+        import inspect
+        from hybridock_pep.scoring import ad4 as ad4_module
+
+        src = inspect.getsource(ad4_module)
+        assert "set_receptor" not in src, "AD4 scorer must not call set_receptor()"
+        assert "load_maps" in src, "AD4 scorer must call load_maps()"
+
+    def test_score_ad4_batch_returns_tuple(self, tmp_path: Path) -> None:
+        """score_ad4_batch returns a tuple of (list, list)."""
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.ad4 import score_ad4_batch
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        hd_map = maps_dir / "receptor.HD.map"
+        hd_map.write_text("dummy\n")
+
+        pdbqt = tmp_path / "pose_0.pdbqt"
+        pdbqt.write_text("REMARK dummy\n")
+
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "p.pdb",
+            sequence="ALA",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        mock_vina_instance.score.return_value = [-6.0]
+
+        with mock.patch("hybridock_pep.scoring.ad4.Vina", return_value=mock_vina_instance):
+            result = score_ad4_batch([pose], maps_dir)
+
+        assert isinstance(result, tuple)
+        scored, failures = result
+        assert isinstance(scored, list)
+        assert isinstance(failures, list)
+
+    def test_ad4_anomaly_flag_positive_score(self, tmp_path: Path) -> None:
+        """AD4 score +1.5 → is_ad4_anomaly=True; pose still in scored list (not failures)."""
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.ad4 import score_ad4_batch
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        (maps_dir / "receptor.HD.map").write_text("dummy\n")
+
+        pdbqt = tmp_path / "pose_0.pdbqt"
+        pdbqt.write_text("REMARK dummy\n")
+
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "p.pdb",
+            sequence="ALA",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        mock_vina_instance.score.return_value = [1.5]
+
+        with mock.patch("hybridock_pep.scoring.ad4.Vina", return_value=mock_vina_instance):
+            scored, failures = score_ad4_batch([pose], maps_dir)
+
+        assert len(failures) == 0
+        assert len(scored) == 1
+        assert scored[0].is_ad4_anomaly is True
+        assert scored[0].ad4_score == pytest.approx(1.5)
+
+    def test_ad4_anomaly_flag_negative_score(self, tmp_path: Path) -> None:
+        """AD4 score -5.2 → is_ad4_anomaly=False."""
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.ad4 import score_ad4_batch
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        (maps_dir / "receptor.HD.map").write_text("dummy\n")
+
+        pdbqt = tmp_path / "pose_0.pdbqt"
+        pdbqt.write_text("REMARK dummy\n")
+
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "p.pdb",
+            sequence="ALA",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        mock_vina_instance.score.return_value = [-5.2]
+
+        with mock.patch("hybridock_pep.scoring.ad4.Vina", return_value=mock_vina_instance):
+            scored, failures = score_ad4_batch([pose], maps_dir)
+
+        assert len(failures) == 0
+        assert len(scored) == 1
+        assert scored[0].is_ad4_anomaly is False
+        assert scored[0].ad4_score == pytest.approx(-5.2)
+
+    def test_ad4_anomaly_flag_zero_score(self, tmp_path: Path) -> None:
+        """AD4 score 0.0 → is_ad4_anomaly=False (zero is not positive)."""
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.ad4 import score_ad4_batch
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        (maps_dir / "receptor.HD.map").write_text("dummy\n")
+
+        pdbqt = tmp_path / "pose_0.pdbqt"
+        pdbqt.write_text("REMARK dummy\n")
+
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "p.pdb",
+            sequence="ALA",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        mock_vina_instance.score.return_value = [0.0]
+
+        with mock.patch("hybridock_pep.scoring.ad4.Vina", return_value=mock_vina_instance):
+            scored, failures = score_ad4_batch([pose], maps_dir)
+
+        assert len(failures) == 0
+        assert len(scored) == 1
+        assert scored[0].is_ad4_anomaly is False
+        assert scored[0].ad4_score == pytest.approx(0.0)
+
+    def test_score_ad4_batch_failure_on_exception(self, tmp_path: Path) -> None:
+        """RuntimeError on set_ligand_from_file → PoseFailure(stage='scoring'); batch continues; scored empty."""
+        import numpy as np
+        from hybridock_pep.models import PoseFailure, ScoredPose
+        from hybridock_pep.scoring.ad4 import score_ad4_batch
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        (maps_dir / "receptor.HD.map").write_text("dummy\n")
+
+        pdbqt = tmp_path / "pose_0.pdbqt"
+        pdbqt.write_text("REMARK dummy\n")
+
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "p.pdb",
+            sequence="ALA",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        mock_vina_instance.set_ligand_from_file.side_effect = RuntimeError("corrupt PDBQT")
+
+        with mock.patch("hybridock_pep.scoring.ad4.Vina", return_value=mock_vina_instance):
+            scored, failures = score_ad4_batch([pose], maps_dir)
+
+        assert len(scored) == 0
+        assert len(failures) == 1
+        assert isinstance(failures[0], PoseFailure)
+        assert failures[0].stage == "scoring"
+        assert failures[0].pose_idx == 0
+
+    def test_map_prefix_construction(self, tmp_path: Path) -> None:
+        """load_maps is called with prefix ending in '/receptor' (not '/' or just the dir)."""
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.ad4 import score_ad4_batch
+
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir()
+        (maps_dir / "receptor.HD.map").write_text("dummy\n")
+
+        pdbqt = tmp_path / "pose_0.pdbqt"
+        pdbqt.write_text("REMARK dummy\n")
+
+        pose = ScoredPose(
+            pose_idx=0,
+            pdb_path=tmp_path / "p.pdb",
+            sequence="ALA",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        mock_vina_instance.score.return_value = [-7.0]
+
+        with mock.patch("hybridock_pep.scoring.ad4.Vina", return_value=mock_vina_instance):
+            score_ad4_batch([pose], maps_dir)
+
+        # Capture the argument passed to load_maps
+        call_args = mock_vina_instance.load_maps.call_args
+        assert call_args is not None, "load_maps must have been called"
+        prefix_arg = call_args[0][0]  # first positional arg
+        expected_prefix = str(maps_dir / "receptor")
+        assert prefix_arg == expected_prefix, (
+            f"Expected load_maps prefix '{expected_prefix}', got '{prefix_arg}'"
+        )
 
 
 # ---------------------------------------------------------------------------
