@@ -1,0 +1,9 @@
+{
+  "alpha": 0.65,
+  "beta": 0.22,
+  "n_complexes": 10,
+  "pearson_r": 0.71,
+  "rmse_kcal_mol": 1.2,
+  "calibrated_at": "2026-04-20T00:00:00+00:00",
+  "training_csv": "data/training_complexes.csv"
+}
