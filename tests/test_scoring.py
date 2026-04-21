@@ -609,6 +609,7 @@ class TestCalibration:
         assert csv_path.exists(), f"Missing training CSV: {csv_path}"
         with csv_path.open(newline="") as fh:
             reader = csv.DictReader(fh)
+            _ = reader.fieldnames  # force header read before consuming rows
             rows = list(reader)
         expected_columns = ["pdb_id", "peptide_sequence", "experimental_pkd"]
         assert list(reader.fieldnames) == expected_columns, (
