@@ -54,8 +54,14 @@ def load_calibration(path: Path) -> dict:
     with path.open() as fh:
         cal = json.load(fh)
 
-    alpha = cal["alpha"]
-    beta = cal["beta"]
+    try:
+        alpha = cal["alpha"]
+        beta = cal["beta"]
+    except KeyError as exc:
+        raise ValueError(
+            f"Calibration file {path} is missing required key {exc}. "
+            "Re-run calibrate_alpha.py to regenerate a valid calibration file."
+        ) from exc
 
     if not (0.2 <= alpha <= 1.2):
         raise ValueError(
@@ -198,6 +204,12 @@ def fit_calibration(
     x0 = np.array([0.65, 0.22])
     bounds = [(0.2, 1.2), (0.0, 0.5)]
     result = minimize(objective, x0, method="L-BFGS-B", bounds=bounds)
+    if not result.success:
+        _log.warning(
+            "L-BFGS-B optimization did not converge: %s. "
+            "Proceeding with best-found parameters — verify calibration manually.",
+            result.message,
+        )
     alpha, beta = float(result.x[0]), float(result.x[1])
 
     hybrids = [
