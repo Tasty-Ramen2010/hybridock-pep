@@ -144,7 +144,7 @@ def main(args: argparse.Namespace | None = None) -> None:
         experimental_pkd_str = row["experimental_pkd"]
 
         if pdb_id not in scores:
-            raise KeyError(
+            raise ValueError(
                 f"pdb_id '{pdb_id}' from training CSV not found in scores JSON. "
                 f"Available pdb_ids: {sorted(scores.keys())}"
             )
