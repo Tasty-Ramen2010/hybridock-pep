@@ -161,6 +161,11 @@ data/
 from vina import Vina
 from pathlib import Path
 
+# NOTE: Call compute_vina_maps() ONCE before the pose loop (not per-pose).
+# Calling it per-pose recomputes all 22 atom-type maps from scratch each time,
+# negating the instance-reuse benefit. See plan 03-01 Task 2 for the correct pattern.
+v.compute_vina_maps(center=center, box_size=box_size)  # once per batch, before loop
+
 def score_vina(
     receptor_pdbqt: Path,
     ligand_pdbqt: Path,
@@ -170,11 +175,11 @@ def score_vina(
     """Return Vina score_only for one pose. Re-use instance externally for batch."""
     v = Vina(sf_name='vina', verbosity=0)
     v.set_receptor(str(receptor_pdbqt))
-    v.set_ligand_from_file(str(ligand_pdbqt))
     v.compute_vina_maps(
         center=list(site_coords),
         box_size=[box_size, box_size, box_size],
     )
+    v.set_ligand_from_file(str(ligand_pdbqt))
     energies = v.score()  # np.ndarray; index 0 = total kcal/mol
     return float(energies[0])
 ```
@@ -515,17 +520,17 @@ def write_calibration(path: Path, alpha: float, beta: float, **kwargs: float | i
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does Vina instance reuse across poses require re-calling `compute_vina_maps()` each time?**
    - What we know: After `set_ligand_from_file()`, the ligand's atom type set may change. `compute_vina_maps()` behavior differs if called before vs. after ligand loading.
    - What's unclear: For `score_only` (no docking search), does changing the ligand require recomputing maps, or can the maps from the previous ligand be reused?
-   - Recommendation: Call `compute_vina_maps()` once before the pose loop (before any `set_ligand_from_file()`), using the default 22-atom-type set. This avoids per-pose map recomputation and is the pattern documented for batch screening.
+   - RESOLVED: Call `compute_vina_maps()` once before the pose loop (before any `set_ligand_from_file()`), using the default 22-atom-type set. This avoids per-pose map recomputation and is the pattern documented for batch screening. See plan 03-01 Task 2 action (D-13 / compute_vina_maps call timing).
 
 2. **ThreadPoolExecutor safety for dual Vina+AD4 scoring**
    - What we know: Vina has no documented thread safety; no GIL-release macros found in SWIG wrapper.
    - What's unclear: Whether separate Vina instances in separate threads share any global C++ state.
-   - Recommendation: Default to sequential within a single process. If the 5-min wall-clock target is at risk, profile first before introducing threading. ProcessPoolExecutor with one Vina instance per subprocess is the safe parallel option.
+   - RESOLVED: Sequential within a single process chosen for simplicity, given the 5-min wall-clock target is achievable without threading on an RTX 5070 + modern CPU. This was left to Claude's discretion in CONTEXT.md; sequential is the conservative correct choice. ProcessPoolExecutor remains available if profiling reveals a bottleneck.
 
 3. **Does `score()` in Vina mode produce `--score_only` equivalent output?**
    - What we know: `v.score()` scores the current pose without minimization. This is the Python equivalent of `vina --score_only`.
