@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from hybridock_pep.models import DockConfig, PoseFailure, ScoredPose
 
@@ -98,7 +99,9 @@ def _append_clipped_pose(path: Path, pose_idx: int, pdbqt_path: Path | None) -> 
     )
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2))
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    os.replace(tmp, path)  # atomic on POSIX; overwrites destination
 
 
 def score_vina_batch(
@@ -155,6 +158,11 @@ def score_vina_batch(
 
     for pose in poses:
         try:
+            if pose.pdbqt_path is None:
+                raise ValueError(
+                    f"Pose {pose.pose_idx} has pdbqt_path=None; "
+                    "was prep/ligand.py run before scoring?"
+                )
             pose.is_clipped = check_grid_boundary(
                 pose.pdbqt_path, config.site_coords, config.box_size
             )
