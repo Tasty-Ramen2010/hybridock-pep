@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-04-PLAN.md — TestReceptorPrep, TestLigandBatch, TestGrids in test_prep.py
-last_updated: "2026-04-20T21:10:00.000Z"
-last_activity: 2026-04-20
+stopped_at: Completed 03-02-PLAN.md — AD4 scorer with load_maps(), is_ad4_anomaly flagging; 15 scoring tests passing
+last_updated: "2026-04-21T12:58:05.391Z"
+last_activity: 2026-04-21
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 38
+  total_plans: 10
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 2 of 8 (Preparation Pipeline — COMPLETE)
-Plan: 4 of 4 in phase 2 (all done)
-Status: Phase 2 complete; ready for Phase 3
-Last activity: 2026-04-20
+Phase: 3 of 8 (Scoring Core — IN PROGRESS)
+Plan: 2 of 4 in phase 3 (03-01 complete)
+Status: Ready to execute
+Last activity: 2026-04-21
 
-Progress: [███░░░░░░░] 38% (6 of 16 plans complete)
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -46,10 +46,12 @@ Progress: [███░░░░░░░] 38% (6 of 16 plans complete)
 |-------|-------|-------|----------|
 | 01-foundation | 2 | 7 min | 3.5 min |
 | 02-preparation | 4 | 19 min | 4.8 min |
+| 03-scoring-core | 1 | 2 min | 2.0 min |
 
 **Recent Trend:** On track
 
 *Updated after each plan completion*
+| Phase 03-scoring-core P02 | 1158 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -72,6 +74,12 @@ Progress: [███░░░░░░░] 38% (6 of 16 plans complete)
 - _build_gpf() generates GPF programmatically from DockConfig — no template file; ligand_types includes HD for receptor.HD.map generation
 - generate_ad4_maps() hard-aborts with PrepError (verbatim D-05 message) if receptor.HD.map missing — prevents silent vina --scoring ad4 failure downstream
 - All hybridock_pep imports kept lazy in test_prep.py — pytest-cov triggers numpy double-import error in Python 3.13 base env; coverage measured via coverage run
+- Vina import lazy in scoring/vina.py (try/except ImportError, Vina=None fallback) — allows check_grid_boundary to run in base env; mock.patch replaces Vina in tests; real Vina loaded in score-env
+- compute_vina_maps called once before pose loop (not per-pose) — batch scoring pattern; per-pose recomputation would be wasteful
+- _append_clipped_pose helper in vina.py (not metadata.py) — metadata.py does not exist in Phase 3; avoids premature coupling to Phase 4 output module
+- float(v.score()[0]) used throughout scoring — prevents raw numpy array type comparisons leaking into downstream arithmetic
+- load_maps(str(maps_dir / 'receptor')) not set_receptor(): AD4 C++ binding raises RuntimeError on set_receptor with sf_name='ad4'; map prefix without extension resolves to HD/C/etc map files by Vina internals
+- is_ad4_anomaly = ad4_score > 0 (strict positive, not zero): per D-06, zero score is not anomalous; positive score indicates repulsive/unphysical binding; pose still in scored list (informational flag)
 
 ### Pending Todos
 
@@ -94,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-20
-Stopped at: Completed 02-04-PLAN.md — TestReceptorPrep, TestLigandBatch, TestGrids in test_prep.py
+Last session: 2026-04-21T12:58:05.382Z
+Stopped at: Completed 03-02-PLAN.md — AD4 scorer with load_maps(), is_ad4_anomaly flagging; 15 scoring tests passing
 Resume file: None
