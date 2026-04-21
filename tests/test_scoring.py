@@ -593,9 +593,153 @@ class TestEntropy:
 
 
 # ---------------------------------------------------------------------------
-# Calibration (stub — implemented in plan 03-03)
+# Calibration (plan 03-04)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="implemented in plan 03-03")
+
 class TestCalibration:
-    pass
+    """Integration tests for calibrate_alpha.py CLI and D-08 training CSV schema."""
+
+    def test_training_csv_schema(self) -> None:
+        """data/training_complexes.csv must have exactly 3 D-08 columns and ≥3 rows."""
+        import csv
+        from pathlib import Path
+
+        csv_path = Path("data/training_complexes.csv")
+        assert csv_path.exists(), f"Missing training CSV: {csv_path}"
+        with csv_path.open(newline="") as fh:
+            reader = csv.DictReader(fh)
+            rows = list(reader)
+        expected_columns = ["pdb_id", "peptide_sequence", "experimental_pkd"]
+        assert list(reader.fieldnames) == expected_columns, (
+            f"Expected columns {expected_columns}, got {list(reader.fieldnames)}"
+        )
+        assert len(rows) >= 3, f"Expected ≥3 rows, got {len(rows)}"
+
+    def test_calibrate_alpha_script_imports(self) -> None:
+        """calibrate_alpha.py can be imported and exposes a main() function."""
+        import importlib.util
+        from pathlib import Path
+
+        script_path = Path("scripts/calibrate_alpha.py")
+        assert script_path.exists(), f"Missing script: {script_path}"
+        spec = importlib.util.spec_from_file_location("calibrate_alpha", script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        assert hasattr(mod, "main"), "calibrate_alpha.py must expose a main() function"
+
+    def test_calibrate_alpha_writes_valid_json(self, tmp_path: Path) -> None:
+        """main() with synthetic inputs writes a calibration.json that passes load_calibration()."""
+        import argparse
+        import importlib.util
+        import json
+        from pathlib import Path
+
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        # Synthetic 3-column training CSV
+        training_csv = tmp_path / "training.csv"
+        training_csv.write_text(
+            "pdb_id,peptide_sequence,experimental_pkd\n"
+            "2OY2,ETFSDLWKLLPE,6.22\n"
+            "1YCR,TFSDLWKLL,6.52\n"
+            "3LNJ,PMDYEVNLLYH,7.15\n"
+        )
+
+        # Synthetic scores JSON
+        scores_json = tmp_path / "scores.json"
+        scores_json.write_text(json.dumps({
+            "2OY2": {"vina_score": -7.8, "ad4_score": -8.1},
+            "1YCR": {"vina_score": -8.2, "ad4_score": -8.5},
+            "3LNJ": {"vina_score": -9.1, "ad4_score": -9.3},
+        }))
+
+        output_path = tmp_path / "calibration.json"
+
+        spec = importlib.util.spec_from_file_location(
+            "calibrate_alpha", Path("scripts/calibrate_alpha.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        args = argparse.Namespace(
+            training_csv=training_csv,
+            scores_json=scores_json,
+            output=output_path,
+            verbose=False,
+        )
+        mod.main(args)
+
+        assert output_path.exists(), "calibration.json must be written"
+        result = load_calibration(output_path)
+        assert "alpha" in result
+        assert "beta" in result
+
+    def test_calibrate_alpha_end_to_end(self, tmp_path: Path) -> None:
+        """main() produces calibration.json with all D-11 keys; alpha∈[0.2,1.2], beta∈[0.0,0.5]."""
+        import argparse
+        import importlib.util
+        import json
+        from pathlib import Path
+
+        # Synthetic 3-column training CSV
+        training_csv = tmp_path / "training.csv"
+        training_csv.write_text(
+            "pdb_id,peptide_sequence,experimental_pkd\n"
+            "2OY2,ETFSDLWKLLPE,6.22\n"
+            "1YCR,TFSDLWKLL,6.52\n"
+            "3LNJ,PMDYEVNLLYH,7.15\n"
+        )
+
+        scores_json = tmp_path / "scores.json"
+        scores_json.write_text(json.dumps({
+            "2OY2": {"vina_score": -7.8, "ad4_score": -8.1},
+            "1YCR": {"vina_score": -8.2, "ad4_score": -8.5},
+            "3LNJ": {"vina_score": -9.1, "ad4_score": -9.3},
+        }))
+
+        output_path = tmp_path / "calibration.json"
+
+        spec = importlib.util.spec_from_file_location(
+            "calibrate_alpha", Path("scripts/calibrate_alpha.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        args = argparse.Namespace(
+            training_csv=training_csv,
+            scores_json=scores_json,
+            output=output_path,
+            verbose=False,
+        )
+        mod.main(args)
+
+        data = json.loads(output_path.read_text())
+        d11_keys = {"alpha", "beta", "n_complexes", "pearson_r", "rmse_kcal_mol", "calibrated_at", "training_csv"}
+        missing = d11_keys - data.keys()
+        assert not missing, f"Missing D-11 keys: {missing}"
+        assert isinstance(data["alpha"], float), "alpha must be float"
+        assert isinstance(data["beta"], float), "beta must be float"
+        assert 0.2 <= data["alpha"] <= 1.2, f"alpha={data['alpha']} out of [0.2, 1.2]"
+        assert 0.0 <= data["beta"] <= 0.5, f"beta={data['beta']} out of [0.0, 0.5]"
+
+    def test_write_calibration_d11_schema(self, tmp_path: Path) -> None:
+        """write_calibration() output JSON contains all 7 D-11 keys."""
+        import json
+        from hybridock_pep.scoring.entropy import write_calibration
+
+        output_path = tmp_path / "calibration.json"
+        write_calibration(
+            output_path,
+            alpha=0.65,
+            beta=0.22,
+            n_complexes=10,
+            pearson_r=0.71,
+            rmse_kcal_mol=1.2,
+            training_csv="data/training_complexes.csv",
+        )
+
+        data = json.loads(output_path.read_text())
+        d11_keys = {"alpha", "beta", "n_complexes", "pearson_r", "rmse_kcal_mol", "calibrated_at", "training_csv"}
+        missing = d11_keys - data.keys()
+        assert not missing, f"Missing D-11 keys in write_calibration output: {missing}"
