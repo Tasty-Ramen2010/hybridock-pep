@@ -19,8 +19,10 @@
 
 ### Sampling
 
-- [ ] **SAMP-01**: Pipeline runs RAPiDock N=100 stochastic inference passes in `rapidock-env` via `conda run` subprocess; seed propagated for reproducibility
-- [ ] **SAMP-02**: Every run writes `run_metadata.json` containing: git SHA, RAPiDock commit SHA, all CLI args, random seed, tool versions (Vina, OpenMM, CUDA), receptor SHA256, peptide sequence hash, timestamp
+- [x] **SAMP-01
+**: Pipeline runs RAPiDock N=100 stochastic inference passes in `rapidock-env` via `conda run` subprocess; seed propagated for reproducibility
+- [x] **SAMP-02
+**: Every run writes `run_metadata.json` containing: git SHA, RAPiDock commit SHA, all CLI args, random seed, tool versions (Vina, OpenMM, CUDA), receptor SHA256, peptide sequence hash, timestamp
 
 ### Scoring
 
