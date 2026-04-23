@@ -819,22 +819,25 @@ Or use `config.model_dump(mode="json")` — Pydantic v2 serializes Path as strin
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `pip install git+https://github.com/huifengzhao/RAPiDock.git@SHA` register the package as "rapidock" in `importlib.metadata`?**
    - What we know: The repo has no `setup.py` or `pyproject.toml` visible in the root. pip may use a default package name derived from the directory, or may fail to install at all.
    - What's unclear: The exact dist-info package name that `importlib.metadata.distribution("rapidock")` would look up.
    - Recommendation: On day-1 of Phase 4, run `conda run -n rapidock-env pip show rapidock` after installing. If the package name differs, update `get_rapidock_commit_sha()`.
+   - **RESOLVED:** Use `importlib.metadata.version("rapidock")` or fall back to parsing `conda run -n rapidock-env pip show rapidock` output. The pip show approach is authoritative and works regardless of whether a `pyproject.toml` was present. If `distribution("rapidock")` raises `PackageNotFoundError`, iterate over all distributions and match by directory name, or use `pip show` subprocess as the fallback.
 
 2. **What `--scoring-function` should `run_rapidock.py` use?**
    - What we know: `"ref2015"` triggers PyRosetta FastRelax (CLAUDE.md §2.5 — must NOT be used). `"confidence"` requires a confidence model checkpoint. With `confidence_model=None`, no re-ranking by confidence occurs.
    - What's unclear: Whether the HybriDock-Pep use case has a confidence model checkpoint available, or if we should run without a scoring function (just `rank{N}.pdb`).
    - Recommendation: Default to no confidence model (`--scoring-function confidence` but with `confidence_model_dir=None`). RAPiDock will write `rank{N}.pdb` files when `confidence is None` (verified from `save_predictions()` code). Document this in the plan.
+   - **RESOLVED:** No `--scoring-function` flag is needed in `run_rapidock.py`. RAPiDock uses its internal confidence model; do not pass a scoring function flag. When `confidence_model=None` (default), `save_predictions()` writes `rank{N}.pdb` with no suffix. This is the correct output format for HybriDock-Pep (renamed to `pose_{i}.pdb` by `rapidock_runner.py`).
 
 3. **Does RAPiDock's `InferenceDataset` require the receptor to be a PDB file or can it accept a PDBQT?**
    - What we know: `--protein_description` accepts a PDB path or sequence. RAPiDock calls `get_protein_feature_mda()` which uses MDAnalysis — MDAnalysis can read PDBQT but may behave differently.
    - What's unclear: Whether to pass the original receptor PDB or the prepared receptor PDBQT to RAPiDock.
    - Recommendation: Pass the original `config.receptor_path` (the raw PDB) to RAPiDock, not the PDBQT. RAPiDock generates its own atom features; the PDBQT is for Vina scoring only.
+   - **RESOLVED:** Raw PDB is passed directly to RAPiDock per the research body above. No PDBQT conversion is needed for RAPiDock (PDBQT is only for Vina `--score_only` and `--scoring ad4` in Phase 3 scoring). Always pass `config.receptor_path` (the original PDB) as `--protein_description`.
 
 ---
 

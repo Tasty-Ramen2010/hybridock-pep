@@ -72,6 +72,27 @@ class TestDockConfig:
                 output_dir=tmp_path,
             )
 
+    def test_empty_peptide_sequence(self, valid_receptor: Path, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="must not be empty"):
+            DockConfig(
+                peptide_sequence="",
+                receptor_path=valid_receptor,
+                site_coords=(0.0, 0.0, 0.0),
+                box_size=20.0,
+                output_dir=tmp_path,
+            )
+
+    def test_nonpositive_n_samples(self, valid_receptor: Path, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="n_samples must be positive"):
+            DockConfig(
+                peptide_sequence="LIS",
+                receptor_path=valid_receptor,
+                site_coords=(0.0, 0.0, 0.0),
+                box_size=20.0,
+                n_samples=0,
+                output_dir=tmp_path,
+            )
+
 
 class TestPoseRecord:
     def test_construction(self, tmp_path: Path) -> None:
