@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-01-PLAN.md — 18 test stubs across TestRapidockRunner, TestPoseIO, TestMetadata; all imports lazy; 18 items collected 0 errors
-last_updated: "2026-04-23T17:38:37.768Z"
+stopped_at: Completed 04-02-PLAN.md — run_sampling() with Popen streaming + Python 3.9 shim; 5 TestRapidockRunner tests pass
+last_updated: "2026-04-23T17:44:09.930Z"
 last_activity: 2026-04-23
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 14
-  completed_plans: 11
-  percent: 79
+  completed_plans: 12
+  percent: 86
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 04 (sampling-integration) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-04-23
 
-Progress: [████████░░] 79%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [████████░░] 79%
 | Phase 03-scoring-core P03 | 5 | 2 tasks | 4 files |
 | Phase 03-scoring-core P04 | 191 | 2 tasks | 6 files |
 | Phase 04-sampling-integration P01 | 177 | 2 tasks | 2 files |
+| Phase 04-sampling-integration P02 | 190 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Progress: [████████░░] 79%
 - black --target-version py311 required in base Python 3.13 env — without it, AST safety check fails on py314-targeted output
 - Lazy hybridock_pep imports in all Phase 4 test files — prevents ModuleNotFoundError in base Python env; established Phase 3 pattern extended to sampling and output tests
 - SEQRES-first sequence extraction split into two complementary tests (test_parse_seqres_preferred + test_parse_atom_fallback) to independently verify both code paths for D-14
+- Env var helpers in rapidock_runner.py return placeholder paths (not raise) when RAPIDOCK_DIR/MODEL_DIR/CKPT unset — testable without RAPiDock installed; WARNING logged for production misconfiguration
+- fastrelax=False hardcoded in run_rapidock.py per CLAUDE.md §2.5 — ref2015 alignment failure on C-terminal cysteine in LISDAELEAIFEADC
 
 ### Pending Todos
 
@@ -114,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-23T17:38:37.762Z
-Stopped at: Completed 04-01-PLAN.md — 18 test stubs across TestRapidockRunner, TestPoseIO, TestMetadata; all imports lazy; 18 items collected 0 errors
+Last session: 2026-04-23T17:44:09.925Z
+Stopped at: Completed 04-02-PLAN.md — run_sampling() with Popen streaming + Python 3.9 shim; 5 TestRapidockRunner tests pass
 Resume file: None
