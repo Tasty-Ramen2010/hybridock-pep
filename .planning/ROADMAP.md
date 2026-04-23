@@ -69,7 +69,11 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   2. Passing `--seed N` to the sampling wrapper propagates the seed into RAPiDock and is recorded in `run_metadata.json`
   3. After any sampling run, `run_metadata.json` contains: git SHA, RAPiDock commit SHA, all CLI args, random seed, Vina version, OpenMM version, CUDA version, receptor SHA256, peptide sequence hash, and timestamp
   4. `pose_io.py` parses all 100 PDB files into a `list[PoseRecord]` without error on RAPiDock-format output
-**Plans**: TBD
+**Plans**: 4 plans
+  - [ ] 04-01-PLAN.md — Test scaffolds: tests/test_sampling.py + tests/test_output.py (SAMP-01, SAMP-02)
+  - [ ] 04-02-PLAN.md — sampling/rapidock_runner.py + sampling/run_rapidock.py (SAMP-01)
+  - [ ] 04-03-PLAN.md — sampling/pose_io.py Biopython batch PDB parser (SAMP-01)
+  - [ ] 04-04-PLAN.md — output/metadata.py two-write provenance JSON (SAMP-02)
 
 ### Phase 5: CLI & Driver
 **Goal**: A single `hybridock-pep` entry point exposes all four subcommands, validates all inputs before any subprocess is spawned, and the driver orchestrates both pipeline stages end-to-end
@@ -124,7 +128,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | 1. Foundation | 2/2 | Complete | 2026-04-20 |
 | 2. Preparation Pipeline | 4/4 | Complete | 2026-04-20 |
 | 3. Scoring Core | 0/4 | Not started | - |
-| 4. Sampling Integration | 0/? | Not started | - |
+| 4. Sampling Integration | 0/4 | Not started | - |
 | 5. CLI & Driver | 0/? | Not started | - |
 | 6. Analysis & Plots | 0/? | Not started | - |
 | 7. Output & Integration | 0/? | Not started | - |
