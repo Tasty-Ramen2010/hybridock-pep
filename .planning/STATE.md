@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-04-PLAN.md — calibrate_alpha.py thin wrapper, training_complexes.csv D-08 schema, 30 scoring tests passing, 96% coverage
-last_updated: "2026-04-21T13:09:04.192Z"
-last_activity: 2026-04-21
+stopped_at: Completed 04-01-PLAN.md — 18 test stubs across TestRapidockRunner, TestPoseIO, TestMetadata; all imports lazy; 18 items collected 0 errors
+last_updated: "2026-04-23T17:38:37.768Z"
+last_activity: 2026-04-23
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_plans: 14
+  completed_plans: 11
+  percent: 79
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Ranking peptide binding poses with physics-backed scores that are more accurate than ML or Vina alone — so the top-1 result can be trusted for real scientific decisions.
-**Current focus:** Phase 3 — Scoring Core
+**Current focus:** Phase 04 — sampling-integration
 
 ## Current Position
 
-Phase: 3 of 8 (Scoring Core — IN PROGRESS)
-Plan: 4 of 4 in phase 3 (03-01 complete)
+Phase: 04 (sampling-integration) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-04-21
+Last activity: 2026-04-23
 
-Progress: [██████████] 100%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 | Phase 03-scoring-core P02 | 1158 | 2 tasks | 3 files |
 | Phase 03-scoring-core P03 | 5 | 2 tasks | 4 files |
 | Phase 03-scoring-core P04 | 191 | 2 tasks | 6 files |
+| Phase 04-sampling-integration P01 | 177 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Progress: [██████████] 100%
 - n_residues derived from len(peptide_sequence) in training CSV, not scores JSON — CSV is authoritative source of sequence info
 - Post-write self-check: load_calibration() called after write_calibration() to validate alpha/beta convergence before caller proceeds
 - black --target-version py311 required in base Python 3.13 env — without it, AST safety check fails on py314-targeted output
+- Lazy hybridock_pep imports in all Phase 4 test files — prevents ModuleNotFoundError in base Python env; established Phase 3 pattern extended to sampling and output tests
+- SEQRES-first sequence extraction split into two complementary tests (test_parse_seqres_preferred + test_parse_atom_fallback) to independently verify both code paths for D-14
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21T13:09:04.181Z
-Stopped at: Completed 03-04-PLAN.md — calibrate_alpha.py thin wrapper, training_complexes.csv D-08 schema, 30 scoring tests passing, 96% coverage
+Last session: 2026-04-23T17:38:37.762Z
+Stopped at: Completed 04-01-PLAN.md — 18 test stubs across TestRapidockRunner, TestPoseIO, TestMetadata; all imports lazy; 18 items collected 0 errors
 Resume file: None
