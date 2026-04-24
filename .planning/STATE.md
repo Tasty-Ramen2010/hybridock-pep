@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-02-PLAN.md — Expanded cli.py with real arg definitions and dispatch functions
-last_updated: "2026-04-24T18:23:54Z"
+stopped_at: Completed 05-03-PLAN.md — driver.py run_dock() pipeline orchestrator; 136 tests pass
+last_updated: "2026-04-24T18:26:00Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 8
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 05 (cli-driver) — IN PROGRESS
-Plan: 2 of 2
-Status: Plan 02 complete (CLI fully expanded, all 10 CLI tests passing)
+Phase: 05 (cli-driver) — COMPLETE
+Plan: 3 of 3
+Status: Plan 03 complete (driver.py run_dock() orchestrator; 136 tests pass)
 Last activity: 2026-04-24
 
-Progress: [█████████░] 93% (Phase 5 Plan 2/2 complete)
+Progress: [██████████] 100% (Phase 5 Plan 3/3 complete)
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [█████████░] 93% (Phase 5 Plan 2/2 complete)
 - RT = 0.592 kcal/mol hardcoded at 298K in fit_calibration(); not a CLI parameter in v1 (D-09)
 - scipy installed in base Python test env to unblock TestEntropy; production target is score-env (score-env.yml)
 - calibrate_alpha.py aborts with ValueError if --scores-json not provided — live scoring wired in Phase 5; Phase 3 requires pre-computed scores
+- RuntimeError in run_dock() only fires when records > 0 and all ligand prep fails — empty bypass run (zero records) is valid, not an error
 - n_residues derived from len(peptide_sequence) in training CSV, not scores JSON — CSV is authoritative source of sequence info
 - Post-write self-check: load_calibration() called after write_calibration() to validate alpha/beta convergence before caller proceeds
 - black --target-version py311 required in base Python 3.13 env — without it, AST safety check fails on py314-targeted output
