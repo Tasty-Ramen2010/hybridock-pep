@@ -8,8 +8,8 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 
 - [x] **Phase 1: Foundation** - Both conda environments set up, core dataclasses defined, package scaffold in place, smoke test passing
 - [x] **Phase 2: Preparation Pipeline** - Receptor and ligand PDBQT preparation wrappers working, autogrid4 AD4 map generation validated *(complete 2026-04-20)*
-- [ ] **Phase 3: Scoring Core** - Vina and AD4 per-pose scoring implemented, entropy correction with α calibration working
-- [ ] **Phase 4: Sampling Integration** - RAPiDock subprocess wrapper running 100 poses, pose I/O parsing, provenance metadata written
+- [x] **Phase 3: Scoring Core** - Vina and AD4 per-pose scoring implemented, entropy correction with α calibration working *(complete 2026-04-21)*
+- [x] **Phase 4: Sampling Integration** - RAPiDock subprocess wrapper running 100 poses, pose I/O parsing, provenance metadata written *(complete 2026-04-23)*
 - [ ] **Phase 5: CLI & Driver** - Single entry point with all subcommands, pre-run validation, seed propagation, full two-stage orchestration
 - [ ] **Phase 6: Analysis & Plots** - Contact-zone Cα RMSD clustering, ensemble statistics, convergence and silhouette plots
 - [ ] **Phase 7: Output & Integration** - Ranked CSV, best-pose PDB, ΔG reporting, MDM2/p53 integration test passing
@@ -55,10 +55,10 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   3. Given a `calibration.json` with α in range 0.2–1.2 kcal/mol/residue, `entropy.py` computes the backbone entropy correction; α outside this range causes an immediate abort with a diagnostic message
   4. `scripts/calibrate_alpha.py` runs on the training set and writes a valid `calibration.json`; unit tests in `test_scoring.py` cover all three scoring modules
 **Plans**: 4 plans
-  - [ ] 03-01-PLAN.md — scoring/vina.py: Vina Python API batch scorer + grid boundary check (SCORE-01)
-  - [ ] 03-02-PLAN.md — scoring/ad4.py: AD4 Vina(sf_name='ad4') + load_maps + anomaly flag (SCORE-02)
-  - [ ] 03-03-PLAN.md — scoring/entropy.py + data/calibration.json: hybrid formula, α/β validation, fit_calibration() (SCORE-03)
-  - [ ] 03-04-PLAN.md — scripts/calibrate_alpha.py + complete tests/test_scoring.py + data/training_complexes.csv (SCORE-01, SCORE-02, SCORE-03)
+  - [x] 03-01-PLAN.md — scoring/vina.py: Vina Python API batch scorer + grid boundary check (SCORE-01)
+  - [x] 03-02-PLAN.md — scoring/ad4.py: AD4 Vina(sf_name='ad4') + load_maps + anomaly flag (SCORE-02)
+  - [x] 03-03-PLAN.md — scoring/entropy.py + data/calibration.json: hybrid formula, α/β validation, fit_calibration() (SCORE-03)
+  - [x] 03-04-PLAN.md — scripts/calibrate_alpha.py + complete tests/test_scoring.py + data/training_complexes.csv (SCORE-01, SCORE-02, SCORE-03)
 
 ### Phase 4: Sampling Integration
 **Goal**: RAPiDock runs 100 stochastic inference passes from score-env via a subprocess wrapper, all poses are parsed into PoseRecord objects, and every run writes complete provenance metadata
@@ -70,10 +70,10 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   3. After any sampling run, `run_metadata.json` contains: git SHA, RAPiDock commit SHA, all CLI args, random seed, Vina version, OpenMM version, CUDA version, receptor SHA256, peptide sequence hash, and timestamp
   4. `pose_io.py` parses all 100 PDB files into a `list[PoseRecord]` without error on RAPiDock-format output
 **Plans**: 4 plans
-  - [ ] 04-01-PLAN.md — Test scaffolds: tests/test_sampling.py + tests/test_output.py (SAMP-01, SAMP-02)
-  - [ ] 04-02-PLAN.md — sampling/rapidock_runner.py + sampling/run_rapidock.py (SAMP-01)
-  - [ ] 04-03-PLAN.md — sampling/pose_io.py Biopython batch PDB parser (SAMP-01)
-  - [ ] 04-04-PLAN.md — output/metadata.py two-write provenance JSON (SAMP-02)
+  - [x] 04-01-PLAN.md — Test scaffolds: tests/test_sampling.py + tests/test_output.py (SAMP-01, SAMP-02)
+  - [x] 04-02-PLAN.md — sampling/rapidock_runner.py + sampling/run_rapidock.py (SAMP-01)
+  - [x] 04-03-PLAN.md — sampling/pose_io.py Biopython batch PDB parser (SAMP-01)
+  - [x] 04-04-PLAN.md — output/metadata.py two-write provenance JSON (SAMP-02)
 
 ### Phase 5: CLI & Driver
 **Goal**: A single `hybridock-pep` entry point exposes all four subcommands, validates all inputs before any subprocess is spawned, and the driver orchestrates both pipeline stages end-to-end
@@ -127,8 +127,8 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-04-20 |
 | 2. Preparation Pipeline | 4/4 | Complete | 2026-04-20 |
-| 3. Scoring Core | 0/4 | Not started | - |
-| 4. Sampling Integration | 0/4 | Not started | - |
+| 3. Scoring Core | 4/4 | Complete | 2026-04-21 |
+| 4. Sampling Integration | 4/4 | Complete | 2026-04-23 |
 | 5. CLI & Driver | 0/? | Not started | - |
 | 6. Analysis & Plots | 0/? | Not started | - |
 | 7. Output & Integration | 0/? | Not started | - |
