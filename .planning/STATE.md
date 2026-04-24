@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md — TDD RED gate test scaffolds for CLI and driver (tests/test_cli.py + tests/test_driver.py)
-last_updated: "2026-04-24T18:20:46Z"
+stopped_at: Completed 05-02-PLAN.md — Expanded cli.py with real arg definitions and dispatch functions
+last_updated: "2026-04-24T18:23:54Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 8
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 05 (cli-driver) — IN PROGRESS
-Plan: 1 of 2
-Status: Plan 01 complete (RED gate scaffolds)
+Plan: 2 of 2
+Status: Plan 02 complete (CLI fully expanded, all 10 CLI tests passing)
 Last activity: 2026-04-24
 
-Progress: [█████████░] 86% (Phase 5 Plan 1/2 complete)
+Progress: [█████████░] 93% (Phase 5 Plan 2/2 complete)
 
 ## Performance Metrics
 
@@ -78,6 +78,8 @@ Progress: [█████████░] 86% (Phase 5 Plan 1/2 complete)
 - _build_gpf() generates GPF programmatically from DockConfig — no template file; ligand_types includes HD for receptor.HD.map generation
 - generate_ad4_maps() hard-aborts with PrepError (verbatim D-05 message) if receptor.HD.map missing — prevents silent vina --scoring ad4 failure downstream
 - All hybridock_pep imports kept lazy in test_prep.py — pytest-cov triggers numpy double-import error in Python 3.13 base env; coverage measured via coverage run
+- --n-samples default=None (not 100) in argparse to enable mutual-exclusion check with --input-poses; 100 applied in _run_dock after guard
+- driver import deferred inside _run_dock after DockConfig validation block — driver.py is Wave 2; eager import caused ImportError in validation error-path tests
 - Vina import lazy in scoring/vina.py (try/except ImportError, Vina=None fallback) — allows check_grid_boundary to run in base env; mock.patch replaces Vina in tests; real Vina loaded in score-env
 - compute_vina_maps called once before pose loop (not per-pose) — batch scoring pattern; per-pose recomputation would be wasteful
 - _append_clipped_pose helper in vina.py (not metadata.py) — metadata.py does not exist in Phase 3; avoids premature coupling to Phase 4 output module
