@@ -84,7 +84,10 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   2. Providing an invalid peptide sequence, a missing receptor PDB, or out-of-range site coordinates causes an error with a clear message in under 1 second — before any subprocess is spawned
   3. `hybridock-pep dock --seed 42` produces the same output on two successive runs (modulo CUDA nondeterminism); the metadata JSON notes the seed
   4. `driver.py` orchestrates Stage 1 (rapidock-env subprocess) and Stage 2 (score-env in-process) in sequence and passes a `DockConfig` through both; if `poses/pose_*.pdb` already exist and `--skip-sampling` is not yet a v1 flag, the driver still completes without error
-**Plans**: TBD
+**Plans**: 3 plans
+  - [ ] 05-01-PLAN.md — Wave 0 TDD RED gate: test_cli.py + test_driver.py scaffolds (CLI-01, CLI-02, CLI-03)
+  - [ ] 05-02-PLAN.md — cli.py expansion: all 4 subcommands with real arg defs + dispatch (CLI-01, CLI-02, CLI-03)
+  - [ ] 05-03-PLAN.md — driver.py: run_dock() pipeline orchestrator, Stage 1+2 wiring (CLI-01, CLI-02, CLI-03)
 
 ### Phase 6: Analysis & Plots
 **Goal**: Completed poses are clustered by binding mode using contact-zone Cα RMSD, cluster quality is quantified, ensemble statistics are computed, and all diagnostic plots are generated
