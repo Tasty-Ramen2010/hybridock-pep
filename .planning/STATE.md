@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-04-PLAN.md — pose_io.py (5 tests) + output/metadata.py (8 tests); Phase 4 all 4 plans done
-last_updated: "2026-04-23T21:06:00.000Z"
-last_activity: 2026-04-23
+stopped_at: Completed 05-01-PLAN.md — TDD RED gate test scaffolds for CLI and driver (tests/test_cli.py + tests/test_driver.py)
+last_updated: "2026-04-24T18:20:46Z"
+last_activity: 2026-04-24
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 14
-  completed_plans: 14
+  completed_plans: 15
   percent: 100
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 04 (sampling-integration) — COMPLETE
-Plan: 4 of 4
-Status: All plans complete
-Last activity: 2026-04-23
+Phase: 05 (cli-driver) — IN PROGRESS
+Plan: 1 of 2
+Status: Plan 01 complete (RED gate scaffolds)
+Last activity: 2026-04-24
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 86% (Phase 5 Plan 1/2 complete)
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Progress: [█████████░] 86%
 - n_residues derived from len(peptide_sequence) in training CSV, not scores JSON — CSV is authoritative source of sequence info
 - Post-write self-check: load_calibration() called after write_calibration() to validate alpha/beta convergence before caller proceeds
 - black --target-version py311 required in base Python 3.13 env — without it, AST safety check fails on py314-targeted output
+- 05-01 RED gate: test_cli.py + test_driver.py collected clean; 9 pass (DockConfig seed, existing subcommands/validation), 7 fail as expected (driver.py absent, _build_parser not exported)
 - Lazy hybridock_pep imports in all Phase 4 test files — prevents ModuleNotFoundError in base Python env; established Phase 3 pattern extended to sampling and output tests
 - SEQRES-first sequence extraction split into two complementary tests (test_parse_seqres_preferred + test_parse_atom_fallback) to independently verify both code paths for D-14
 - Env var helpers in rapidock_runner.py return placeholder paths (not raise) when RAPIDOCK_DIR/MODEL_DIR/CKPT unset — testable without RAPiDock installed; WARNING logged for production misconfiguration
