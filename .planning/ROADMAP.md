@@ -99,7 +99,12 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   3. `convergence_plot.png` exists after a run and shows running mean ± σ of hybrid score vs. number of poses N
   4. `silhouette_plot.png` exists after a run and shows cluster quality validation scores across cluster counts
   5. Unit tests in `test_clustering.py` cover the contact-zone RMSD computation, clustering, and silhouette score calculation
-**Plans**: TBD
+**Plans**: 5 plans
+  - [ ] 06-01-PLAN.md — Wave 0 TDD RED gate: test_clustering.py scaffold (ANAL-01, ANAL-02, ANAL-03, OUT-04, OUT-05)
+  - [ ] 06-02-PLAN.md — analysis/clustering.py: ClusterResult, RMSD matrix, silhouette k-search, cluster_poses() (ANAL-01)
+  - [ ] 06-03-PLAN.md — analysis/statistics.py: compute_cluster_stats(), 95% CI, write_cluster_summary_csv() (ANAL-02)
+  - [ ] 06-04-PLAN.md — analysis/plotting.py: plot_convergence(), plot_silhouette(), Agg backend (ANAL-03, OUT-04, OUT-05)
+  - [ ] 06-05-PLAN.md — Integration: analysis/__init__.py export, driver.py Stage 3 stub replacement, full suite green (ANAL-01..03, OUT-04, OUT-05)
 
 ### Phase 7: Output & Integration
 **Goal**: The pipeline writes all required output files, reports ΔG to the user, and the MDM2/p53 integration test passes the corrected ΔG threshold
@@ -132,7 +137,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | 2. Preparation Pipeline | 4/4 | Complete | 2026-04-20 |
 | 3. Scoring Core | 4/4 | Complete | 2026-04-21 |
 | 4. Sampling Integration | 4/4 | Complete | 2026-04-23 |
-| 5. CLI & Driver | 0/? | Not started | - |
-| 6. Analysis & Plots | 0/? | Not started | - |
+| 5. CLI & Driver | 3/3 | Complete | 2026-04-24 |
+| 6. Analysis & Plots | 0/5 | In progress | - |
 | 7. Output & Integration | 0/? | Not started | - |
 | 8. Benchmark & Documentation | 0/? | Not started | - |
