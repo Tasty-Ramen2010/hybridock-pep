@@ -1,9 +1,9 @@
 ---
 phase: 6
 slug: analysis-plots
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-25
 ---
 
@@ -38,19 +38,19 @@ created: 2026-04-25
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 6-W0-01 | 01 | 0 | ANAL-01, ANAL-02, ANAL-03, OUT-04, OUT-05 | — | N/A | unit (RED gate) | `pytest tests/test_clustering.py -x` | ❌ W0 | ⬜ pending |
-| 6-01-01 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_contact_zone_indices -x` | ❌ W0 | ⬜ pending |
-| 6-01-02 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_contact_zone_fallback -x` | ❌ W0 | ⬜ pending |
-| 6-01-03 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_rmsd_matrix_symmetry -x` | ❌ W0 | ⬜ pending |
-| 6-01-04 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_cluster_poses_assigns_ids -x` | ❌ W0 | ⬜ pending |
-| 6-01-05 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_silhouette_k_selection -x` | ❌ W0 | ⬜ pending |
-| 6-02-01 | 02 | 1 | ANAL-02 | — | N/A | unit | `pytest tests/test_clustering.py::test_cluster_summary_csv -x` | ❌ W0 | ⬜ pending |
-| 6-02-02 | 02 | 1 | ANAL-02 | — | N/A | unit | `pytest tests/test_clustering.py::test_ci95 -x` | ❌ W0 | ⬜ pending |
-| 6-03-01 | 03 | 1 | ANAL-03, OUT-04 | — | N/A | unit | `pytest tests/test_clustering.py::test_convergence_plot_written -x` | ❌ W0 | ⬜ pending |
-| 6-03-02 | 03 | 1 | OUT-05 | — | N/A | unit | `pytest tests/test_clustering.py::test_silhouette_plot_written -x` | ❌ W0 | ⬜ pending |
-| 6-04-01 | 04 | 2 | ANAL-01..03, OUT-04, OUT-05 | — | N/A | integration | `pytest tests/test_clustering.py -x && pytest --cov=hybridock_pep` | ✅ | ⬜ pending |
+| 6-W0-01 | 01 | 0 | ANAL-01, ANAL-02, ANAL-03, OUT-04, OUT-05 | — | N/A | unit (RED gate) | `pytest tests/test_clustering.py -x` | ❌ W0 | ✅ green |
+| 6-01-01 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_contact_zone_indices -x` | ❌ W0 | ✅ green |
+| 6-01-02 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_contact_zone_fallback -x` | ❌ W0 | ✅ green |
+| 6-01-03 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_rmsd_matrix_symmetry -x` | ❌ W0 | ✅ green |
+| 6-01-04 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_cluster_poses_assigns_ids -x` | ❌ W0 | ✅ green |
+| 6-01-05 | 01 | 1 | ANAL-01 | — | N/A | unit | `pytest tests/test_clustering.py::test_silhouette_k_selection -x` | ❌ W0 | ✅ green |
+| 6-02-01 | 02 | 1 | ANAL-02 | — | N/A | unit | `pytest tests/test_clustering.py::test_cluster_summary_csv -x` | ❌ W0 | ✅ green |
+| 6-02-02 | 02 | 1 | ANAL-02 | — | N/A | unit | `pytest tests/test_clustering.py::test_ci95 -x` | ❌ W0 | ✅ green |
+| 6-03-01 | 03 | 1 | ANAL-03, OUT-04 | — | N/A | unit | `pytest tests/test_clustering.py::test_convergence_plot_written -x` | ❌ W0 | ✅ green |
+| 6-03-02 | 03 | 1 | OUT-05 | — | N/A | unit | `pytest tests/test_clustering.py::test_silhouette_plot_written -x` | ❌ W0 | ✅ green |
+| 6-04-01 | 04 | 2 | ANAL-01..03, OUT-04, OUT-05 | — | N/A | integration | `pytest tests/test_clustering.py -x && pytest --cov=hybridock_pep` | ✅ | ✅ green |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: ✅ green · ✅ green · ❌ red · ⚠️ flaky*
 
 ---
 

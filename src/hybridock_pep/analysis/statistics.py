@@ -106,7 +106,7 @@ def compute_cluster_stats(
             mean_hybrid = float(arr.mean())
             std_hybrid = float(arr.std(ddof=1)) if n > 1 else 0.0
             ci_lo, ci_hi = _ci95(scores)
-            best_pose = min(members, key=lambda p: p.hybrid_score or float("inf"))
+            best_pose = min(members, key=lambda p: p.hybrid_score if p.hybrid_score is not None else float("inf"))
         else:
             mean_hybrid = float("nan")
             std_hybrid = float("nan")
