@@ -35,17 +35,22 @@
 
 ### Analysis
 
-- [ ] **ANAL-01**: Pipeline clusters poses by pairwise Cα RMSD computed over contact-zone residues only (not full peptide), using agglomerative clustering with average linkage and precomputed metric; reports silhouette score per run
-- [ ] **ANAL-02**: Pipeline computes per-cluster ensemble statistics (mean, std, 95% CI of hybrid score) and writes `cluster_summary.csv`
-- [ ] **ANAL-03**: Pipeline generates `convergence_plot.png` showing running mean ± σ of hybrid score vs. number of poses N
+- [x] **ANAL-01
+**: Pipeline clusters poses by pairwise Cα RMSD computed over contact-zone residues only (not full peptide), using agglomerative clustering with average linkage and precomputed metric; reports silhouette score per run
+- [x] **ANAL-02
+**: Pipeline computes per-cluster ensemble statistics (mean, std, 95% CI of hybrid score) and writes `cluster_summary.csv`
+- [x] **ANAL-03
+**: Pipeline generates `convergence_plot.png` showing running mean ± σ of hybrid score vs. number of poses N
 
 ### Output
 
 - [ ] **OUT-01**: Pipeline writes `ranked_poses.csv` with top-10 poses including: hybrid score, Vina score, AD4 score, entropy correction, cluster ID, pose filename
 - [ ] **OUT-02**: Pipeline writes `best_pose.pdb` — the centroid of the top-ranked cluster, not just the top individual scorer
 - [ ] **OUT-03**: ΔG estimate in kcal/mol is reported in `ranked_poses.csv` and printed to stdout at run completion
-- [ ] **OUT-04**: Pipeline generates `convergence_plot.png` (running mean ± σ vs N) confirming ensemble convergence
-- [ ] **OUT-05**: Pipeline generates `silhouette_plot.png` showing cluster quality validation scores
+- [x] **OUT-04
+**: Pipeline generates `convergence_plot.png` (running mean ± σ vs N) confirming ensemble convergence
+- [x] **OUT-05
+**: Pipeline generates `silhouette_plot.png` showing cluster quality validation scores
 
 ### Testing
 
