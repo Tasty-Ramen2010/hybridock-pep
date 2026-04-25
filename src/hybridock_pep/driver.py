@@ -144,8 +144,17 @@ def run_dock(
 
     logger.info("Stage 2 complete: %d poses scored", len(scored_poses))
 
-    # Stage 3 stub: Clustering and output writing are Phase 6/7 scope
-    logger.info("Clustering and output: Phase 6/7 not yet implemented")
+    # Stage 3: Clustering and analysis
+    if len(scored_poses) >= 2:
+        from hybridock_pep.analysis import cluster_poses
+        cluster_result = cluster_poses(scored_poses, config)
+        logger.info(
+            "Stage 3 complete: k=%d clusters, silhouette=%.3f",
+            cluster_result.k_optimal,
+            cluster_result.silhouette_score,
+        )
+    else:
+        logger.warning("Stage 3 skipped: no scored poses to cluster")
 
     # Finalize metadata AFTER scoring
     finalize_metadata(metadata_path, poses_generated=len(records))
