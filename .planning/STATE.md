@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Ranking peptide binding poses with physics-backed scores that are more accurate than ML or Vina alone — so the top-1 result can be trusted for real scientific decisions.
-**Current focus:** Phase 05 — driver-integration (next)
+**Current focus:** Phase 06 — analysis-plots (next)
 
 ## Current Position
 
