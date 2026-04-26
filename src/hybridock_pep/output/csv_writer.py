@@ -1,0 +1,135 @@
+"""Ranked CSV and best-pose PDB writers for HybriDock-Pep output (OUT-01, OUT-02, OUT-03)."""
+from __future__ import annotations
+
+import csv
+import logging
+import os
+import shutil
+from pathlib import Path
+from typing import Any
+
+from hybridock_pep.models import DockConfig, ScoredPose
+from hybridock_pep.analysis.clustering import ClusterResult
+
+logger = logging.getLogger(__name__)
+
+FIELDNAMES: list[str] = [
+    "rank",
+    "hybrid_score",
+    "vina_score",
+    "ad4_score",
+    "entropy_correction",
+    "delta_g",
+    "cluster_id",
+    "pose_filename",
+    "is_ad4_anomaly",
+    "is_clipped",
+]
+
+
+def _write_csv_atomic(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
+    """Atomically write rows as CSV to path using a .tmp intermediate file.
+
+    Args:
+        path: Destination path for the CSV file.
+        rows: List of row dicts. Keys must be a superset of fieldnames.
+        fieldnames: Column order for the CSV header and rows.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    with tmp.open("w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+    os.replace(tmp, path)
+
+
+def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path:
+    """Write top-10 poses ranked by hybrid_score to ranked_poses.csv.
+
+    Sorts all scored_poses by hybrid_score ascending (most negative = best first),
+    takes the top 10, formats floats to 4 decimal places, and writes atomically.
+    delta_g is identical to hybrid_score per D-04 (same number, scientific label).
+
+    Args:
+        scored_poses: All scored poses from the pipeline. Sorted internally.
+        config: Run configuration. output_dir is the write destination.
+
+    Returns:
+        Absolute path to the written ranked_poses.csv.
+    """
+    sorted_poses = sorted(
+        scored_poses,
+        key=lambda p: (p.hybrid_score if p.hybrid_score is not None else float("inf")),
+    )
+    top10 = sorted_poses[:10]
+
+    rows: list[dict[str, Any]] = []
+    for rank, pose in enumerate(top10, start=1):
+        hs = pose.hybrid_score if pose.hybrid_score is not None else 0.0
+        rows.append(
+            {
+                "rank": rank,
+                "hybrid_score": f"{hs:.4f}",
+                "vina_score": f"{pose.vina_score:.4f}" if pose.vina_score is not None else "",
+                "ad4_score": f"{pose.ad4_score:.4f}" if pose.ad4_score is not None else "",
+                "entropy_correction": (
+                    f"{pose.entropy_correction:.4f}"
+                    if pose.entropy_correction is not None
+                    else ""
+                ),
+                "delta_g": f"{hs:.4f}",  # D-04: same value as hybrid_score
+                "cluster_id": pose.cluster_id if pose.cluster_id is not None else "",
+                "pose_filename": pose.pdb_path.name,
+                "is_ad4_anomaly": str(pose.is_ad4_anomaly),
+                "is_clipped": str(pose.is_clipped),
+            }
+        )
+
+    output_path = config.output_dir / "ranked_poses.csv"
+    _write_csv_atomic(output_path, rows, FIELDNAMES)
+    logger.info("Wrote ranked_poses.csv (%d poses) to %s", len(rows), output_path)
+    return output_path
+
+
+def write_best_pose_pdb(cluster_result: ClusterResult, config: DockConfig) -> Path:
+    """Copy the best cluster centroid PDB to best_pose.pdb.
+
+    Selects the cluster with the lowest mean_hybrid_score (most negative = best),
+    copies its centroid pose from config.output_dir/poses/ to
+    config.output_dir/best_pose.pdb.
+
+    Args:
+        cluster_result: Completed clustering result with per_cluster_stats populated.
+        config: Run configuration. output_dir contains the poses/ subdirectory.
+
+    Returns:
+        Absolute path to the written best_pose.pdb.
+
+    Raises:
+        ValueError: If per_cluster_stats is empty.
+        FileNotFoundError: If the source PDB does not exist.
+    """
+    if not cluster_result.per_cluster_stats:
+        raise ValueError("cluster_result.per_cluster_stats is empty — cannot select best pose")
+
+    best_cluster = min(
+        cluster_result.per_cluster_stats,
+        key=lambda s: s["mean_hybrid_score"],
+    )
+    best_pose_idx: int = best_cluster["best_pose_idx"]
+    src = config.output_dir / "poses" / f"pose_{best_pose_idx:03d}.pdb"
+    dest = config.output_dir / "best_pose.pdb"
+
+    if not src.exists():
+        raise FileNotFoundError(f"Source pose PDB not found: {src}")
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)
+    logger.info(
+        "Best pose: ΔG = %.1f kcal/mol (cluster %d, %s)",
+        best_cluster["mean_hybrid_score"],
+        best_cluster["cluster_id"],
+        src.name,
+    )
+    return dest
