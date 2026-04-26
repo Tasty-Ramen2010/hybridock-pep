@@ -216,7 +216,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         )
 
     from hybridock_pep import driver  # imported late — driver.py is Wave 2 scope
-    scored_poses = driver.run_dock(
+    scored_poses, _cluster_result = driver.run_dock(
         config=config,
         input_poses_dir=input_poses_dir,
         calibration_path=calibration_path,
