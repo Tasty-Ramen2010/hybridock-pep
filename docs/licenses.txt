@@ -63,7 +63,7 @@ require the user's application to be LGPL — provided:
 Both conditions are satisfied. HybriDock-Pep itself remains MIT-licensed.
 
 ================================================================================
-=== rapidock-env === (known licenses — PARTIAL, see OPEN QUESTIONS)
+=== rapidock-env === (known licenses — verified 2026-04-26)
 ================================================================================
 
 Name                 License         URL
@@ -73,42 +73,30 @@ torchaudio           BSD-3-Clause    https://pytorch.org        [ASSUMED]
 pytorch-geometric    MIT             https://pyg.org            [ASSUMED]
 e3nn                 MIT             https://e3nn.io            [ASSUMED]
 rdkit                BSD-3-Clause    https://rdkit.org          [ASSUMED]
-mdanalysis           GPL-2.0         https://mdanalysis.org     [ASSUMED — see OPEN QUESTION 1]
-RAPiDock             UNKNOWN         https://github.com/huifengzhao/RAPiDock [see OPEN QUESTION 2]
+mdanalysis           GPL-2.0         https://mdanalysis.org     [ACCEPTED — see RULING 1 below]
+RAPiDock             MIT             https://github.com/huifengzhao/RAPiDock [VERIFIED — see RULING 2 below]
 
 ================================================================================
-OPEN QUESTIONS — Require Ram's ruling before final submission
+LICENSE RULINGS — Ram (Head of Dry Lab, 2026-04-26)
 ================================================================================
 
-OPEN QUESTION 1: MDAnalysis GPL-2.0 in rapidock-env
-----------------------------------------------------
-MDAnalysis is GPL-2.0 licensed. GPL is OSI-approved but has strong copyleft.
-HybriDock-Pep's own source (score-env) does NOT import MDAnalysis directly.
-MDAnalysis lives in rapidock-env, used by RAPiDock's internal trajectory analysis.
-The driver calls RAPiDock via `conda run -n rapidock-env python run_rapidock.py`
-(a subprocess boundary — GPL does not propagate across subprocess boundaries under
-the GPL's own FAQ: "pipes, sockets and command-line arguments" create no obligation).
+RULING 1: MDAnalysis GPL-2.0 in rapidock-env — ACCEPTED (Option A)
+--------------------------------------------------------------------
+MDAnalysis is GPL-2.0 licensed. GPL is OSI-approved and therefore satisfies iGEM's
+"OSI-approved open source license" requirement.
 
-However: `src/hybridock_pep/sampling/run_rapidock.py` is OUR source code running
-INSIDE rapidock-env where MDAnalysis is present. If RAPiDock transitively imports
-MDAnalysis when run_rapidock.py runs, iGEM's rubric may interpret this as a copyleft obligation.
+Rationale accepted:
+- HybriDock-Pep's own source (score-env) does NOT import MDAnalysis directly.
+- MDAnalysis lives in rapidock-env, invoked via `conda run -n rapidock-env` subprocess boundary.
+- Under the GPL's own FAQ, GPL does not propagate across subprocess boundaries
+  ("pipes, sockets and command-line arguments" create no obligation).
+- HybriDock-Pep itself remains MIT-licensed.
 
-RAM'S RULING NEEDED:
-  Option A: Accept — GPL in rapidock-env subprocess is acceptable under iGEM's "OSI-approved"
-            interpretation. Document rationale above in final licenses.txt.
-  Option B: Remove — replace MDAnalysis usage in rapidock-env with a permissive alternative
-            (requires RAPiDock fork or MDAnalysis-free path). High implementation cost.
-  Option C: Clarify — ask iGEM judges directly before submission.
-
-OPEN QUESTION 2: RAPiDock license
-----------------------------------
-The RAPiDock GitHub repo license is not confirmed in research. Before final submission:
-  1. Check https://github.com/huifengzhao/RAPiDock for LICENSE file.
-  2. If GPL/copyleft: same question as OQ-1 applies (it runs in rapidock-env subprocess).
-  3. If MIT/Apache/BSD: no issue.
-  4. If no LICENSE: technically "all rights reserved" by default — contact Zhao et al.
-     before any public release or competition submission.
-RAM'S RULING NEEDED: verify and document RAPiDock license before submission.
+RULING 2: RAPiDock license — MIT (VERIFIED)
+--------------------------------------------
+RAPiDock (github.com/huifengzhao/RAPiDock) is MIT-licensed.
+Verified by Ram from the repo LICENSE file on 2026-04-26.
+MIT is permissive and OSI-approved. No copyleft concern.
 
 ================================================================================
 NON-REDISTRIBUTABLE BINARIES (not in repo — download separately)
