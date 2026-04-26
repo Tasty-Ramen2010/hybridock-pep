@@ -131,7 +131,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   4. `pip-licenses` output is committed and confirms no GPL/LGPL/AGPL dependency in either conda environment
   5. `docs/tutorial.ipynb` runs top-to-bottom without errors on a fresh install, demonstrating the full MDM2/p53 docking walkthrough
 **Plans**: 6 plans
-  - [ ] 08-01-PLAN.md — data/test_complexes.csv + data/test_complexes_meta.csv + tests/test_benchmark.py scaffold (TEST-03)
+  - [x] 08-01-PLAN.md — data/test_complexes.csv + data/test_complexes_meta.csv + tests/test_benchmark.py scaffold (TEST-03)
   - [ ] 08-02-PLAN.md — scripts/benchmark.py implementation + cli.py _run_benchmark() dispatch (TEST-03)
   - [ ] 08-03-PLAN.md — README.md comprehensive user guide + INSTALL.md three additions (DOCS-01)
   - [ ] 08-04-PLAN.md — docs/architecture.md 5-section module map + data flow (DOCS-02)
@@ -149,4 +149,4 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | 5. CLI & Driver | 3/3 | Complete | 2026-04-25 |
 | 6. Analysis & Plots | 5/5 | Complete | 2026-04-25 |
 | 7. Output & Integration | 3/3 | Complete | 2026-04-25 |
-| 8. Benchmark & Documentation | 0/6 | Not started | - |
+| 8. Benchmark & Documentation | 1/6 | In progress | - |
