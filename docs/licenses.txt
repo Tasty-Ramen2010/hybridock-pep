@@ -1,0 +1,126 @@
+================================================================================
+HybriDock-Pep — Dependency License Audit
+================================================================================
+Generated: [PENDING — run pip-licenses commands below on RTX machine with both
+            conda envs installed. Replace this header with actual output.]
+iGEM requirement: OSI-approved open source license for all direct dependencies
+                  in HybriDock-Pep source. (CLAUDE.md §2.6)
+================================================================================
+
+================================================================================
+HOW TO GENERATE THIS FILE (RTX machine instructions)
+================================================================================
+
+Run the following on the RTX machine where both conda environments are installed:
+
+  conda activate score-env
+  pip install pip-licenses
+  pip-licenses --format=plain-vertical --with-urls --order=license \
+    > /tmp/score-env-licenses.txt
+
+  conda activate rapidock-env
+  pip install pip-licenses
+  pip-licenses --format=plain-vertical --with-urls --order=license \
+    > /tmp/rapidock-env-licenses.txt
+
+Then combine and commit:
+  { echo "=== score-env ==="; cat /tmp/score-env-licenses.txt; \
+    echo ""; echo "=== rapidock-env ==="; cat /tmp/rapidock-env-licenses.txt; } \
+    > docs/licenses.txt
+
+NOTE: pip-licenses only lists pip-installed packages. Some conda-forge packages
+(openmm, biopython, scipy) may appear with UNKNOWN license in pip output.
+Supplement with: conda list -n score-env | grep -E "openmm|biopython|scipy"
+and verify licenses from conda-forge metadata.
+
+================================================================================
+=== score-env === (known licenses — verified pre-RTX-run)
+================================================================================
+
+Name                 License         URL
+numpy                BSD-3-Clause    https://numpy.org
+scipy                BSD-3-Clause    https://scipy.org
+scikit-learn         BSD-3-Clause    https://scikit-learn.org
+matplotlib           PSF             https://matplotlib.org
+biopython            Biopython       https://github.com/biopython/biopython
+pydantic             MIT             https://pydantic.dev
+pdbfixer             MIT             https://github.com/openmm/pdbfixer
+vina                 Apache-2.0      https://pypi.org/project/vina
+openmm               MIT + LGPL      https://openmm.org  (see NOTE-A below)
+meeko                LGPL-2.1        https://github.com/forlilab/Meeko  (see NOTE-B below)
+
+NOTE-A: OpenMM CUDA/HIP/OpenCL platforms are LGPL-covered. The core OpenMM library is MIT.
+HybriDock-Pep uses OpenMM as a dynamically-imported Python package; the LGPL library
+exception applies (see NOTE-B reasoning).
+
+NOTE-B: Meeko is LGPL-2.1. LGPL is OSI-approved and iGEM-legal.
+HybriDock-Pep imports Meeko as a Python package (dynamic import via `import meeko`).
+Under LGPL-2.1 §5-6 ("Library Exception"), use as a dynamically-linked library does NOT
+require the user's application to be LGPL — provided:
+  (a) Meeko is separately installable and replaceable (it is — listed in score-env.yml, not
+      bundled in this repo), and
+  (b) HybriDock-Pep source code does not statically link Meeko.
+Both conditions are satisfied. HybriDock-Pep itself remains MIT-licensed.
+
+================================================================================
+=== rapidock-env === (known licenses — PARTIAL, see OPEN QUESTIONS)
+================================================================================
+
+Name                 License         URL
+pytorch              BSD-3-Clause    https://pytorch.org        [ASSUMED — standard PyTorch]
+torchvision          BSD-3-Clause    https://pytorch.org        [ASSUMED]
+torchaudio           BSD-3-Clause    https://pytorch.org        [ASSUMED]
+pytorch-geometric    MIT             https://pyg.org            [ASSUMED]
+e3nn                 MIT             https://e3nn.io            [ASSUMED]
+rdkit                BSD-3-Clause    https://rdkit.org          [ASSUMED]
+mdanalysis           GPL-2.0         https://mdanalysis.org     [ASSUMED — see OPEN QUESTION 1]
+RAPiDock             UNKNOWN         https://github.com/huifengzhao/RAPiDock [see OPEN QUESTION 2]
+
+================================================================================
+OPEN QUESTIONS — Require Ram's ruling before final submission
+================================================================================
+
+OPEN QUESTION 1: MDAnalysis GPL-2.0 in rapidock-env
+----------------------------------------------------
+MDAnalysis is GPL-2.0 licensed. GPL is OSI-approved but has strong copyleft.
+HybriDock-Pep's own source (score-env) does NOT import MDAnalysis directly.
+MDAnalysis lives in rapidock-env, used by RAPiDock's internal trajectory analysis.
+The driver calls RAPiDock via `conda run -n rapidock-env python run_rapidock.py`
+(a subprocess boundary — GPL does not propagate across subprocess boundaries under
+the GPL's own FAQ: "pipes, sockets and command-line arguments" create no obligation).
+
+However: `src/hybridock_pep/sampling/run_rapidock.py` is OUR source code running
+INSIDE rapidock-env where MDAnalysis is present. If RAPiDock transitively imports
+MDAnalysis when run_rapidock.py runs, iGEM's rubric may interpret this as a copyleft obligation.
+
+RAM'S RULING NEEDED:
+  Option A: Accept — GPL in rapidock-env subprocess is acceptable under iGEM's "OSI-approved"
+            interpretation. Document rationale above in final licenses.txt.
+  Option B: Remove — replace MDAnalysis usage in rapidock-env with a permissive alternative
+            (requires RAPiDock fork or MDAnalysis-free path). High implementation cost.
+  Option C: Clarify — ask iGEM judges directly before submission.
+
+OPEN QUESTION 2: RAPiDock license
+----------------------------------
+The RAPiDock GitHub repo license is not confirmed in research. Before final submission:
+  1. Check https://github.com/huifengzhao/RAPiDock for LICENSE file.
+  2. If GPL/copyleft: same question as OQ-1 applies (it runs in rapidock-env subprocess).
+  3. If MIT/Apache/BSD: no issue.
+  4. If no LICENSE: technically "all rights reserved" by default — contact Zhao et al.
+     before any public release or competition submission.
+RAM'S RULING NEEDED: verify and document RAPiDock license before submission.
+
+================================================================================
+NON-REDISTRIBUTABLE BINARIES (not in repo — download separately)
+================================================================================
+
+ADFRsuite (includes prepare_receptor4.py, autogrid4):
+  License: Academic Free License (non-redistributable for commercial use)
+  Download: https://ccsb.scripps.edu/adfrsuite/downloads/
+  Usage: NOT bundled in this repo. Users must download and install separately.
+  Install instructions: INSTALL.md Step 3.
+
+AutoDock4 (scoring algorithm, called via vina --scoring ad4):
+  License: GNU GPL v2 (non-redistributable without source)
+  Note: AutoDock4's scoring function is invoked by AutoDock Vina Python API
+  (Apache-2.0) via --scoring ad4 flag. Vina's implementation is independent source.
