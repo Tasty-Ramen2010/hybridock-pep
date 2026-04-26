@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 7 complete — all 3 plans executed (csv_writer, driver Stage 4, MDM2/p53 e2e test); ready for Phase 8 discuss/plan
-last_updated: "2026-04-25T21:25:00.000Z"
-last_activity: 2026-04-25
+stopped_at: Phase 8 Plan 01 complete — benchmark dataset CSVs + test_benchmark.py RED gate written
+last_updated: "2026-04-26T17:45:00.000Z"
+last_activity: 2026-04-26
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 25
-  completed_plans: 25
-  percent: 94
+  total_plans: 31
+  completed_plans: 26
+  percent: 95
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 08 (benchmark-documentation) — NOT STARTED
-Plan: 0 of TBD
-Status: Phase 07 complete — ready to discuss/plan Phase 08
-Last activity: 2026-04-25
+Phase: 08 (benchmark-documentation) — IN PROGRESS
+Plan: 1 of 6 complete
+Status: Plan 08-01 complete — benchmark dataset CSVs + test_benchmark.py RED gate delivered
+Last activity: 2026-04-26
 
-Progress: [█████████░] 94%
+Progress: [█████████░] 95%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [█████████░] 94%
 | 05-cli-driver | 3 | 12 min | 4.0 min |
 | 06-analysis-plots | 5 | 20 min | 4.0 min |
 | 07-output-integration | 3 | 12 min | 4.0 min |
+| 08-benchmark-documentation | 1 | 4 min | 4.0 min |
 
 **Recent Trend:** On track
 
@@ -98,6 +99,10 @@ Progress: [█████████░] 94%
 - fastrelax=False hardcoded in run_rapidock.py per CLAUDE.md §2.5 — ref2015 alignment failure on C-terminal cysteine in LISDAELEAIFEADC
 - test_ci95 split into two test methods (n=2 and n=1) per plan verbatim code — plan acceptance criteria said 10 tests but template had 11; code template is authoritative
 - statistics.py and plotting.py created as functional stubs — cluster_poses() calls them at runtime so they must work; plotting uses placeholder files when matplotlib absent
+- Chain assignments in test_complexes_meta.csv are conventional defaults (A=receptor, B=peptide); must be verified from ATOM records before first benchmark run on RTX machine
+- benchmark.py lives in scripts/ not src/ — imported in tests via _SCRIPTS_DIR path injection (sys.path.insert); not a package import
+- VALID_STATUSES constant required in benchmark.py — tested by TestOutputSchema::test_status_values_are_defined; values: ok, skipped_download, skipped_prep, skipped_scoring
+- validate_pdb_id(pdb_id) function required in benchmark.py — guards URL construction against injection (T-08-01); regex ^[0-9][A-Z0-9]{3}$
 - scipy.stats.t.interval used directly (scale=SEM, df=n-1) in _ci95 — not t.ppf; module-level import with ImportError guard
 - write_best_pose_pdb(cluster_result, config) — 2-arg signature; scored_poses not needed, best_pose_idx from ClusterResult.per_cluster_stats
 - Stage 4 guard uses if cluster_result is not None: (not len check) — cluster_result sentinel initialized before Stage 3
