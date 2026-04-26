@@ -115,7 +115,10 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   2. `best_pose.pdb` is written as the centroid of the top-ranked cluster — not the top individual scorer
   3. ΔG estimate in kcal/mol is printed to stdout at run completion and appears in `ranked_poses.csv`
   4. The MDM2/p53 integration test (`pytest -m slow`, PDB 2OY2, peptide `ETFSDLWKLLPE`) passes with corrected ΔG < −3 kcal/mol
-**Plans**: TBD
+**Plans**: 3 plans
+  - [ ] 07-01-PLAN.md — csv_writer.py + output/__init__.py + pyproject.toml pytest marker + test_csv_writer.py (OUT-01, OUT-02, OUT-03)
+  - [ ] 07-02-PLAN.md — driver.py Stage 4 + return type + cli.py/test_driver.py caller updates (OUT-01, OUT-02, OUT-03)
+  - [ ] 07-03-PLAN.md — MDM2/p53 fixtures (25 PDBs + calibration.json) + test_e2e.py integration test (TEST-02)
 
 ### Phase 8: Benchmark & Documentation
 **Goal**: The pipeline meets accuracy targets on the 10-complex benchmark suite, install and usage documentation is complete, the license is clean, and the tutorial notebook runs end-to-end
