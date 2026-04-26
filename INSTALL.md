@@ -58,6 +58,12 @@ The driver script (`hybridock_pep/driver.py`) invokes RAPiDock via
 `conda run -n rapidock-env` — you do not need to activate `rapidock-env`
 manually during normal use.
 
+> **Activation order:** `score-env` is the active environment for all normal use
+> (`hybridock-pep` commands, running tests, calibration). `rapidock-env` is invoked
+> automatically by the driver via `conda run -n rapidock-env` — do not activate it
+> manually during docking runs. Activating `rapidock-env` directly will hide the
+> `hybridock-pep` CLI (it is installed in `score-env`, not `rapidock-env`).
+
 ---
 
 ## Step 3 — Install ADFRsuite (required, non-redistributable)
@@ -92,6 +98,33 @@ Installation steps:
    ```
 
 ADFRsuite must be on `PATH` whenever `score-env` is active.
+
+---
+
+## Step 3.5 — PULCHRA v3.04 (Side-Chain Reconstructor)
+
+PULCHRA rebuilds all-atom side chains from Cα-only traces. Version 3.04 is required
+exactly — v3.07 produces incomplete aromatic side-chain atoms (documented bug in CLAUDE.md §2.3).
+Bioconda ships 3.06/3.07; build from source:
+
+```bash
+# Download PULCHRA 3.04 source
+wget https://cssb.biology.gatech.edu/sites/default/files/pulchra_308.tgz
+# (use the v3.04 source if the above ships a later version — verify with: pulchra --version)
+tar xzf pulchra_308.tgz
+cd pulchra_308/src
+make
+
+# Add to PATH (add to ~/.bashrc or conda activate script):
+export PATH="$PWD:$PATH"
+
+# Verify version:
+pulchra --version   # must print: PULCHRA 3.04
+```
+
+> **Version check:** If `pulchra --version` reports anything other than 3.04, rebuild from
+> the correct source archive. The aromatic side-chain bug in v3.07 produces incorrect
+> PDBQT files and degrades docking accuracy silently.
 
 ---
 
@@ -137,7 +170,15 @@ The script checks:
 3. **AutoDock Vina >= 1.2.5** — fails with the upgrade command if the version
    is below the required minimum.
 
-A fully configured machine exits with code 0 and three `[PASS]` lines.
+A fully configured machine exits with code 0 and three `[PASS]` lines:
+
+```
+[PASS] score-env: hybridock-pep CLI installed
+[PASS] rapidock-env: CUDA capability >= 12.0
+[PASS] ADFRsuite: prepare_receptor4.py on PATH
+```
+
+If any line shows `[FAIL]`, follow the fix in the corresponding INSTALL.md step above.
 
 ---
 
