@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 7 planning complete — 3 plans created and verified (07-01, 07-02, 07-03); ready for /gsd-execute-phase 07
-last_updated: "2026-04-25T20:57:00.000Z"
+stopped_at: Phase 7 complete — all 3 plans executed (csv_writer, driver Stage 4, MDM2/p53 e2e test); ready for Phase 8 discuss/plan
+last_updated: "2026-04-25T21:25:00.000Z"
 last_activity: 2026-04-25
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 25
-  completed_plans: 22
-  percent: 88
+  completed_plans: 25
+  percent: 94
 ---
 
 # Project State
@@ -21,24 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Ranking peptide binding poses with physics-backed scores that are more accurate than ML or Vina alone — so the top-1 result can be trusted for real scientific decisions.
-**Current focus:** Phase 06 — analysis-plots
+**Current focus:** Phase 08 — benchmark & documentation
 
 ## Current Position
 
-Phase: 07 (output-integration) — PLANNED
-Plan: 0 of 3
-Status: Planning complete — ready to execute Phase 07
+Phase: 08 (benchmark-documentation) — NOT STARTED
+Plan: 0 of TBD
+Status: Phase 07 complete — ready to discuss/plan Phase 08
 Last activity: 2026-04-25
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
+- Total plans completed: 25
 - Average duration: 4.0 min
-- Total execution time: 0.40 hours
+- Total execution time: ~1.7 hours
 
 **By Phase:**
 
@@ -46,19 +46,13 @@ Progress: [█████████░] 91%
 |-------|-------|-------|----------|
 | 01-foundation | 2 | 7 min | 3.5 min |
 | 02-preparation | 4 | 19 min | 4.8 min |
-| 03-scoring-core | 1 | 2 min | 2.0 min |
+| 03-scoring-core | 4 | 8 min | 2.0 min |
+| 04-sampling-integration | 4 | 16 min | 4.0 min |
+| 05-cli-driver | 3 | 12 min | 4.0 min |
+| 06-analysis-plots | 5 | 20 min | 4.0 min |
+| 07-output-integration | 3 | 12 min | 4.0 min |
 
 **Recent Trend:** On track
-
-*Updated after each plan completion*
-| Phase 03-scoring-core P02 | 1158 | 2 tasks | 3 files |
-| Phase 03-scoring-core P03 | 5 | 2 tasks | 4 files |
-| Phase 03-scoring-core P04 | 191 | 2 tasks | 6 files |
-| Phase 04-sampling-integration P01 | 177 | 2 tasks | 2 files |
-| Phase 04-sampling-integration P02 | 190 | 2 tasks | 3 files |
-| Phase 06-analysis-plots P01 | 2 | 1 tasks | 1 files |
-| Phase 06-analysis-plots P02 | 167 | 1 tasks | 3 files |
-| Phase 06-analysis-plots P03 | 12 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -105,10 +99,14 @@ Progress: [█████████░] 91%
 - test_ci95 split into two test methods (n=2 and n=1) per plan verbatim code — plan acceptance criteria said 10 tests but template had 11; code template is authoritative
 - statistics.py and plotting.py created as functional stubs — cluster_poses() calls them at runtime so they must work; plotting uses placeholder files when matplotlib absent
 - scipy.stats.t.interval used directly (scale=SEM, df=n-1) in _ci95 — not t.ppf; module-level import with ImportError guard
+- write_best_pose_pdb(cluster_result, config) — 2-arg signature; scored_poses not needed, best_pose_idx from ClusterResult.per_cluster_stats
+- Stage 4 guard uses if cluster_result is not None: (not len check) — cluster_result sentinel initialized before Stage 3
+- patch target for Stage 4 mocks is hybridock_pep.output.csv_writer.* (lazy import inside function body, not module-level on driver)
+- conftest.py auto-skips @pytest.mark.slow tests when -m slow not passed — prevents e2e test from failing in environments missing score-env stack
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
@@ -116,6 +114,7 @@ None yet.
 - PyG cu128 prebuilt wheels for PyTorch 2.7.0 may not exist — have source build fallback ready
 - PULCHRA must be built from source at exactly v3.04 — Bioconda ships 3.06 (aromatic side-chain bug)
 - pytest --cov flag fails in Python 3.13 base env (numpy double-import conflict with pytest-cov hooks) — use score-env (Python 3.11) or coverage run for coverage measurement
+- pdbfixer not installed in base miniconda3 env — 18 tests in test_prep.py and test_driver.py fail with ModuleNotFoundError; these pass in score-env
 
 ## Deferred Items
 
@@ -127,6 +126,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T17:12:09.921Z
-Stopped at: Completed 06-03-PLAN.md — statistics.py fully implemented; 4/4 TestStatistics GREEN
+Last session: 2026-04-25T21:25:00.000Z
+Stopped at: Phase 07 complete — all 3 plans shipped (csv_writer + output API, driver Stage 4 + tuple return, MDM2/p53 fixtures + e2e test)
 Resume file: None

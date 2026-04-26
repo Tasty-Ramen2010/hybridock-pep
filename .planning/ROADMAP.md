@@ -10,9 +10,9 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 - [x] **Phase 2: Preparation Pipeline** - Receptor and ligand PDBQT preparation wrappers working, autogrid4 AD4 map generation validated *(complete 2026-04-20)*
 - [x] **Phase 3: Scoring Core** - Vina and AD4 per-pose scoring implemented, entropy correction with α calibration working *(complete 2026-04-21)*
 - [x] **Phase 4: Sampling Integration** - RAPiDock subprocess wrapper running 100 poses, pose I/O parsing, provenance metadata written *(complete 2026-04-23)*
-- [ ] **Phase 5: CLI & Driver** - Single entry point with all subcommands, pre-run validation, seed propagation, full two-stage orchestration
-- [ ] **Phase 6: Analysis & Plots** - Contact-zone Cα RMSD clustering, ensemble statistics, convergence and silhouette plots
-- [ ] **Phase 7: Output & Integration** - Ranked CSV, best-pose PDB, ΔG reporting, MDM2/p53 integration test passing
+- [x] **Phase 5: CLI & Driver** - Single entry point with all subcommands, pre-run validation, seed propagation, full two-stage orchestration *(complete 2026-04-25)*
+- [x] **Phase 6: Analysis & Plots** - Contact-zone Cα RMSD clustering, ensemble statistics, convergence and silhouette plots *(complete 2026-04-25)*
+- [x] **Phase 7: Output & Integration** - Ranked CSV, best-pose PDB, ΔG reporting, MDM2/p53 integration test passing *(complete 2026-04-25)*
 - [ ] **Phase 8: Benchmark & Documentation** - Benchmark suite at target accuracy, install docs, architecture docs, license audit, tutorial notebook
 
 ## Phase Details
@@ -100,11 +100,11 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   4. `silhouette_plot.png` exists after a run and shows cluster quality validation scores across cluster counts
   5. Unit tests in `test_clustering.py` cover the contact-zone RMSD computation, clustering, and silhouette score calculation
 **Plans**: 5 plans
-  - [ ] 06-01-PLAN.md — Wave 0 TDD RED gate: test_clustering.py scaffold (ANAL-01, ANAL-02, ANAL-03, OUT-04, OUT-05)
-  - [ ] 06-02-PLAN.md — analysis/clustering.py: ClusterResult, RMSD matrix, silhouette k-search, cluster_poses() (ANAL-01)
-  - [ ] 06-03-PLAN.md — analysis/statistics.py: compute_cluster_stats(), 95% CI, write_cluster_summary_csv() (ANAL-02)
-  - [ ] 06-04-PLAN.md — analysis/plotting.py: plot_convergence(), plot_silhouette(), Agg backend (ANAL-03, OUT-04, OUT-05)
-  - [ ] 06-05-PLAN.md — Integration: analysis/__init__.py export, driver.py Stage 3 stub replacement, full suite green (ANAL-01..03, OUT-04, OUT-05)
+  - [x] 06-01-PLAN.md — Wave 0 TDD RED gate: test_clustering.py scaffold (ANAL-01, ANAL-02, ANAL-03, OUT-04, OUT-05)
+  - [x] 06-02-PLAN.md — analysis/clustering.py: ClusterResult, RMSD matrix, silhouette k-search, cluster_poses() (ANAL-01)
+  - [x] 06-03-PLAN.md — analysis/statistics.py: compute_cluster_stats(), 95% CI, write_cluster_summary_csv() (ANAL-02)
+  - [x] 06-04-PLAN.md — analysis/plotting.py: plot_convergence(), plot_silhouette(), Agg backend (ANAL-03, OUT-04, OUT-05)
+  - [x] 06-05-PLAN.md — Integration: analysis/__init__.py export, driver.py Stage 3 stub replacement, full suite green (ANAL-01..03, OUT-04, OUT-05)
 
 ### Phase 7: Output & Integration
 **Goal**: The pipeline writes all required output files, reports ΔG to the user, and the MDM2/p53 integration test passes the corrected ΔG threshold
@@ -116,9 +116,9 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
   3. ΔG estimate in kcal/mol is printed to stdout at run completion and appears in `ranked_poses.csv`
   4. The MDM2/p53 integration test (`pytest -m slow`, PDB 2OY2, peptide `ETFSDLWKLLPE`) passes with corrected ΔG < −3 kcal/mol
 **Plans**: 3 plans
-  - [ ] 07-01-PLAN.md — csv_writer.py + output/__init__.py + pyproject.toml pytest marker + test_csv_writer.py (OUT-01, OUT-02, OUT-03)
-  - [ ] 07-02-PLAN.md — driver.py Stage 4 + return type + cli.py/test_driver.py caller updates (OUT-01, OUT-02, OUT-03)
-  - [ ] 07-03-PLAN.md — MDM2/p53 fixtures (25 PDBs + calibration.json) + test_e2e.py integration test (TEST-02)
+  - [x] 07-01-PLAN.md — csv_writer.py + output/__init__.py + pyproject.toml pytest marker + test_csv_writer.py (OUT-01, OUT-02, OUT-03)
+  - [x] 07-02-PLAN.md — driver.py Stage 4 + return type + cli.py/test_driver.py caller updates (OUT-01, OUT-02, OUT-03)
+  - [x] 07-03-PLAN.md — MDM2/p53 fixtures (25 PDBs + calibration.json) + test_e2e.py integration test (TEST-02)
 
 ### Phase 8: Benchmark & Documentation
 **Goal**: The pipeline meets accuracy targets on the 10-complex benchmark suite, install and usage documentation is complete, the license is clean, and the tutorial notebook runs end-to-end
@@ -140,7 +140,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | 2. Preparation Pipeline | 4/4 | Complete | 2026-04-20 |
 | 3. Scoring Core | 4/4 | Complete | 2026-04-21 |
 | 4. Sampling Integration | 4/4 | Complete | 2026-04-23 |
-| 5. CLI & Driver | 3/3 | Complete | 2026-04-24 |
-| 6. Analysis & Plots | 0/5 | In progress | - |
-| 7. Output & Integration | 0/? | Not started | - |
-| 8. Benchmark & Documentation | 0/? | Not started | - |
+| 5. CLI & Driver | 3/3 | Complete | 2026-04-25 |
+| 6. Analysis & Plots | 5/5 | Complete | 2026-04-25 |
+| 7. Output & Integration | 3/3 | Complete | 2026-04-25 |
+| 8. Benchmark & Documentation | 0/TBD | Not started | - |
