@@ -133,7 +133,7 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 **Plans**: 6 plans
   - [x] 08-01-PLAN.md — data/test_complexes.csv + data/test_complexes_meta.csv + tests/test_benchmark.py scaffold (TEST-03)
   - [ ] 08-02-PLAN.md — scripts/benchmark.py implementation + cli.py _run_benchmark() dispatch (TEST-03)
-  - [ ] 08-03-PLAN.md — README.md comprehensive user guide + INSTALL.md three additions (DOCS-01)
+  - [x] 08-03-PLAN.md — README.md comprehensive user guide + INSTALL.md three additions (DOCS-01)
   - [ ] 08-04-PLAN.md — docs/architecture.md 5-section module map + data flow (DOCS-02)
   - [ ] 08-05-PLAN.md — docs/licenses.txt license audit + LGPL/GPL rationale + Ram's license ruling checkpoint (DOCS-03)
   - [ ] 08-06-PLAN.md — docs/tutorial.ipynb pre-run MDM2/p53 tutorial notebook (DOCS-04)
@@ -149,4 +149,4 @@ Build the complete hybrid peptide docking pipeline from the ground up: two conda
 | 5. CLI & Driver | 3/3 | Complete | 2026-04-25 |
 | 6. Analysis & Plots | 5/5 | Complete | 2026-04-25 |
 | 7. Output & Integration | 3/3 | Complete | 2026-04-25 |
-| 8. Benchmark & Documentation | 1/6 | In progress | - |
+| 8. Benchmark & Documentation | 3/6 | In progress | - |
