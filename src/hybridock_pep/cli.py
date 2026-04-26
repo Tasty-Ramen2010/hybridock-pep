@@ -164,6 +164,42 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="MD",
         help="Path to write benchmark report in Markdown format.",
     )
+    p_bench.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        default="runs/benchmark",
+        metavar="DIR",
+        help="Directory for per-complex run output (default: runs/benchmark/).",
+    )
+    p_bench.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        metavar="N",
+        help="Random seed for dock runs (default: 42).",
+    )
+    p_bench.add_argument(
+        "--box-size",
+        dest="box_size",
+        type=float,
+        default=25.0,
+        metavar="ANG",
+        help="Grid box edge length in Angstroms (default: 25.0).",
+    )
+    p_bench.add_argument(
+        "--n-samples",
+        dest="n_samples",
+        type=int,
+        default=100,
+        metavar="N",
+        help="RAPiDock sampling passes per complex (default: 100).",
+    )
+    p_bench.add_argument(
+        "--calibration",
+        default="data/calibration.json",
+        metavar="JSON",
+        help="Path to calibration.json (default: data/calibration.json).",
+    )
 
     return parser
 
@@ -275,13 +311,35 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
 
 
 def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    """Benchmark subcommand stub — Phase 8 scope.
+    """Dispatch benchmark subcommand to scripts/benchmark.py:main().
+
+    Dynamically injects scripts/ onto sys.path and calls benchmark.main()
+    with an argparse.Namespace forwarding all relevant flags. Mirrors the
+    _run_calibrate() pattern.
 
     Args:
         args: Parsed CLI arguments from the benchmark subcommand.
-        parser: Root ArgumentParser (unused).
+        parser: Root ArgumentParser (unused; present for dispatch signature consistency).
     """
-    raise NotImplementedError("benchmark: Phase 8 scope")
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    scripts_dir = str(_Path(__file__).resolve().parents[2] / "scripts")
+    if scripts_dir not in _sys.path:
+        _sys.path.insert(0, scripts_dir)
+    import benchmark  # type: ignore[import]
+
+    ns = argparse.Namespace(
+        test_csv=_Path(args.test_csv),
+        meta_csv=_Path("data/test_complexes_meta.csv"),
+        output_dir=_Path(args.output_dir),
+        seed=args.seed,
+        box_size=args.box_size,
+        n_samples=args.n_samples,
+        calibration=_Path(args.calibration),
+        verbose=args.verbose > 0,
+    )
+    benchmark.main(ns)
 
 
 def main() -> None:
