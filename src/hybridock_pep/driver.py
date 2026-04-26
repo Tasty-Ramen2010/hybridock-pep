@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from hybridock_pep.models import DockConfig, PoseRecord, ScoredPose
+from hybridock_pep.analysis.clustering import ClusterResult
 from hybridock_pep.sampling.rapidock_runner import run_sampling
 from hybridock_pep.sampling.pose_io import parse_poses
 from hybridock_pep.prep.receptor import prepare_receptor
@@ -21,7 +22,7 @@ def run_dock(
     config: DockConfig,
     input_poses_dir: Path | None,
     calibration_path: Path,
-) -> list[ScoredPose]:
+) -> tuple[list[ScoredPose], ClusterResult | None]:
     """Orchestrate the full two-stage docking pipeline (per D-02).
 
     Stage 0: Write metadata skeleton before any subprocess is launched.
@@ -30,7 +31,8 @@ def run_dock(
     Stage 2b: Prepare ligand PDBQTs in batch.
     Stage 2c: Construct ScoredPose objects from PoseRecord + pdbqt_path pairs.
     Stage 2d: Score with Vina, then AD4, then apply hybrid entropy correction.
-    Stage 3 stub: Log handoff message; return scored poses (clustering is Phase 6).
+    Stage 3: Clustering and analysis.
+    Stage 4: Write ranked_poses.csv and best_pose.pdb to config.output_dir.
 
     All paths passed to sub-module calls are resolved to absolute before use.
 
@@ -41,9 +43,9 @@ def run_dock(
         calibration_path: Path to calibration.json for entropy correction coefficients.
 
     Returns:
-        List of ScoredPose objects with vina_score, ad4_score, entropy_correction,
-        and hybrid_score populated. May be shorter than config.n_samples if some
-        poses failed prep or scoring (failures are logged at WARNING).
+        Tuple of (scored_poses, cluster_result). scored_poses is a list of
+        ScoredPose objects with all score fields populated. cluster_result is
+        a ClusterResult if at least 2 poses were scored, otherwise None.
 
     Raises:
         RuntimeError: If all poses fail ligand prep (zero pdbqt_paths produced).
@@ -144,6 +146,8 @@ def run_dock(
 
     logger.info("Stage 2 complete: %d poses scored", len(scored_poses))
 
+    cluster_result: ClusterResult | None = None
+
     # Stage 3: Clustering and analysis
     if len(scored_poses) >= 2:
         from hybridock_pep.analysis import cluster_poses
@@ -159,4 +163,21 @@ def run_dock(
     # Finalize metadata AFTER scoring
     finalize_metadata(metadata_path, poses_generated=len(records))
 
-    return scored_poses
+    # Stage 4: Output writing
+    from hybridock_pep.output.csv_writer import write_ranked_csv, write_best_pose_pdb
+    write_ranked_csv(scored_poses, config)
+    if cluster_result is not None:
+        write_best_pose_pdb(cluster_result, config)
+        best_cluster = min(
+            cluster_result.per_cluster_stats,
+            key=lambda s: s["mean_hybrid_score"],
+        )
+        best_pose_filename = f"pose_{best_cluster['best_pose_idx']:03d}.pdb"
+        logger.info(
+            "Best pose: ΔG = %.1f kcal/mol (cluster %d, %s)",
+            best_cluster["mean_hybrid_score"],
+            best_cluster["cluster_id"],
+            best_pose_filename,
+        )
+
+    return scored_poses, cluster_result

@@ -70,6 +70,8 @@ class TestInputPosesBypass:
             patch("hybridock_pep.driver.load_calibration", return_value={"alpha": 0.5, "beta": 0.1}),
             patch("hybridock_pep.driver.write_metadata_skeleton"),
             patch("hybridock_pep.driver.finalize_metadata"),
+            patch("hybridock_pep.output.csv_writer.write_ranked_csv"),
+            patch("hybridock_pep.output.csv_writer.write_best_pose_pdb"),
         ):
             driver.run_dock(config, input_poses_dir=poses_dir, calibration_path=tmp_path / "cal.json")
             mock_sampling.assert_not_called()
@@ -90,6 +92,8 @@ class TestInputPosesBypass:
             patch("hybridock_pep.driver.load_calibration", return_value={"alpha": 0.5, "beta": 0.1}),
             patch("hybridock_pep.driver.write_metadata_skeleton"),
             patch("hybridock_pep.driver.finalize_metadata"),
+            patch("hybridock_pep.output.csv_writer.write_ranked_csv"),
+            patch("hybridock_pep.output.csv_writer.write_best_pose_pdb"),
         ):
             driver.run_dock(config, input_poses_dir=None, calibration_path=tmp_path / "cal.json")
             mock_sampling.assert_called_once()
@@ -129,10 +133,13 @@ class TestDriverOrchestration:
             patch("hybridock_pep.driver.apply_hybrid_score"),
             patch("hybridock_pep.driver.write_metadata_skeleton"),
             patch("hybridock_pep.driver.finalize_metadata"),
+            patch("hybridock_pep.output.csv_writer.write_ranked_csv"),
+            patch("hybridock_pep.output.csv_writer.write_best_pose_pdb"),
         ):
             result = driver.run_dock(config, input_poses_dir=None, calibration_path=tmp_path / "cal.json")
-            assert isinstance(result, list)
-            assert all(isinstance(p, ScoredPose) for p in result)
+            scored_poses, cluster_result = result
+            assert isinstance(scored_poses, list)
+            assert all(isinstance(p, ScoredPose) for p in scored_poses)
 
     def test_all_stages_called_in_order(self, tmp_path: Path) -> None:
         from hybridock_pep import driver
@@ -162,6 +169,8 @@ class TestDriverOrchestration:
             patch("hybridock_pep.driver.load_calibration", return_value={"alpha": 0.5, "beta": 0.1}),
             patch("hybridock_pep.driver.apply_hybrid_score"),
             patch("hybridock_pep.driver.finalize_metadata", side_effect=make_side("finalize_metadata")),
+            patch("hybridock_pep.output.csv_writer.write_ranked_csv"),
+            patch("hybridock_pep.output.csv_writer.write_best_pose_pdb"),
         ):
             driver.run_dock(config, input_poses_dir=None, calibration_path=tmp_path / "cal.json")
 
@@ -208,6 +217,8 @@ class TestDriverOrchestration:
             patch("hybridock_pep.driver.load_calibration", return_value={"alpha": 0.5, "beta": 0.1}),
             patch("hybridock_pep.driver.write_metadata_skeleton") as mock_write,
             patch("hybridock_pep.driver.finalize_metadata") as mock_finalize,
+            patch("hybridock_pep.output.csv_writer.write_ranked_csv"),
+            patch("hybridock_pep.output.csv_writer.write_best_pose_pdb"),
         ):
             driver.run_dock(config, input_poses_dir=None, calibration_path=tmp_path / "cal.json")
             assert mock_write.call_count == 1
