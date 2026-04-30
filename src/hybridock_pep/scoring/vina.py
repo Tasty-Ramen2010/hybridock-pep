@@ -33,7 +33,14 @@ def check_grid_boundary(
     site_coords: tuple[float, float, float],
     box_size: float,
 ) -> bool:
-    """Return True if any ATOM/HETATM atom in the PDBQT falls outside the grid box.
+    """Return True if any heavy ATOM/HETATM atom in the PDBQT falls outside the grid box.
+
+    Hydrogen atoms (element H or HD in cols 76-78; or name starting with 'H'
+    when the element column is absent) are excluded from the check.  babel adds
+    polar H to PDBQT for Gasteiger charges; these can lie marginally outside the
+    grid even when all heavy atoms are within bounds — falsely flagging otherwise
+    good poses.  Vina and AD4 grid-based scoring are not materially affected by H
+    positions, so only heavy-atom placement determines whether a pose is clipped.
 
     Parses fixed-column PDB/PDBQT coordinate fields (cols 30-38 x, 38-46 y,
     46-54 z). Boundary is inclusive: an atom exactly on the edge is NOT clipped.
@@ -45,7 +52,7 @@ def check_grid_boundary(
         box_size: Grid box edge length in Angstrom.
 
     Returns:
-        True if any atom lies strictly outside site_coords ± box_size/2 on
+        True if any heavy atom lies strictly outside site_coords ± box_size/2 on
         any axis; False otherwise (including the case of no parseable atoms).
     """
     cx, cy, cz = site_coords
@@ -59,6 +66,13 @@ def check_grid_boundary(
             y = float(line[38:46])
             z = float(line[46:54])
         except ValueError:
+            continue
+
+        # Skip hydrogens — babel-added H can lie marginally outside the grid
+        # without affecting scoring accuracy (Fix I, 2026-04-30).
+        element = line[76:78].strip() if len(line) > 76 else ""
+        name = line[12:16].strip() if len(line) > 16 else ""
+        if element in ("H", "HD") or (not element and name.startswith("H")):
             continue
 
         if (
