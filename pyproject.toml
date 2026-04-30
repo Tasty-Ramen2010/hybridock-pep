@@ -18,6 +18,9 @@ dependencies = [
 scoring = [
     "meeko>=0.5",
     "vina>=1.2.5",
+    "scipy>=1.11",
+    "biopython>=1.81",
+    "scikit-learn>=1.4",
 ]
 mmgbsa = [
     "openmm>=8.1",

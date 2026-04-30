@@ -55,7 +55,7 @@ def write_metadata_skeleton(config: DockConfig, metadata_path: Path) -> None:
         ).hexdigest(),
         "vina_version": _get_vina_version(),
         "openmm_version": _get_openmm_version(),
-        "cuda_version": None,
+        "cuda_version": _detect_cuda_driver_version(),
     }
     _write_json_atomic(metadata_path, data)
     logger.info("Metadata skeleton written to %s", metadata_path)
@@ -153,16 +153,25 @@ def _get_git_sha() -> Optional[str]:
 
 
 def _get_vina_version() -> Optional[str]:
-    """Return Vina version string from `vina --version`, or None."""
+    """Return Vina version string from the installed Python package, or None."""
+    try:
+        return importlib.metadata.version("vina")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _detect_cuda_driver_version() -> Optional[str]:
+    """Query CUDA driver version from nvidia-smi, or None on non-NVIDIA hosts."""
     try:
         result = subprocess.run(
-            ["vina", "--version"],
-            capture_output=True, text=True, check=False,
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=10,
         )
-        out = (result.stdout.strip() or result.stderr.strip())
-        return out if out else None
+        if result.returncode == 0 and result.stdout.strip():
+            return f"driver/{result.stdout.strip().splitlines()[0].strip()}"
     except FileNotFoundError:
-        return None
+        pass
+    return None
 
 
 def _get_openmm_version() -> Optional[str]:

@@ -11,10 +11,25 @@ from hybridock_pep.models import DockConfig, ScoredPose
 
 try:
     from Bio.PDB import PDBParser
-    from Bio.PDB.Polypeptide import is_aa
+    from Bio.Data.IUPACData import protein_letters_3to1 as _prot_3to1
+
+    _STANDARD_AA: frozenset[str] = frozenset(k.upper() for k in _prot_3to1)
 except ImportError:
     PDBParser = None  # type: ignore[assignment,misc]
-    is_aa = None  # type: ignore[assignment,misc]
+    _STANDARD_AA = frozenset()
+
+
+def _is_standard_aa(residue: object) -> bool:
+    """Return True if residue is one of the 20 standard amino acids.
+
+    Replaces deprecated Bio.PDB.Polypeptide.is_aa (deprecated ≥1.80).
+    Uses Bio.Data.IUPACData.protein_letters_3to1 keys, which are stable
+    across all Biopython versions that support PDB parsing.
+    """
+    try:
+        return residue.get_resname().strip().upper() in _STANDARD_AA  # type: ignore[union-attr]
+    except AttributeError:
+        return False
 
 try:
     from sklearn.cluster import AgglomerativeClustering
@@ -56,7 +71,7 @@ def _load_receptor_ca_coords(receptor_path: Path) -> np.ndarray:
         RuntimeError: If Biopython is not installed.
         ValueError: If no standard amino acid Cα atoms are found in the PDB.
     """
-    if PDBParser is None or is_aa is None:
+    if PDBParser is None:
         raise RuntimeError(
             "Biopython is required for receptor Cα extraction. "
             "Install it with: pip install biopython"
@@ -69,7 +84,7 @@ def _load_receptor_ca_coords(receptor_path: Path) -> np.ndarray:
     coords: list[list[float]] = []
     for chain in model:
         for residue in chain:
-            if not is_aa(residue, standard=True):
+            if not _is_standard_aa(residue):
                 continue
             if "CA" not in residue:
                 continue
@@ -232,9 +247,11 @@ def cluster_poses(
 
     logger.info("Stage 3: clustering %d poses", len(scored_poses))
 
-    # 1. Load receptor Cα
-    receptor_ca = _load_receptor_ca_coords(config.receptor_path.resolve())
-    logger.debug("Loaded %d receptor Cα atoms from %s", len(receptor_ca), config.receptor_path)
+    # 1. Load receptor Cα — prefer cleaned receptor (protein-only, no co-crystal peptide)
+    cleaned_receptor = config.output_dir / "receptor_for_rapidock.pdb"
+    receptor_pdb = cleaned_receptor.resolve() if cleaned_receptor.exists() else config.receptor_path.resolve()
+    logger.debug("Contact zone computed vs %s", receptor_pdb)
+    receptor_ca = _load_receptor_ca_coords(receptor_pdb)
 
     # 2. Per-pose contact-zone indices
     ca_arrays = [p.ca_coords for p in scored_poses]

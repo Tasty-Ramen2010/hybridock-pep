@@ -66,7 +66,7 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
 
     rows: list[dict[str, Any]] = []
     for rank, pose in enumerate(top10, start=1):
-        hs = pose.hybrid_score if pose.hybrid_score is not None else 0.0
+        hs = pose.hybrid_score if pose.hybrid_score is not None else float("nan")
         rows.append(
             {
                 "rank": rank,
@@ -92,22 +92,27 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
     return output_path
 
 
-def write_best_pose_pdb(cluster_result: ClusterResult, config: DockConfig) -> Path:
+def write_best_pose_pdb(
+    cluster_result: ClusterResult,
+    config: DockConfig,
+    scored_poses: list[ScoredPose],
+) -> Path:
     """Copy the best cluster centroid PDB to best_pose.pdb.
 
     Selects the cluster with the lowest mean_hybrid_score (most negative = best),
-    copies its centroid pose from config.output_dir/poses/ to
-    config.output_dir/best_pose.pdb.
+    looks up the source pdb_path directly from scored_poses (works for both
+    RAPiDock-generated poses in output_dir/poses/ and --input-poses bypass paths).
 
     Args:
         cluster_result: Completed clustering result with per_cluster_stats populated.
-        config: Run configuration. output_dir contains the poses/ subdirectory.
+        config: Run configuration. output_dir is the write destination.
+        scored_poses: All scored poses; used to resolve pdb_path by pose_idx.
 
     Returns:
         Absolute path to the written best_pose.pdb.
 
     Raises:
-        ValueError: If per_cluster_stats is empty.
+        ValueError: If per_cluster_stats is empty or best pose_idx not in scored_poses.
         FileNotFoundError: If the source PDB does not exist.
     """
     if not cluster_result.per_cluster_stats:
@@ -118,7 +123,14 @@ def write_best_pose_pdb(cluster_result: ClusterResult, config: DockConfig) -> Pa
         key=lambda s: s["mean_hybrid_score"],
     )
     best_pose_idx: int = best_cluster["best_pose_idx"]
-    src = config.output_dir / "poses" / f"pose_{best_pose_idx:03d}.pdb"
+
+    pose_by_idx = {p.pose_idx: p for p in scored_poses}
+    if best_pose_idx not in pose_by_idx:
+        raise ValueError(
+            f"best_pose_idx={best_pose_idx} not found in scored_poses "
+            f"(available: {sorted(pose_by_idx)})"
+        )
+    src = pose_by_idx[best_pose_idx].pdb_path
     dest = config.output_dir / "best_pose.pdb"
 
     if not src.exists():

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from pathlib import Path
 
 from hybridock_pep.models import DockConfig, PoseRecord, ScoredPose
 from hybridock_pep.analysis.clustering import ClusterResult
 from hybridock_pep.sampling.rapidock_runner import run_sampling
 from hybridock_pep.sampling.pose_io import parse_poses
-from hybridock_pep.prep.receptor import prepare_receptor
+from hybridock_pep.prep.receptor import prepare_receptor, prepare_receptor_pdb
 from hybridock_pep.prep.grids import generate_ad4_maps
 from hybridock_pep.prep.ligand import prepare_ligand_batch
 from hybridock_pep.scoring.vina import score_vina_batch
@@ -63,7 +64,12 @@ def run_dock(
         logger.info(
             "Stage 1: running RAPiDock sampling (%d passes)", config.n_samples
         )
-        run_sampling(config)
+        # Clean the receptor with pdbfixer before Stage 1 so MDAnalysis sees
+        # the same chain count as BioPython (raw RCSB PDBs can have discontinuous
+        # chain segments that MDAnalysis splits into extra segments, causing an
+        # IndexError in RAPiDock's ESM embedding lookup).
+        cleaned_receptor = prepare_receptor_pdb(config)
+        run_sampling(config, receptor_path=cleaned_receptor)
         poses_dir = (config.output_dir / "poses").resolve()
 
     records, parse_failures = parse_poses(poses_dir)
@@ -76,11 +82,46 @@ def run_dock(
         )
     logger.info("Stage 1 complete: %d poses parsed", len(records))
 
-    # Stage 2a: Receptor prep + AD4 grid maps
+    # Stage 1.5: OpenMM energy minimization (RAPiDock poses only, not --input-poses)
+    # Relieves intra-pose clashes that cause AD4 to return anomalous positive scores.
+    # Skipped when input_poses_dir is set — user-supplied poses are assumed clean.
+    if input_poses_dir is None and config.minimize_poses and records:
+        from hybridock_pep.scoring.minimization import minimize_poses_batch  # noqa: PLC0415
+
+        min_dir = (config.output_dir / "poses_minimized").resolve()
+        raw_paths = [r.pdb_path.resolve() for r in records]
+        minimized_paths = minimize_poses_batch(raw_paths, min_dir)
+        for record, min_path in zip(records, minimized_paths):
+            record.pdb_path = min_path.resolve()
+        logger.info("Stage 1.5 complete: %d poses minimized → %s", len(records), min_dir)
+
+    # Stage 1.6: Write poses_scored/ — the exact pose files that will be scored.
+    # Each file is either the minimized pose (Stage 1.5 succeeded) or the original
+    # RAPiDock pose (minimization failed / displacement check rejected it).
+    # benchmark.py uses this directory for the vina-only rescore so both scores
+    # come from identical input, making the hybrid-vs-Vina comparison fair.
+    if input_poses_dir is None and records:
+        scored_dir = (config.output_dir / "poses_scored").resolve()
+        scored_dir.mkdir(parents=True, exist_ok=True)
+        for record in records:
+            dest = scored_dir / record.pdb_path.name
+            if not dest.exists():
+                shutil.copy2(record.pdb_path, dest)
+        logger.debug("poses_scored/ written: %d files → %s", len(records), scored_dir)
+
+    # Stage 2a: Receptor prep (always required for Vina scoring)
     receptor_pdbqt = prepare_receptor(config)
     logger.info("Receptor prepared: %s", receptor_pdbqt)
-    maps_dir = generate_ad4_maps(config, receptor_pdbqt)
-    logger.info("AD4 maps generated: %s", maps_dir)
+
+    # AD4 grid maps only when 'ad4' is in the requested scoring backends.
+    # Skipping autogrid4 enables --scoring vina on macOS ARM where autogrid4 is absent.
+    run_ad4 = "ad4" in config.scoring
+    maps_dir: Path | None = None
+    if run_ad4:
+        maps_dir = generate_ad4_maps(config, receptor_pdbqt)
+        logger.info("AD4 maps generated: %s", maps_dir)
+    else:
+        logger.info("AD4 scoring skipped (not in --scoring backends)")
 
     # Stage 2b: Ligand batch prep
     pdb_paths = [record.pdb_path.resolve() for record in records]
@@ -93,7 +134,7 @@ def run_dock(
     if not pdbqt_paths and records:
         raise RuntimeError(
             "All poses failed ligand prep — cannot continue. "
-            "Check meeko installation and pose PDB validity."
+            "Check babel (ADFRsuite) installation and pose PDB validity."
         )
 
     # Stage 2c: Construct ScoredPose objects pairing records with pdbqt paths.
@@ -115,7 +156,7 @@ def run_dock(
             )
         )
 
-    # Stage 2d: Score Vina → AD4 → entropy (order is mandatory)
+    # Stage 2d: Score Vina → (optional AD4) → entropy (order is mandatory)
     receptor_pdbqt_abs = receptor_pdbqt.resolve()
     scored_poses, vina_failures = score_vina_batch(
         scored_poses,
@@ -127,14 +168,15 @@ def run_dock(
     if vina_failures:
         logger.warning("%d poses failed Vina scoring", len(vina_failures))
 
-    maps_dir_abs = maps_dir.resolve()
-    scored_poses, ad4_failures = score_ad4_batch(
-        scored_poses,
-        maps_dir_abs,
-        verbosity=config.verbosity,
-    )
-    if ad4_failures:
-        logger.warning("%d poses failed AD4 scoring", len(ad4_failures))
+    if run_ad4 and maps_dir is not None:
+        maps_dir_abs = maps_dir.resolve()
+        scored_poses, ad4_failures = score_ad4_batch(
+            scored_poses,
+            maps_dir_abs,
+            verbosity=config.verbosity,
+        )
+        if ad4_failures:
+            logger.warning("%d poses failed AD4 scoring", len(ad4_failures))
 
     calibration = load_calibration(calibration_path.resolve())
     alpha: float = calibration["alpha"]
@@ -167,17 +209,6 @@ def run_dock(
     from hybridock_pep.output.csv_writer import write_ranked_csv, write_best_pose_pdb
     write_ranked_csv(scored_poses, config)
     if cluster_result is not None:
-        write_best_pose_pdb(cluster_result, config)
-        best_cluster = min(
-            cluster_result.per_cluster_stats,
-            key=lambda s: s["mean_hybrid_score"],
-        )
-        best_pose_filename = f"pose_{best_cluster['best_pose_idx']:03d}.pdb"
-        logger.info(
-            "Best pose: ΔG = %.1f kcal/mol (cluster %d, %s)",
-            best_cluster["mean_hybrid_score"],
-            best_cluster["cluster_id"],
-            best_pose_filename,
-        )
+        write_best_pose_pdb(cluster_result, config, scored_poses)
 
     return scored_poses, cluster_result

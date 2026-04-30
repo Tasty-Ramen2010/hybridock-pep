@@ -126,10 +126,10 @@ class TestWriteBestPosePdb:
         """Build a ClusterResult with two clusters; cluster 1 is better."""
         from hybridock_pep.analysis.clustering import ClusterResult
 
-        (poses_dir / "pose_000.pdb").write_text(
+        (poses_dir / "pose_0.pdb").write_text(
             "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\nEND\n"
         )
-        (poses_dir / "pose_001.pdb").write_text(
+        (poses_dir / "pose_1.pdb").write_text(
             "ATOM      1  CA  ALA A   1       1.000   1.000   1.000  1.00  0.00           C\nEND\n"
         )
 
@@ -158,6 +158,22 @@ class TestWriteBestPosePdb:
             ],
         )
 
+    def _make_scored_poses(self, poses_dir: Path) -> list:
+        """Build minimal ScoredPose list matching _make_cluster_result's best_pose_idx values."""
+        from hybridock_pep.models import ScoredPose
+
+        poses = []
+        for idx in (0, 1):
+            p = ScoredPose(
+                pose_idx=idx,
+                pdb_path=poses_dir / f"pose_{idx}.pdb",
+                sequence="ACDEF",
+                ca_coords=__import__("numpy").zeros((5, 3)),
+                hybrid_score=-3.0 * (idx + 1),
+            )
+            poses.append(p)
+        return poses
+
     def test_write_best_pose_pdb_copies_file(self, tmp_path: Path) -> None:
         from hybridock_pep.output.csv_writer import write_best_pose_pdb
 
@@ -165,8 +181,9 @@ class TestWriteBestPosePdb:
         poses_dir.mkdir(parents=True)
         config = _make_config(tmp_path, output_dir=tmp_path / "out")
         cluster_result = self._make_cluster_result(tmp_path, poses_dir)
+        scored_poses = self._make_scored_poses(poses_dir)
 
-        result = write_best_pose_pdb(cluster_result, config)
+        result = write_best_pose_pdb(cluster_result, config, scored_poses)
 
         assert result.exists(), "best_pose.pdb must be created"
         assert result.stat().st_size > 0, "best_pose.pdb must not be empty"
@@ -178,10 +195,11 @@ class TestWriteBestPosePdb:
         poses_dir.mkdir(parents=True)
         config = _make_config(tmp_path, output_dir=tmp_path / "out")
         cluster_result = self._make_cluster_result(tmp_path, poses_dir)
+        scored_poses = self._make_scored_poses(poses_dir)
 
-        write_best_pose_pdb(cluster_result, config)
+        write_best_pose_pdb(cluster_result, config, scored_poses)
         dest_content = (tmp_path / "out" / "best_pose.pdb").read_text()
         assert "1.000   1.000   1.000" in dest_content, (
-            "best_pose.pdb should contain pose_001.pdb content (cluster 1, score -7.0), "
-            "not pose_000.pdb (cluster 0, score -3.0)"
+            "best_pose.pdb should contain pose_1.pdb content (cluster 1, score -7.0), "
+            "not pose_0.pdb (cluster 0, score -3.0)"
         )

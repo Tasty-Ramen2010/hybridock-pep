@@ -92,9 +92,13 @@ def main():
     )
     parser.add_argument(
         "--scoring-function",
-        default="confidence",
+        default="none",
         dest="scoring_function",
-        help="RAPiDock scoring function: confidence or ref2015",
+        help=(
+            "RAPiDock scoring function: none (default, diffusion-order ranking), "
+            "confidence (requires confidence model), or ref2015 (requires PyRosetta). "
+            "Use 'none' to skip re-ranking; HybriDock-Pep re-scores with Vina/AD4."
+        ),
     )
     args = parser.parse_args()
 
@@ -130,6 +134,32 @@ def main():
     rd_args.fastrelax = False  # CLAUDE.md §2.5: ref2015 fails on C-terminal cysteine
     rd_args.save_visualisation = False  # saves diffusion frames only; not needed here
     rd_args.config = None  # no YAML override
+
+    # Parser defaults are None for these; the YAML config normally supplies them.
+    # Since we set config=None, set the RAPiDock YAML defaults explicitly.
+    if rd_args.inference_steps is None:
+        rd_args.inference_steps = 16
+    if rd_args.actual_steps is None:
+        rd_args.actual_steps = 16
+    if rd_args.batch_size is None:
+        rd_args.batch_size = 4
+    if rd_args.conformation_partial is None:
+        rd_args.conformation_partial = "1:1:1"
+
+    # Patch RAPiDock's silent exception swallower to emit full tracebacks.
+    # inference.py catches Exception and prints only str(e), losing the traceback.
+    import traceback as _tb
+    _orig_process = rd_inference.process_complex
+
+    def _process_with_traceback(*a, **kw):
+        # type: (...) -> None
+        try:
+            return _orig_process(*a, **kw)
+        except Exception as _e:
+            _tb.print_exc()
+            raise
+
+    rd_inference.process_complex = _process_with_traceback
 
     # Invoke RAPiDock inference — writes rank*.pdb to {output_dir}/poses_raw/
     rd_inference.main(rd_args)

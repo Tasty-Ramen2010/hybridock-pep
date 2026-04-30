@@ -136,21 +136,36 @@ def apply_hybrid_score(
     Raises:
         AssertionError: If pose.vina_score or pose.ad4_score is None.
     """
-    assert pose.vina_score is not None, "vina_score must be set before apply_hybrid_score"
-    assert pose.ad4_score is not None, "ad4_score must be set before apply_hybrid_score"
+    if pose.vina_score is None:
+        raise RuntimeError(
+            f"Pose {pose.pose_idx}: vina_score is None — Vina scoring must run before apply_hybrid_score"
+        )
 
     pose.entropy_correction = alpha * n_residues
-    pose.hybrid_score = (
-        pose.vina_score + beta * (pose.ad4_score - pose.vina_score) + pose.entropy_correction
-    )
-    _log.debug(
-        "Pose %d: vina=%.3f ad4=%.3f ec=%.3f hybrid=%.3f",
-        pose.pose_idx,
-        pose.vina_score,
-        pose.ad4_score,
-        pose.entropy_correction,
-        pose.hybrid_score,
-    )
+
+    if pose.ad4_score is not None:
+        # Full hybrid formula: Vina + beta*(AD4 − Vina) + entropy
+        pose.hybrid_score = (
+            pose.vina_score + beta * (pose.ad4_score - pose.vina_score) + pose.entropy_correction
+        )
+        _log.debug(
+            "Pose %d: vina=%.3f ad4=%.3f ec=%.3f hybrid=%.3f",
+            pose.pose_idx,
+            pose.vina_score,
+            pose.ad4_score,
+            pose.entropy_correction,
+            pose.hybrid_score,
+        )
+    else:
+        # AD4 not run (--scoring vina only): fall back to Vina + entropy correction
+        pose.hybrid_score = pose.vina_score + pose.entropy_correction
+        _log.debug(
+            "Pose %d: vina=%.3f ad4=None ec=%.3f hybrid=%.3f (vina-only mode)",
+            pose.pose_idx,
+            pose.vina_score,
+            pose.entropy_correction,
+            pose.hybrid_score,
+        )
 
 
 def fit_calibration(
