@@ -1,23 +1,31 @@
 """RAPiDock subprocess orchestrator — score-env, Python 3.11.
 
 Orchestrates Stage 1 of the HybriDock-Pep pipeline: N stochastic RAPiDock
-inference passes executed inside `rapidock-env` via `conda run`. Streams
-stdout/stderr in real time so GPU OOM errors surface immediately. Renames
+inference passes executed directly via the rapidock env's Python 3 interpreter.
+Streams stdout/stderr in real time so GPU OOM errors surface immediately. Renames
 rank*.pdb output files to pose_0.pdb...pose_{N-1}.pdb for downstream stages.
 
 Architecture:
 - subprocess.Popen (not subprocess.run/communicate) for real-time streaming (D-01, D-02)
 - stderr drained on a daemon thread to prevent pipe deadlock (D-01)
-- All paths crossing the conda boundary are resolved to absolute (D-07)
+- All paths are resolved to absolute (D-07)
 - Seed forwarded as --seed N only when DockConfig.seed is not None (D-08)
+- RAPIDOCK_PYTHON env var overrides the rapidock Python 3 path; auto-detected otherwise
 - RAPIDOCK_DIR and RAPIDOCK_MODEL_DIR/RAPIDOCK_CKPT env vars configure
   RAPiDock install location (Phase 5 will wire via DockConfig)
+
+NOTE: We call the rapidock env's python3 directly rather than `conda run -n rapidock
+python3`, because `conda run` does not reliably activate the target environment when
+called from a Python subprocess that was itself launched with a non-default PATH.
+Direct invocation avoids PATH-based python3 resolution and works correctly in all
+contexts (terminal, pytest, CI, nested subprocess from the benchmark).
 """
 from __future__ import annotations
 
 import logging
 import os
 import re
+import shutil
 import subprocess
 import threading
 from pathlib import Path
@@ -42,75 +50,137 @@ def _stream_stderr(stderr_pipe) -> None:
             logger.debug("[rapidock stderr] %s", line)
 
 
-_RAPIDOCK_DIR_UNSET = "/tmp/rapidock_not_configured"
-_MODEL_DIR_UNSET = "/tmp/rapidock_model_not_configured"
-_CKPT_UNSET = "rapidock_not_configured.pt"
+_RAPIDOCK_SEARCH_PATHS = [
+    Path.home() / "RAPiDock",
+    Path("/opt/RAPiDock"),
+]
+_CKPT_DEFAULT = "rapidock_local.pt"
+_CONDA_ENV_NAME = "rapidock"
+
+_CONDA_BASE_SEARCH_PATHS = [
+    Path.home() / "miniconda3",
+    Path.home() / "miniforge3",
+    Path.home() / "anaconda3",
+    Path("/opt/conda"),
+    Path("/opt/miniconda3"),
+    Path("/opt/miniforge3"),
+]
+
+
+def _find_rapidock_python() -> str:
+    """Resolve the Python 3 binary in the rapidock conda environment.
+
+    RAPIDOCK_PYTHON env var takes priority. Otherwise searches standard conda
+    base paths for envs/{_CONDA_ENV_NAME}/bin/python3.
+
+    Calling the python3 binary directly (rather than `conda run -n rapidock
+    python3`) avoids a conda run PATH-resolution bug where the activated
+    environment's python3 is shadowed by the calling process's PATH.
+
+    Returns:
+        Absolute path string to the rapidock env's python3 binary.
+
+    Raises:
+        RuntimeError: If the binary cannot be located.
+    """
+    override = os.environ.get("RAPIDOCK_PYTHON")
+    if override:
+        return override
+
+    # CONDA_EXE gives us the conda binary; its grandparent is the base prefix
+    conda_exe = os.environ.get("CONDA_EXE") or shutil.which("conda")
+    if conda_exe:
+        conda_base = Path(conda_exe).resolve().parent.parent
+        candidate = conda_base / "envs" / _CONDA_ENV_NAME / "bin" / "python3"
+        if candidate.exists():
+            logger.debug("Located rapidock python3 via CONDA_EXE: %s", candidate)
+            return str(candidate)
+
+    for base in _CONDA_BASE_SEARCH_PATHS:
+        candidate = base / "envs" / _CONDA_ENV_NAME / "bin" / "python3"
+        if candidate.exists():
+            logger.debug("Located rapidock python3 at: %s", candidate)
+            return str(candidate)
+
+    raise RuntimeError(
+        f"Cannot locate Python 3 in conda env '{_CONDA_ENV_NAME}'. "
+        "Set RAPIDOCK_PYTHON to the full absolute path of the python3 binary "
+        f"(e.g. ~/miniconda3/envs/{_CONDA_ENV_NAME}/bin/python3), "
+        "or ensure the environment exists."
+    )
 
 
 def _find_rapidock_dir() -> Path:
-    """Resolve the RAPiDock source directory from the RAPIDOCK_DIR env var.
+    """Resolve the RAPiDock source directory.
 
-    Phase 5 will wire this through DockConfig. When RAPIDOCK_DIR is not set,
-    returns a placeholder path and logs a warning — the subprocess will fail
-    if actually invoked without this, but command construction succeeds.
+    Checks RAPIDOCK_DIR env var first, then common install locations
+    (~~/RAPiDock, /opt/RAPiDock). Raises RuntimeError if none found.
 
     Returns:
         Absolute Path to the RAPiDock source directory (contains inference.py).
+
+    Raises:
+        RuntimeError: If RAPiDock cannot be located.
     """
     rapidock_dir = os.environ.get("RAPIDOCK_DIR")
-    if not rapidock_dir:
-        logger.warning(
-            "RAPIDOCK_DIR env var not set; using placeholder. "
-            "Set RAPIDOCK_DIR to the RAPiDock install directory before running."
-        )
-        return Path(_RAPIDOCK_DIR_UNSET)
-    return Path(rapidock_dir).resolve()
+    if rapidock_dir:
+        return Path(rapidock_dir).resolve()
+    for candidate in _RAPIDOCK_SEARCH_PATHS:
+        if (candidate / "inference.py").exists():
+            logger.debug("Auto-detected RAPiDock at %s", candidate)
+            return candidate.resolve()
+    raise RuntimeError(
+        "Cannot locate RAPiDock. Set RAPIDOCK_DIR to the RAPiDock source directory "
+        "(the one containing inference.py), or install it at ~/RAPiDock."
+    )
 
 
 def _find_model_dir() -> Path:
-    """Resolve the RAPiDock model directory from RAPIDOCK_MODEL_DIR env var.
+    """Resolve the RAPiDock model directory (train_models/CGTensorProductEquivariantModel/).
 
-    When RAPIDOCK_MODEL_DIR is not set, returns a placeholder path and logs
-    a warning.
+    Checks RAPIDOCK_MODEL_DIR env var first, then derives the standard path
+    from the RAPiDock source directory located by _find_rapidock_dir().
 
     Returns:
-        Absolute Path to train_models/ directory inside RAPiDock install.
+        Absolute Path to train_models/CGTensorProductEquivariantModel/.
+
+    Raises:
+        RuntimeError: If the model directory cannot be found.
     """
     model_dir = os.environ.get("RAPIDOCK_MODEL_DIR")
-    if not model_dir:
-        logger.warning(
-            "RAPIDOCK_MODEL_DIR env var not set; using placeholder. "
-            "Set RAPIDOCK_MODEL_DIR before running."
-        )
-        return Path(_MODEL_DIR_UNSET)
-    return Path(model_dir).resolve()
+    if model_dir:
+        return Path(model_dir).resolve()
+    rapidock_dir = _find_rapidock_dir()
+    derived = rapidock_dir / "train_models" / "CGTensorProductEquivariantModel"
+    if derived.exists():
+        logger.debug("Auto-detected model dir at %s", derived)
+        return derived.resolve()
+    raise RuntimeError(
+        f"Model directory not found at {derived}. "
+        "Set RAPIDOCK_MODEL_DIR to train_models/CGTensorProductEquivariantModel/ "
+        "inside your RAPiDock install."
+    )
 
 
 def _find_ckpt_name() -> str:
-    """Resolve the RAPiDock checkpoint filename from RAPIDOCK_CKPT env var.
+    """Resolve the RAPiDock checkpoint filename.
 
-    When RAPIDOCK_CKPT is not set, returns a placeholder string and logs
-    a warning.
+    Checks RAPIDOCK_CKPT env var first, then defaults to rapidock_local.pt.
 
     Returns:
         Checkpoint filename string (e.g., 'rapidock_local.pt').
     """
-    ckpt = os.environ.get("RAPIDOCK_CKPT")
-    if not ckpt:
-        logger.warning(
-            "RAPIDOCK_CKPT env var not set; using placeholder. "
-            "Set RAPIDOCK_CKPT to the checkpoint filename before running."
-        )
-        return _CKPT_UNSET
-    return ckpt
+    return os.environ.get("RAPIDOCK_CKPT", _CKPT_DEFAULT)
 
 
-def run_sampling(config: DockConfig) -> list[Path]:
-    """Run RAPiDock N=config.n_samples inference passes via conda run subprocess.
+def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[Path]:
+    """Run RAPiDock N=config.n_samples inference passes via direct python3 subprocess.
 
-    Executes: conda run --no-capture-output -n rapidock-env python {run_rapidock.py} [args]
+    Calls the rapidock conda env's python3 binary directly (bypassing conda run)
+    to avoid a PATH-resolution bug where conda run picks the caller's python3
+    instead of the target environment's. See module docstring for details.
 
-    All file paths crossing the conda boundary are resolved to absolute (D-07).
+    All paths are resolved to absolute (D-07).
 
     Streaming: stdout read in main thread readline() loop; stderr on daemon
     thread to prevent pipe deadlock (D-01). Both use iter(pipe.readline, b"")
@@ -123,6 +193,9 @@ def run_sampling(config: DockConfig) -> list[Path]:
     Args:
         config: Validated DockConfig. Uses peptide_sequence, receptor_path,
                 output_dir, n_samples, seed.
+        receptor_path: Optional override for the receptor PDB path. If None,
+                uses config.receptor_path. Pass a pdbfixer-cleaned PDB here
+                to avoid MDAnalysis chain-splitting issues on raw RCSB downloads.
 
     Returns:
         List of absolute Paths to renamed pose_*.pdb files under
@@ -132,17 +205,17 @@ def run_sampling(config: DockConfig) -> list[Path]:
         RuntimeError: If RAPiDock subprocess exits non-zero (D-03).
         RuntimeError: If zero poses are produced after subprocess exits (D-11).
     """
-    # Resolve all paths to absolute before crossing the conda boundary (D-07)
+    rapidock_python = _find_rapidock_python()
     shim_path = str((Path(__file__).resolve().parent / "run_rapidock.py"))
-    receptor_abs = str(config.receptor_path.resolve())
+    effective_receptor = receptor_path if receptor_path is not None else config.receptor_path
+    receptor_abs = str(effective_receptor.resolve())
     raw_output_abs = str((config.output_dir / "poses_raw").resolve())
     rapidock_dir_abs = str(_find_rapidock_dir())
     model_dir_abs = str(_find_model_dir())
     ckpt_name = _find_ckpt_name()
 
     cmd = [
-        "conda", "run", "--no-capture-output", "-n", "rapidock-env",
-        "python", shim_path,
+        rapidock_python, shim_path,
         "--peptide", config.peptide_sequence,
         "--receptor", receptor_abs,
         "--output-dir", raw_output_abs,
@@ -150,7 +223,7 @@ def run_sampling(config: DockConfig) -> list[Path]:
         "--rapidock-dir", rapidock_dir_abs,
         "--model-dir", model_dir_abs,
         "--ckpt", ckpt_name,
-        "--scoring-function", "confidence",
+        "--scoring-function", "none",
     ]
     if config.seed is not None:
         cmd += ["--seed", str(config.seed)]

@@ -14,13 +14,13 @@ producing ranked poses with a calibrated ΔG estimate more accurate than Vina al
 
 HybriDock-Pep runs in two stages:
 
-1. **Stage 1 (GPU, rapidock-env):** RAPiDock generates N=100 all-atom peptide pose PDBs via
+1. **Stage 1 (GPU, rapidock env):** RAPiDock generates N=100 all-atom peptide pose PDBs via
    stochastic diffusion inference on the receptor structure.
 2. **Stage 2 (CPU, score-env):** Each pose is independently scored by AutoDock Vina
    (`--score_only`) and AutoDock4 (`--scoring ad4`), combined with a backbone entropy
    correction (ΔS = α × n_residues), and clustered by contact-zone Cα RMSD.
 
-The driver script orchestrates both stages via `conda run -n rapidock-env` subprocess calls.
+The driver script orchestrates both stages via `conda run -n rapidock` subprocess calls.
 No Python objects cross the subprocess boundary — only file paths and integer flags.
 
 See [docs/architecture.md](docs/architecture.md) for the full module map and data flow diagram.
@@ -34,7 +34,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module map and dat
 - **conda:** [Miniforge](https://github.com/conda-forge/miniforge/releases) preferred.
   Any conda >= 23.x works.
 - **ADFRsuite:** Download from <https://ccsb.scripps.edu/adfrsuite/downloads/>
-  (provides `prepare_receptor4.py` and `autogrid4`). Add `bin/` to PATH.
+  (provides `prepare_receptor` and `autogrid4`). Add `bin/` to PATH.
 - **PULCHRA v3.04:** Required for side-chain reconstruction. Build from source — see
   [INSTALL.md Step 3.5](INSTALL.md#step-35--pulchra-v304-side-chain-reconstructor).
   v3.07 (Bioconda) has an aromatic side-chain bug; use v3.04 exactly.
@@ -53,8 +53,9 @@ conda env create -f envs/score-env.yml
 conda activate score-env
 pip install -e .
 
-# 2. Create the GPU sampling environment (rapidock-env)
+# 2. Create the GPU sampling environment (rapidock)
 conda env create -f envs/rapidock-env.yml
+# Then install PyTorch + PyG separately — see INSTALL.md Step 2
 
 # 3. Verify: smoke test should print three [PASS] lines
 bash scripts/smoke_test.sh
@@ -168,9 +169,9 @@ Expected: corrected ΔG < −3 kcal/mol. If not, something in the rescoring pipe
 |---------|--------------|-----|
 | `ModuleNotFoundError: No module named 'pdbfixer'` | Running tests in base Python env, not score-env | `conda activate score-env` then re-run pytest |
 | `RuntimeError: CUDA device capability 12.0 required` | Wrong PyTorch/CUDA build for Blackwell GPU | Use PyTorch 2.7 + CUDA 12.8; see INSTALL.md Step 2 |
-| `FileNotFoundError: prepare_receptor4.py` | ADFRsuite not on PATH | Download ADFRsuite, add `ADFRsuite_x86_64Linux_1.0/bin` to PATH |
+| `FileNotFoundError: prepare_receptor` | ADFRsuite not on PATH | Download ADFRsuite, add `ADFRsuite_x86_64Linux_1.0/bin` to PATH |
 | `pulchra: command not found` or wrong version | PULCHRA not built from source or wrong version | Build PULCHRA v3.04 from source; v3.07 has aromatic side-chain bug (CLAUDE.md §2.3) |
-| `ImportError: cannot import name 'Vina'` | Using score-env commands inside rapidock-env | Always run `hybridock-pep` commands in score-env; rapidock-env is only for Stage 1 subprocess |
+| `ImportError: cannot import name 'Vina'` | Using score-env commands inside rapidock env | Always run `hybridock-pep` commands in score-env; the rapidock env is only for Stage 1 subprocess |
 | Stage 1 fails on macOS | No CUDA on Apple Silicon | Use `--input-poses` to skip Stage 1; generate poses on a CUDA machine |
 
 ---

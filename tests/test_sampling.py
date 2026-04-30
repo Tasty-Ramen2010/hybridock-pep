@@ -72,22 +72,17 @@ class TestRapidockRunner:
         assert len(captured_cmd) == 1, "Popen should be called exactly once"
         cmd = captured_cmd[0]
 
-        # Verify conda run prefix (D-04)
-        assert cmd[0] == "conda"
-        assert "run" in cmd
-        assert "--no-capture-output" in cmd
-        assert "-n" in cmd
-        env_idx = cmd.index("-n")
-        assert cmd[env_idx + 1] == "rapidock-env"
-        assert "python" in cmd
+        # Verify direct python3 invocation (no conda run — see module docstring)
+        # cmd[0] must be the rapidock env's python3 (absolute path ending in python3)
+        assert cmd[0].endswith("python3"), f"Expected python3 as first arg, got {cmd[0]!r}"
+        assert Path(cmd[0]).is_absolute(), f"python3 path must be absolute: {cmd[0]!r}"
+        # cmd[1] must be the run_rapidock.py shim (absolute path)
+        assert cmd[1].endswith("run_rapidock.py"), f"Expected run_rapidock.py as second arg, got {cmd[1]!r}"
 
         # Verify all path-like arguments are absolute (no relative segments)
         for arg in cmd:
-            if arg.startswith("/") or arg == "conda" or arg == "run" or arg == "python":
-                continue
-            # Any argument that looks like a file path must be absolute
             p = Path(arg)
-            if p.suffix in (".py", ".pdb", ".pdbqt", ".json") or "/" in arg:
+            if p.suffix in (".py", ".pdb", ".pdbqt", ".json") or (arg.startswith("/") and "/" in arg):
                 assert p.is_absolute(), f"Path argument must be absolute: {arg!r}"
 
     # ------------------------------------------------------------------

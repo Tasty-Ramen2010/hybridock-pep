@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate 25 MDM2/p53 fixture PDB files for test_e2e.py (TEST-02).
 
-Peptide: ETFSDLWKLLPE (12 residues, PDB 2OY2 p53 transactivation domain fragment)
-Geometry: Idealized extended backbone centered on MDM2 binding groove (~26, 3.5, -5.5 Å)
+Peptide: ETFSDLWKLLPE (12 residues, MDM2/p53 PDB 1YCR p53 transactivation domain fragment)
+Geometry: Idealized extended backbone in synthetic coordinate space (NOT aligned to 1YCR).
+          For real docking use data/pdbs/1YCR_mdm2.pdb with site 25.20 -25.61 -7.97.
 Strategy: 25 copies with ±0.3 Å random xyz perturbation per heavy atom position.
 All files are valid Biopython PDBParser input and contain N/CA/C/O backbone atoms.
 """

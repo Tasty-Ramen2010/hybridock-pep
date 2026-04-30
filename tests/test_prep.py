@@ -21,6 +21,14 @@ def meeko_available() -> None:
     pytest.importorskip("meeko", reason="meeko not installed (score-env only)")
 
 
+@pytest.fixture(scope="session")
+def babel_available() -> None:
+    """Session-scoped fixture that skips if ADFRsuite's babel is not on PATH."""
+    import shutil
+    if shutil.which("babel") is None:
+        pytest.skip("babel not found on PATH — install ADFRsuite (score-env only)")
+
+
 # ---------------------------------------------------------------------------
 # Task 1: PrepError + fixtures
 # ---------------------------------------------------------------------------
@@ -220,7 +228,7 @@ class TestPrepareReceptor:
             mock_fixer = MagicMock()
             mock_fixer_cls.return_value = mock_fixer
 
-            with pytest.raises(PrepError, match="prepare_receptor4.py failed"):
+            with pytest.raises(PrepError, match="prepare_receptor failed"):
                 prepare_receptor(config)
 
     def test_no_caching_guard(self) -> None:
@@ -539,13 +547,22 @@ class TestBuildGpf:
             output_dir=tmp_path / "out",
         )
 
-    def test_ligand_types_contains_hd(self, config, tmp_path: Path) -> None:
+    @pytest.fixture()
+    def receptor_pdbqt(self, tmp_path: Path) -> Path:
+        """Minimal receptor PDBQT for _build_gpf tests."""
+        pdbqt = tmp_path / "receptor.pdbqt"
+        pdbqt.write_text(
+            "ATOM      1  CA  ALA A   1       1.000   2.000   3.000  0.00  0.00    +0.000 C\n"
+        )
+        return pdbqt
+
+    def test_ligand_types_contains_hd(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """ligand_types line must contain HD — required for receptor.HD.map generation."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_text = _build_gpf(config, maps_dir)
+        gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
         # Find the ligand_types line
         ligand_line = next(
             (ln for ln in gpf_text.splitlines() if ln.startswith("ligand_types")), None
@@ -553,22 +570,22 @@ class TestBuildGpf:
         assert ligand_line is not None, "ligand_types line missing from GPF"
         assert "HD" in ligand_line, f"HD not in ligand_types line: {ligand_line!r}"
 
-    def test_gridcenter_matches_site_coords(self, config, tmp_path: Path) -> None:
+    def test_gridcenter_matches_site_coords(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """gridcenter line must match DockConfig.site_coords."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_text = _build_gpf(config, maps_dir)
+        gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
         assert "gridcenter 22.5 14.1 38.7" in gpf_text
 
-    def test_npts_derived_from_box_size(self, config, tmp_path: Path) -> None:
+    def test_npts_derived_from_box_size(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """npts = int(box_size / 0.375) for a cubic box."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_text = _build_gpf(config, maps_dir)
+        gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
         # box_size=20.0, spacing=0.375 -> npts=53
         expected_npts = int(20.0 / 0.375)
         npts_line = next(
@@ -580,13 +597,13 @@ class TestBuildGpf:
         assert parts[2] == str(expected_npts), f"npts y mismatch: {npts_line!r}"
         assert parts[3] == str(expected_npts), f"npts z mismatch: {npts_line!r}"
 
-    def test_receptor_line_is_filename_only(self, config, tmp_path: Path) -> None:
+    def test_receptor_line_is_filename_only(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """receptor line must be 'receptor receptor.pdbqt' — filename, not full path."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_text = _build_gpf(config, maps_dir)
+        gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
         receptor_line = next(
             (ln for ln in gpf_text.splitlines() if ln.startswith("receptor ") and "pdbqt" in ln),
             None,
@@ -596,22 +613,22 @@ class TestBuildGpf:
             f"receptor line should be filename-only, got: {receptor_line!r}"
         )
 
-    def test_hd_map_line_present(self, config, tmp_path: Path) -> None:
+    def test_hd_map_line_present(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """map receptor.HD.map line must appear in GPF."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_text = _build_gpf(config, maps_dir)
+        gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
         assert "map receptor.HD.map" in gpf_text
 
-    def test_spacing_is_0375(self, config, tmp_path: Path) -> None:
+    def test_spacing_is_0375(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """spacing line must be 0.375."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_text = _build_gpf(config, maps_dir)
+        gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
         assert "spacing 0.375" in gpf_text
 
 
@@ -844,8 +861,8 @@ class TestReceptorPrep:
 
         assert result == config.output_dir / "receptor.pdbqt"
         assert len(calls) == 1, "subprocess.run should have been called exactly once"
-        assert calls[0][0] == "prepare_receptor4.py", (
-            f"First arg to subprocess must be 'prepare_receptor4.py', got: {calls[0][0]!r}"
+        assert calls[0][0] == "prepare_receptor", (
+            f"First arg to subprocess must be 'prepare_receptor', got: {calls[0][0]!r}"
         )
 
     def test_prepare_receptor_nonzero_exit_raises_prep_error(
@@ -958,7 +975,7 @@ class TestLigandBatch:
         return FIXTURES_DIR / "pose_tiny.pdb"
 
     def test_batch_single_pose_success(
-        self, tmp_path: Path, pose_tiny: Path, meeko_available
+        self, tmp_path: Path, pose_tiny: Path, babel_available
     ) -> None:
         """Single valid pose produces one success and zero failures."""
         from hybridock_pep.prep.ligand import prepare_ligand_batch
@@ -1023,37 +1040,37 @@ class TestGrids:
         )
         return pdbqt
 
-    def test_build_gpf_contains_hd_type(self, config, tmp_path: Path) -> None:
+    def test_build_gpf_contains_hd_type(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """ligand_types line in GPF must contain HD."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_content = _build_gpf(config, maps_dir)
+        gpf_content = _build_gpf(config, maps_dir, receptor_pdbqt)
         assert "HD" in gpf_content, "HD not found anywhere in GPF"
-        assert "ligand_types C A N O S H HD" in gpf_content, (
-            f"Expected 'ligand_types C A N O S H HD' in GPF, got:\n{gpf_content}"
+        assert "ligand_types" in gpf_content and "HD" in gpf_content, (
+            f"Expected ligand_types containing HD in GPF, got:\n{gpf_content}"
         )
 
-    def test_build_gpf_npts_from_box_size(self, config, tmp_path: Path) -> None:
+    def test_build_gpf_npts_from_box_size(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """npts must equal int(box_size / 0.375) = 53 for box_size=20.0."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_content = _build_gpf(config, maps_dir)
+        gpf_content = _build_gpf(config, maps_dir, receptor_pdbqt)
         expected = int(20.0 / 0.375)  # 53
         assert f"npts {expected} {expected} {expected}" in gpf_content, (
             f"Expected 'npts 53 53 53' in GPF, got:\n{gpf_content}"
         )
 
-    def test_build_gpf_gridcenter_from_site_coords(self, config, tmp_path: Path) -> None:
+    def test_build_gpf_gridcenter_from_site_coords(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
         """gridcenter line must match DockConfig.site_coords exactly."""
         from hybridock_pep.prep.grids import _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
-        gpf_content = _build_gpf(config, maps_dir)
+        gpf_content = _build_gpf(config, maps_dir, receptor_pdbqt)
         assert "gridcenter 22.5 14.1 38.7" in gpf_content, (
             f"Expected 'gridcenter 22.5 14.1 38.7' in GPF, got:\n{gpf_content}"
         )

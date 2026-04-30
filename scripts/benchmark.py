@@ -82,6 +82,37 @@ def get_peptide_center(
     return (float(centre[0]), float(centre[1]), float(centre[2]))
 
 
+def extract_receptor_chain(pdb_path: Path, receptor_chain: str, dest: Path) -> bool:
+    """Write a PDB containing only the specified receptor chain.
+
+    Strips the co-crystallized peptide and any other non-receptor chains so
+    that hybridock-pep receives a clean single-chain receptor. Without this,
+    the co-crystal peptide occupies the binding site and causes RAPiDock to
+    generate clashing or off-site poses.
+
+    Args:
+        pdb_path: Path to the full multi-chain RCSB PDB.
+        receptor_chain: Chain ID to keep (e.g. "A").
+        dest: Destination path for the single-chain PDB.
+
+    Returns:
+        True on success, False if no ATOM lines for the chain were found.
+    """
+    kept: list[str] = []
+    for line in pdb_path.read_text().splitlines(keepends=True):
+        record = line[:6].strip()
+        if record in ("ATOM", "HETATM"):
+            chain = line[21] if len(line) > 21 else " "
+            if chain != receptor_chain:
+                continue
+        kept.append(line)
+    atom_lines = [l for l in kept if l[:4] == "ATOM"]
+    if not atom_lines:
+        return False
+    dest.write_text("".join(kept))
+    return True
+
+
 def download_pdb(pdb_id: str, dest: Path) -> bool:
     """Download a PDB file from RCSB.
 
@@ -153,6 +184,7 @@ def run_complex(
     peptide = row["peptide_sequence"]
     exp_pkd = float(row["experimental_pkd"])
     peptide_chain = meta.get("peptide_chain", "B")
+    receptor_chain = meta.get("receptor_chain", "A")
     result: dict = {
         "pdb_id": pdb_id,
         "peptide_sequence": peptide,
@@ -172,7 +204,16 @@ def run_complex(
         result["status"] = "skipped_download"
         return result
 
-    # Compute binding site from peptide Cα centroid
+    # Extract receptor chain only — the full RCSB PDB includes the co-crystallized
+    # peptide (chain B) which would occupy the binding site and cause RAPiDock to
+    # generate clashing/off-site poses. Pass only chain A to hybridock-pep.
+    receptor_pdb = work_dir / f"{pdb_id}_receptor.pdb"
+    if not extract_receptor_chain(pdb_path, receptor_chain, receptor_pdb):
+        _log.warning("%s: no ATOM lines for chain %s; skipping", pdb_id, receptor_chain)
+        result["status"] = "skipped_prep"
+        return result
+
+    # Compute binding site from peptide Cα centroid (still use full PDB — has both chains)
     site = get_peptide_center(pdb_path, peptide_chain)
     if site is None:
         _log.warning("%s: no CA atoms found in chain %s; skipping", pdb_id, peptide_chain)
@@ -185,7 +226,7 @@ def run_complex(
     cmd_hybrid = [
         "hybridock-pep", "dock",
         "--peptide", peptide,
-        "--receptor", str(pdb_path.resolve()),
+        "--receptor", str(receptor_pdb.resolve()),
         "--site", str(site[0]), str(site[1]), str(site[2]),
         "--box", str(args.box_size),
         "--n-samples", str(args.n_samples),
@@ -206,7 +247,12 @@ def run_complex(
         result["status"] = "skipped_scoring"
         return result
 
-    poses_dir = hybrid_out / "poses"
+    # poses_scored/ contains the exact files scored by the hybrid run (minimized where
+    # minimization succeeded, original otherwise). Using these for the vina-only
+    # rescore ensures the hybrid and vina-only comparisons use identical input poses,
+    # eliminating the confound introduced by scoring minimized vs non-minimized poses.
+    poses_scored_dir = hybrid_out / "poses_scored"
+    poses_dir = poses_scored_dir if poses_scored_dir.exists() else hybrid_out / "poses"
     ranked_hybrid = hybrid_out / "ranked_poses.csv"
     hybrid_score = extract_best_score(ranked_hybrid, "hybrid_score")
     if hybrid_score is None:
@@ -220,7 +266,7 @@ def run_complex(
     cmd_vina = [
         "hybridock-pep", "dock",
         "--peptide", peptide,
-        "--receptor", str(pdb_path.resolve()),
+        "--receptor", str(receptor_pdb.resolve()),
         "--site", str(site[0]), str(site[1]), str(site[2]),
         "--box", str(args.box_size),
         "--scoring", "vina",
@@ -229,7 +275,7 @@ def run_complex(
         "--output-dir", str(vina_out),
         "--calibration", str(Path(args.calibration).resolve()),
     ]
-    _log.info("%s: running vina-only rescore", pdb_id)
+    _log.info("%s: running vina-only rescore from %s", pdb_id, poses_dir.name)
     t1 = time.monotonic()
     proc_v = subprocess.run(cmd_vina, capture_output=True, text=True)
     result["runtime_vina_s"] = round(time.monotonic() - t1, 1)
@@ -241,7 +287,7 @@ def run_complex(
     vina_score = extract_best_score(vina_out / "ranked_poses.csv", "vina_score")
     result["vina_score"] = vina_score if vina_score is not None else float("nan")
 
-    # Count poses
+    # Count poses (use the same directory that was scored)
     if poses_dir.exists():
         result["n_poses"] = len(list(poses_dir.glob("pose_*.pdb")))
 
@@ -379,9 +425,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--box-size",
         dest="box_size",
         type=float,
-        default=25.0,
+        default=40.0,
         metavar="ANG",
-        help="Grid box edge length in Angstroms for all complexes (default: 25.0).",
+        help="Grid box edge length in Angstroms for all complexes (default: 40.0).",
     )
     parser.add_argument(
         "--n-samples",
@@ -414,7 +460,7 @@ def main(args: argparse.Namespace | None = None) -> None:
         args: Parsed argparse.Namespace. If None, parse_args() is called.
 
     Raises:
-        RuntimeError: If hybridock-pep or prepare_receptor4.py not found on PATH.
+        RuntimeError: If hybridock-pep or prepare_receptor not found on PATH.
         FileNotFoundError: If test_csv does not exist.
     """
     if args is None:
@@ -433,9 +479,9 @@ def main(args: argparse.Namespace | None = None) -> None:
             "hybridock-pep not found on PATH. Install score-env: "
             "conda activate score-env && pip install -e ."
         )
-    if not shutil.which("prepare_receptor4.py"):
+    if not shutil.which("prepare_receptor"):
         raise RuntimeError(
-            "prepare_receptor4.py not found on PATH. Install ADFRsuite and add to PATH. "
+            "prepare_receptor not found on PATH. Install ADFRsuite and add to PATH. "
             "See INSTALL.md Step 3."
         )
     if not args.test_csv.exists():

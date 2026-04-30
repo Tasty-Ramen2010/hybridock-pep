@@ -201,6 +201,43 @@ class TestDriverOrchestration:
             with pytest.raises(RuntimeError):
                 driver.run_dock(config, input_poses_dir=None, calibration_path=tmp_path / "cal.json")
 
+    def test_vina_only_skips_ad4_maps_and_scoring(self, tmp_path: Path) -> None:
+        """--scoring vina must not call generate_ad4_maps or score_ad4_batch."""
+        from hybridock_pep import driver
+        from hybridock_pep.models import DockConfig
+
+        receptor = tmp_path / "receptor.pdb"
+        receptor.write_text(
+            "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\nEND\n"
+        )
+        config = DockConfig(
+            peptide_sequence="AAAA",
+            receptor_path=receptor,
+            site_coords=(0.0, 0.0, 0.0),
+            box_size=20.0,
+            output_dir=tmp_path,
+            seed=42,
+            scoring={"vina"},
+        )
+
+        with (
+            patch("hybridock_pep.driver.run_sampling", return_value=[]),
+            patch("hybridock_pep.driver.parse_poses", return_value=([], [])),
+            patch("hybridock_pep.driver.prepare_receptor", return_value=tmp_path / "receptor.pdbqt"),
+            patch("hybridock_pep.driver.generate_ad4_maps") as mock_ad4_maps,
+            patch("hybridock_pep.driver.prepare_ligand_batch", return_value=([], [])),
+            patch("hybridock_pep.driver.score_vina_batch", return_value=([], [])),
+            patch("hybridock_pep.driver.score_ad4_batch") as mock_ad4_score,
+            patch("hybridock_pep.driver.load_calibration", return_value={"alpha": 0.5, "beta": 0.1}),
+            patch("hybridock_pep.driver.write_metadata_skeleton"),
+            patch("hybridock_pep.driver.finalize_metadata"),
+            patch("hybridock_pep.output.csv_writer.write_ranked_csv"),
+            patch("hybridock_pep.output.csv_writer.write_best_pose_pdb"),
+        ):
+            driver.run_dock(config, input_poses_dir=None, calibration_path=tmp_path / "cal.json")
+            mock_ad4_maps.assert_not_called()
+            mock_ad4_score.assert_not_called()
+
     def test_metadata_written_at_start_and_end(self, tmp_path: Path) -> None:
         from hybridock_pep import driver
 

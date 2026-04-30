@@ -24,10 +24,39 @@ htmlcov/
 
 # macOS
 .DS_Store
+._*
+._.DS_Store
 
-# Run outputs (never in git; only fixtures go in tests/fixtures/)
+# Run outputs — never committed; only tests/fixtures/ contains committed PDB/data
 runs/
+raw/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Large binary downloads (ADFRsuite, RAPiDock tarballs)
+*.tar.gz
+*.tar.gz.Zone.Identifier
+*.run
+
+# AutoDock map files (generated at runtime, can be large)
+*.map
+*.fld
+*.gpf
+*.glg
+
+# Secrets / credentials
+.env
+*.pem
+*.key
+secrets.json
 
 # Editor
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db

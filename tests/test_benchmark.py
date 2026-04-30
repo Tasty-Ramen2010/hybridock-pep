@@ -65,7 +65,7 @@ class TestParseArgs:
     def test_parse_args_box_size_default(self, tmp_path: Path) -> None:
         bm = self._import_benchmark()
         args = bm.parse_args(["--test-csv", str(tmp_path / "t.csv")])
-        assert args.box_size == 25.0
+        assert args.box_size == 40.0
 
     def test_parse_args_test_csv_required(self) -> None:
         bm = self._import_benchmark()

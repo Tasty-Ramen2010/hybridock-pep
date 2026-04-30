@@ -1,4 +1,4 @@
-name: rapidock-env
+name: rapidock
 channels:
   - pytorch
   - nvidia
@@ -6,17 +6,23 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9
-  - pytorch=2.7.*
-  - torchvision
-  - torchaudio
-  - pytorch-cuda=12.8
-  - pyg::pyg
+  - python=3.10
+  - conda-forge::numpy>=1.26
+  - conda-forge::scipy>=1.13
+  - conda-forge::scikit-learn>=1.4
+  - conda-forge::biopython>=1.83
+  - conda-forge::networkx>=3.0
+  - conda-forge::pandas>=2.0
+  - conda-forge::tqdm>=4.60
+  - conda-forge::rdkit>=2024.03
   - conda-forge::mdanalysis>=2.7
   - conda-forge::e3nn>=0.5
-  - conda-forge::rdkit>=2024.03
-  - conda-forge::numpy>=1.26
   - pip:
-      # Rosetta relax (license-restricted): install manually per INSTALL.md after env creation.
-      # RAPiDock commit SHA is pinned in Phase 4; placeholder here is intentional.
-      - "git+https://github.com/huifengzhao/RAPiDock.git@PINNED_SHA_TBD_PHASE_4"
+      # PyTorch 2.7 + CUDA 12.8 — required for Blackwell (CC 12.0, RTX 5070).
+      # Install separately after env creation (see INSTALL.md Step 2):
+      #   pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
+      #   pip install torch-scatter torch-sparse torch-cluster torch-spline-conv \
+      #               -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
+      - "fair-esm>=2.0"
+      # RAPiDock: install from source after env creation (see INSTALL.md Step 3):
+      #   pip install git+https://github.com/huifengzhao/RAPiDock.git@<pinned-sha>

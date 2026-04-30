@@ -3,7 +3,7 @@
 #
 # Checks:
 #   1. CUDA compute capability >= 12.0 (Blackwell/RTX 5070). Warns on macOS ARM.
-#   2. ADFRsuite prepare_receptor4.py on PATH.
+#   2. ADFRsuite prepare_receptor on PATH.
 #   3. AutoDock Vina >= 1.2.5 on PATH.
 #
 # Exit codes:
@@ -35,35 +35,40 @@ else
     warn "nvidia-smi not found — skipping CUDA check (expected on macOS ARM / non-NVIDIA machines)"
 fi
 
-# --- 2. ADFRsuite prepare_receptor4.py on PATH ---
-if command -v prepare_receptor4.py &>/dev/null; then
-    pass "prepare_receptor4.py found on PATH"
+# --- 2. ADFRsuite prepare_receptor on PATH ---
+if command -v prepare_receptor &>/dev/null; then
+    pass "prepare_receptor found on PATH"
 else
-    fail "prepare_receptor4.py not on PATH — install ADFRsuite from https://ccsb.scripps.edu/adfrsuite/"
+    fail "prepare_receptor not on PATH — install ADFRsuite from https://ccsb.scripps.edu/adfrsuite/"
 fi
 
-# --- 3. Vina >= 1.2.5 ---
-if command -v vina &>/dev/null; then
-    VINA_RAW=$(vina --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    if [ -z "${VINA_RAW:-}" ]; then
-        fail "vina present but --version did not emit a semver"
-    else
-        V_MAJ=$(echo "$VINA_RAW" | cut -d. -f1)
-        V_MIN=$(echo "$VINA_RAW" | cut -d. -f2)
-        V_PAT=$(echo "$VINA_RAW" | cut -d. -f3)
-        OK=0
-        if [ "$V_MAJ" -gt 1 ]; then OK=1
-        elif [ "$V_MAJ" -eq 1 ] && [ "$V_MIN" -gt 2 ]; then OK=1
-        elif [ "$V_MAJ" -eq 1 ] && [ "$V_MIN" -eq 2 ] && [ "$V_PAT" -ge 5 ]; then OK=1
-        fi
-        if [ "$OK" -eq 1 ]; then
-            pass "AutoDock Vina $VINA_RAW >= 1.2.5"
-        else
-            fail "vina version $VINA_RAW < 1.2.5 required — upgrade via: pip install 'vina>=1.2.5'"
-        fi
-    fi
+# --- 3. Vina Python API >= 1.2.5 ---
+# The pipeline uses the vina Python package API (from vina import Vina), not the standalone
+# CLI binary. Check score-env's Python (works whether or not score-env is active).
+SCORE_PY="$HOME/miniconda3/envs/score-env/bin/python3"
+if [ ! -x "$SCORE_PY" ]; then
+    SCORE_PY="python3"  # fall back to active env if score-env not found
+fi
+VINA_CHECK=$("$SCORE_PY" - <<'PYEOF' 2>&1
+import importlib.metadata, sys
+try:
+    ver = importlib.metadata.version("vina")
+except importlib.metadata.PackageNotFoundError:
+    print("NOT_FOUND")
+    sys.exit(0)
+parts = [int(x) for x in ver.split(".")[:3]]
+ok = parts > [1, 2, 4]  # >= 1.2.5
+print(f"{ver} {'OK' if ok else 'OLD'}")
+PYEOF
+)
+if echo "$VINA_CHECK" | grep -q "NOT_FOUND"; then
+    fail "vina Python package not installed in score-env — install via: pip install 'vina>=1.2.5'"
+elif echo "$VINA_CHECK" | grep -q " OK$"; then
+    VINA_VER=$(echo "$VINA_CHECK" | awk '{print $1}')
+    pass "AutoDock Vina Python API $VINA_VER >= 1.2.5 (score-env)"
 else
-    fail "vina not on PATH — install via: pip install 'vina>=1.2.5'"
+    VINA_VER=$(echo "$VINA_CHECK" | awk '{print $1}')
+    fail "vina Python API $VINA_VER < 1.2.5 — upgrade via: pip install 'vina>=1.2.5'"
 fi
 
 echo ""

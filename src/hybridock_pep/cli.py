@@ -104,6 +104,16 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="JSON",
         help="Path to calibration.json for entropy correction (default: data/calibration.json).",
     )
+    p_dock.add_argument(
+        "--no-minimize",
+        action="store_true",
+        default=False,
+        help=(
+            "Disable OpenMM energy minimization of RAPiDock poses before scoring. "
+            "Minimization relieves intra-pose clashes that cause AD4 anomalous scores. "
+            "Has no effect when --input-poses is set (pre-generated poses are not minimized)."
+        ),
+    )
 
     # calibrate subparser
     p_cal = sub.add_parser("calibrate", help="Calibrate entropy correction coefficient alpha.")
@@ -182,9 +192,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--box-size",
         dest="box_size",
         type=float,
-        default=25.0,
+        default=40.0,
         metavar="ANG",
-        help="Grid box edge length in Angstroms (default: 25.0).",
+        help="Grid box edge length in Angstroms (default: 40.0). Larger than dock default to cover RAPiDock prediction variance.",
     )
     p_bench.add_argument(
         "--n-samples",
@@ -235,6 +245,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             scoring=set(args.scoring.split(",")),
             output_dir=Path(args.output_dir).resolve(),
             verbosity=args.verbose,
+            minimize_poses=not args.no_minimize,
         )
     except ValidationError as exc:
         parser.error(str(exc))
@@ -352,12 +363,10 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
-    if args.verbose == 0:
-        log_level = logging.INFO
-    elif args.verbose == 1:
-        log_level = logging.INFO
-    else:
+    if args.verbose >= 2:
         log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
     logging.basicConfig(level=log_level, format="%(levelname)s %(name)s: %(message)s")
 
     dispatch = {

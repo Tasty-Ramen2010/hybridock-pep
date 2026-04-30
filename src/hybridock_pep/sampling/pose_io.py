@@ -25,6 +25,24 @@ from hybridock_pep.models import PoseFailure, PoseRecord
 
 logger = logging.getLogger(__name__)
 
+try:
+    from Bio.Data.IUPACData import protein_letters_3to1 as _prot_3to1
+
+    _STANDARD_AA: frozenset[str] = frozenset(k.upper() for k in _prot_3to1)
+except ImportError:
+    _STANDARD_AA = frozenset()
+
+
+def _is_standard_aa(residue: object) -> bool:
+    """Return True if residue is one of the 20 standard amino acids.
+
+    Replaces deprecated Bio.PDB.Polypeptide.is_aa (deprecated ≥1.80).
+    """
+    try:
+        return residue.get_resname().strip().upper() in _STANDARD_AA  # type: ignore[union-attr]
+    except AttributeError:
+        return False
+
 
 def parse_poses(
     poses_dir: Path,
@@ -117,7 +135,6 @@ def _parse_single_pose(pose_idx: int, pdb_path: Path) -> PoseRecord:
     """
     from Bio.Data.IUPACData import protein_letters_3to1  # three_to_one removed in Biopython 1.80+
     from Bio.PDB import PDBParser  # local import — biopython optional dep
-    from Bio.PDB.Polypeptide import is_aa
 
     _three_to_one = {k.upper(): v for k, v in protein_letters_3to1.items()}
 
@@ -136,7 +153,7 @@ def _parse_single_pose(pose_idx: int, pdb_path: Path) -> PoseRecord:
     model = next(iter(structure))
     for chain in model:
         for residue in chain:
-            if not is_aa(residue, standard=True):
+            if not _is_standard_aa(residue):
                 continue
             if "CA" not in residue:
                 continue
@@ -148,7 +165,7 @@ def _parse_single_pose(pose_idx: int, pdb_path: Path) -> PoseRecord:
     ca_coords = np.array(ca_coords_list, dtype=np.float64)  # shape [n_res, 3]
 
     # D-14: SEQRES-first sequence extraction with ATOM fallback
-    sequence = _extract_sequence_seqres_first(pdb_path, model, is_aa, three_to_one)
+    sequence = _extract_sequence_seqres_first(pdb_path, model, three_to_one)
 
     return PoseRecord(
         pose_idx=pose_idx,
@@ -161,7 +178,6 @@ def _parse_single_pose(pose_idx: int, pdb_path: Path) -> PoseRecord:
 def _extract_sequence_seqres_first(
     pdb_path: Path,
     model: object,
-    is_aa: object,
     three_to_one: object,
 ) -> str:
     """Extract peptide sequence per D-14: SEQRES first, ATOM fallback.
@@ -169,8 +185,7 @@ def _extract_sequence_seqres_first(
     Args:
         pdb_path: Path to PDB file (for raw SEQRES line parsing).
         model: Biopython Model object (first MODEL in structure).
-        is_aa: Bio.PDB.Polypeptide.is_aa callable.
-        three_to_one: Bio.PDB.Polypeptide.three_to_one callable.
+        three_to_one: Callable mapping 3-letter residue name to 1-letter code.
 
     Returns:
         Single-letter amino acid sequence string.
@@ -179,19 +194,32 @@ def _extract_sequence_seqres_first(
         ValueError: If neither SEQRES nor ATOM records yield any residues.
     """
     # --- Step 1: Try SEQRES records (D-14 primary path) ---
+    # Only read SEQRES for chains that actually have standard-AA CA atoms in ATOM records.
+    # For co-crystal PDBs passed via --input-poses, SEQRES includes receptor chains too —
+    # filtering prevents concatenating receptor+peptide residues into the sequence field.
+    atom_chains: set[str] = {
+        chain.id
+        for chain in model  # type: ignore[union-attr]
+        for residue in chain
+        if _is_standard_aa(residue) and "CA" in residue
+    }
     seqres_residues: list[str] = []
     try:
         raw_lines = pdb_path.read_text(errors="replace").splitlines()
         for line in raw_lines:
-            if line.startswith("SEQRES"):
-                # SEQRES format: cols 0-5 "SEQRES", cols 7-9 serial, cols 11-12 chain,
-                # cols 13-14 count, cols 19+ residues separated by spaces
-                residue_names = line[19:].split()
-                for resname in residue_names:
-                    try:
-                        seqres_residues.append(three_to_one(resname))
-                    except KeyError:
-                        seqres_residues.append("X")
+            if not line.startswith("SEQRES"):
+                continue
+            # SEQRES col 12 (0-indexed 11) is the chain ID
+            chain_id = line[11] if len(line) > 11 else " "
+            if chain_id not in atom_chains:
+                continue
+            # cols 19+ contain space-separated residue names
+            residue_names = line[19:].split()
+            for resname in residue_names:
+                try:
+                    seqres_residues.append(three_to_one(resname))
+                except KeyError:
+                    seqres_residues.append("X")
     except OSError:
         seqres_residues = []
 
@@ -204,7 +232,7 @@ def _extract_sequence_seqres_first(
     atom_residues: list[str] = []
     for chain in model:
         for residue in chain:
-            if not is_aa(residue, standard=True):
+            if not _is_standard_aa(residue):
                 continue
             try:
                 atom_residues.append(three_to_one(residue.get_resname()))

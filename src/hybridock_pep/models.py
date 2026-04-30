@@ -48,6 +48,7 @@ class DockConfig(BaseModel):
     output_dir: Path
     run_id: str = ""
     verbosity: int = 0
+    minimize_poses: bool = True
 
     @field_validator("peptide_sequence")
     @classmethod
