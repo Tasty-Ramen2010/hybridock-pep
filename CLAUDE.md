@@ -209,7 +209,10 @@ hybridock-pep/
   `ETFSDLWKLLPE`, known K_d ≈ 0.6 µM. If the pipeline ever returns
   a corrected ΔG > −3 kcal/mol on this complex, something is broken.
   Receptor: `data/pdbs/1YCR_mdm2.pdb` (chain A only). Binding site
-  center for docking: `--site 25.20 -25.61 -7.97 --box 20`.
+  center for docking: `--site 25.20 -25.61 -7.97 --box 30`.
+  (Box was 20 Å; empirically 47% of GPU-diffusion poses had heavy atoms
+  0.1–3.8 Å outside on this 12-mer — increased to 30 Å to contain full
+  peptide extent. See RTX_DEBUG.md Fix I.)
 - Fixture PDBs live in `tests/fixtures/`. Don't regenerate them on the
   fly; deterministic inputs matter.
 

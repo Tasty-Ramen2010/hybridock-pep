@@ -76,6 +76,39 @@ class TestVinaScorer:
         result = check_grid_boundary(pdbqt, self._SITE, self._BOX)
         assert result is False
 
+    def test_check_grid_boundary_hydrogen_outside_is_not_clipped(self, tmp_path: Path) -> None:
+        """H atom outside grid with heavy atom inside → NOT clipped (Fix I).
+
+        babel adds polar H to PDBQT; they can lie marginally outside the grid
+        even when all heavy atoms are within bounds.  check_grid_boundary must
+        skip H/HD atoms so these poses are not falsely flagged.
+        """
+        from hybridock_pep.scoring.vina import check_grid_boundary
+
+        pdbqt = tmp_path / "h_outside.pdbqt"
+        # Heavy C atom at center (inside), H atom 0.1 Å outside x-boundary
+        h_x = self._SITE[0] - self._BOX / 2.0 - 0.1  # just outside x-low
+        pdbqt.write_text(
+            self._ATOM_INSIDE
+            + f"ATOM      2  HE2 GLU A   3    {h_x:8.3f}{self._SITE[1]:8.3f}{self._SITE[2]:8.3f}"
+            f"  1.00  0.00     H  \n"
+        )
+        assert check_grid_boundary(pdbqt, self._SITE, self._BOX) is False
+
+    def test_check_grid_boundary_heavy_outside_with_h_inside(self, tmp_path: Path) -> None:
+        """Heavy atom outside grid → clipped even when H atoms are inside."""
+        from hybridock_pep.scoring.vina import check_grid_boundary
+
+        pdbqt = tmp_path / "heavy_outside.pdbqt"
+        # H atom at center (inside), heavy C atom outside
+        h_line = (
+            f"ATOM      1  HN  ALA A   1    "
+            f"{self._SITE[0]:8.3f}{self._SITE[1]:8.3f}{self._SITE[2]:8.3f}"
+            f"  1.00  0.00     H  \n"
+        )
+        pdbqt.write_text(h_line + self._ATOM_OUTSIDE)
+        assert check_grid_boundary(pdbqt, self._SITE, self._BOX) is True
+
     def test_score_vina_batch_returns_failure_on_missing_pdbqt(self, tmp_path: Path) -> None:
         """ScoredPose with nonexistent pdbqt_path → PoseFailure(stage='scoring'); no exception."""
         import numpy as np
