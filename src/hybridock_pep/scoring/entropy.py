@@ -1,10 +1,15 @@
 """Backbone entropy correction and hybrid score calibration (SCORE-03).
 
 Implements the D-01 hybrid score formula:
-    hybrid = vina + beta*(ad4 - vina) + alpha*n_residues
+    hybrid = vina + beta*(ad4 - vina) + alpha*n_eff_residues
 
-where ``alpha * n_residues`` is the backbone entropy correction term
+where ``alpha * n_eff_residues`` is the backbone entropy correction term,
+``n_eff_residues`` is either the full peptide length or the contact-residue
+count (residues with at least one heavy atom within 5 Å of the receptor),
 and ``beta`` controls the blending weight of AD4 relative to Vina.
+
+When ``is_ad4_anomaly`` is True (AD4 score > 0), beta is forced to 0 so
+the anomalous AD4 signal does not corrupt the hybrid score.
 
 Calibration (alpha, beta) is loaded from a JSON file and validated
 on every read per T-03-09 (load_calibration raises ValueError for
@@ -29,14 +34,22 @@ _log = logging.getLogger(__name__)
 # Thermodynamic constant: RT at 298 K in kcal/mol (D-09, hardcoded in v1).
 _RT = 0.592
 
+# Alpha bounds used both in optimization and validation.
+# Contact-based entropy uses a wider upper bound than full-residue because
+# alpha compensates for the smaller effective residue count.
+_ALPHA_MIN = 0.2
+_ALPHA_MAX = 2.0
+_BETA_MIN = 0.0
+_BETA_MAX = 0.5
+
 
 def load_calibration(path: Path) -> dict:
     """Load and validate calibration parameters from a JSON file.
 
-    Validates that alpha is within the physiologically meaningful range
-    [0.2, 1.2] kcal/mol/residue and that beta is within [0.0, 0.5].
-    Values outside these ranges indicate a broken training set or
-    misconfigured pipeline (CLAUDE.md §9; SCORE-03 abort).
+    Validates that alpha is within [0.2, 2.0] kcal/mol/contact-residue
+    and beta within [0.0, 0.5]. The upper alpha bound is 2.0 (was 1.2)
+    to accommodate contact-based entropy where alpha compensates for
+    fewer effective residues than full sequence length.
 
     Args:
         path: Path to the calibration JSON file (D-11 schema).
@@ -46,8 +59,7 @@ def load_calibration(path: Path) -> dict:
 
     Raises:
         FileNotFoundError: If ``path`` does not exist.
-        ValueError: If alpha is outside [0.2, 1.2] or beta is outside [0.0, 0.5],
-            with a diagnostic message quoting the bad value and valid range.
+        ValueError: If alpha is outside [0.2, 2.0] or beta is outside [0.0, 0.5].
     """
     if not path.exists():
         raise FileNotFoundError(f"Calibration file not found: {path}")
@@ -63,19 +75,29 @@ def load_calibration(path: Path) -> dict:
             "Re-run calibrate_alpha.py to regenerate a valid calibration file."
         ) from exc
 
-    if not (0.2 <= alpha <= 1.2):
+    if not (_ALPHA_MIN <= alpha <= _ALPHA_MAX):
         raise ValueError(
-            f"Calibrated α={alpha:.3f} is outside valid range [0.2, 1.2] kcal/mol/residue "
-            "— check training data coverage. SCORE-03 abort."
+            f"Calibrated α={alpha:.3f} is outside valid range [{_ALPHA_MIN}, {_ALPHA_MAX}] "
+            "kcal/mol/contact-residue — check training data coverage. SCORE-03 abort."
         )
-    if not (0.0 <= beta <= 0.5):
+    if not (_BETA_MIN <= beta <= _BETA_MAX):
         raise ValueError(
-            f"Calibrated β={beta:.3f} is outside valid range [0.0, 0.5] "
+            f"Calibrated β={beta:.3f} is outside valid range [{_BETA_MIN}, {_BETA_MAX}] "
             "— β > 0.5 means AD4 dominates over Vina, contradicting the Vina-primary design. "
             "Check training data or use default calibration.json."
         )
 
-    _log.debug("Loaded calibration: alpha=%.3f beta=%.3f from %s", alpha, beta, path)
+    gamma = float(cal.get("gamma", 0.0))
+    if not (0.0 <= gamma <= 1.0):
+        raise ValueError(
+            f"Calibrated γ={gamma:.3f} is outside valid range [0.0, 1.0] — "
+            "γ is the non-contact residue entropy fraction. Check calibration file."
+        )
+
+    _log.debug(
+        "Loaded calibration: alpha=%.3f beta=%.3f gamma=%.3f from %s",
+        alpha, beta, gamma, path,
+    )
     return cal
 
 
@@ -92,7 +114,7 @@ def write_calibration(
 
     Args:
         path: Destination path for the calibration JSON file.
-        alpha: Backbone entropy coefficient (kcal/mol/residue).
+        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
         beta: AD4 blending weight (dimensionless, [0.0, 0.5]).
         **kwargs: Additional D-11 fields to include (e.g., n_complexes,
             pearson_r, rmse_kcal_mol, training_csv).
@@ -109,62 +131,240 @@ def write_calibration(
     _log.info("Wrote calibration to %s (alpha=%.3f, beta=%.3f)", path, alpha, beta)
 
 
+def _parse_heavy_atoms_by_residue(pdb_path: Path) -> list[np.ndarray]:
+    """Parse heavy atom coordinates from PDB grouped by residue.
+
+    Args:
+        pdb_path: Path to PDB file.
+
+    Returns:
+        List of (n_atoms, 3) float64 arrays, one per unique (chain, resseq, resname).
+    """
+    residues: dict[tuple[str, int, str], list[tuple[float, float, float]]] = {}
+    with pdb_path.open() as fh:
+        for line in fh:
+            if not line.startswith(("ATOM  ", "HETATM")):
+                continue
+            atom_name = line[12:16].strip()
+            if not atom_name or atom_name[0] in ("H", "D"):
+                continue
+            try:
+                chain = line[21]
+                res_seq = int(line[22:26])
+                res_name = line[17:20].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+            except ValueError:
+                continue
+            key = (chain, res_seq, res_name)
+            residues.setdefault(key, []).append((x, y, z))
+    return [np.array(coords, dtype=np.float64) for coords in residues.values()]
+
+
+def _parse_heavy_atom_coords(pdb_path: Path) -> np.ndarray:
+    """Parse all heavy atom coordinates from PDB as (N, 3) float64 array.
+
+    Args:
+        pdb_path: Path to PDB file.
+
+    Returns:
+        (N, 3) array of XYZ coordinates; empty (0, 3) if no atoms found.
+    """
+    coords: list[tuple[float, float, float]] = []
+    with pdb_path.open() as fh:
+        for line in fh:
+            if not line.startswith(("ATOM  ", "HETATM")):
+                continue
+            atom_name = line[12:16].strip()
+            if not atom_name or atom_name[0] in ("H", "D"):
+                continue
+            try:
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+            except ValueError:
+                continue
+            coords.append((x, y, z))
+    return np.array(coords, dtype=np.float64) if coords else np.empty((0, 3), dtype=np.float64)
+
+
+def load_receptor_heavy_atom_coords(receptor_pdb: Path) -> np.ndarray:
+    """Load receptor heavy atom coordinates for contact/clash calculations.
+
+    Intended to be called ONCE per docking run and reused across all poses
+    for efficiency. Uses _parse_heavy_atom_coords internally.
+
+    Args:
+        receptor_pdb: Path to the receptor PDB file.
+
+    Returns:
+        (N, 3) float64 array of receptor heavy atom XYZ coordinates.
+    """
+    coords = _parse_heavy_atom_coords(receptor_pdb)
+    _log.debug(
+        "Loaded %d receptor heavy atoms from %s", len(coords), receptor_pdb
+    )
+    return coords
+
+
+def count_contact_residues(
+    pose_pdb: Path,
+    receptor_coords: np.ndarray,
+    cutoff: float = 5.0,
+) -> int:
+    """Count peptide residues with at least one heavy atom within cutoff of receptor.
+
+    A residue is counted as a contact residue if any of its heavy atoms are
+    within ``cutoff`` Angstroms of any receptor heavy atom. This gives a
+    physically meaningful measure of binding interface size, and is used
+    instead of full sequence length in the entropy correction to avoid
+    over-penalizing peptides where most residues are disordered / not
+    contacting the protein.
+
+    Args:
+        pose_pdb: Path to the peptide pose PDB file.
+        receptor_coords: (N, 3) array of receptor heavy atom coordinates,
+            pre-loaded via load_receptor_heavy_atom_coords() for efficiency.
+        cutoff: Distance cutoff in Angstroms. Default 5.0 Å.
+
+    Returns:
+        Number of residues with at least one heavy atom within cutoff.
+        Returns 0 if receptor_coords is empty or no atoms are parsed.
+    """
+    if len(receptor_coords) == 0:
+        return 0
+    per_residue = _parse_heavy_atoms_by_residue(pose_pdb)
+    if not per_residue:
+        return 0
+    n_contact = 0
+    for res_coords in per_residue:
+        if len(res_coords) == 0:
+            continue
+        # Broadcast: (n_res_atoms, 1, 3) − (1, n_rec_atoms, 3) → (n_res, n_rec, 3)
+        diffs = res_coords[:, np.newaxis, :] - receptor_coords[np.newaxis, :, :]
+        sq_dists = np.sum(diffs ** 2, axis=-1)  # (n_res, n_rec)
+        if sq_dists.min() <= cutoff ** 2:
+            n_contact += 1
+    return n_contact
+
+
+def check_intermolecular_clash(
+    pose_pdb: Path,
+    receptor_coords: np.ndarray,
+    clash_cutoff: float = 1.5,
+) -> bool:
+    """Check if any peptide heavy atom is within clash_cutoff of any receptor heavy atom.
+
+    A clash at < 1.5 Å indicates the pose is geometrically inside the receptor
+    (peptide diffused through the receptor surface). Such poses have catastrophically
+    positive Vina scores and should be excluded from ranking.
+
+    Args:
+        pose_pdb: Path to peptide pose PDB file.
+        receptor_coords: (N, 3) array of receptor heavy atom coordinates.
+        clash_cutoff: Minimum acceptable distance in Angstroms. Default 1.5 Å.
+
+    Returns:
+        True if any peptide heavy atom is within clash_cutoff of any receptor atom.
+    """
+    if len(receptor_coords) == 0:
+        return False
+    peptide_coords = _parse_heavy_atom_coords(pose_pdb)
+    if len(peptide_coords) == 0:
+        return False
+    diffs = peptide_coords[:, np.newaxis, :] - receptor_coords[np.newaxis, :, :]
+    sq_dists = np.sum(diffs ** 2, axis=-1)
+    return bool(sq_dists.min() < clash_cutoff ** 2)
+
+
 def apply_hybrid_score(
     pose: ScoredPose,
     *,
     alpha: float,
     beta: float,
     n_residues: int,
+    n_contact_residues: int | None = None,
+    gamma: float = 0.0,
 ) -> None:
     """Apply the D-01 hybrid score formula to a ScoredPose in place.
 
-    Sets ``pose.entropy_correction = alpha * n_residues`` and
-    ``pose.hybrid_score = vina + beta*(ad4 - vina) + alpha*n_residues``.
+    Sets ``pose.entropy_correction = alpha * n_eff`` and
+    ``pose.hybrid_score = vina + effective_beta*(ad4 - vina) + alpha*n_eff``
 
-    Note:
-        This function does NOT validate alpha or beta ranges. Range
-        validation is the responsibility of load_calibration() (T-03-09).
-        Callers must ensure vina_score and ad4_score are populated before
-        calling this function (T-03-11).
+    n_eff accounts for differential entropy by residue contact state:
+      n_eff = n_contact + gamma * n_non_contact
+    where n_non_contact = max(0, n_residues - n_contact).
+
+    gamma=0.0 (default): only contact residues pay the entropy penalty.
+    gamma=0.2: non-contact residues pay 20% of the per-residue penalty.
+    This reflects that tethered non-contact residues lose some translational
+    freedom even when not directly interfacing the receptor.
+
+    effective_beta is 0 when ``pose.is_ad4_anomaly`` is True (AD4 > 0
+    indicates a corrupt/clashed pose; bypassing it prevents the anomalous
+    positive AD4 from worsening the hybrid score).
 
     Args:
         pose: ScoredPose with vina_score and ad4_score already set.
-        alpha: Backbone entropy coefficient (kcal/mol/residue).
+        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
         beta: AD4 blending weight (dimensionless).
-        n_residues: Number of residues in the peptide.
+        n_residues: Full peptide length; used to compute non-contact count.
+        n_contact_residues: Number of residues in contact with receptor (≤ n_residues).
+            When None, falls back to n_residues (n_non_contact = 0, gamma has no effect).
+        gamma: Fraction of alpha applied to non-contact residues [0.0, 1.0].
+            Loaded from calibration.json; default 0.0 (contact-only, legacy mode).
 
     Raises:
-        AssertionError: If pose.vina_score or pose.ad4_score is None.
+        RuntimeError: If pose.vina_score is None.
     """
     if pose.vina_score is None:
         raise RuntimeError(
             f"Pose {pose.pose_idx}: vina_score is None — Vina scoring must run before apply_hybrid_score"
         )
 
-    pose.entropy_correction = alpha * n_residues
+    n_contact = n_contact_residues if n_contact_residues is not None else n_residues
+    n_non_contact = max(0, n_residues - n_contact)
+    n_eff = n_contact + gamma * n_non_contact
+    pose.entropy_correction = alpha * n_eff
+
+    # AD4 anomaly bypass: when AD4 score is physically meaningless (> 0),
+    # fall back to Vina-only weighting rather than letting a large positive
+    # AD4 contaminate the hybrid score.
+    effective_beta = 0.0 if pose.is_ad4_anomaly else beta
 
     if pose.ad4_score is not None:
-        # Full hybrid formula: Vina + beta*(AD4 − Vina) + entropy
         pose.hybrid_score = (
-            pose.vina_score + beta * (pose.ad4_score - pose.vina_score) + pose.entropy_correction
+            pose.vina_score
+            + effective_beta * (pose.ad4_score - pose.vina_score)
+            + pose.entropy_correction
         )
         _log.debug(
-            "Pose %d: vina=%.3f ad4=%.3f ec=%.3f hybrid=%.3f",
+            "Pose %d: vina=%.3f ad4=%.3f ec=%.3f hybrid=%.3f "
+            "(beta_eff=%.3f%s n_contact=%d n_noc=%d γ=%.2f)",
             pose.pose_idx,
             pose.vina_score,
             pose.ad4_score,
             pose.entropy_correction,
             pose.hybrid_score,
+            effective_beta,
+            " AD4-bypassed" if pose.is_ad4_anomaly else "",
+            n_contact,
+            n_non_contact,
+            gamma,
         )
     else:
-        # AD4 not run (--scoring vina only): fall back to Vina + entropy correction
         pose.hybrid_score = pose.vina_score + pose.entropy_correction
         _log.debug(
-            "Pose %d: vina=%.3f ad4=None ec=%.3f hybrid=%.3f (vina-only mode)",
+            "Pose %d: vina=%.3f ad4=None ec=%.3f hybrid=%.3f "
+            "(vina-only n_contact=%d n_noc=%d γ=%.2f)",
             pose.pose_idx,
             pose.vina_score,
             pose.entropy_correction,
             pose.hybrid_score,
+            n_contact,
+            n_non_contact,
+            gamma,
         )
 
 
@@ -173,15 +373,27 @@ def fit_calibration(
     ad4_scores: list[float],
     n_residues_list: list[int],
     experimental_pkd: list[float],
+    n_contact_residues_list: list[int] | None = None,
+    gamma: float = 0.2,
 ) -> dict:
     """Fit calibration parameters (alpha, beta) using L-BFGS-B minimization.
 
-    Minimises sum-of-squared residuals between hybrid scores and experimental
-    ΔG values converted via D-09: ΔG = -RT * pKd, where RT = 0.592 kcal/mol
-    at 298 K (hardcoded, not a CLI parameter in v1).
+    For n > 2 training complexes, directly optimises Pearson r (maximises
+    correlation between predicted and experimental ΔG) because Pearson r is
+    the primary benchmark metric. For n ≤ 2, falls back to SSE (Pearson r is
+    trivially 1.0 for two points regardless of objective).
 
-    Bounds are enforced by scipy L-BFGS-B:
-        alpha ∈ [0.2, 1.2] kcal/mol/residue
+    n_eff per training complex is computed with the same gamma formula used at
+    inference time:
+        n_eff = n_contact + gamma * (n_residues - n_contact)
+
+    When ``n_contact_residues_list`` is provided, the entropy correction uses
+    contact counts + gamma*non-contact. The alpha upper bound is 2.0 to
+    accommodate contact-based mode where fewer effective residues require a
+    larger per-residue coefficient.
+
+    Bounds enforced by scipy L-BFGS-B:
+        alpha ∈ [0.2, 2.0]
         beta  ∈ [0.0, 0.5]
 
     Starting point: x0 = [0.65, 0.22] (D-10 defaults).
@@ -189,11 +401,16 @@ def fit_calibration(
     Args:
         vina_scores: List of Vina --score_only values in kcal/mol.
         ad4_scores: List of AutoDock4 scoring values in kcal/mol.
-        n_residues_list: List of peptide lengths (number of residues).
+        n_residues_list: List of full peptide lengths.
         experimental_pkd: List of experimental pKd values.
+        n_contact_residues_list: Optional list of contact residue counts per complex.
+            When provided, used with gamma to compute n_eff per complex.
+        gamma: Non-contact residue entropy fraction [0.0, 1.0]. Default 0.2.
+            Stored in returned dict and written to calibration.json.
 
     Returns:
-        Dictionary with keys: 'alpha', 'beta', 'pearson_r', 'rmse_kcal_mol'.
+        Dictionary with keys: 'alpha', 'beta', 'pearson_r', 'rmse_kcal_mol',
+        'entropy_mode' ('contact' or 'residue'), 'gamma'.
 
     Raises:
         ValueError: If input lists have different lengths.
@@ -205,19 +422,43 @@ def fit_calibration(
             f"vina={len(vina_scores)}, ad4={len(ad4_scores)}, "
             f"n_res={len(n_residues_list)}, pkd={len(experimental_pkd)}"
         )
+    if n_contact_residues_list is not None and len(n_contact_residues_list) != n:
+        raise ValueError(
+            f"n_contact_residues_list length {len(n_contact_residues_list)} "
+            f"must match other inputs (n={n})"
+        )
+
+    if n_contact_residues_list is not None:
+        n_eff_list = [
+            nc + gamma * max(0, nr - nc)
+            for nc, nr in zip(n_contact_residues_list, n_residues_list)
+        ]
+        entropy_mode = "contact"
+    else:
+        n_eff_list = list(n_residues_list)
+        entropy_mode = "residue"
 
     delta_g = [-_RT * pkd for pkd in experimental_pkd]
 
-    def objective(params: np.ndarray) -> float:
-        alpha, beta = params
-        residuals = [
-            (v + beta * (a - v) + alpha * nr) - dg
-            for v, a, nr, dg in zip(vina_scores, ad4_scores, n_residues_list, delta_g)
+    def _hybrids(alpha: float, beta: float) -> list[float]:
+        return [
+            v + beta * (a - v) + alpha * nr
+            for v, a, nr in zip(vina_scores, ad4_scores, n_eff_list)
         ]
+
+    def objective(params: np.ndarray) -> float:
+        alpha, beta = float(params[0]), float(params[1])
+        hybrids = _hybrids(alpha, beta)
+        if n > 2:
+            # Directly maximise Pearson r (minimise negative r) for n > 2.
+            # With only 2 points, r is always ±1 regardless of objective.
+            r, _ = pearsonr(hybrids, delta_g)
+            return -float(r)
+        residuals = [h - dg for h, dg in zip(hybrids, delta_g)]
         return float(sum(r**2 for r in residuals))
 
     x0 = np.array([0.65, 0.22])
-    bounds = [(0.2, 1.2), (0.0, 0.5)]
+    bounds = [(_ALPHA_MIN, _ALPHA_MAX), (_BETA_MIN, _BETA_MAX)]
     result = minimize(objective, x0, method="L-BFGS-B", bounds=bounds)
     if not result.success:
         _log.warning(
@@ -227,10 +468,7 @@ def fit_calibration(
         )
     alpha, beta = float(result.x[0]), float(result.x[1])
 
-    hybrids = [
-        v + beta * (a - v) + alpha * nr
-        for v, a, nr in zip(vina_scores, ad4_scores, n_residues_list)
-    ]
+    hybrids = _hybrids(alpha, beta)
     if len(hybrids) > 1:
         r, _ = pearsonr(hybrids, delta_g)
         pearson_r = float(r)
@@ -240,11 +478,19 @@ def fit_calibration(
     rmse = float(np.sqrt(np.mean([(h - d) ** 2 for h, d in zip(hybrids, delta_g)])))
 
     _log.info(
-        "fit_calibration: alpha=%.4f beta=%.4f r=%.3f rmse=%.3f", alpha, beta, pearson_r, rmse
+        "fit_calibration (%s mode, γ=%.2f): alpha=%.4f beta=%.4f r=%.3f rmse=%.3f",
+        entropy_mode,
+        gamma,
+        alpha,
+        beta,
+        pearson_r,
+        rmse,
     )
     return {
         "alpha": alpha,
         "beta": beta,
         "pearson_r": pearson_r,
         "rmse_kcal_mol": rmse,
+        "entropy_mode": entropy_mode,
+        "gamma": gamma,
     }
