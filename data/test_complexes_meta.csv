@@ -2,10 +2,10 @@ pdb_id,receptor_chain,peptide_chain
 3EQS,A,B
 3EQY,A,C
 3DAB,A,B
-1G73,A,B
-2W73,A,K
-1PQ1,A,B
-4QVF,A,B
-1VYJ,A,B
-2Y4V,A,B
-3GP2,A,B
+1G73,C,A
+2FLU,X,P
+1EJ4,A,B
+3EG6,A,C
+1PRM,C,A
+2VWF,A,B
+3TWR,A,E
