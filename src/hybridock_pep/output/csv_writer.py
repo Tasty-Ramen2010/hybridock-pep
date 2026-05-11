@@ -22,8 +22,10 @@ FIELDNAMES: list[str] = [
     "delta_g",
     "cluster_id",
     "pose_filename",
+    "n_contact_residues",
     "is_ad4_anomaly",
     "is_clipped",
+    "is_clashed",
 ]
 
 
@@ -81,8 +83,12 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
                 "delta_g": f"{hs:.4f}",  # D-04: same value as hybrid_score
                 "cluster_id": pose.cluster_id if pose.cluster_id is not None else "",
                 "pose_filename": pose.pdb_path.name,
+                "n_contact_residues": (
+                    pose.n_contact_residues if pose.n_contact_residues is not None else ""
+                ),
                 "is_ad4_anomaly": str(pose.is_ad4_anomaly),
                 "is_clipped": str(pose.is_clipped),
+                "is_clashed": str(pose.is_clashed),
             }
         )
 

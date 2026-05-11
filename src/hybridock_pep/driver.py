@@ -13,7 +13,13 @@ from hybridock_pep.prep.grids import generate_ad4_maps
 from hybridock_pep.prep.ligand import prepare_ligand_batch
 from hybridock_pep.scoring.vina import score_vina_batch
 from hybridock_pep.scoring.ad4 import score_ad4_batch
-from hybridock_pep.scoring.entropy import apply_hybrid_score, load_calibration
+from hybridock_pep.scoring.entropy import (
+    apply_hybrid_score,
+    load_calibration,
+    load_receptor_heavy_atom_coords,
+    count_contact_residues,
+    check_intermolecular_clash,
+)
 from hybridock_pep.output.metadata import write_metadata_skeleton, finalize_metadata
 
 logger = logging.getLogger(__name__)
@@ -178,13 +184,43 @@ def run_dock(
         if ad4_failures:
             logger.warning("%d poses failed AD4 scoring", len(ad4_failures))
 
+    # Stage 2d-pre: Contact counting and clash detection per pose.
+    # Load receptor heavy atoms once; reuse across all poses for efficiency.
+    receptor_coords = load_receptor_heavy_atom_coords(config.receptor_path.resolve())
+    for pose in scored_poses:
+        pose.n_contact_residues = count_contact_residues(
+            pose.pdb_path, receptor_coords
+        )
+        pose.is_clashed = check_intermolecular_clash(
+            pose.pdb_path, receptor_coords
+        )
+        if pose.is_clashed:
+            logger.debug(
+                "Pose %d: inter-molecular clash detected (heavy atom < 1.5 Å from receptor)",
+                pose.pose_idx,
+            )
+    logger.info(
+        "Stage 2d-pre: %d/%d poses have ≥1 contact residue; %d clashed",
+        sum(1 for p in scored_poses if p.n_contact_residues),
+        len(scored_poses),
+        sum(1 for p in scored_poses if p.is_clashed),
+    )
+
     calibration = load_calibration(calibration_path.resolve())
     alpha: float = calibration["alpha"]
     beta: float = calibration["beta"]
+    gamma: float = calibration.get("gamma", 0.0)
     n_residues = len(config.peptide_sequence)
 
     for pose in scored_poses:
-        apply_hybrid_score(pose, alpha=alpha, beta=beta, n_residues=n_residues)
+        apply_hybrid_score(
+            pose,
+            alpha=alpha,
+            beta=beta,
+            n_residues=n_residues,
+            n_contact_residues=pose.n_contact_residues,
+            gamma=gamma,
+        )
 
     logger.info("Stage 2 complete: %d poses scored", len(scored_poses))
 

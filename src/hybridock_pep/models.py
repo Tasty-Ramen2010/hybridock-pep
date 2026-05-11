@@ -138,6 +138,8 @@ class ScoredPose(PoseRecord):
     pdbqt_path: Path | None = None
     is_ad4_anomaly: bool = False
     is_clipped: bool = False
+    n_contact_residues: int | None = None
+    is_clashed: bool = False
 
 
 @dataclass
