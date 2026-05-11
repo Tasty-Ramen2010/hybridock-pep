@@ -81,6 +81,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to write calibration.json (D-11 schema). Default: data/calibration.json",
     )
     parser.add_argument(
+        "--gamma",
+        dest="gamma",
+        type=float,
+        default=0.2,
+        metavar="FLOAT",
+        help=(
+            "Non-contact residue entropy fraction [0.0, 1.0]. "
+            "Non-contact residues pay gamma * alpha per-residue entropy. "
+            "Requires n_contact_residues in scores JSON to have effect. "
+            "Default: 0.2"
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -136,6 +149,7 @@ def main(args: argparse.Namespace | None = None) -> None:
     vina_scores: list[float] = []
     ad4_scores: list[float] = []
     n_residues_list: list[int] = []
+    n_contact_list: list[int] = []
     pkd_list: list[float] = []
 
     for row in rows:
@@ -173,19 +187,43 @@ def main(args: argparse.Namespace | None = None) -> None:
         ad4_scores.append(ad4_score)
         n_residues_list.append(len(peptide_sequence))  # derived from CSV, not scores JSON
         pkd_list.append(pkd)
+        if "n_contact_residues" in entry:
+            n_contact_list.append(int(entry["n_contact_residues"]))
 
     n_complexes = len(pkd_list)
-    _log.info("Calibrating on %d complexes from %s", n_complexes, args.training_csv)
+    has_contact_data = len(n_contact_list) == n_complexes
+    if has_contact_data:
+        _log.info(
+            "Calibrating on %d complexes (contact-based, γ=%.2f) from %s",
+            n_complexes, args.gamma, args.training_csv,
+        )
+    else:
+        _log.info(
+            "Calibrating on %d complexes (residue-based, n_contact_residues absent) from %s",
+            n_complexes, args.training_csv,
+        )
 
     # Import scoring functions lazily to ensure package is installed in score-env
     from hybridock_pep.scoring.entropy import fit_calibration, load_calibration, write_calibration
 
-    result = fit_calibration(vina_scores, ad4_scores, n_residues_list, pkd_list)
+    result = fit_calibration(
+        vina_scores,
+        ad4_scores,
+        n_residues_list,
+        pkd_list,
+        n_contact_residues_list=n_contact_list if has_contact_data else None,
+        gamma=args.gamma,
+    )
+
+    extra_meta: dict = {}
+    if has_contact_data:
+        extra_meta["n_contact_residues_training"] = n_contact_list
 
     write_calibration(
         Path(args.output),
         training_csv=str(args.training_csv),
         n_complexes=n_complexes,
+        **extra_meta,
         **result,
     )
 

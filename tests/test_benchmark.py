@@ -126,7 +126,7 @@ class TestPdbIdValidation:
 
     def test_valid_pdb_ids_pass(self) -> None:
         bm = self._import_benchmark()
-        for pdb_id in ["3EQS", "1G73", "2W73", "4QVF"]:
+        for pdb_id in ["3EQS", "1G73", "2FLU", "1EJ4"]:
             assert bm.validate_pdb_id(pdb_id) is True, f"Should accept {pdb_id}"
 
     def test_lowercase_pdb_id_rejected(self) -> None:

@@ -433,9 +433,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--n-samples",
         dest="n_samples",
         type=int,
-        default=100,
+        default=500,
         metavar="N",
-        help="Number of RAPiDock sampling passes per complex (default: 100).",
+        help="Number of RAPiDock sampling passes per complex (default: 500).",
     )
     parser.add_argument(
         "--calibration",

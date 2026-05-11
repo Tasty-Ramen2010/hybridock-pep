@@ -1,9 +1,15 @@
 {
-  "alpha": 0.6433129853781744,
-  "beta": 0.24093917535013332,
-  "calibrated_at": "2026-04-30T20:13:48.528891+00:00",
+  "alpha": 0.8688568369360384,
+  "beta": 0.0,
+  "calibrated_at": "2026-05-01T17:06:39.142114+00:00",
   "training_csv": "data/training_complexes.csv",
   "n_complexes": 2,
+  "n_contact_residues_training": [
+    10,
+    6
+  ],
   "pearson_r": 1.0,
-  "rmse_kcal_mol": 1.7745376190236307e-07
+  "rmse_kcal_mol": 0.3950421330684078,
+  "entropy_mode": "contact",
+  "gamma": 0.2
 }
