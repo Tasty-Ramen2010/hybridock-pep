@@ -25,8 +25,9 @@ Output: ranked CSV, best-pose PDB, convergence plot, cluster dendrogram,
 run metadata JSON.
 
 **Parent project** (not this repo's scope, but drives requirements):
-malaria rapid-diagnostic peptide LISDAELEAIFEADC targeting PfLDH (PDB 1CZB)
+malaria rapid-diagnostic peptide LISDAELEAIFEADC targeting PfLDH (PDB 1T2D)
 over hLDH (PDB 1I0Z).
+Note: 1CZB is ASV Integrase (wrong). 1T2D = PfLDH ternary complex with NAD+/oxalate.
 
 ---
 
@@ -251,8 +252,8 @@ Once the package is installed in `score-env`:
 # End-to-end docking run
 hybridock-pep dock \
     --peptide LISDAELEAIFEADC \
-    --receptor receptors/1czb.pdb \
-    --site 22.5 14.1 38.7 \
+    --receptor data/pdbs/1T2D_receptor.pdb \
+    --site 31.9 17.5 9.5 \
     --box 20 \
     --n-samples 100 \
     --scoring vina,ad4 \
