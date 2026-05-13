@@ -1,0 +1,12 @@
+{
+  "alpha": 0.15,
+  "beta": 0.0,
+  "gamma": 0.0,
+  "calibrated_at": "2026-05-13T00:00:00+00:00",
+  "training_csv": "data/pfldh_training_complexes.csv",
+  "n_complexes": 0,
+  "pearson_r": null,
+  "rmse_kcal_mol": null,
+  "entropy_mode": "contact",
+  "calibration_notes": "PfLDH-specific calibration. No PfLDH experimental Kd training data available. Alpha set to 0.15 based on empirical observation that Vina score_only is close to experimental delta_G for PfLDH-peptide complexes (~-5 to -5.5 kcal/mol for LISDAELEAIFEADC top poses from pfldh_local_v2 run 2026-05-11). At alpha=0.15 and n_contact=9-12, entropy correction is 1.35-1.80 kcal/mol vs 8.87 kcal/mol at alpha=0.87 (MDM2 calibration). Gamma=0.0: only directly-contacting residues pay the entropy penalty; LISDAELEAIFEADC has a partially disordered tail and non-contact residues should not contribute. Beta=0.0: AD4 scores are frequently anomalous for this receptor; Vina-primary mode."
+}

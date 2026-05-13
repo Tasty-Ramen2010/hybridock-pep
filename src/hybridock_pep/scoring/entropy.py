@@ -37,7 +37,10 @@ _RT = 0.592
 # Alpha bounds used both in optimization and validation.
 # Contact-based entropy uses a wider upper bound than full-residue because
 # alpha compensates for the smaller effective residue count.
-_ALPHA_MIN = 0.2
+# Lower bound reduced to 0.1 (2026-05-13): PfLDH calibration shows Vina
+# score_only is already close to experimental ΔG for this receptor family,
+# so the entropy penalty should be minimal (alpha ≈ 0.1–0.2).
+_ALPHA_MIN = 0.1
 _ALPHA_MAX = 2.0
 _BETA_MIN = 0.0
 _BETA_MAX = 0.5
