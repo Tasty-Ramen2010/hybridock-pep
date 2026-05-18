@@ -1,0 +1,3 @@
+[submodule "third_party/RAPiDock"]
+	path = third_party/RAPiDock
+	url = https://github.com/huifengzhao/RAPiDock.git

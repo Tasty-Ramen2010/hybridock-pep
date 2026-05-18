@@ -50,7 +50,11 @@ def _stream_stderr(stderr_pipe) -> None:
             logger.debug("[rapidock stderr] %s", line)
 
 
+# Repo-bundled submodule: src/hybridock_pep/sampling/ → src/hybridock_pep/ → src/ → repo root
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
 _RAPIDOCK_SEARCH_PATHS = [
+    _REPO_ROOT / "third_party" / "RAPiDock",  # bundled submodule (preferred)
     Path.home() / "RAPiDock",
     Path("/opt/RAPiDock"),
 ]
