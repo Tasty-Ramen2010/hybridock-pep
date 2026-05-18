@@ -70,6 +70,7 @@ adcp_*/
 # Development tooling — internal planning and Claude Code config
 .planning/
 .claude/
+CLAUDE.md
 
 # Backup and working data files (keep only canonical data/ files)
 data/calibration_*backup*.json
