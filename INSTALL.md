@@ -77,6 +77,25 @@ git submodule update --init --recursive
 No separate clone or `pip install` is needed — the runner imports RAPiDock
 directly from `third_party/RAPiDock/` at runtime.
 
+### Step 3b — Download model weights (required)
+
+The pre-trained checkpoint files are **not** stored in git (binary, 55 MB each).
+Download them from the [RAPiDock releases page](https://github.com/huifengzhao/RAPiDock)
+and place them here:
+
+```
+third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/
+  rapidock_local.pt    ← required for local inference
+  rapidock_global.pt   ← optional; only needed if you switch --ckpt
+```
+
+The runner will fail with `FileNotFoundError: rapidock_local.pt` if this step
+is skipped.
+
+> **Alternate weight location:** If you keep the weights elsewhere, set
+> `RAPIDOCK_MODEL_DIR=/abs/path/to/CGTensorProductEquivariantModel` before
+> running `hybridock-pep dock`. That takes priority over the submodule path.
+
 Verify:
 
 ```bash
