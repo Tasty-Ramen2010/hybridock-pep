@@ -2,13 +2,25 @@
 
 Peptide is assigned chain E, residues renumbered 1-15.
 Writes data/pdbs/pfldh_lisdaeleaifeadc_complex.pdb
+
+Usage: python scripts/make_gromacs_complex.py [--pose PATH]
+POSE defaults to adcp_32/poses_extracted/pose_0.pdb relative to the repo root.
+That directory is local-only (gitignored); supply --pose to override.
 """
 from __future__ import annotations
+
+import argparse
 from pathlib import Path
 
-RECEPTOR = Path("/home/igem/unknown_software/data/pdbs/pfldh_tetramer.pdb")
-POSE = Path("/home/igem/unknown_software/adcp_32/poses_extracted/pose_0.pdb")
-OUT = Path("/home/igem/unknown_software/data/pdbs/pfldh_lisdaeleaifeadc_complex.pdb")
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--pose", default=None, help="Path to peptide pose PDB (overrides default)")
+_args = parser.parse_args()
+
+RECEPTOR = _REPO_ROOT / "data" / "pdbs" / "pfldh_tetramer.pdb"
+POSE = Path(_args.pose) if _args.pose else _REPO_ROOT / "adcp_32" / "poses_extracted" / "pose_0.pdb"
+OUT = _REPO_ROOT / "data" / "pdbs" / "pfldh_lisdaeleaifeadc_complex.pdb"
 
 # --- receptor ---
 rec_lines = []

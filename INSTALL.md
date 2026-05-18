@@ -65,36 +65,31 @@ conda run -n rapidock pip install torch-scatter torch-sparse torch-cluster \
 
 ---
 
-## Step 3 — Install RAPiDock from source
+## Step 3 — Initialise the RAPiDock submodule
 
-RAPiDock is not on PyPI. Clone and install into the `rapidock` env:
+RAPiDock is bundled as a git submodule at `third_party/RAPiDock/` (pinned to
+commit `36b2f78`). If you cloned with `--recursive` you already have it. Otherwise:
 
 ```bash
-# The pinned SHA below is the last commit validated against HybriDock-Pep.
-# Update this SHA when upgrading RAPiDock.
-RAPIDOCK_SHA="main"   # replace with pinned SHA before submission
-
-git clone https://github.com/huifengzhao/RAPiDock.git ~/RAPiDock
-
-# No pip install needed — we import directly from source.
-# Set RAPIDOCK_DIR so the runner can auto-detect the install:
-echo 'export RAPIDOCK_DIR="$HOME/RAPiDock"' >> ~/.bashrc
-source ~/.bashrc
+git submodule update --init --recursive
 ```
 
-> **Auto-detection:** If `RAPIDOCK_DIR` is not set, the runner searches
-> `~/RAPiDock` automatically. Setting the env var is only required if you
-> install RAPiDock to a non-standard location.
+No separate clone or `pip install` is needed — the runner imports RAPiDock
+directly from `third_party/RAPiDock/` at runtime.
 
-Verify the install:
+Verify:
 
 ```bash
 conda run -n rapidock python3 -c "
-import sys; sys.path.insert(0, '$HOME/RAPiDock')
+import sys; sys.path.insert(0, 'third_party/RAPiDock')
 from utils.inference_parsing import get_parser
 print('RAPiDock OK — parser loaded')
 "
 ```
+
+> **Overriding the location:** If you want to use a different RAPiDock clone
+> (e.g. a development fork), set `RAPIDOCK_DIR` to its absolute path. That
+> takes priority over the bundled submodule.
 
 ---
 

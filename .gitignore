@@ -60,3 +60,23 @@ secrets.json
 
 # OS
 Thumbs.db
+
+# ADCP run directories (local experiment outputs, not pipeline artifacts)
+adcp_*/
+
+# Cached dot-file NumPy arrays (SO3 / scoring runtime caches)
+.*.npy
+
+# Development tooling — internal planning and Claude Code config
+.planning/
+.claude/
+
+# Backup and working data files (keep only canonical data/ files)
+data/calibration_*backup*.json
+data/calibration_backup*.json
+data/training_scores_*.json
+data/pdbs/abcd.pdb
+data/pdbs/pfldh_tetramer_peptide_complex*.pdb
+
+# One-off working scripts with machine-specific paths
+scripts/prep_complex_openmm.py
