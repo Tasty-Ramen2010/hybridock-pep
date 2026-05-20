@@ -81,3 +81,7 @@ data/pdbs/pfldh_tetramer_peptide_complex*.pdb
 
 # One-off working scripts with machine-specific paths
 scripts/prep_complex_openmm.py
+
+# RAPiDock benchmark datasets — large binary PDB files, not redistributed via repo
+# Download instructions: see docs/dataset_analysis.md § Obtaining the Data
+datasets/
