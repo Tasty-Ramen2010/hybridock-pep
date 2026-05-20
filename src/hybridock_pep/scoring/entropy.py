@@ -49,7 +49,7 @@ _BETA_MAX = 0.5
 def load_calibration(path: Path) -> dict:
     """Load and validate calibration parameters from a JSON file.
 
-    Validates that alpha is within [0.2, 2.0] kcal/mol/contact-residue
+    Validates that alpha is within [0.1, 2.0] kcal/mol/contact-residue
     and beta within [0.0, 0.5]. The upper alpha bound is 2.0 (was 1.2)
     to accommodate contact-based entropy where alpha compensates for
     fewer effective residues than full sequence length.
@@ -62,7 +62,7 @@ def load_calibration(path: Path) -> dict:
 
     Raises:
         FileNotFoundError: If ``path`` does not exist.
-        ValueError: If alpha is outside [0.2, 2.0] or beta is outside [0.0, 0.5].
+        ValueError: If alpha is outside [0.1, 2.0] or beta is outside [0.0, 0.5].
     """
     if not path.exists():
         raise FileNotFoundError(f"Calibration file not found: {path}")
@@ -396,7 +396,7 @@ def fit_calibration(
     larger per-residue coefficient.
 
     Bounds enforced by scipy L-BFGS-B:
-        alpha ∈ [0.2, 2.0]
+        alpha ∈ [0.1, 2.0]
         beta  ∈ [0.0, 0.5]
 
     Starting point: x0 = [0.65, 0.22] (D-10 defaults).

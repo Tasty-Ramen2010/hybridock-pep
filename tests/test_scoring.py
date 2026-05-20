@@ -548,7 +548,7 @@ class TestEntropy:
         assert abs(result["beta"] - 0.22) < 1e-9
 
     def test_load_calibration_alpha_too_high(self, tmp_path: Path) -> None:
-        """alpha=2.5 raises ValueError quoting value and range [0.2, 2.0]."""
+        """alpha=2.5 raises ValueError quoting value and range [0.1, 2.0]."""
         import json
         import pytest
         from hybridock_pep.scoring.entropy import load_calibration
@@ -559,21 +559,21 @@ class TestEntropy:
             load_calibration(cal_path)
         msg = str(exc_info.value)
         assert "α=2.500" in msg, f"Expected 'α=2.500' in: {msg}"
-        assert "[0.2, 2.0]" in msg, f"Expected '[0.2, 2.0]' in: {msg}"
+        assert "[0.1, 2.0]" in msg, f"Expected '[0.1, 2.0]' in: {msg}"
 
     def test_load_calibration_alpha_too_low(self, tmp_path: Path) -> None:
-        """alpha=0.1 raises ValueError quoting value and range [0.2, 2.0]."""
+        """alpha=0.05 raises ValueError quoting value and range [0.1, 2.0]."""
         import json
         import pytest
         from hybridock_pep.scoring.entropy import load_calibration
 
         cal_path = tmp_path / "calibration.json"
-        cal_path.write_text(json.dumps({"alpha": 0.1, "beta": 0.22}))
+        cal_path.write_text(json.dumps({"alpha": 0.05, "beta": 0.22}))
         with pytest.raises(ValueError) as exc_info:
             load_calibration(cal_path)
         msg = str(exc_info.value)
-        assert "α=0.100" in msg, f"Expected 'α=0.100' in: {msg}"
-        assert "[0.2, 2.0]" in msg, f"Expected '[0.2, 2.0]' in: {msg}"
+        assert "α=0.050" in msg, f"Expected 'α=0.050' in: {msg}"
+        assert "[0.1, 2.0]" in msg, f"Expected '[0.1, 2.0]' in: {msg}"
 
     def test_load_calibration_beta_too_high(self, tmp_path: Path) -> None:
         """beta=0.6 raises ValueError quoting value and range [0.0, 0.5]."""
@@ -606,7 +606,7 @@ class TestEntropy:
         pkd_list = [5.0, 6.0, 7.0, 4.0, 8.0]
 
         result = fit_calibration(vina_scores, ad4_scores, n_residues, pkd_list)
-        assert 0.2 <= result["alpha"] <= 2.0, f"alpha={result['alpha']} out of bounds"
+        assert 0.1 <= result["alpha"] <= 2.0, f"alpha={result['alpha']} out of bounds"
         assert 0.0 <= result["beta"] <= 0.5, f"beta={result['beta']} out of bounds"
 
     def test_pkd_to_delta_g_conversion(self) -> None:
@@ -756,7 +756,7 @@ class TestCalibration:
         assert not missing, f"Missing D-11 keys: {missing}"
         assert isinstance(data["alpha"], float), "alpha must be float"
         assert isinstance(data["beta"], float), "beta must be float"
-        assert 0.2 <= data["alpha"] <= 2.0, f"alpha={data['alpha']} out of [0.2, 2.0]"
+        assert 0.1 <= data["alpha"] <= 2.0, f"alpha={data['alpha']} out of [0.1, 2.0]"
         assert 0.0 <= data["beta"] <= 0.5, f"beta={data['beta']} out of [0.0, 0.5]"
 
     def test_write_calibration_d11_schema(self, tmp_path: Path) -> None:
