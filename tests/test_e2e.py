@@ -320,9 +320,10 @@ class TestPepSetCrystalPoses:
     def test_vina_score_is_negative(self, case: _PepSetCase, tmp_path: Path) -> None:
         """Crystal-structure pose must score negative with Vina (physical sanity check).
 
-        A positive Vina score for a crystal pose indicates: the pose is not in the
-        binding site (grid misplaced), the receptor PDBQT prep failed, a steric
-        clash was introduced by the receptor H-addition step, or a scoring bug.
+        A positive Vina score for a crystal pose indicates a heavy-atom clash
+        between the peptide and receptor. Most common cause: receptor fixture
+        was built from the apo (_rec_unbound) structure instead of the holo
+        (_rec_ref) structure — apo sidechains occupy binding-pocket space.
 
         Expected range for well-prepared crystal poses: −4 to −12 kcal/mol.
         """
@@ -339,8 +340,8 @@ class TestPepSetCrystalPoses:
         assert best_vina < 0.0, (
             f"{case.pdb_id} ({case.family}): best Vina score is {best_vina:+.2f} kcal/mol "
             f"(expected < 0 for crystal pose). "
-            f"Likely causes: receptor prep failure, grid box misplaced, "
-            f"or babel atom-type error. See RTX_DEBUG.md fixes C/D."
+            f"Likely cause: receptor fixture uses apo (_rec_unbound_pocket) not "
+            f"holo (_rec_ref) structure, causing induced-fit sidechain clashes."
         )
 
     def test_ad4_score_is_negative(self, case: _PepSetCase, tmp_path: Path) -> None:
@@ -374,22 +375,25 @@ class TestPepSetCrystalPoses:
             )
 
         best_ad4 = min(ad4_vals)
-        # AD4 is harder than Vina — flag anomaly but don't hard-fail (minor clashes
-        # from pdbfixer H-addition are expected on the first run after fixes).
+        # AD4 is stricter than Vina — positive score means heavy-atom clash.
+        # Root cause is usually apo vs holo receptor mismatch (fixture uses
+        # _rec_unbound instead of _rec_ref) or missing ligand atom types in
+        # grids.py _LIGAND_TYPES.
         if best_ad4 >= 0.0:
             pytest.xfail(
                 f"{case.pdb_id} ({case.family}): AD4 score is {best_ad4:+.2f} kcal/mol "
-                f"(expected < 0 for crystal pose). "
-                f"Likely cause: H-clash from pdbfixer receptor prep. "
-                f"See RTX_DEBUG.md Fix C (ligand types) and Fix H (OpenMM Quantity)."
+                f"(expected < 0 for crystal pose). Check that the receptor fixture "
+                f"uses _rec_ref.pdb (holo) not _rec_unbound_pocket.pdb (apo), and "
+                f"that grids.py _LIGAND_TYPES covers all atom types."
             )
 
     def test_no_ad4_anomaly_flag(self, case: _PepSetCase, tmp_path: Path) -> None:
         """AD4 anomaly flag must be False for the best-ranked pose.
 
-        is_ad4_anomaly=True means AD4 score > 0 — unphysical repulsion.  For a
-        crystal pose this should not occur after RTX_DEBUG Fix C (extended
-        _LIGAND_TYPES covering MET/TRP/HIS atom types).
+        is_ad4_anomaly=True means AD4 score > 0 — unphysical repulsion. For a
+        crystal pose against its holo receptor this should not occur. If it
+        does, the receptor fixture is likely using the apo (_rec_unbound)
+        structure instead of the holo (_rec_ref) structure.
         """
         rows, metadata, _ = _run_pepset_case(case, tmp_path)
 
@@ -401,7 +405,6 @@ class TestPepSetCrystalPoses:
         if anomaly in ("True", "true", "1"):
             pytest.xfail(
                 f"{case.pdb_id}: best pose has is_ad4_anomaly=True — "
-                f"AD4 score is positive for crystal pose. "
-                f"Check grids.py _LIGAND_TYPES and receptor H-clash. "
-                f"See RTX_DEBUG.md §Fix C."
+                f"AD4 score is positive for crystal pose. Check that the receptor "
+                f"fixture uses _rec_ref.pdb (holo) not _rec_unbound_pocket.pdb (apo)."
             )
