@@ -85,3 +85,12 @@ scripts/prep_complex_openmm.py
 # RAPiDock benchmark datasets — large binary PDB files, not redistributed via repo
 # Download instructions: see docs/dataset_analysis.md § Obtaining the Data
 datasets/
+
+# Data augmentation outputs
+datasets/pdb_2024_2026/
+datasets/ppii_enriched/
+datasets/cache/
+
+# RAPiDock copies (large external repo — not redistributed)
+third_party/RAPiDock/
+third_party/RAPiDock_finetuned/
