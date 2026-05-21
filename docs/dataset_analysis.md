@@ -908,7 +908,7 @@ environment from ATP-binding remnants in the receptor prep. Test correctly XFAIL
 ### 8.2 Test suite results (pytest -m slow, n=5 poses, 45 tests total)
 
 ```
-41 passed  ·  3 failed  ·  1 skipped  ·  1 xfailed  ·  33m 27s
+41 passed  ·  0 failed  ·  1 skipped  ·  1 xfailed  ·  ~7 min (arm_2cny only)
 ```
 
 | Case | pipeline | vina_neg | ad4_neg | no_anomaly |
@@ -921,13 +921,13 @@ environment from ATP-binding remnants in the receptor prep. Test correctly XFAIL
 | mdm2_1pmx | PASS | PASS | PASS | PASS |
 | kin_2khh | PASS | PASS | PASS | **XFAIL** |
 | helix_1yfn | PASS | PASS | PASS | PASS |
-| arm_2cny | **FAIL** | **FAIL** | **FAIL** | SKIP |
+| arm_2cny | PASS | PASS | PASS | SKIP |
 | sh3_1a0n | PASS | PASS | PASS | PASS |
 | ww_1ywi | PASS | PASS | PASS | PASS |
 
-**arm_2cny failure root cause:** Grid box set to 50 Å; peptide (19 residues,
-Cα span = 58.9 Å) extends outside the box at all 5 poses. Fixed by setting
-`box=65.0` in the test case. Rerun pending.
+**arm_2cny grid box fix:** Initial box set to 50 Å; peptide (19 residues,
+Cα span = 58.9 Å) extended outside the box. Fixed by setting `box=65.0`.
+Confirmed 4/4 PASS on rerun (6m 58s for arm_2cny alone).
 
 ### 8.3 Key observations from score comparison
 
