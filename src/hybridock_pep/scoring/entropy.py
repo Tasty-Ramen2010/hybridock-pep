@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,6 +34,8 @@ _log = logging.getLogger(__name__)
 
 # Thermodynamic constant: RT at 298 K in kcal/mol (D-09, hardcoded in v1).
 _RT = 0.592
+# pKd → ΔG: ΔG = -RT * ln(10) * pKd  (Kd = 10^-pKd, ΔG = RT*ln(Kd))
+_LN10 = math.log(10)
 
 # Alpha bounds used both in optimization and validation.
 # Contact-based entropy uses a wider upper bound than full-residue because
@@ -441,7 +444,7 @@ def fit_calibration(
         n_eff_list = list(n_residues_list)
         entropy_mode = "residue"
 
-    delta_g = [-_RT * pkd for pkd in experimental_pkd]
+    delta_g = [-_RT * _LN10 * pkd for pkd in experimental_pkd]
 
     def _hybrids(alpha: float, beta: float) -> list[float]:
         return [

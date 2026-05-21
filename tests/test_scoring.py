@@ -610,14 +610,18 @@ class TestEntropy:
         assert 0.0 <= result["beta"] <= 0.5, f"beta={result['beta']} out of bounds"
 
     def test_pkd_to_delta_g_conversion(self) -> None:
-        """RT=0.592 kcal/mol; ΔG = -0.592 * pKd. With n_residues=0 and vina=ad4=ΔG, trivial fit."""
+        """ΔG = -RT*ln(10)*pKd; with n_residues=0 and vina=ad4=ΔG, trivial fit."""
+        import math
         from hybridock_pep.scoring.entropy import fit_calibration
 
-        # With n_residues=0 (alpha drops out) and vina=ad4=-3.552 (beta drops out),
-        # hybrid=-3.552 for any alpha, beta -> perfectly matches ΔG=-0.592*6.0=-3.552
+        RT, LN10 = 0.592, math.log(10)
+        # pKd=6.0 → ΔG = -RT*ln(10)*6.0 = -8.190...
+        # With n_residues=0 (alpha drops out) and vina=ad4=ΔG (beta drops out),
+        # hybrid=ΔG for any alpha, beta → zero-residual fit.
+        delta_g = -RT * LN10 * 6.0
         result = fit_calibration(
-            vina_scores=[-3.552],
-            ad4_scores=[-3.552],
+            vina_scores=[delta_g],
+            ad4_scores=[delta_g],
             n_residues_list=[0],
             experimental_pkd=[6.0],
         )
