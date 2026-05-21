@@ -44,7 +44,7 @@ DATA_DIR = REPO / "data"
 PEPSET_DIR = REPO / "datasets" / "pepset"
 
 BINDINGDB_BROWSE_URL = "https://www.bindingdb.org/rwd/bind/chemsearch/marvin/Download.jsp"
-BINDINGDB_FALLBACK_URL = "https://www.bindingdb.org/bind/downloads/BindingDB_All_2D_202504_tsv.zip"
+BINDINGDB_FALLBACK_URL = "https://www.bindingdb.org/bind/downloads/BindingDB_All_202605_tsv.zip"
 RCSB_GRAPHQL = "https://data.rcsb.org/graphql"
 
 PKD_MIN, PKD_MAX = 3.0, 12.0
@@ -66,17 +66,26 @@ _AMIDE_PATTERN = Chem.MolFromSmarts("[N;!$(NC=S)][C](=O)")
 # ---------------------------------------------------------------------------
 
 def _discover_bindingdb_url() -> str:
-    """Scrape BindingDB download page for the latest All Data TSV zip URL."""
+    """Scrape BindingDB download page for the latest All Data TSV zip URL.
+
+    BindingDB wraps downloads in a JSP redirect like:
+      SDFdownload.jsp?download_file=/bind/downloads/BindingDB_All_YYYYMM_tsv.zip
+    We extract the direct file path from the download_file parameter.
+    """
     try:
         resp = requests.get(BINDINGDB_BROWSE_URL, timeout=20)
         resp.raise_for_status()
+        # First try: look for direct .zip href
         matches = re.findall(r'href="([^"]*BindingDB_All[^"]*tsv\.zip)"', resp.text, re.IGNORECASE)
-        if matches:
-            url = matches[0]
-            if not url.startswith("http"):
-                url = "https://www.bindingdb.org" + url
-            _log.info("Discovered BindingDB URL: %s", url)
-            return url
+        for raw_url in matches:
+            # Strip JSP wrapper: extract download_file= param if present
+            jsp_match = re.search(r'download_file=(/[^&"]+\.zip)', raw_url)
+            if jsp_match:
+                raw_url = jsp_match.group(1)
+            if not raw_url.startswith("http"):
+                raw_url = "https://www.bindingdb.org" + raw_url
+            _log.info("Discovered BindingDB URL: %s", raw_url)
+            return raw_url
     except Exception as exc:
         _log.warning("Could not scrape BindingDB download page: %s", exc)
     _log.info("Using fallback BindingDB URL: %s", BINDINGDB_FALLBACK_URL)
@@ -216,7 +225,7 @@ def _is_peptide_smiles(smiles: str | None) -> bool:
 
     Heuristic: ≥3 amide bonds, no large rings (except Phe/Tyr/Trp/His/Pro aromatics).
     """
-    if not smiles or len(smiles) < 10 or len(smiles) > 500:
+    if not isinstance(smiles, str) or len(smiles) < 10 or len(smiles) > 500:
         return False
     try:
         mol = Chem.MolFromSmiles(smiles)
@@ -287,10 +296,7 @@ def _batch_fetch_pdb_meta(pdb_ids: list[str]) -> dict[str, dict]:
 
 
 def _extract_receptor_chain(meta: dict) -> tuple[str | None, str | None]:
-    """Return (receptor_chain, receptor_seq) from entry metadata.
-
-    Finds the longest polymer entity chain as the receptor.
-    """
+    """Return (receptor_chain, receptor_seq) — longest polymer entity chain."""
     best_chain, best_seq, best_len = None, None, 0
     for entity in meta.get("polymer_entities") or []:
         ep = entity.get("entity_poly") or {}
@@ -302,6 +308,25 @@ def _extract_receptor_chain(meta: dict) -> tuple[str | None, str | None]:
                 best_seq = ep.get("pdbx_seq_one_letter_code_can", "")
                 best_len = length
     return best_chain, best_seq
+
+
+def _extract_peptide_sequence(meta: dict) -> str:
+    """Return the sequence of the shortest protein chain (the peptide).
+
+    Looks for chains in the 5–30 AA range; returns empty string if none found.
+    """
+    candidates: list[tuple[int, str]] = []
+    for entity in meta.get("polymer_entities") or []:
+        ep = entity.get("entity_poly") or {}
+        length = ep.get("rcsb_sample_sequence_length", 0)
+        seq = ep.get("pdbx_seq_one_letter_code_can", "") or ""
+        if PEPTIDE_LEN_MIN <= length <= PEPTIDE_LEN_MAX and seq:
+            candidates.append((length, seq))
+    if not candidates:
+        return ""
+    # shortest chain is most likely the peptide
+    candidates.sort(key=lambda x: x[0])
+    return candidates[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -422,23 +447,25 @@ def build_expanded_calibration(use_ki: bool, force_download: bool) -> None:
         if pdb_id not in valid_pdbs:
             continue
         rec_chain, rec_seq = _extract_receptor_chain(meta_by_id[pdb_id])
+        pep_seq = _extract_peptide_sequence(meta_by_id[pdb_id])
         pkd = float(median_pkd[pdb_id])
         kd = float(median_kd[pdb_id])
         source_type = str(aff_type[pdb_id])
         source = "bindingdb_kd" if source_type == "kd" else "bindingdb_ki_converted"
 
-        # Get peptide sequence (best-effort from SMILES; BindingDB ligand_name sometimes has it)
-        name_rows = df[df["pdb_id"] == pdb_id]
-        pep_seq = ""
-        if "ligand_name" in name_rows.columns:
-            candidate = name_rows["ligand_name"].iloc[0] if len(name_rows) > 0 else ""
-            # If ligand name looks like a 1-letter sequence, use it
-            if candidate and re.match(r"^[ACDEFGHIKLMNPQRSTVWY]{5,30}$", str(candidate).strip().upper()):
-                pep_seq = str(candidate).strip().upper()
+        # Fallback: check if BindingDB ligand name happens to be a 1-letter AA sequence
+        if not pep_seq:
+            name_rows = df[df["pdb_id"] == pdb_id]
+            if "ligand_name" in name_rows.columns and len(name_rows) > 0:
+                candidate = str(name_rows["ligand_name"].iloc[0]).strip().upper()
+                if re.match(r"^[ACDEFGHIKLMNPQRSTVWY]{5,30}$", candidate):
+                    pep_seq = candidate
 
+        smiles_len = int(df[df["pdb_id"] == pdb_id]["pep_len"].iloc[0]) if len(df[df["pdb_id"] == pdb_id]) > 0 else 0
         new_rows.append({
             "pdb_id": pdb_id,
             "peptide_sequence": pep_seq,
+            "pep_len_smiles": smiles_len,  # fallback when sequence unavailable (peptidomimetics)
             "experimental_pkd": round(pkd, 3),
             "kd_nM": round(kd, 2),
             "source": source,
@@ -450,9 +477,10 @@ def build_expanded_calibration(use_ki: bool, force_download: bool) -> None:
     _log.info("New BindingDB-sourced rows: %d", len(new_df))
 
     # Combine with existing manual rows
-    out_cols = ["pdb_id", "peptide_sequence", "experimental_pkd", "kd_nM", "source", "receptor_chain", "family_hint"]
+    out_cols = ["pdb_id", "peptide_sequence", "pep_len_smiles", "experimental_pkd", "kd_nM", "source", "receptor_chain", "family_hint"]
+    existing["pep_len_smiles"] = existing["peptide_sequence"].apply(lambda s: len(s) if isinstance(s, str) else 0)
     combined = pd.concat([
-        existing[["pdb_id", "peptide_sequence", "experimental_pkd", "kd_nM", "source", "receptor_chain", "family_hint"]],
+        existing[out_cols],
         new_df[out_cols],
     ], ignore_index=True)
     combined = combined.drop_duplicates(subset=["pdb_id", "peptide_sequence"], keep="first")

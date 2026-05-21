@@ -113,6 +113,10 @@ def _search_all(payload_base: dict) -> list[str]:
             _log.warning("RCSB search request failed: %s", exc)
             break
 
+        if not resp.text.strip():
+            _log.warning("RCSB returned empty response body — treating as 0 results")
+            break
+
         data = resp.json()
         if total is None:
             total = data.get("total_count", 0)
@@ -148,42 +152,46 @@ def _query_recent_complexes() -> list[str]:
 
 
 def _query_ppii_candidates() -> list[str]:
-    """Return PDB IDs whose short chain has length 5–25 and sequence matches 'PP'.
+    """Return PDB IDs whose short chain has length 5–25 and sequence contains 'PP'.
 
+    RCSB v2 requires seqmotif and attribute services to be siblings in a top-level
+    group, not flattened together — mixing them in one group returns an empty body.
     Post-filter (Ramachandran) is applied locally after download.
     """
+    attribute_group = {
+        "type": "group",
+        "logical_operator": "and",
+        "nodes": [
+            _node("rcsb_entry_info.resolution_combined", "less_or_equal", RESOLUTION_CUTOFF),
+            _node("rcsb_entry_info.polymer_entity_count_protein", "equals", 2),
+            _node("rcsb_entry_info.polymer_monomer_count_minimum", "greater_or_equal", SHORT_MIN),
+            _node("rcsb_entry_info.polymer_monomer_count_minimum", "less_or_equal", PPII_SHORT_MAX),
+            _node("rcsb_entry_info.polymer_monomer_count_maximum", "greater_or_equal", LONG_MIN),
+            _node("rcsb_entry_info.experimental_method", "exact_match", "X-ray"),
+        ],
+    }
+    seqmotif_node = {
+        "type": "terminal",
+        "service": "seqmotif",
+        "parameters": {
+            "value": "PP",
+            "pattern_type": "prosite",
+            "sequence_type": "protein",
+        },
+    }
     payload = {
         "query": {
             "type": "group",
             "logical_operator": "and",
-            "nodes": [
-                _node("rcsb_entry_info.resolution_combined", "less_or_equal", RESOLUTION_CUTOFF),
-                _node("rcsb_entry_info.polymer_entity_count_protein", "equals", 2),
-                _node("rcsb_entry_info.polymer_monomer_count_minimum", "greater_or_equal", SHORT_MIN),
-                _node("rcsb_entry_info.polymer_monomer_count_minimum", "less_or_equal", PPII_SHORT_MAX),
-                _node("rcsb_entry_info.polymer_monomer_count_maximum", "greater_or_equal", LONG_MIN),
-                # X-ray only for PPII (cryo-EM sidechain geometry noisier)
-                _node("rcsb_entry_info.experimental_method", "exact_match", "X-RAY DIFFRACTION"),
-                # Sequence must contain 'PP' (consecutive Pro) — RCSB full-text not ideal;
-                # we use the seqmotif service below; here we restrict further by motif search
-                {
-                    "type": "terminal",
-                    "service": "seqmotif",
-                    "parameters": {
-                        "value": "PP",
-                        "pattern_type": "prosite",
-                        "sequence_type": "protein",
-                    },
-                },
-            ],
+            "nodes": [attribute_group, seqmotif_node],
         },
         "return_type": "entry",
     }
     ids = _search_all(payload)
     if not ids:
-        # Fallback: seqmotif may require different approach; relax to attribute-only query
-        _log.warning("PPII seqmotif query returned 0 — retrying without seqmotif node")
-        payload["query"]["nodes"] = payload["query"]["nodes"][:-1]
+        # seqmotif service unavailable or returns nothing — fall back to attribute-only
+        _log.warning("PPII seqmotif query returned 0 — retrying with attributes only")
+        payload["query"] = attribute_group
         ids = _search_all(payload)
     return ids
 
@@ -344,8 +352,11 @@ def _classify_family(receptor_seq: str, receptor_len: int) -> str:
 def _is_ppii_phi_psi(phi: float | None, psi: float | None) -> bool:
     if phi is None or psi is None:
         return False
-    phi_ok = PPII_PHI_MIN <= phi <= PPII_PHI_MAX
-    psi_ok = (PPII_PSI_MIN <= psi <= PPII_PSI_MAX) or (PPII_PSI_WRAP_MIN <= psi <= PPII_PSI_WRAP_MAX)
+    # Bio.PDB returns angles in radians; thresholds are in degrees
+    phi_deg = math.degrees(phi)
+    psi_deg = math.degrees(psi)
+    phi_ok = PPII_PHI_MIN <= phi_deg <= PPII_PHI_MAX
+    psi_ok = (PPII_PSI_MIN <= psi_deg <= PPII_PSI_MAX) or (PPII_PSI_WRAP_MIN <= psi_deg <= PPII_PSI_WRAP_MAX)
     return phi_ok and psi_ok
 
 
