@@ -17,3 +17,4 @@ dependencies:
       - "meeko>=0.7"
       - "vina>=1.2.5"
       - "gemmi>=0.6"
+      - "rcsbsearch==0.2.3"
