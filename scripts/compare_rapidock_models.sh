@@ -17,10 +17,11 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export REPO
 PEPSET_CSV="$REPO/datasets/pepset/benchmark.csv"
 ORIGINAL_CKPT="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/rapidock_local.pt"
 FINETUNED_CKPT="$REPO/third_party/RAPiDock_finetuned/finetune_out/rapidock_finetuned_best.pt"
-MODEL_PARAMS="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/model_parameters.yml"
+MODEL_DIR="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
 OUT_BASE="$REPO/runs/model_comparison"
 
 N_SAMPLES=20    # poses per complex (20 is enough for a quick comparison)
@@ -52,12 +53,11 @@ run_inference() {
     python "$REPO/third_party/RAPiDock/inference.py" \
         --protein_peptide_csv "$PEPSET_CSV" \
         --ckpt "$ckpt" \
-        --model_parameters_path "$MODEL_PARAMS" \
+        --model_dir "$MODEL_DIR" \
         --output_dir "$out_dir" \
-        --samples_per_complex "$N_SAMPLES" \
+        --N "$N_SAMPLES" \
         --inference_steps "$INFERENCE_STEPS" \
         --no_final_step_noise \
-        --no_pyrosetta \
         2>&1 | tee "$out_dir/inference.log"
 
     echo "Output written to $out_dir"
@@ -104,4 +104,3 @@ for label in ["original", "finetuned"]:
     else:
         print(f"{label:12s}  no RMSD data found in output (check inference.log)")
 PYEOF
-REPO="$REPO"
