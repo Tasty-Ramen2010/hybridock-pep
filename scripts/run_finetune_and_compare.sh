@@ -41,8 +41,9 @@ echo "[$(date)] Launching last-layer fine-tuning (30 epochs)..." | tee -a "$LOG"
     --val-csv   "$REPO/datasets/training_formatted/val_data.csv" \
     --checkpoint "$CKPT" \
     --output-dir "$OUTDIR" \
-    --n-epochs 30 \
+    --n-epochs 50 \
     --lr 1e-4 \
+    --ppii-weight 4 \
     2>&1 | tee -a "$LOG"
 
 echo "[$(date)] Training complete." | tee -a "$LOG"
