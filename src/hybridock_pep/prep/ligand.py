@@ -43,7 +43,11 @@ def _wrap_pdbqt_rigid(flat_pdbqt_path: Path) -> None:
 def _prepare_single_ligand(
     args: tuple[int, Path, Path],
 ) -> Path | PoseFailure:
-    """Convert one pose PDB to PDBQT using ADFRsuite's babel.
+    """Convert one pose PDB to PDBQT.
+
+    Routes phospho-residue poses (TPO/SEP/PTR) through Meeko's Polymer API,
+    which natively handles phosphate group atom types and Gasteiger charges.
+    Standard peptides continue through the babel path (unchanged behaviour).
 
     This function is intentionally at module level to satisfy ProcessPoolExecutor
     pickling requirements. Do not move it inside prepare_ligand_batch.
@@ -67,6 +71,13 @@ def _prepare_single_ligand(
         Path to the written PDBQT on success, or PoseFailure on any error.
     """
     pose_idx, pdb_path, output_dir = args
+
+    # Phospho-residue fast path — Meeko handles TPO/SEP/PTR natively.
+    from hybridock_pep.prep.phospho import has_phospho_residues, prepare_phospho_ligand
+    if has_phospho_residues(Path(pdb_path)):
+        logger.debug("Pose %d has phospho residues — routing through Meeko", pose_idx)
+        return prepare_phospho_ligand(pose_idx, Path(pdb_path), Path(output_dir))
+
     pdbqt_path = Path(output_dir) / (Path(pdb_path).stem + ".pdbqt")
 
     try:

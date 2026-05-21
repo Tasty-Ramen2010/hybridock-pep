@@ -160,11 +160,15 @@ def prepare_receptor_pdb(config: DockConfig) -> Path:
     return output_pdb
 
 
+_PRESERVE_HETATM_RESNAMES: frozenset[str] = frozenset({"TPO", "SEP", "PTR", "HOH", "WAT"})
+
+
 def _filter_pdb_lines(pdb_path: Path) -> list[str]:
     """Strip alternate-occupancy atoms and non-water HETATM from PDB text.
 
-    Keeps ATOM records and water HETATM (resName HOH or WAT) where altLoc is
-    blank (' ') or 'A'. All other records (REMARK, HEADER, etc.) are passed through.
+    Keeps ATOM records, water HETATM (resName HOH or WAT), and phospho-residue
+    HETATM (TPO/SEP/PTR — some older PDB entries store these as HETATM rather
+    than ATOM). All other HETATM are dropped.
 
     Args:
         pdb_path: Path to the input PDB file.
@@ -177,8 +181,8 @@ def _filter_pdb_lines(pdb_path: Path) -> list[str]:
         record = line[:6].strip()
         if record == "HETATM":
             res_name = line[17:20].strip()
-            if res_name not in ("HOH", "WAT"):
-                continue  # drop non-water HETATM
+            if res_name not in _PRESERVE_HETATM_RESNAMES:
+                continue  # drop non-water, non-phospho HETATM
         if record in ("ATOM", "HETATM"):
             alt_loc = line[16] if len(line) > 16 else " "
             if alt_loc not in (" ", "A"):
