@@ -1,31 +1,37 @@
 #!/usr/bin/env bash
 # compare_rapidock_models.sh
 #
-# Runs both original and fine-tuned RAPiDock on the PepSet benchmark fixtures,
-# then prints a side-by-side Cα RMSD summary.
+# Runs both original and fine-tuned RAPiDock on the PepSet benchmark,
+# then computes Ca RMSD (predicted vs crystal reference) and prints
+# a side-by-side summary.
 #
 # Prerequisites:
-#   - rapidock-env is activated (or run via conda run)
+#   - rapidock conda env is activated (or run via conda run -n rapidock)
 #   - Fine-tuning has completed and rapidock_finetuned_best.pt exists
-#   - No PyRosetta relax (--no-pyrosetta flag, or pyrosetta_utils bypassed)
 #
 # Usage:
-#   conda run --no-capture-output -n rapidock-env bash scripts/compare_rapidock_models.sh
-#   OR from rapidock-env:
+#   conda run --no-capture-output -n rapidock bash scripts/compare_rapidock_models.sh
+#   OR from rapidock env:
 #   bash scripts/compare_rapidock_models.sh
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export REPO
-PEPSET_CSV="$REPO/datasets/pepset/benchmark.csv"
+PEPSET_CSV="$REPO/datasets/pepset/inference_input.csv"
 ORIGINAL_CKPT="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/rapidock_local.pt"
 FINETUNED_CKPT="$REPO/third_party/RAPiDock_finetuned/finetune_out/rapidock_finetuned_best.pt"
 MODEL_DIR="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
 OUT_BASE="$REPO/runs/model_comparison"
 
-N_SAMPLES=20    # poses per complex (20 is enough for a quick comparison)
+N_SAMPLES=20    # poses per complex
 INFERENCE_STEPS=20
+
+# Rebuild inference CSV if missing
+if [ ! -f "$PEPSET_CSV" ]; then
+    echo "Building PepSet inference CSV..."
+    python "$REPO/scripts/build_pepset_inference_csv.py"
+fi
 
 if [ ! -f "$FINETUNED_CKPT" ]; then
     echo "ERROR: Fine-tuned checkpoint not found at $FINETUNED_CKPT"
@@ -34,7 +40,7 @@ if [ ! -f "$FINETUNED_CKPT" ]; then
 fi
 
 if [ ! -f "$PEPSET_CSV" ]; then
-    echo "ERROR: PepSet benchmark CSV not found at $PEPSET_CSV"
+    echo "ERROR: PepSet inference CSV not found at $PEPSET_CSV"
     exit 1
 fi
 
@@ -68,39 +74,107 @@ run_inference "finetuned" "$FINETUNED_CKPT"
 
 echo ""
 echo "=============================="
-echo " RMSD Comparison"
+echo " Ca RMSD Comparison"
 echo "=============================="
+
 python - <<'PYEOF'
-import os, sys
+"""Compute Ca RMSD between RAPiDock top-ranked pose and PepSet crystal reference.
+
+Uses the Kabsch algorithm for optimal superposition before computing RMSD,
+so results are not sensitive to the reference frame of the output PDB.
+"""
+import os
+import sys
 from pathlib import Path
 import numpy as np
+import csv
 
-repo = Path(os.environ.get("REPO", Path(__file__).parent.parent))
+repo = Path(os.environ["REPO"])
 base = repo / "runs" / "model_comparison"
+pepset_csv = repo / "datasets" / "pepset" / "inference_input.csv"
+
+# Load crystal reference paths from inference_input.csv
+crystal_refs = {}
+with open(pepset_csv, newline="") as fh:
+    for row in csv.DictReader(fh):
+        crystal_refs[row["complex_name"]] = Path(row["crystal_ref"])
+
+
+def parse_ca_coords(pdb_path):
+    """Return (N,3) Ca coordinate array from a PDB file."""
+    coords = []
+    with open(pdb_path) as fh:
+        for line in fh:
+            if line.startswith(("ATOM  ", "HETATM")):
+                atom = line[12:16].strip()
+                if atom == "CA":
+                    try:
+                        coords.append([float(line[30:38]), float(line[38:46]), float(line[46:54])])
+                    except ValueError:
+                        pass
+    return np.array(coords, dtype=np.float64) if coords else np.empty((0, 3))
+
+
+def kabsch_rmsd(P, Q):
+    """RMSD after optimal superposition of P onto Q (Kabsch algorithm).
+
+    P, Q: (N, 3) arrays, same N.
+    """
+    if len(P) != len(Q) or len(P) == 0:
+        return float("nan")
+    P = P - P.mean(axis=0)
+    Q = Q - Q.mean(axis=0)
+    H = P.T @ Q
+    U, _, Vt = np.linalg.svd(H)
+    d = np.linalg.det(Vt.T @ U.T)
+    D = np.diag([1, 1, d])
+    R = Vt.T @ D @ U.T
+    P_rot = P @ R.T
+    return float(np.sqrt(np.mean(np.sum((P_rot - Q) ** 2, axis=1))))
+
 
 for label in ["original", "finetuned"]:
     out_dir = base / label
     if not out_dir.exists():
         print(f"{label}: output directory missing")
         continue
+
     rmsds = []
-    for complex_dir in sorted(out_dir.iterdir()):
-        if not complex_dir.is_dir():
+    missing = 0
+
+    for complex_name, ref_pdb in sorted(crystal_refs.items()):
+        pred_dir = out_dir / complex_name
+        if not pred_dir.exists():
+            missing += 1
             continue
-        # Look for RMSD summary files written by inference.py
-        for f in complex_dir.glob("*.txt"):
-            for line in f.read_text().splitlines():
-                if "rmsd" in line.lower() or "RMSD" in line:
-                    try:
-                        val = float(line.split()[-1])
-                        rmsds.append(val)
-                    except ValueError:
-                        pass
+
+        # Find best-ranked pose (rank1.pdb or rank1_*.pdb)
+        rank1_files = sorted(pred_dir.glob("rank1*.pdb"))
+        if not rank1_files:
+            missing += 1
+            continue
+
+        pred_ca = parse_ca_coords(rank1_files[0])
+        ref_ca = parse_ca_coords(ref_pdb)
+
+        if len(pred_ca) == 0 or len(ref_ca) == 0:
+            missing += 1
+            continue
+
+        # Trim to the shorter sequence if there's a length mismatch
+        n = min(len(pred_ca), len(ref_ca))
+        rmsd = kabsch_rmsd(pred_ca[:n], ref_ca[:n])
+        if not np.isnan(rmsd):
+            rmsds.append(rmsd)
+
     if rmsds:
-        print(f"{label:12s}  n={len(rmsds):3d}  mean_RMSD={np.mean(rmsds):.2f}Å  "
-              f"median={np.median(rmsds):.2f}Å  "
-              f"<2Å={100*sum(r<2 for r in rmsds)/len(rmsds):.0f}%  "
-              f"<5Å={100*sum(r<5 for r in rmsds)/len(rmsds):.0f}%")
+        n = len(rmsds)
+        mean_r = np.mean(rmsds)
+        med_r = np.median(rmsds)
+        lt2 = 100 * sum(r < 2 for r in rmsds) / n
+        lt5 = 100 * sum(r < 5 for r in rmsds) / n
+        print(f"{label:12s}  n={n:3d}  mean={mean_r:.2f}Å  median={med_r:.2f}Å  "
+              f"<2Å={lt2:.0f}%  <5Å={lt5:.0f}%  missing={missing}")
     else:
-        print(f"{label:12s}  no RMSD data found in output (check inference.log)")
+        print(f"{label:12s}  no RMSD data (missing={missing}) — check inference.log")
 PYEOF
