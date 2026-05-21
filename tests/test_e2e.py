@@ -2,28 +2,40 @@
 
 Two test suites are included:
 
-TEST-02 — MDM2/p53 (existing wiring test):
+TEST-02 — MDM2/p53 (pipeline wiring test):
   Uses a 3-atom placeholder receptor (receptor_tiny.pdb) placed 25 Å from the
   fixture poses.  Validates pipeline wiring only — not score sign or quality.
   The biological threshold (best hybrid_score < -3.0 kcal/mol) requires the
   real MDM2 receptor and is validated by scripts/benchmark.py instead.
 
-TEST-03 — PepSet Crystal-Pose Tests (4 protein families):
-  Uses real receptor pocket PDB files and crystal-structure reference poses
-  drawn from the PepSet benchmark (families where RAPiDock was trained).
+TEST-03 — PepSet Crystal-Pose Tests (11 protein families, n=5 poses each):
+  Uses real holo-receptor pocket PDB files and crystal-structure reference
+  poses drawn from the PepSet benchmark (Wen et al. 2020).  Each fixture
+  contains 5 copies of the crystal pose (pose_000…pose_004) so the full
+  Vina+AD4+entropy+clustering pipeline runs at n=5 per case.
+
   These tests assert that the scoring pipeline produces physically meaningful
   Vina scores (< 0 kcal/mol) for crystal-quality poses — the minimum sanity
   bar for a correctly wired Vina installation.
 
-  Families covered:
-    pdz_1jq8  — PDZ domain      LAIYS        (5 residues,  easy, 1.4 Å X-ray)
-    sh2_1jw6  — SH2 domain      MYWYPY       (6 residues,  easy, 1.93 Å)
-    brd_3shb  — Bromodomain     ARTKQTA      (7 residues,  easy, 1.8 Å)
-    cam_3bej  — Calmodulin      ERHKILHRLLQ  (11 residues, easy, 1.9 Å)
+  TEST-03a — original 4 families (highest-confidence RAPiDock zone):
+    pdz_1jq8  — PDZ domain          LAIYS              (5 res,  easy, 1.4 Å)
+    sh2_1jw6  — SH2 domain          MYWYPY             (6 res,  easy, 1.93 Å)
+    brd_3shb  — Bromodomain         ARTKQTA            (7 res,  easy, 1.8 Å)
+    cam_3bej  — Calmodulin          ERHKILHRLLQ        (11 res, easy, 1.9 Å)
 
-  These four families represent the highest-confidence region of RAPiDock's
-  training distribution (PDZ, SH2, histone-reader, calmodulin IQ-motif) and
-  are expected to yield negative Vina scores when docked with the crystal pose.
+  TEST-03b — extended 7 families (moderate → difficult zone):
+    bcl2_2vzg — BCL-2 / BH3 helix  NLSELDRLLLELNAV    (15 res, strong)
+    mdm2_1pmx — MDM2 / MDMX        RNCFESVAALRRCMYG   (16 res, strong)
+    kin_2khh  — Kinase substrate    DSGFSFGSK          (9 res,  moderate)
+    helix_1yfn— Amphipathic helix   EAQPAPHQWQKMPFWQKV (18 res, moderate)
+    arm_2cny  — ARM / HEAT repeat   GSFLPNSEQQKSVDAVFSS (19 res, moderate)
+    sh3_1a0n  — SH3 / PPXP         PPRPLPVAPGSSKT     (14 res, difficult)
+    ww_1ywi   — WW / proline-rich   PPPLPP             (6 res,  difficult)
+
+  The proline-rich families (SH3, WW) are expected to pass Vina sanity checks
+  because Vina score is physics-based and does not penalise PPII geometry; they
+  are included to document full-distribution pipeline behaviour.
 
 All tests are tagged @pytest.mark.slow — require Vina ≥ 1.2.5, ADFRsuite on
 PATH (babel + prepare_receptor), and score-env fully installed.
@@ -173,9 +185,19 @@ class _PepSetCase(NamedTuple):
     box: float            # grid box edge length (Å)
 
 
-# Binding site centres are computed as the Cα centroid of each reference
-# peptide; box size adds 12 Å to the max Cα–Cα span across all heavy atoms.
+# Binding site centres are the Cα centroid of each reference peptide;
+# box size = max Cα–Cα span + 12 Å (minimum 25 Å).
+# All fixtures have 5 copies of the crystal pose (pose_000…pose_004) so each
+# case runs through the full Vina+AD4+entropy+clustering pipeline at n=5.
+#
+# Original 4 families (TEST-03a): confirmed negative Vina from prior passing run.
+# New 7 families (TEST-03b): added after full dataset analysis (May 2026).
+#   SH3/WW are the "difficult" families (proline-rich PPXP/PPXY); they are
+#   included to document pipeline behaviour on the hard end of the distribution.
 _PEPSET_CASES: list[_PepSetCase] = [
+    # ------------------------------------------------------------------
+    # TEST-03a: Original families — highest-confidence RAPiDock zone
+    # ------------------------------------------------------------------
     _PepSetCase(
         tag="pdz_1jq8",
         pdb_id="1JQ8",
@@ -208,6 +230,70 @@ _PEPSET_CASES: list[_PepSetCase] = [
         site=(29.16, 9.09, -0.39),
         box=35.0,
     ),
+    # ------------------------------------------------------------------
+    # TEST-03b: Extended family coverage — strong to difficult categories
+    # ------------------------------------------------------------------
+    _PepSetCase(
+        tag="bcl2_2vzg",
+        pdb_id="2VZG",
+        family="BCL-2 family / BH3 helix",
+        peptide="NLSELDRLLLELNAV",
+        site=(-19.93, -12.78, 18.06),
+        box=38.0,
+    ),
+    _PepSetCase(
+        tag="mdm2_1pmx",
+        pdb_id="1PMX",
+        family="MDM2 / MDMX",
+        peptide="RNCFESVAALRRCMYG",
+        site=(-2.82, -1.18, -5.17),
+        box=29.0,
+    ),
+    _PepSetCase(
+        tag="kin_2khh",
+        pdb_id="2KHH",
+        family="Kinase / signalling substrate",
+        peptide="DSGFSFGSK",
+        site=(-12.00, -45.84, 13.78),
+        box=32.0,
+    ),
+    _PepSetCase(
+        tag="helix_1yfn",
+        pdb_id="1YFN",
+        family="Amphipathic helix binder",
+        peptide="EAQPAPHQWQKMPFWQKV",
+        site=(30.75, -17.88, 7.80),
+        box=37.0,
+    ),
+    _PepSetCase(
+        tag="arm_2cny",
+        pdb_id="2CNY",
+        family="ARM / HEAT repeat",
+        peptide="GSFLPNSEQQKSVDAVFSS",
+        site=(30.75, -13.23, 44.33),
+        # Cα span is 58.9 Å; box must exceed this. 65 Å leaves 3 Å clearance
+        # on each side. The ">27000 Å³" Vina warning is expected and harmless.
+        box=65.0,
+    ),
+    # SH3 and WW: proline-rich families — poor RAPiDock zone.
+    # Crystal-pose Vina should still be negative (physics, not geometry
+    # generation); xfail is applied to AD4 anomaly check only.
+    _PepSetCase(
+        tag="sh3_1a0n",
+        pdb_id="1A0N",
+        family="SH3 domain / PPXP proline-rich",
+        peptide="PPRPLPVAPGSSKT",
+        site=(-5.83, -4.45, -21.04),
+        box=38.0,
+    ),
+    _PepSetCase(
+        tag="ww_1ywi",
+        pdb_id="1YWI",
+        family="WW domain / proline-rich PPXY",
+        peptide="PPPLPP",
+        site=(0.90, 7.77, 0.59),
+        box=28.0,
+    ),
 ]
 
 
@@ -231,7 +317,10 @@ def _make_pepset_config(case: _PepSetCase, output_dir: Path):
         receptor_path=FIXTURES_DIR / case.tag / "receptor_pocket.pdb",
         site_coords=case.site,
         box_size=case.box,
-        n_samples=1,
+        # 5 copies of the crystal pose are in every fixture directory; n_samples
+        # is ignored when input_poses_dir is set (Stage 1 bypass) but is set to
+        # match the fixture count for metadata consistency.
+        n_samples=5,
         output_dir=output_dir,
         seed=42,
         scoring={"vina", "ad4"},
