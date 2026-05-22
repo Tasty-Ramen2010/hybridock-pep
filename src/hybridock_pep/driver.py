@@ -262,6 +262,13 @@ def run_dock(
     else:
         logger.warning("Stage 3 skipped: no scored poses to cluster")
 
+    # Stage 3.5: MM-GBSA refinement (optional, requires --refine-topk)
+    if config.refine_topk is not None and cluster_result is not None:
+        from hybridock_pep.scoring.mmgbsa import refine_topk_poses  # noqa: PLC0415
+        refine_topk_poses(scored_poses, cluster_result, config)
+        n_refined = sum(1 for p in scored_poses if p.mmgbsa_dg is not None)
+        logger.info("Stage 3.5 complete: %d poses have MM-GBSA ΔG", n_refined)
+
     # Finalize metadata AFTER scoring
     finalize_metadata(metadata_path, poses_generated=len(records))
 

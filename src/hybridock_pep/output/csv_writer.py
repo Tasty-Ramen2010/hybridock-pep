@@ -20,6 +20,7 @@ FIELDNAMES: list[str] = [
     "ad4_score",
     "entropy_correction",
     "delta_g",
+    "mmgbsa_dg",
     "cluster_id",
     "pose_filename",
     "n_contact_residues",
@@ -81,6 +82,9 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
                     else ""
                 ),
                 "delta_g": f"{hs:.4f}",  # D-04: same value as hybrid_score
+                "mmgbsa_dg": (
+                    f"{pose.mmgbsa_dg:.4f}" if pose.mmgbsa_dg is not None else ""
+                ),
                 "cluster_id": pose.cluster_id if pose.cluster_id is not None else "",
                 "pose_filename": pose.pdb_path.name,
                 "n_contact_residues": (
@@ -124,11 +128,21 @@ def write_best_pose_pdb(
     if not cluster_result.per_cluster_stats:
         raise ValueError("cluster_result.per_cluster_stats is empty — cannot select best pose")
 
-    best_cluster = min(
-        cluster_result.per_cluster_stats,
-        key=lambda s: s["mean_hybrid_score"],
-    )
-    best_pose_idx: int = best_cluster["best_pose_idx"]
+    # Prefer MM-GBSA winner if any poses were refined; fall back to best cluster centroid.
+    mmgbsa_poses = [p for p in scored_poses if p.mmgbsa_dg is not None]
+    if mmgbsa_poses:
+        best_mmgbsa = min(mmgbsa_poses, key=lambda p: p.mmgbsa_dg)  # type: ignore[arg-type]
+        best_pose_idx = best_mmgbsa.pose_idx
+        logger.info(
+            "Best pose selected by MM-GBSA: pose %d ΔG = %.2f kcal/mol",
+            best_pose_idx, best_mmgbsa.mmgbsa_dg,
+        )
+    else:
+        best_cluster = min(
+            cluster_result.per_cluster_stats,
+            key=lambda s: s["mean_hybrid_score"],
+        )
+        best_pose_idx = best_cluster["best_pose_idx"]
 
     pose_by_idx = {p.pose_idx: p for p in scored_poses}
     if best_pose_idx not in pose_by_idx:
@@ -144,10 +158,12 @@ def write_best_pose_pdb(
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
+    selected_pose = pose_by_idx[best_pose_idx]
+    score_val = selected_pose.mmgbsa_dg if selected_pose.mmgbsa_dg is not None else selected_pose.hybrid_score
     logger.info(
-        "Best pose: ΔG = %.1f kcal/mol (cluster %d, %s)",
-        best_cluster["mean_hybrid_score"],
-        best_cluster["cluster_id"],
+        "Best pose: ΔG = %.1f kcal/mol (cluster %s, %s)",
+        score_val if score_val is not None else float("nan"),
+        selected_pose.cluster_id,
         src.name,
     )
     return dest

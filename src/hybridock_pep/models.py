@@ -49,6 +49,8 @@ class DockConfig(BaseModel):
     run_id: str = ""
     verbosity: int = 0
     minimize_poses: bool = True
+    refine_topk: int | None = None
+    mmgbsa_cpu_only: bool = False
 
     @field_validator("peptide_sequence")
     @classmethod
@@ -134,6 +136,7 @@ class ScoredPose(PoseRecord):
     ad4_score: float | None = None
     entropy_correction: float | None = None
     hybrid_score: float | None = None
+    mmgbsa_dg: float | None = None
     cluster_id: int | None = None
     pdbqt_path: Path | None = None
     is_ad4_anomaly: bool = False
