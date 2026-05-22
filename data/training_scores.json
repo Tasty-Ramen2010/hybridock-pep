@@ -1,0 +1,42 @@
+{
+  "2hwn": {
+    "vina_score": -14.749,
+    "ad4_score": -3.394,
+    "n_contact_residues": 15
+  },
+  "4gq6": {
+    "vina_score": -20.522,
+    "ad4_score": -17.88,
+    "n_contact_residues": 10
+  },
+  "1nrl": {
+    "vina_score": -12.41,
+    "ad4_score": -11.488,
+    "n_contact_residues": 10
+  },
+  "1l2z": {
+    "vina_score": -7.031,
+    "ad4_score": -8.511,
+    "n_contact_residues": 7
+  },
+  "1ddv": {
+    "vina_score": -8.575,
+    "ad4_score": -5.991,
+    "n_contact_residues": 5
+  },
+  "2koh": {
+    "vina_score": -12.043,
+    "ad4_score": -16.703,
+    "n_contact_residues": 5
+  },
+  "1a0n": {
+    "vina_score": -5.664,
+    "ad4_score": -6.686,
+    "n_contact_residues": 9
+  },
+  "1ywi": {
+    "vina_score": -6.445,
+    "ad4_score": -7.229,
+    "n_contact_residues": 5
+  }
+}
