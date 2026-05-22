@@ -15,5 +15,6 @@
   "pearson_r": 0.859679316706224,
   "rmse_kcal_mol": 1.7347625403637263,
   "entropy_mode": "contact",
-  "gamma": 0.2
+  "gamma": 0.2,
+  "ensemble_ad4_weight": 0.3
 }

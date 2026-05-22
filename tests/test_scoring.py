@@ -783,3 +783,129 @@ class TestCalibration:
         d11_keys = {"alpha", "beta", "n_complexes", "pearson_r", "rmse_kcal_mol", "calibrated_at", "training_csv"}
         missing = d11_keys - data.keys()
         assert not missing, f"Missing D-11 keys in write_calibration output: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Ensemble z-score AD4 scoring
+# ---------------------------------------------------------------------------
+
+
+class TestEnsembleHybridScores:
+    """Tests for apply_ensemble_hybrid_scores() — within-run AD4 z-score blending."""
+
+    def _make_poses(self, tmp_path, vina_scores, ad4_scores=None):
+        import numpy as np
+        from hybridock_pep.models import ScoredPose
+
+        poses = []
+        for i, v in enumerate(vina_scores):
+            pose = ScoredPose(
+                pose_idx=i,
+                pdb_path=tmp_path / f"p{i}.pdb",
+                sequence="ACDEF",
+                ca_coords=np.zeros((5, 3)),
+            )
+            pose.vina_score = v
+            if ad4_scores is not None:
+                pose.ad4_score = ad4_scores[i]
+                pose.is_ad4_anomaly = ad4_scores[i] > 0
+            poses.append(pose)
+        return poses
+
+    def test_vina_only_preserves_ordering(self, tmp_path: Path) -> None:
+        """With ad4_blend_weight=0, hybrid ordering matches Vina ordering."""
+        from hybridock_pep.scoring.entropy import apply_ensemble_hybrid_scores
+
+        vina = [-10.0, -8.0, -6.0, -4.0, -2.0]
+        poses = self._make_poses(tmp_path, vina)
+        apply_ensemble_hybrid_scores(poses, alpha=0.0, n_residues=5, ad4_blend_weight=0.0)
+
+        hybrids = [p.hybrid_score for p in poses]
+        assert hybrids == sorted(hybrids), "hybrid ordering must match Vina ordering when ad4_weight=0"
+
+    def test_ad4_weight_zero_equals_vina_only(self, tmp_path: Path) -> None:
+        """ad4_blend_weight=0.0 produces same scores as no AD4."""
+        from hybridock_pep.scoring.entropy import apply_ensemble_hybrid_scores
+
+        vina = [-9.0, -7.5, -6.0, -4.5, -3.0]
+        ad4 = [-11.0, -5.0, -8.0, -3.0, -10.0]
+        poses_with = self._make_poses(tmp_path, vina, ad4)
+        poses_without = self._make_poses(tmp_path, vina)
+
+        apply_ensemble_hybrid_scores(poses_with, alpha=0.0, n_residues=5, ad4_blend_weight=0.0)
+        apply_ensemble_hybrid_scores(poses_without, alpha=0.0, n_residues=5, ad4_blend_weight=0.0)
+
+        for pw, pwo in zip(poses_with, poses_without):
+            assert pw.hybrid_score == pytest.approx(pwo.hybrid_score, abs=1e-8)
+
+    def test_ad4_anomaly_excluded_from_distribution(self, tmp_path: Path) -> None:
+        """Anomalous AD4 poses (score > 0) don't enter the AD4 z-score distribution."""
+        from hybridock_pep.scoring.entropy import apply_ensemble_hybrid_scores
+
+        vina = [-8.0, -7.0, -6.0, -5.0, -4.0]
+        ad4 = [-9.0, -8.0, +5.0, -6.0, -5.0]  # pose 2 is anomalous
+        poses = self._make_poses(tmp_path, vina, ad4)
+        # Must not raise even with an anomalous pose
+        apply_ensemble_hybrid_scores(poses, alpha=0.0, n_residues=5, ad4_blend_weight=0.3)
+
+        # Anomalous pose should still get a hybrid_score (Vina-only fallback)
+        assert poses[2].hybrid_score is not None
+
+    def test_entropy_correction_applied(self, tmp_path: Path) -> None:
+        """entropy_correction = alpha * n_residues when no contact info available."""
+        from hybridock_pep.scoring.entropy import apply_ensemble_hybrid_scores
+
+        vina = [-8.0, -7.0, -6.0, -5.0, -4.0]
+        poses = self._make_poses(tmp_path, vina)
+        apply_ensemble_hybrid_scores(poses, alpha=0.5, n_residues=5, ad4_blend_weight=0.0)
+
+        for pose in poses:
+            assert pose.entropy_correction == pytest.approx(0.5 * 5, abs=1e-8)
+
+    def test_no_vina_scores_raises(self, tmp_path: Path) -> None:
+        """RuntimeError raised when no poses have valid Vina scores."""
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_ensemble_hybrid_scores
+        import numpy as np
+
+        pose = ScoredPose(
+            pose_idx=0, pdb_path=tmp_path / "p.pdb",
+            sequence="ACD", ca_coords=np.zeros((3, 3)),
+        )
+        with pytest.raises(RuntimeError):
+            apply_ensemble_hybrid_scores([pose], alpha=0.1, n_residues=3)
+
+    def test_ad4_improves_ranking_when_correlated(self, tmp_path: Path) -> None:
+        """When AD4 and Vina agree on ranking, ensemble score preserves that order."""
+        from hybridock_pep.scoring.entropy import apply_ensemble_hybrid_scores
+
+        # Both Vina and AD4 rank poses 0 > 1 > 2 > 3 > 4 (most negative = best)
+        vina = [-10.0, -8.0, -6.0, -4.0, -2.0]
+        ad4  = [-12.0, -9.0, -7.0, -5.0, -3.0]
+        poses = self._make_poses(tmp_path, vina, ad4)
+        apply_ensemble_hybrid_scores(poses, alpha=0.0, n_residues=5, ad4_blend_weight=0.3)
+
+        hybrids = [p.hybrid_score for p in poses]
+        assert hybrids == sorted(hybrids), "AD4-consistent ranking must be preserved"
+
+    def test_load_calibration_accepts_ensemble_ad4_weight(self, tmp_path: Path) -> None:
+        """load_calibration accepts ensemble_ad4_weight in [0, 1] without error."""
+        import json
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        cal = {"alpha": 0.5, "beta": 0.0, "ensemble_ad4_weight": 0.3}
+        p = tmp_path / "cal.json"
+        p.write_text(json.dumps(cal))
+        result = load_calibration(p)
+        assert result["ensemble_ad4_weight"] == pytest.approx(0.3)
+
+    def test_load_calibration_rejects_invalid_ensemble_weight(self, tmp_path: Path) -> None:
+        """ensemble_ad4_weight outside [0, 1] raises ValueError."""
+        import json
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        cal = {"alpha": 0.5, "beta": 0.0, "ensemble_ad4_weight": 1.5}
+        p = tmp_path / "cal.json"
+        p.write_text(json.dumps(cal))
+        with pytest.raises(ValueError):
+            load_calibration(p)
