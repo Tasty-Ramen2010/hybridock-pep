@@ -58,6 +58,11 @@ def _ci95(values: list[float]) -> tuple[float, float]:
         )
         return (mean - 1.96 * sem, mean + 1.96 * sem)
 
+    # sem=0 when all values are identical (std=0); t.interval multiplies
+    # ±inf * 0 which produces NaN in scipy. Return degenerate interval instead.
+    if sem == 0.0:
+        return (mean, mean)
+
     lo, hi = t_dist.interval(0.95, df=n - 1, loc=mean, scale=sem)
     return (float(lo), float(hi))
 

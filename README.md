@@ -1,47 +1,92 @@
 # HybriDock-Pep
 
-HybriDock-Pep is a hybrid peptide docking tool for the iGEM 2026 Best Software Tool award.
-It combines RAPiDock diffusion-model pose generation (100 stochastic passes) with physics-based
-rescoring via AutoDock Vina, AutoDock4 electrostatics, and a backbone entropy correction —
-producing ranked poses with a calibrated ΔG estimate more accurate than Vina alone.
+**Truly hybrid peptide docking:** AI diffusion model pose generation + AutoDock Vina + AutoDock4 electrostatics + backbone entropy correction + MM-GBSA free energy refinement — five orthogonal signals fused into a single calibrated ΔG estimate.
 
-**Target application:** Malaria rapid-diagnostic peptide LISDAELEAIFEADC targeting PfLDH
-(PDB 1T2D) over hLDH (PDB 1I0Z) — providing binding selectivity evidence for iGEM 2026.
+Built for the **iGEM 2026 Best Software Tool** award by the Denmark High School Dry Lab team.
+
+**Target application:** Malaria rapid-diagnostic peptide LISDAELEAIFEADC targeting PfLDH (PDB 1T2D) over hLDH (PDB 1I0Z) — providing computational binding selectivity evidence for the iGEM 2026 project.
 
 ---
 
-## Architecture
+## What makes it hybrid
 
-HybriDock-Pep runs in two stages:
+Most docking tools use a single scoring function. HybriDock-Pep combines five independent sources of binding signal:
 
-1. **Stage 1 (GPU, rapidock env):** RAPiDock generates N=100 all-atom peptide pose PDBs via
-   stochastic diffusion inference on the receptor structure.
-2. **Stage 2 (CPU, score-env):** Each pose is independently scored by AutoDock Vina
-   (`--score_only`) and AutoDock4 (`--scoring ad4`), combined with a backbone entropy
-   correction (ΔS = α × n_residues), and clustered by contact-zone Cα RMSD.
+| Signal | What it captures | Implementation |
+|--------|-----------------|----------------|
+| **AI diffusion (RAPiDock)** | Learned structural priors from protein–peptide co-crystal database | Stage 1: 100 stochastic inference passes on RTX GPU |
+| **AutoDock Vina** | Empirical shape complementarity + hydrophobics | `vina --score_only` per pose |
+| **AutoDock4 electrostatics** | Gasteiger partial charges, H-bond geometry | `vina --scoring ad4` per pose |
+| **Backbone entropy correction** | Conformational entropy penalty α × n_contact_residues | Calibrated on 6 PepSet crystal complexes (Pearson r = 0.860) |
+| **MM-GBSA (optional)** | Molecular mechanics + implicit solvent ΔG decomposition | OpenMM AMBER ff14SB + GBn2, CUDA GPU, `--refine-topk K` |
 
-The driver script orchestrates both stages via `conda run -n rapidock` subprocess calls.
-No Python objects cross the subprocess boundary — only file paths and integer flags.
+The hybrid score is:
 
-See [docs/architecture.md](docs/architecture.md) for the full module map and data flow diagram.
+```
+hybrid = vina + z_score(ad4) × w_ad4 + α × n_effective_residues
+```
+
+With optional MM-GBSA re-ranking of the top-K cluster representatives after clustering.
+
+---
+
+## Pipeline Overview
+
+```
+  Peptide sequence + Receptor PDB
+           │
+  ┌────────▼────────────────────────────────────────────┐
+  │  Stage 1 — AI Diffusion (rapidock-env, GPU)         │
+  │  RAPiDock × N=100 stochastic passes                 │
+  │  → 100 all-atom peptide pose PDBs                   │
+  └────────┬────────────────────────────────────────────┘
+           │
+  ┌────────▼────────────────────────────────────────────┐
+  │  Stage 1.5 — OpenMM Clash Relief (optional)         │
+  │  AMBER ff14SB + GBn2, harmonic restraints           │
+  │  → minimized poses (reverted if >0.5Å displacement) │
+  └────────┬────────────────────────────────────────────┘
+           │
+  ┌────────▼────────────────────────────────────────────┐
+  │  Stage 2 — Physics Rescoring (score-env, CPU)       │
+  │  • AutoDock Vina (--score_only)                     │
+  │  • AutoDock4 (--scoring ad4, Gasteiger charges)     │
+  │  • Contact-zone entropy correction (calibrated α)   │
+  │  → hybrid_score per pose                            │
+  └────────┬────────────────────────────────────────────┘
+           │
+  ┌────────▼────────────────────────────────────────────┐
+  │  Stage 3 — Clustering                               │
+  │  Kabsch-aligned contact-zone Cα RMSD                │
+  │  Agglomerative + silhouette k-selection             │
+  │  → cluster_id per pose, k_optimal, silhouette score │
+  └────────┬────────────────────────────────────────────┘
+           │
+  ┌────────▼────────────────────────────────────────────┐
+  │  Stage 3.5 — MM-GBSA Refinement (optional, GPU)     │
+  │  AMBER ff14SB + GBn2, single-trajectory ΔG          │
+  │  One representative per cluster, top-K by cluster   │
+  │  CUDA → OpenCL → CPU fallback                       │
+  │  → mmgbsa_dg per top-K pose                         │
+  └────────┬────────────────────────────────────────────┘
+           │
+  ┌────────▼────────────────────────────────────────────┐
+  │  Stage 4 — Output                                   │
+  │  ranked_poses.csv  best_pose.pdb                    │
+  │  cluster_summary.csv  convergence_plot.png          │
+  │  silhouette_plot.png  run_metadata.json             │
+  └─────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Prerequisites
 
-- **NVIDIA GPU (Stage 1):** Blackwell-generation card (RTX 5070 or newer, compute capability
-  >= 12.0). Driver >= 550 for CUDA 12.8. Stage 2 runs on any modern CPU.
-- **conda:** [Miniforge](https://github.com/conda-forge/miniforge/releases) preferred.
-  Any conda >= 23.x works.
-- **ADFRsuite:** Download from <https://ccsb.scripps.edu/adfrsuite/downloads/>
-  (provides `prepare_receptor` and `autogrid4`). Add `bin/` to PATH.
-- **PULCHRA v3.04:** Required for side-chain reconstruction. Build from source — see
-  [INSTALL.md Step 3.5](INSTALL.md#step-35--pulchra-v304-side-chain-reconstructor).
-  v3.07 (Bioconda) has an aromatic side-chain bug; use v3.04 exactly.
+- **NVIDIA GPU (Stage 1 + MM-GBSA):** Blackwell-generation card (RTX 5070 or newer, CC ≥ 12.0). Driver ≥ 550 for CUDA 12.8. Stages 2–4 run on any modern CPU.
+- **conda:** [Miniforge](https://github.com/conda-forge/miniforge/releases) preferred. Any conda ≥ 23.x works.
+- **ADFRsuite:** Download from <https://ccsb.scripps.edu/adfrsuite/downloads/> (provides `prepare_receptor` and `autogrid4`). Add `bin/` to PATH.
+- **PULCHRA v3.04:** Required for side-chain reconstruction. Build from source — see [INSTALL.md](INSTALL.md). v3.07 (Bioconda) has an aromatic side-chain bug; use v3.04 exactly.
 - **Disk space:** ~20 GB for both conda environments (PyTorch + CUDA dominate).
-
-For complete setup instructions including ADFRsuite PATH configuration and smoke test
-verification, see [INSTALL.md](INSTALL.md).
 
 ---
 
@@ -61,8 +106,7 @@ conda env create -f envs/rapidock-env.yml
 bash scripts/smoke_test.sh
 ```
 
-> **macOS ARM:** Stage 2 (scoring) runs natively. Stage 1 (GPU sampling) requires
-> a CUDA machine. Use `--input-poses` to supply pre-generated poses and skip Stage 1.
+> **macOS ARM:** Stage 2 (scoring) runs natively. Stage 1 (GPU sampling) requires a CUDA machine. Use `--input-poses` to supply pre-generated poses and skip Stage 1.
 
 ---
 
@@ -73,8 +117,8 @@ bash scripts/smoke_test.sh
 ```bash
 hybridock-pep dock \
     --peptide LISDAELEAIFEADC \
-    --receptor data/pdbs/1t2d.pdb \
-    --site 22.5 14.1 38.7 \
+    --receptor data/pdbs/1T2D_receptor.pdb \
+    --site 31.9 17.5 9.5 \
     --box 20 \
     --n-samples 100 \
     --scoring vina,ad4 \
@@ -90,19 +134,21 @@ hybridock-pep dock \
 | `--box` | float (required) | — | Grid box edge length in Angstroms |
 | `--n-samples` | int | 100 | Number of RAPiDock passes; mutually exclusive with `--input-poses` |
 | `--scoring` | str | `vina,ad4` | Comma-separated scoring backends (`vina`, `ad4`) |
-| `--refine-topk` | int | None | Top-K for MM-GBSA refinement (v2 scope; accepted but not dispatched) |
+| `--refine-topk` | int | None | Run MM-GBSA on top-K cluster representatives (AMBER ff14SB + GBn2, CUDA GPU) |
+| `--mmgbsa-cpu-only` | flag | False | Force MM-GBSA to use CPU instead of CUDA (slower but no GPU dependency) |
 | `--output-dir` | path (required) | — | Output directory (created if absent) |
 | `--seed` | int | None | Random seed for deterministic sampling |
 | `--input-poses` | path | None | Pre-generated poses directory; skips Stage 1 |
 | `--calibration` | path | `data/calibration.json` | Path to entropy calibration file |
+| `--no-minimize` | flag | False | Skip OpenMM clash-relief minimization of RAPiDock poses |
 
 ### `calibrate` — Fit entropy correction parameters
 
 ```bash
 hybridock-pep calibrate \
     --training-csv data/training_complexes.csv \
-    --pdbs-dir data/pdbs/ \
-    --output calibration.json
+    --scores-json data/training_scores.json \
+    --output data/calibration.json
 ```
 
 ### `benchmark` — Run accuracy benchmark suite
@@ -110,15 +156,14 @@ hybridock-pep calibrate \
 ```bash
 hybridock-pep benchmark \
     --test-csv data/test_complexes.csv \
-    --baselines vina,adcp,rapidock \
-    --report benchmark_report.md
+    --output-dir runs/benchmark
 ```
 
 ### `prep` — Prepare receptor PDBQT
 
 ```bash
 hybridock-pep prep \
-    --receptor data/pdbs/1t2d.pdb \
+    --receptor data/pdbs/1T2D_receptor.pdb \
     --output-dir data/pdbs/
 ```
 
@@ -126,40 +171,81 @@ hybridock-pep prep \
 
 ## Expected Output Files
 
-After a successful `hybridock-pep dock` run, the `--output-dir` contains:
+After a successful `hybridock-pep dock` run, `--output-dir` contains:
 
 | File | Description |
 |------|-------------|
-| `ranked_poses.csv` | Top-10 poses with hybrid score, Vina score, AD4 score, entropy correction, cluster ID |
-| `best_pose.pdb` | Centroid of the top-ranked cluster (not necessarily the top individual scorer) |
-| `cluster_summary.csv` | Per-cluster mean, std, and 95% CI of hybrid score |
-| `convergence_plot.png` | Running mean ± σ of hybrid score vs. number of poses N |
-| `silhouette_plot.png` | Cluster quality scores across cluster counts k |
-| `run_metadata.json` | Full provenance: git SHA, RAPiDock SHA, all CLI args, seeds, software versions, receptor SHA256 |
-| `poses/pose_*.pdb` | All N raw pose PDB files from Stage 1 |
-| `pdbqt/pose_*.pdbqt` | PDBQT versions of all poses (intermediate; used by Vina/AD4) |
+| `ranked_poses.csv` | Top-10 poses sorted by hybrid score. Columns: `hybrid_score`, `vina_score`, `ad4_score`, `entropy_correction`, `mmgbsa_dg` (when `--refine-topk` used), `cluster_id`, `pose_filename` |
+| `best_pose.pdb` | Best pose by MM-GBSA ΔG (if refined) or best cluster centroid by hybrid score |
+| `cluster_summary.csv` | Per-cluster mean, std, 95% CI, and best pose index |
+| `convergence_plot.png` | Running mean ± σ of hybrid score vs. number of top-N poses |
+| `silhouette_plot.png` | Silhouette score vs. cluster count k; k_optimal annotated |
+| `run_metadata.json` | Full provenance: git SHA, RAPiDock SHA, CLI args, seeds, software versions, receptor SHA256 |
+| `poses/pose_*.pdb` | All N raw pose PDBs from Stage 1 |
+| `poses_minimized/` | OpenMM clash-relieved poses (Stage 1.5, when minimization enabled) |
+| `pdbqt/pose_*.pdbqt` | PDBQT versions of all poses (used by Vina/AD4) |
+
+---
+
+## Scoring Methodology
+
+### Hybrid score formula
+
+```
+hybrid_score = vina_score
+             + ensemble_z_score(ad4) × w_ad4       # when beta=0 (calibration mode)
+             + alpha × (n_contact + gamma × n_non_contact)
+```
+
+- **`vina_score`**: AutoDock Vina `--score_only` output (kcal/mol). Captures shape, hydrophobics, H-bonds without partial charges.
+- **`ad4` term**: AutoDock4 scoring (`--scoring ad4`) adds Gasteiger electrostatics — the explicit charge signal Vina lacks. Integrated via within-run z-score normalization to avoid absolute-scale calibration artifacts.
+- **Entropy correction**: α × n_effective_residues penalizes conformational entropy lost upon binding. `n_effective = n_contact + γ × n_non_contact` where contacts are residues with ≥1 heavy atom within 5Å of the receptor. α and γ calibrated by L-BFGS-B on PepSet crystal poses.
+
+### MM-GBSA (optional, `--refine-topk K`)
+
+Selects one representative per cluster (best hybrid_score pose), takes the top-K clusters by mean score, and computes:
+
+```
+ΔG_bind = E(complex) − E(receptor) − E(peptide)
+```
+
+All energies evaluated with AMBER ff14SB + GBn2 implicit solvent in OpenMM. Single-trajectory approximation: minimize the complex once, extract component energies from the same minimized geometry. Runs on CUDA GPU (mixed precision) by default; automatic fallback to CPU.
+
+### Calibration
+
+Current calibration (`data/calibration.json`):
+
+| Parameter | Value | Meaning |
+|-----------|-------|---------|
+| `alpha` | 0.1 kcal/mol/residue | Entropy coefficient |
+| `beta` | 0.0 | Direct AD4 blend (0 = ensemble z-score mode) |
+| `gamma` | 0.2 | Non-contact residue weight |
+| `ensemble_ad4_weight` | 0.3 | AD4 z-score blend weight |
+| `pearson_r` | 0.860 | Training set correlation (6 PepSet complexes, crystal poses) |
+
+Calibration was performed on crystal-quality poses (upper bound on scoring accuracy). Full pipeline (RAPiDock → scoring) benchmark r on the 10-complex held-out test set is pending the first full GPU run.
 
 ---
 
 ## Running Tests
 
 ```bash
-# Fast unit tests (no GPU, no ADFRsuite required)
+# Fast unit tests — no GPU, no ADFRsuite required (~6 s)
 pytest
 
-# Include slow integration test (MDM2/p53, requires score-env stack)
+# Full integration suite — requires score-env, Vina, ADFRsuite (~38 min)
 pytest -m slow
 
 # With coverage report
 pytest --cov=hybridock_pep
 
-# Specific module tests
+# Specific module
 pytest tests/test_scoring.py -x -v
 ```
 
-The integration test (`pytest -m slow`) runs the full pipeline on the MDM2/p53 complex
-(PDB 2OY2, peptide ETFSDLWKLLPE) using fixture poses in `tests/fixtures/mdm2_p53/`.
-Expected: corrected ΔG < −3 kcal/mol. If not, something in the rescoring pipeline is broken.
+**Integration test baseline (MDM2/p53):** PDB 1YCR, peptide ETFSDLWKLLPE, K_d ≈ 0.6 µM. Expected hybrid score < −3 kcal/mol. If it fails, the rescoring pipeline is broken.
+
+**PepSet crystal-pose suite:** 11 protein families (PDZ, SH2, bromodomain, calmodulin, BCL-2, MDM2, kinase, amphipathic helix, ARM repeat, SH3, WW). All Vina and AD4 scores must be negative on crystal-quality poses. Last run: **45/45 passed**.
 
 ---
 
@@ -167,12 +253,14 @@ Expected: corrected ΔG < −3 kcal/mol. If not, something in the rescoring pipe
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `ModuleNotFoundError: No module named 'pdbfixer'` | Running tests in base Python env, not score-env | `conda activate score-env` then re-run pytest |
-| `RuntimeError: CUDA device capability 12.0 required` | Wrong PyTorch/CUDA build for Blackwell GPU | Use PyTorch 2.7 + CUDA 12.8; see INSTALL.md Step 2 |
-| `FileNotFoundError: prepare_receptor` | ADFRsuite not on PATH | Download ADFRsuite, add `ADFRsuite_x86_64Linux_1.0/bin` to PATH |
-| `pulchra: command not found` or wrong version | PULCHRA not built from source or wrong version | Build PULCHRA v3.04 from source; v3.07 has aromatic side-chain bug (CLAUDE.md §2.3) |
-| `ImportError: cannot import name 'Vina'` | Using score-env commands inside rapidock env | Always run `hybridock-pep` commands in score-env; the rapidock env is only for Stage 1 subprocess |
-| Stage 1 fails on macOS | No CUDA on Apple Silicon | Use `--input-poses` to skip Stage 1; generate poses on a CUDA machine |
+| `ModuleNotFoundError: No module named 'pdbfixer'` | Running in base Python env | `conda activate score-env` then re-run |
+| `RuntimeError: CUDA device capability 12.0 required` | Wrong PyTorch/CUDA build | Use PyTorch 2.7 + CUDA 12.8; see INSTALL.md |
+| `FileNotFoundError: prepare_receptor` | ADFRsuite not on PATH | Add `ADFRsuite_x86_64Linux_1.0/bin` to PATH |
+| `pulchra: command not found` or wrong version | PULCHRA not v3.04 | Build v3.04 from source; v3.07 has aromatic side-chain bug |
+| `ImportError: cannot import name 'Vina'` | Inside rapidock env | Always run `hybridock-pep` commands in score-env |
+| Stage 1 fails on macOS | No CUDA on Apple Silicon | Use `--input-poses` to skip Stage 1 |
+| MM-GBSA crashes with CUDA error | OpenMM/Blackwell incompatibility | Add `--mmgbsa-cpu-only` flag |
+| autogrid4 very slow on large peptides | Grid computation is O(N_atoms × N_grid) | Use `--box 25` instead of 40; or skip AD4 with `--scoring vina` |
 
 ---
 
@@ -180,18 +268,22 @@ Expected: corrected ΔG < −3 kcal/mol. If not, something in the rescoring pipe
 
 HybriDock-Pep source code is released under the [MIT License](LICENSE).
 
-Third-party dependencies retain their own licenses. Notable:
+Third-party dependencies retain their own licenses:
 - Meeko (LGPL-2.1) — used via dynamic import; LGPL library exception applies
-- AutoDock Vina (Apache-2.0) — see [pypi.org/project/vina](https://pypi.org/project/vina/)
+- AutoDock Vina (Apache-2.0)
 - ADFRsuite — non-redistributable; download from <https://ccsb.scripps.edu/adfrsuite/downloads/>
+- OpenMM (MIT)
+- RAPiDock — see upstream repository license
 
 See [docs/licenses.txt](docs/licenses.txt) for the full dependency audit.
+
+---
 
 ## Citation
 
 If you use HybriDock-Pep in your work, please cite:
 
-> HybriDock-Pep: Hybrid ML + Physics Peptide Docking.
+> HybriDock-Pep: Hybrid AI + Physics Peptide Docking.
 > Denmark High School iGEM Team 2026.
 > https://github.com/[repo-url]
 

@@ -115,7 +115,9 @@ def plot_silhouette(
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("Silhouette score")
     ax.set_title("Silhouette score vs. number of clusters")
-    ax.legend()
+    if any(artist.get_label() and not artist.get_label().startswith("_")
+           for artist in ax.get_children()):
+        ax.legend()
     fig.tight_layout()
     fig.savefig(output_path, dpi=dpi)
     plt.close(fig)  # CRITICAL: release memory; avoids ResourceWarning in tests
