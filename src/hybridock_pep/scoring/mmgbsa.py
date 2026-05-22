@@ -54,7 +54,7 @@ def _get_platform(force_cpu: bool):
 
     for name, props in [
         ("CUDA", {"DeviceIndex": "0", "Precision": "mixed"}),
-        ("OpenCL", {"DeviceIndex": "0", "Precision": "mixed"}),
+        ("OpenCL", {"DeviceIndex": "0", "Precision": "single"}),
     ]:
         try:
             platform = openmm.Platform.getPlatformByName(name)
@@ -125,6 +125,7 @@ def _context_energy_kcal(
                 platform.getName(), exc,
             )
             cpu = openmm.Platform.getPlatformByName("CPU")
+            integrator = _make_integrator()  # fresh integrator; prior one may be bound to failed ctx
             ctx = openmm.Context(system, integrator, cpu, {})
         else:
             raise
