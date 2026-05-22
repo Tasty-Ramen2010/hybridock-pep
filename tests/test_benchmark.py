@@ -150,6 +150,68 @@ class TestPdbIdValidation:
         assert bm.validate_pdb_id("3EQS ") is False
 
 
+class TestExtractBestScore:
+    """Verify extract_best_score() handles hybrid vs vina column correctly."""
+
+    def _import_benchmark(self) -> object:
+        if _SCRIPTS_DIR not in sys.path:
+            sys.path.insert(0, _SCRIPTS_DIR)
+        import benchmark  # noqa: PLC0415
+        return benchmark
+
+    def _write_ranked_csv(self, tmp_path: Path, rows: list[dict]) -> Path:
+        p = tmp_path / "ranked_poses.csv"
+        fieldnames = list(rows[0].keys())
+        with p.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        return p
+
+    def test_hybrid_score_returns_first_row(self, tmp_path: Path) -> None:
+        """hybrid_score: row 0 is the minimum — return it directly."""
+        bm = self._import_benchmark()
+        rows = [
+            {"hybrid_score": "-10.0", "vina_score": "-7.0"},
+            {"hybrid_score": "-9.0", "vina_score": "-8.5"},
+            {"hybrid_score": "-8.0", "vina_score": "-9.2"},
+        ]
+        csv_path = self._write_ranked_csv(tmp_path, rows)
+        assert bm.extract_best_score(csv_path, "hybrid_score") == pytest.approx(-10.0)
+
+    def test_vina_score_scans_all_rows(self, tmp_path: Path) -> None:
+        """vina_score: best vina may not be row 0 (sorted by hybrid, not vina)."""
+        bm = self._import_benchmark()
+        # Row 0 has hybrid_score=-10.0 but vina_score=-7.0; best vina is row 2 at -9.2
+        rows = [
+            {"hybrid_score": "-10.0", "vina_score": "-7.0"},
+            {"hybrid_score": "-9.0", "vina_score": "-8.5"},
+            {"hybrid_score": "-8.0", "vina_score": "-9.2"},
+        ]
+        csv_path = self._write_ranked_csv(tmp_path, rows)
+        assert bm.extract_best_score(csv_path, "vina_score") == pytest.approx(-9.2)
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        bm = self._import_benchmark()
+        assert bm.extract_best_score(tmp_path / "nonexistent.csv", "hybrid_score") is None
+
+    def test_empty_csv_returns_none(self, tmp_path: Path) -> None:
+        bm = self._import_benchmark()
+        p = tmp_path / "ranked_poses.csv"
+        p.write_text("hybrid_score,vina_score\n")
+        assert bm.extract_best_score(p, "hybrid_score") is None
+
+    def test_vina_score_with_bad_values_skipped(self, tmp_path: Path) -> None:
+        """Rows with non-numeric vina_score are skipped; valid rows still scanned."""
+        bm = self._import_benchmark()
+        rows = [
+            {"hybrid_score": "-10.0", "vina_score": "N/A"},
+            {"hybrid_score": "-9.0", "vina_score": "-8.5"},
+        ]
+        csv_path = self._write_ranked_csv(tmp_path, rows)
+        assert bm.extract_best_score(csv_path, "vina_score") == pytest.approx(-8.5)
+
+
 class TestGetPeptideCenter:
     """Verify get_peptide_center() computes the mean Ca position."""
 

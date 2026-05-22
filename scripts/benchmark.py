@@ -133,9 +133,12 @@ def download_pdb(pdb_id: str, dest: Path) -> bool:
 
 
 def extract_best_score(ranked_csv: Path, column: str) -> Optional[float]:
-    """Extract the score of the top-ranked pose from ranked_poses.csv.
+    """Extract the best score for a given column from ranked_poses.csv.
 
-    The top-ranked pose is the first row (lowest hybrid_score after sorting).
+    ranked_poses.csv is sorted by hybrid_score ascending, so row 0 is always
+    the best hybrid pose. For other columns (e.g. vina_score), contact-based
+    entropy correction means the top-hybrid pose is not necessarily the
+    top-vina pose — scan all rows and return the minimum.
 
     Args:
         ranked_csv: Path to ranked_poses.csv written by the dock run.
@@ -151,10 +154,20 @@ def extract_best_score(ranked_csv: Path, column: str) -> Optional[float]:
         rows = list(reader)
     if not rows:
         return None
-    try:
-        return float(rows[0][column])
-    except (KeyError, ValueError):
-        return None
+    if column == "hybrid_score":
+        # CSV is sorted by hybrid_score ascending; row 0 is the minimum.
+        try:
+            return float(rows[0][column])
+        except (KeyError, ValueError):
+            return None
+    # For any other column (e.g. vina_score): scan all rows for the minimum.
+    scores: list[float] = []
+    for row in rows:
+        try:
+            scores.append(float(row[column]))
+        except (KeyError, ValueError):
+            continue
+    return min(scores) if scores else None
 
 
 def run_complex(
@@ -433,9 +446,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--n-samples",
         dest="n_samples",
         type=int,
-        default=500,
+        default=100,
         metavar="N",
-        help="Number of RAPiDock sampling passes per complex (default: 500).",
+        help="Number of RAPiDock sampling passes per complex (default: 100).",
     )
     parser.add_argument(
         "--calibration",
@@ -537,18 +550,24 @@ def main(args: argparse.Namespace | None = None) -> None:
     from scipy.stats import pearsonr  # lazy — score-env
 
     ok_results = [r for r in results if r["status"] == "ok"]
-    if len(ok_results) >= 2:
-        hybrid_scores = [-r["hybrid_score"] for r in ok_results]
-        exp_pkds = [r["experimental_pkd"] for r in ok_results]
-        r_hybrid, _ = pearsonr(hybrid_scores, exp_pkds)
-        vina_ok = [r for r in ok_results if r["vina_score"] == r["vina_score"]]
-        if len(vina_ok) >= 2:
-            r_vina, _ = pearsonr(
-                [-r["vina_score"] for r in vina_ok],
-                [r["experimental_pkd"] for r in vina_ok],
-            )
-        else:
-            r_vina = float("nan")
+    # Use the same subset for both r_hybrid and r_vina so the Δ improvement
+    # comparison is apples-to-apples. A complex missing either score is excluded.
+    both_ok = [
+        r for r in ok_results
+        if r["hybrid_score"] == r["hybrid_score"] and r["vina_score"] == r["vina_score"]
+    ]
+    if len(both_ok) >= 2:
+        exp_pkds_both = [r["experimental_pkd"] for r in both_ok]
+        r_hybrid, _ = pearsonr([-r["hybrid_score"] for r in both_ok], exp_pkds_both)
+        r_vina, _ = pearsonr([-r["vina_score"] for r in both_ok], exp_pkds_both)
+    elif len(ok_results) >= 2:
+        # Vina scores unavailable for the run; report hybrid only.
+        _log.warning("Vina scores missing for some complexes; r_vina not computed")
+        r_hybrid, _ = pearsonr(
+            [-r["hybrid_score"] for r in ok_results],
+            [r["experimental_pkd"] for r in ok_results],
+        )
+        r_vina = float("nan")
     else:
         _log.warning("Fewer than 2 successful complexes; Pearson r not computed")
         r_hybrid = float("nan")
