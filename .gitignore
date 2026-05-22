@@ -94,3 +94,4 @@ datasets/cache/
 # RAPiDock copies (large external repo — not redistributed)
 third_party/RAPiDock/
 third_party/RAPiDock_finetuned/
+coverage.json

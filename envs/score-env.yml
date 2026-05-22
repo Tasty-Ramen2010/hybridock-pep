@@ -18,3 +18,6 @@ dependencies:
       - "vina>=1.2.5"
       - "gemmi>=0.6"
       - "rcsbsearch==0.2.3"
+      - "streamlit>=1.35"
+      - "pandas>=2.0"
+      - "py3Dmol>=2.0"
