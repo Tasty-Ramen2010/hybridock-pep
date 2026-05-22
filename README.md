@@ -6,7 +6,7 @@ rescoring via AutoDock Vina, AutoDock4 electrostatics, and a backbone entropy co
 producing ranked poses with a calibrated ΔG estimate more accurate than Vina alone.
 
 **Target application:** Malaria rapid-diagnostic peptide LISDAELEAIFEADC targeting PfLDH
-(PDB 1CZB) over hLDH (PDB 1I0Z) — providing binding selectivity evidence for iGEM 2026.
+(PDB 1T2D) over hLDH (PDB 1I0Z) — providing binding selectivity evidence for iGEM 2026.
 
 ---
 
@@ -73,7 +73,7 @@ bash scripts/smoke_test.sh
 ```bash
 hybridock-pep dock \
     --peptide LISDAELEAIFEADC \
-    --receptor receptors/1czb.pdb \
+    --receptor data/pdbs/1t2d.pdb \
     --site 22.5 14.1 38.7 \
     --box 20 \
     --n-samples 100 \
@@ -118,8 +118,8 @@ hybridock-pep benchmark \
 
 ```bash
 hybridock-pep prep \
-    --receptor receptors/1czb.pdb \
-    --output-dir receptors/
+    --receptor data/pdbs/1t2d.pdb \
+    --output-dir data/pdbs/
 ```
 
 ---
