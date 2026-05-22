@@ -67,6 +67,77 @@ def _make_config(tmp_path: Path):
 # ANAL-01: Clustering
 # ---------------------------------------------------------------------------
 
+class TestKabschRMSD:
+    """Tests for _kabsch_rmsd() — Kabsch superposition RMSD (ANAL-01 fix)."""
+
+    def test_identical_sets_zero_rmsd(self) -> None:
+        """Identical coordinate sets → RMSD = 0."""
+        from hybridock_pep.analysis.clustering import _kabsch_rmsd
+
+        p = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        assert _kabsch_rmsd(p, p.copy()) == pytest.approx(0.0, abs=1e-8)
+
+    def test_pure_translation_zero_rmsd(self) -> None:
+        """Same shape, pure translation → Kabsch centres both → RMSD = 0."""
+        from hybridock_pep.analysis.clustering import _kabsch_rmsd
+
+        p = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float64)
+        q = p + np.array([10.0, -5.0, 3.0])
+        assert _kabsch_rmsd(p, q) == pytest.approx(0.0, abs=1e-8)
+
+    def test_rotation_zero_rmsd(self) -> None:
+        """90° rotation about Z → Kabsch finds optimal rotation → RMSD = 0."""
+        from hybridock_pep.analysis.clustering import _kabsch_rmsd
+
+        p = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
+                      [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]], dtype=np.float64)
+        # 90° rotation about Z: (x,y,z) → (-y, x, z)
+        R = np.array([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])
+        q = (R @ p.T).T
+        assert _kabsch_rmsd(p, q) == pytest.approx(0.0, abs=1e-8)
+
+    def test_structural_difference_nonzero_rmsd(self) -> None:
+        """Moving one atom but not others produces RMSD > 0 after Kabsch."""
+        from hybridock_pep.analysis.clustering import _kabsch_rmsd
+
+        p = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0],
+                      [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
+        q = p.copy()
+        q[0, 0] += 2.0  # shift only atom 0 — not a rigid body motion
+        rmsd = _kabsch_rmsd(p, q)
+        assert rmsd > 0.1, f"Structural difference must give RMSD > 0, got {rmsd}"
+
+    def test_kabsch_strictly_less_than_raw_rmsd_under_rotation(self) -> None:
+        """Kabsch RMSD ≤ raw RMSD; strictly less when a rotation helps."""
+        from hybridock_pep.analysis.clustering import _kabsch_rmsd
+
+        rng = np.random.default_rng(42)
+        p = rng.standard_normal((10, 3))
+        # Rotate q by 45° about Z — raw RMSD will be large, Kabsch should find 0
+        angle = np.pi / 4
+        R = np.array([[np.cos(angle), -np.sin(angle), 0.],
+                      [np.sin(angle),  np.cos(angle), 0.],
+                      [0., 0., 1.]])
+        q = (R @ p.T).T
+
+        kabsch = _kabsch_rmsd(p, q)
+        raw = float(np.sqrt(np.mean(np.sum((p - q) ** 2, axis=1))))
+        assert kabsch < raw, "Kabsch RMSD must be less than raw RMSD after rotation"
+        assert kabsch == pytest.approx(0.0, abs=1e-8)
+
+    def test_rmsd_matrix_with_kabsch_symmetric(self, tmp_path: Path) -> None:
+        """_build_rmsd_matrix uses Kabsch: matrix is symmetric and zero diagonal."""
+        from hybridock_pep.analysis.clustering import _build_rmsd_matrix
+
+        poses = _make_scored_poses(tmp_path)
+        ca_arrays = [p.ca_coords for p in poses]
+        full_indices = [np.arange(5) for _ in poses]
+        dist = _build_rmsd_matrix(ca_arrays, full_indices)
+
+        assert np.allclose(dist, dist.T, atol=1e-10)
+        assert np.allclose(np.diag(dist), 0.0, atol=1e-10)
+
+
 class TestClustering:
     """Tests for cluster_poses(), ClusterResult, RMSD matrix, silhouette loop (ANAL-01)."""
 

@@ -124,15 +124,54 @@ def _contact_zone_indices(
     return np.where(np.any(dists < cutoff, axis=1))[0]
 
 
+def _kabsch_rmsd(p: np.ndarray, q: np.ndarray) -> float:
+    """RMSD between two coordinate sets after optimal Kabsch superposition.
+
+    Finds the rotation R that minimises ||p_centred - R @ q_centred||_F via
+    SVD of the cross-covariance matrix, handles reflections by checking
+    det(R), then returns the RMSD over all N atom pairs.
+
+    For N < 3 the rotation is under-determined; falls back to translation-only
+    alignment (centre both sets, compute RMSD) which is correct for 1–2 atoms.
+
+    Args:
+        p: (N, 3) float64 reference coordinates.
+        q: (N, 3) float64 mobile coordinates.
+
+    Returns:
+        RMSD in Angstroms after optimal superposition.
+    """
+    p_c = p - p.mean(axis=0)
+    q_c = q - q.mean(axis=0)
+
+    if len(p) < 3:
+        diff = p_c - q_c
+        return float(np.sqrt(np.mean(np.sum(diff ** 2, axis=1))))
+
+    H = p_c.T @ q_c  # (3, 3) cross-covariance; H = U S Vt in numpy SVD
+    U, _, Vt = np.linalg.svd(H)
+
+    # Correct for improper rotation (reflection): R_opt = U diag(1,1,d) Vt
+    # where d = det(U Vt) forces det(R) = 1.
+    d = np.linalg.det(U @ Vt)
+    R = U @ np.diag([1.0, 1.0, d]) @ Vt  # (3, 3) optimal rotation
+
+    q_rot = q_c @ R.T  # apply rotation: q_rot[i] = R q_c[i] in row-vector form
+    diff = p_c - q_rot
+    return float(np.sqrt(np.mean(np.sum(diff ** 2, axis=1))))
+
+
 def _build_rmsd_matrix(
     ca_arrays: list[np.ndarray],
     contact_indices: list[np.ndarray],
 ) -> np.ndarray:
-    """Build a symmetric pairwise RMSD distance matrix over contact-zone Cα.
+    """Build a symmetric pairwise Kabsch-RMSD distance matrix over contact-zone Cα.
 
     For each pose pair (i, j), RMSD is computed over the intersection of
-    their contact-zone indices. If the intersection has fewer than 3 residues,
-    falls back to full-peptide indices (D-02).
+    their contact-zone indices after optimal Kabsch superposition. If the
+    intersection has fewer than 3 residues, falls back to full-peptide
+    indices (D-02). Kabsch alignment removes orientation bias introduced by
+    the diffusion model's stochastic global placement.
 
     Args:
         ca_arrays: List of (n_residues, 3) float64 arrays, one per pose.
@@ -155,7 +194,7 @@ def _build_rmsd_matrix(
 
             coords_i = ca_arrays[i][common]
             coords_j = ca_arrays[j][common]
-            rmsd = float(np.sqrt(np.mean(np.sum((coords_i - coords_j) ** 2, axis=1))))
+            rmsd = _kabsch_rmsd(coords_i, coords_j)
             dist[i, j] = rmsd
             dist[j, i] = rmsd
 

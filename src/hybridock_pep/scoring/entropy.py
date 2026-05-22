@@ -100,9 +100,16 @@ def load_calibration(path: Path) -> dict:
             "γ is the non-contact residue entropy fraction. Check calibration file."
         )
 
+    ensemble_ad4_weight = float(cal.get("ensemble_ad4_weight", 0.0))
+    if not (0.0 <= ensemble_ad4_weight <= 1.0):
+        raise ValueError(
+            f"ensemble_ad4_weight={ensemble_ad4_weight:.3f} outside [0.0, 1.0]. "
+            "Check calibration file."
+        )
+
     _log.debug(
-        "Loaded calibration: alpha=%.3f beta=%.3f gamma=%.3f from %s",
-        alpha, beta, gamma, path,
+        "Loaded calibration: alpha=%.3f beta=%.3f gamma=%.3f ensemble_ad4_weight=%.3f from %s",
+        alpha, beta, gamma, ensemble_ad4_weight, path,
     )
     return cal
 
@@ -500,3 +507,106 @@ def fit_calibration(
         "entropy_mode": entropy_mode,
         "gamma": gamma,
     }
+
+
+def apply_ensemble_hybrid_scores(
+    poses: list[ScoredPose],
+    *,
+    alpha: float,
+    n_residues: int,
+    ad4_blend_weight: float = 0.3,
+    gamma: float = 0.0,
+) -> None:
+    """Apply hybrid scores using within-ensemble z-score normalization of AD4.
+
+    Standard per-pose scoring (apply_hybrid_score) blends Vina and AD4 using
+    absolute-scale calibration (beta). When beta calibrates to 0 — which
+    happens when crystal-pose Vina scores already overshoot experimental ΔG
+    — AD4 contributes nothing even though it carries real electrostatic signal.
+
+    This function instead normalises Vina and AD4 scores to z-scores within
+    the current pose ensemble, blends the z-scores with ad4_blend_weight, then
+    back-projects to kcal/mol using the Vina distribution parameters. The
+    physical motivation: AD4 (Gasteiger charges) reliably ranks poses by
+    electrostatic complementarity *relative to each other*, even when its
+    absolute ΔG is poorly calibrated on peptides. Z-score normalisation
+    separates the ranking signal from the absolute-scale calibration problem.
+
+    Only non-anomalous AD4 scores (is_ad4_anomaly=False) enter the AD4
+    distribution. Poses with anomalous or missing AD4 scores fall back to
+    Vina-only z-score for that pose.
+
+    Modifies poses in-place (sets entropy_correction and hybrid_score).
+
+    Args:
+        poses: Scored poses; each must have vina_score set.
+        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
+        n_residues: Full peptide length.
+        ad4_blend_weight: Fraction of the z-score blend assigned to AD4 [0, 1].
+            Default 0.3 (30% AD4, 70% Vina). Set to 0 to disable AD4.
+        gamma: Non-contact residue entropy fraction [0, 1]. Default 0.0.
+
+    Raises:
+        RuntimeError: If no poses have valid Vina scores.
+    """
+    vina_vals = [p.vina_score for p in poses if p.vina_score is not None]
+    if not vina_vals:
+        raise RuntimeError(
+            "apply_ensemble_hybrid_scores: no poses with valid Vina scores"
+        )
+
+    v_mean = float(np.mean(vina_vals))
+    v_std = float(np.std(vina_vals)) if len(vina_vals) > 1 else 1.0
+    if v_std == 0.0:
+        v_std = 1.0
+
+    ad4_vals = [
+        p.ad4_score
+        for p in poses
+        if p.ad4_score is not None and not p.is_ad4_anomaly
+    ]
+    has_ad4 = len(ad4_vals) >= 2 and ad4_blend_weight > 0.0
+    a_mean = a_std = 0.0
+    if has_ad4:
+        a_mean = float(np.mean(ad4_vals))
+        a_std = float(np.std(ad4_vals)) if len(ad4_vals) > 1 else 1.0
+        if a_std == 0.0:
+            a_std = 1.0
+        _log.info(
+            "Ensemble scoring: v_mean=%.3f v_std=%.3f a_mean=%.3f a_std=%.3f "
+            "ad4_weight=%.2f n_valid_ad4=%d",
+            v_mean, v_std, a_mean, a_std, ad4_blend_weight, len(ad4_vals),
+        )
+    else:
+        _log.info(
+            "Ensemble scoring: Vina-only (ad4_blend_weight=%.2f n_valid_ad4=%d)",
+            ad4_blend_weight, len(ad4_vals),
+        )
+
+    for pose in poses:
+        if pose.vina_score is None:
+            continue
+
+        n_contact = pose.n_contact_residues if pose.n_contact_residues is not None else n_residues
+        n_non_contact = max(0, n_residues - n_contact)
+        n_eff = n_contact + gamma * n_non_contact
+        pose.entropy_correction = alpha * n_eff
+
+        z_vina = (pose.vina_score - v_mean) / v_std
+
+        if has_ad4 and pose.ad4_score is not None and not pose.is_ad4_anomaly:
+            z_ad4 = (pose.ad4_score - a_mean) / a_std
+            blended_z = (1.0 - ad4_blend_weight) * z_vina + ad4_blend_weight * z_ad4
+        else:
+            blended_z = z_vina
+
+        pose.hybrid_score = v_mean + v_std * blended_z + pose.entropy_correction
+        _log.debug(
+            "Pose %d: vina=%.3f hybrid=%.3f (z_v=%.3f%s ec=%.3f)",
+            pose.pose_idx,
+            pose.vina_score,
+            pose.hybrid_score,
+            z_vina,
+            f" z_a={z_ad4:.3f}" if (has_ad4 and pose.ad4_score is not None and not pose.is_ad4_anomaly) else "",
+            pose.entropy_correction,
+        )

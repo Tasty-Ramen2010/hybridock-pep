@@ -15,6 +15,7 @@ from hybridock_pep.scoring.vina import score_vina_batch
 from hybridock_pep.scoring.ad4 import score_ad4_batch
 from hybridock_pep.scoring.entropy import (
     apply_hybrid_score,
+    apply_ensemble_hybrid_scores,
     load_calibration,
     load_receptor_heavy_atom_coords,
     count_contact_residues,
@@ -210,16 +211,39 @@ def run_dock(
     alpha: float = calibration["alpha"]
     beta: float = calibration["beta"]
     gamma: float = calibration.get("gamma", 0.0)
+    ensemble_ad4_weight: float = calibration.get("ensemble_ad4_weight", 0.0)
     n_residues = len(config.peptide_sequence)
 
-    for pose in scored_poses:
-        apply_hybrid_score(
-            pose,
+    # Use ensemble z-score AD4 blending when beta=0 (calibration degenerate on
+    # crystal poses) but AD4 scores are available and ensemble_ad4_weight > 0.
+    # This re-integrates AD4's electrostatic signal via within-run normalization
+    # instead of absolute-scale blending. Falls back to per-pose when beta > 0
+    # (properly calibrated) or ensemble_ad4_weight = 0 (disabled).
+    use_ensemble = run_ad4 and ensemble_ad4_weight > 0.0 and beta == 0.0
+    if use_ensemble:
+        apply_ensemble_hybrid_scores(
+            scored_poses,
             alpha=alpha,
-            beta=beta,
             n_residues=n_residues,
-            n_contact_residues=pose.n_contact_residues,
+            ad4_blend_weight=ensemble_ad4_weight,
             gamma=gamma,
+        )
+        logger.info(
+            "Hybrid scoring: ensemble z-score mode (AD4 weight=%.2f, alpha=%.3f)",
+            ensemble_ad4_weight, alpha,
+        )
+    else:
+        for pose in scored_poses:
+            apply_hybrid_score(
+                pose,
+                alpha=alpha,
+                beta=beta,
+                n_residues=n_residues,
+                n_contact_residues=pose.n_contact_residues,
+                gamma=gamma,
+            )
+        logger.info(
+            "Hybrid scoring: per-pose mode (beta=%.3f, alpha=%.3f)", beta, alpha,
         )
 
     logger.info("Stage 2 complete: %d poses scored", len(scored_poses))
