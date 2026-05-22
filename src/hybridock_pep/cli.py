@@ -77,7 +77,21 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="K",
-        help="Top-K poses for MM-GBSA refinement (v2; validated but not dispatched in v1).",
+        help=(
+            "Run MM-GBSA (AMBER ff14SB + GBn2) on the top-K cluster representative poses "
+            "after hybrid scoring. Re-ranks those K poses by ΔG_bind. Requires OpenMM. "
+            "Runs on GPU (CUDA) by default; use --mmgbsa-cpu-only to force CPU."
+        ),
+    )
+    p_dock.add_argument(
+        "--mmgbsa-cpu-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Force MM-GBSA refinement to use OpenMM CPU platform instead of CUDA/OpenCL. "
+            "Slower (~30–60 s/pose) but avoids GPU driver issues. "
+            "Has no effect unless --refine-topk is set."
+        ),
     )
     p_dock.add_argument(
         "--output-dir",
@@ -246,6 +260,8 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             output_dir=Path(args.output_dir).resolve(),
             verbosity=args.verbose,
             minimize_poses=not args.no_minimize,
+            refine_topk=args.refine_topk,
+            mmgbsa_cpu_only=args.mmgbsa_cpu_only,
         )
     except ValidationError as exc:
         parser.error(str(exc))
@@ -256,13 +272,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     )
     calibration_path = Path(args.calibration).resolve()
 
-    if args.refine_topk is not None:
-        logger.info(
-            "--refine-topk %d noted; MM-GBSA refinement is v2 scope and will not run.",
-            args.refine_topk,
-        )
-
-    from hybridock_pep import driver  # imported late — driver.py is Wave 2 scope
+    from hybridock_pep import driver
     scored_poses, _cluster_result = driver.run_dock(
         config=config,
         input_poses_dir=input_poses_dir,
