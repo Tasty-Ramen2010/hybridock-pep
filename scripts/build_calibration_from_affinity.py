@@ -238,11 +238,11 @@ def main() -> None:
     if "experimental_pkd" not in combined.columns:
         combined["experimental_pkd"] = None
     if "kd_nM" in combined.columns:
+        import math as _math
         mask = combined["experimental_pkd"].isna() & combined["kd_nM"].notna()
-        combined.loc[mask, "experimental_pkd"] = (
-            -combined.loc[mask, "kd_nM"].apply(
-                lambda x: None if x <= 0 else __import__("math").log10(x * 1e-9)
-            ) * -1
+        # pKd = -log10(Kd_in_M) = -log10(kd_nM * 1e-9) = 9 - log10(kd_nM)
+        combined.loc[mask, "experimental_pkd"] = combined.loc[mask, "kd_nM"].apply(
+            lambda x: None if pd.isna(x) or x <= 0 else -_math.log10(x * 1e-9)
         )
 
     # Filter to valid pKd range
