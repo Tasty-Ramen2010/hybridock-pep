@@ -2,13 +2,13 @@
 
 Implements collect-all-failures batch semantics: all files are processed regardless
 of individual failures. Malformed PDB files produce PoseFailure(stage="parsing")
-records; the batch never raises on per-pose errors (D-12).
+records; the batch never raises on per-pose errors.
 
 Cα coordinates are extracted at parse time and stored in PoseRecord.ca_coords
 (shape [n_residues, 3], dtype float64) so downstream clustering can access them
-in O(1) without re-reading disk (D-13).
+in O(1) without re-reading disk.
 
-Sequence is extracted per D-14 (locked decision): SEQRES records first, falling
+Sequence is extracted  (locked decision): SEQRES records first, falling
 back to ATOM record residue names when SEQRES is absent.  MDAnalysis-written PDB
 files (RAPiDock output) typically lack SEQRES records (Pitfall 5 in RESEARCH.md),
 so the ATOM fallback is the common production path.  SEQRES-first is still required
@@ -50,7 +50,7 @@ def parse_poses(
     """Parse all pose_*.pdb files in poses_dir into PoseRecord objects.
 
     All poses are processed regardless of individual failures.  Per-pose
-    exceptions are caught and recorded as PoseFailure records (D-12).
+    exceptions are caught and recorded as PoseFailure records.
     The batch never raises.
 
     Args:
@@ -111,7 +111,7 @@ def _parse_single_pose(pose_idx: int, pdb_path: Path) -> PoseRecord:
     Uses Biopython PDBParser (QUIET=True) to suppress REMARK/SSBOND warnings
     that RAPiDock PDB files frequently trigger.
 
-    Sequence extraction follows D-14 (locked decision):
+    Sequence extraction (locked decision):
     1. Try SEQRES records first (lines beginning with "SEQRES" in the raw file).
     2. If SEQRES present and parseable → use as sequence.
     3. If SEQRES absent or unparseable → fall back to ATOM record residue names
@@ -164,7 +164,7 @@ def _parse_single_pose(pose_idx: int, pdb_path: Path) -> PoseRecord:
 
     ca_coords = np.array(ca_coords_list, dtype=np.float64)  # shape [n_res, 3]
 
-    # D-14: SEQRES-first sequence extraction with ATOM fallback
+    # SEQRES-first sequence extraction with ATOM fallback
     sequence = _extract_sequence_seqres_first(pdb_path, model, three_to_one)
 
     return PoseRecord(
@@ -180,7 +180,7 @@ def _extract_sequence_seqres_first(
     model: object,
     three_to_one: object,
 ) -> str:
-    """Extract peptide sequence per D-14: SEQRES first, ATOM fallback.
+    """Extract peptide sequence per : SEQRES first, ATOM fallback.
 
     Args:
         pdb_path: Path to PDB file (for raw SEQRES line parsing).
@@ -193,7 +193,7 @@ def _extract_sequence_seqres_first(
     Raises:
         ValueError: If neither SEQRES nor ATOM records yield any residues.
     """
-    # --- Step 1: Try SEQRES records (D-14 primary path) ---
+    # --- Step 1: Try SEQRES records (primary path) ---
     # Only read SEQRES for chains that actually have standard-AA CA atoms in ATOM records.
     # For co-crystal PDBs passed via --input-poses, SEQRES includes receptor chains too —
     # filtering prevents concatenating receptor+peptide residues into the sequence field.
@@ -227,7 +227,7 @@ def _extract_sequence_seqres_first(
         logger.debug("Sequence from SEQRES records: %d residues", len(seqres_residues))
         return "".join(seqres_residues)
 
-    # --- Step 2: Fall back to ATOM record residue names (D-14 fallback) ---
+    # --- Step 2: Fall back to ATOM record residue names ---
     # Common for MDAnalysis-written PDB files (RESEARCH.md Pitfall 5)
     atom_residues: list[str] = []
     for chain in model:
