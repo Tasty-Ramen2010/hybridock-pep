@@ -36,6 +36,16 @@ PKD_MIN, PKD_MAX = 3.0, 12.0
 PEP_LEN_MIN, PEP_LEN_MAX = 5, 30
 REC_LEN_MIN = 50
 
+# Manual receptor chain overrides for structures that fail auto-classification:
+# - 1YWI: SH3 domain (28 aa) — below 50 aa threshold but known receptor
+# - 2HWN: PCNA-like ring (39 aa subunits) — below threshold
+# - 2OY2: MDM2 (157 aa) — peptide chain has only 3 aa residues (IAG) in PDB
+_MANUAL_RECEPTOR_CHAINS: dict[str, str] = {
+    "1YWI": "A",  # SH3 domain (28 aa), peptide chain B = PPPLPP
+    "2HWN": "A",  # PCNA-like ring subunit (39 aa), peptide chain E = EELAWKIAKMIVSDVMQQC
+    "2OY2": "A",  # MDM2 (157 aa), peptide chain W = IAG (3 aa, too short; sequence set manually)
+}
+
 
 def _load_pepset() -> set[str]:
     f = DATA_DIR / "pepset_ids.txt"
@@ -278,14 +288,26 @@ def main() -> None:
 
         # Check if we already have the sequence
         existing_seq = str(row.get("peptide_sequence", "") or "")
+        existing_rec = str(row.get("receptor_chain", "") or "")
         if existing_seq and len(existing_seq) >= PEP_LEN_MIN:
+            # Still try to populate receptor_chain if missing
+            if not existing_rec or existing_rec in ("nan", ""):
+                # Check manual override first
+                if pdb_id in _MANUAL_RECEPTOR_CHAINS:
+                    existing_rec = _MANUAL_RECEPTOR_CHAINS[pdb_id]
+                else:
+                    struct_path = _find_structure(pdb_id)
+                    if struct_path:
+                        chains = _extract_chains_from_pdb(struct_path)
+                        _, _, rec_chain, _ = _classify_chains(chains)
+                        existing_rec = rec_chain or ""
             rows_out.append({
                 "pdb_id": pdb_id,
                 "peptide_sequence": existing_seq,
                 "experimental_pkd": float(row["experimental_pkd"]),
                 "affinity_type": str(row.get("affinity_type", "Kd")),
                 "source": str(row.get("source", "unknown")),
-                "receptor_chain": str(row.get("receptor_chain", "")),
+                "receptor_chain": existing_rec,
                 "family_hint": str(row.get("family_hint", "")),
             })
             continue
