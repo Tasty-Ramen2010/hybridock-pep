@@ -107,12 +107,47 @@ def _read_pdb_text(path: Path) -> str:
     return path.read_text("latin-1")
 
 
-def _split_chains(pdb_text: str, rec_chain: str, pep_chain: str | None) -> tuple[str, str]:
-    """Split PDB text into receptor and peptide chain texts."""
-    rec_lines, pep_lines = [], []
+def _iter_clean_atom_lines(pdb_text: str):
+    """Yield ATOM/HETATM lines from MODEL 1 only with primary altloc.
+
+    Filters that match analyze_calibration_structures.py and
+    build_calibration_from_affinity.py — required to avoid:
+      - NMR multi-model stacking (multiple model coordinates superimposed)
+      - Alternate conformer duplication (altloc B/C atoms overlapping altloc A)
+    Both inflate atom counts and corrupt Vina/AD4 scoring.
+    """
+    in_model: bool = False
+    skip_rest: bool = False
     for line in pdb_text.splitlines():
+        tag = line[:6].rstrip()
+        if tag == "MODEL":
+            if not in_model:
+                in_model = True
+            else:
+                skip_rest = True
+            continue
+        if tag == "ENDMDL":
+            if in_model:
+                skip_rest = True
+            continue
+        if skip_rest:
+            continue
         if not (line.startswith("ATOM") or line.startswith("HETATM")):
             continue
+        # ALTLOC filter — only blank or 'A'
+        altloc = line[16] if len(line) > 16 else " "
+        if altloc not in (" ", "A"):
+            continue
+        yield line
+
+
+def _split_chains(pdb_text: str, rec_chain: str, pep_chain: str | None) -> tuple[str, str]:
+    """Split PDB text into receptor and peptide chain texts.
+
+    Applies NMR MODEL 1 + ALTLOC filtering via _iter_clean_atom_lines.
+    """
+    rec_lines, pep_lines = [], []
+    for line in _iter_clean_atom_lines(pdb_text):
         if len(line) < 22:
             continue
         chain = line[21]
@@ -125,9 +160,7 @@ def _split_chains(pdb_text: str, rec_chain: str, pep_chain: str | None) -> tuple
 
 def _parse_heavy_atoms(pdb_text: str) -> list[tuple[int, float, float, float]]:
     atoms = []
-    for line in pdb_text.splitlines():
-        if not (line.startswith("ATOM") or line.startswith("HETATM")):
-            continue
+    for line in _iter_clean_atom_lines(pdb_text):
         atom_name = line[12:16].strip() if len(line) > 16 else ""
         if atom_name.startswith("H"):
             continue
