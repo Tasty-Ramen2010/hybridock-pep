@@ -184,6 +184,15 @@ def prep_new_complex(
 def collect_refpepdb_entries() -> list[dict]:
     """Return CSV rows for all pre-formatted RefPepDB entries."""
     rows = []
+    if not REFPEPDB_DIR.exists():
+        _log.warning(
+            "RefPepDB-RecentSet not found at %s — proceeding with new entries only. "
+            "Expected count will drop from ~925 to ~%d. To restore RefPepDB-RecentSet, "
+            "clone from https://github.com/DMCB-GIST/RefPepDB and place under "
+            "datasets/RefPepDB-RecentSet/",
+            REFPEPDB_DIR, 925 - 523,
+        )
+        return rows
     for entry_dir in sorted(REFPEPDB_DIR.iterdir()):
         if not entry_dir.is_dir():
             continue
