@@ -323,7 +323,14 @@ def score_one(pdb_id: str, rec_chain: str, pep_chain: str | None, work_dir: Path
 
     # Determine peptide chain if not given — use shortest non-receptor chain 5-30aa
     if not pep_chain or pep_chain == "nan":
-        from scripts.build_calibration_from_affinity import _extract_chains_from_pdb, _classify_chains
+        # Import as flat module — when running `python scripts/score_calibration_set.py`,
+        # sys.path[0] is the scripts/ directory, so `from scripts.X import Y` fails.
+        import sys
+        import os
+        _scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        if _scripts_dir not in sys.path:
+            sys.path.insert(0, _scripts_dir)
+        from build_calibration_from_affinity import _extract_chains_from_pdb, _classify_chains
         chains = _extract_chains_from_pdb(struct_path)
         pep_chain_auto, _, _, _ = _classify_chains(chains)
         pep_chain = pep_chain_auto
