@@ -37,6 +37,16 @@ complexes 1A0N and 1YWI. **Fixed** to 10 true held-out test IDs only:
 not peptide-protein complexes. The 284-entry calibration set was built instead from RCSB bulk
 affinity data (GraphQL query across all 6,982 structure IDs in manifests). See §4 for context.
 
+**Background process still running:** `scripts/fetch_affinity_supplement.py` (PID 54427) is
+querying PDBe REST API for 3799 structure IDs. If it completes before you close the Mac:
+```bash
+# After it finishes (data/affinity_supplement.csv appears):
+python3 scripts/build_calibration_from_affinity.py
+# May expand beyond 284 entries if PDBe has additional affinity data
+git add data/ && git commit -m "data(calibration): PDBe/ChEMBL supplement affinity added"
+```
+If still running at session end, just kill it — 284 entries already exceeds plan target.
+
 ---
 
 ## 1. First Things: Transfer Data from Mac to Linux
