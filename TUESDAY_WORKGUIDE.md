@@ -886,3 +886,126 @@ PepSet excluded. Source: bindingdb_kd N rows, bindingdb_ki N rows."
 **Key commits this session:**
 - `d7ab323` feat(data): pre-training data acquisition and validation scripts
 - `2f82877` feat(calibration): bulk affinity data acquisition and calibration set builder
+
+---
+
+## 17. Pre-Submission Code Fixes (Do Before iGEM Wiki Freeze — ~30 min)
+
+These are **not blocking for Tuesday training** but must be fixed before submitting to iGEM
+or any publication. All three were identified by adversarial code review (2026-05-23).
+
+### Fix A — Contact cutoff mismatch (5 min, CRITICAL)
+
+**Problem:** `entropy.py` uses 5.0 Å for `n_contact` at inference time;
+`score_calibration_set.py` uses 4.5 Å when building training data.
+This means α is calibrated on contact counts computed with a *different cutoff* than the one
+used when the tool makes predictions. Systematic calibration error.
+
+```bash
+# Find the mismatch
+grep -n "contact_dist\|CONTACT_DIST\|4\.5\|5\.0" \
+    src/hybridock_pep/scoring/entropy.py \
+    scripts/score_calibration_set.py
+
+# Fix: set a single constant in entropy.py and import it in score_calibration_set.py
+# In src/hybridock_pep/scoring/entropy.py, near the top constants:
+#   CONTACT_DIST_ANG = 4.5   # unify to 4.5 Å (matches calibration set builder)
+# In scripts/score_calibration_set.py:
+#   from hybridock_pep.scoring.entropy import CONTACT_DIST_ANG
+#   # replace hardcoded 4.5 → CONTACT_DIST_ANG
+```
+
+**After fix:** re-run calibration (Tier 1.3) so α is computed on consistent contact counts.
+
+---
+
+### Fix B — Ghost spec references D-01 through D-11 (15 min, MODERATE)
+
+**Problem:** Source code in `driver.py`, `entropy.py`, `minimization.py`, and
+`calibration_notes.md` reference spec IDs like `# per D-07`, `# see D-11` etc.
+No D-01.md through D-11.md documents exist in `docs/`. To any external reviewer
+reading the source, this looks like invented specification numbering.
+
+```bash
+# Find all references
+grep -rn "D-0[0-9]\|D-1[0-3]" src/ scripts/ docs/
+
+# Option A (fast): replace with plain English comments (30 sec per occurrence)
+# Replace: "# per D-07: box must enclose all heavy atoms"
+# With:    "# box must enclose all heavy atoms — grids.py constraint"
+
+# Option B (proper): create stub spec files
+mkdir -p docs/specs
+cat > docs/specs/README.md << 'EOF'
+# Design Specifications
+
+These stub documents replace inline D-XX references in source code.
+Fill in full text for any specs that are iGEM-presentation-critical.
+
+- D-01 through D-05: docking engine constraints (grids.py, ligand.py)
+- D-06 through D-09: calibration methodology (entropy.py)
+- D-10 through D-11: benchmark protocol (driver.py)
+EOF
+git add docs/specs/ && git commit -m "docs: add spec stubs to resolve D-XX inline references"
+```
+
+---
+
+### Fix C — "Entropy" misnomer (10 min, PRESENTATION)
+
+**Problem:** `scoring/entropy.py` and the calibration formula description call the
+`α × n_contact` term an "entropy correction." This is a contact-count linear bonus,
+not entropy. Computational biology judges who know Lazaridis-Karplus will notice.
+
+```bash
+# Quick fix: add a clarifying docstring at top of entropy.py
+# Add after the module docstring:
+# NOTE ON TERMINOLOGY: The "entropy" label in this module refers to the
+# contact-count burial correction (α × n_contact), which approximates the
+# entropic penalty of peptide burial at the interface. It is not a true
+# entropy calculation; the name is a shorthand adopted from implicit-solvent
+# literature where contact number serves as a proxy for solvation entropy.
+```
+
+**Or** rename `entropy.py` → `calibration.py` and update imports:
+```bash
+git mv src/hybridock_pep/scoring/entropy.py src/hybridock_pep/scoring/calibration.py
+# Update __init__.py and any imports
+grep -rn "from.*entropy\|import.*entropy" src/ scripts/
+# Then commit
+```
+
+---
+
+### Fix D — β=0 framing in docs/wiki (5 min, PRESENTATION)
+
+After Tier 1.3, if β > 0 (AD4 genuinely contributes), update `docs/calibration_notes.md`
+and the README accuracy table to reflect the real β value. If β is still ≈ 0 after 284 entries:
+- In the wiki, present as "AD4 serves as a structural sanity check; the current dataset
+  calibrates to β≈0, indicating Vina alone explains pKd variance at this sample size"
+- Do NOT present HybriDock as "hybrid scoring" if β=0 — use "hybrid pipeline" (refers to
+  RAPiDock + Vina + calibration) instead of "hybrid scoring"
+
+---
+
+### Priority order for fixes
+
+| Fix | Blocking for Tuesday? | Blocking for iGEM? | Time |
+|-----|-----------------------|--------------------|------|
+| A — Contact cutoff | No (but redo Tier 1.3 after) | YES — systematic error | 5 min |
+| B — Ghost specs | No | YES — looks AI-generated | 15 min |
+| C — Entropy misnomer | No | Recommended | 10 min |
+| D — β=0 framing | No | After Tier 1.3 results | 5 min |
+
+**Do Fix A + B before the wiki freeze. Do Fix A before running Tier 1.3 on Linux so the
+calibration and inference use the same cutoff from day one.**
+
+---
+
+## 18. Research Paper & ISEF Submission Guide
+
+See `docs/PAPER_ROADMAP.md` for the full paper plan and venue comparison.
+Short version: **bioRxiv preprint first** (free, immediate), then submit to
+Journal of Emerging Investigators (peer-reviewed, HS-appropriate) or PLOS Computational Biology.
+ISEF Denmark pathway: apply through UNF (Ungdommens Naturvidenskabelige Forening) for the
+Danish national fair → invited to ISEF Louisville 2027 if placed.
