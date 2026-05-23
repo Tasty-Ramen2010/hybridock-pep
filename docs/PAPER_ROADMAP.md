@@ -123,39 +123,108 @@ https://www.emerginginvestigators.org/
 
 ---
 
-## ISEF Pathway (Denmark)
+## ISEF & US Competition Pathway
 
-ISEF (International Science and Engineering Fair) is open internationally but you can only
-enter through an ISEF-affiliated regional fair in your country.
+**School:** Denmark High School, Forsyth County, GA (Atlanta metro) — US student.
+This unlocks the full US science competition ecosystem, including Regeneron STS.
 
-**Danish pathway:**
+---
 
-1. **UNF Unge Forskere / Danish Science Talent** (Danish national science talent program)
-   - Run by UNF (Ungdommens Naturvidenskabelige Forening)
-   - Application typically opens September–October each year
-   - Submit project abstract + preliminary results
-   - If selected, you present at a Danish national fair
-   - Top placers at national fair are invited to ISEF the following May
+### Path A — Regeneron ISEF (most direct)
 
-2. **Alternative: Danish Science Festival / Videnskabernes Selskab**
-   - Some institutions have direct ISEF affiliation pathways
-   - Check with your school or supervisor
+ISEF entry for Forsyth County students goes through the Georgia pipeline:
 
-3. **ISEF itself (Louisville 2027 if you go through 2026–27 cycle):**
+1. **Forsyth County Regional Science and Engineering Fair**
+   - Your school's feeder fair; typically held February
+   - Register through your school science department / STEM coordinator
+   - You need a supervising teacher or mentor to sign the ISEF Student Checklist forms
+   - Project approval (SRC/IRB forms) must happen BEFORE you start the project —
+     computational projects are low-risk but still need the form filed
+
+2. **Georgia Science and Engineering Fair (GSEF)** — state level
+   - Held in Augusta, GA, typically late March
+   - Top ~20% of regional placers advance here
    - Category: Computational Biology and Bioinformatics (CBIO)
-   - Judges will ask: what's the scientific question? (peptide docking accuracy)
-   - They will want: experimental validation or strong benchmark (PepSet r)
-   - Student Safety Form required; needs a supervising adult (teacher/PI)
-   - No prior publication disqualifies you — preprints are fine, published papers are fine
 
-**Realistic timeline for ISEF:**
-- Sep 2026: Apply to Danish national fair with iGEM results + paper preprint
-- Oct–Nov 2026: Present at Danish fair
-- If selected: May 2027 ISEF Louisville
+3. **Regeneron ISEF** — international final
+   - Held in May; location rotates (check regeneronisef.org for 2027 city)
+   - ~1,800 finalists from 49 states + 80 countries
+   - CBIO judges will ask for: scientific question, methodology, validation, error analysis
+   - Grand Awards go to projects with both strong methodology AND clear biological impact
+   - **Framing tip:** lead with the malaria angle (PfLDH peptide inhibitor work) first,
+     then present HybriDock-Pep as the enabling computational tool — judges respond to
+     disease relevance + novel methods, not tools alone
+
+**Forms to complete NOW (before project is "official"):**
+- ISEF 1 (Student Checklist) — get this from your science teacher ASAP
+- ISEF 1A (Approval form) — computational projects usually just need teacher sign-off
+- These need to be filed *before* you run any experiments for ISEF credit
+
+---
+
+### Path B — Regeneron Science Talent Search (more prestigious)
+
+STS is arguably the most prestigious US HS science competition. 40 finalists go to DC in
+March; 300 scholars are recognized. Nobel laureates, Fields medalists, and National
+Academy members have judged it.
+
+- **Eligibility:** Must be a US high school senior (12th grade) at time of application
+- **Deadline:** Application due early November each year (Nov 2026 for the 2026–27 cycle)
+- **What you submit:** Full research paper (not abstract) + application essays
+- **Category:** Computational Biology and Bioinformatics
+- **Realistic?** Yes — if PepSet r ≥ 0.60 and fine-tuned RAPiDock shows measurable
+  improvement in Cα RMSD, the project is within STS territory. The 284-entry calibration
+  pipeline and novel calibration formula are genuine methodological contributions.
+- **Boosts your chances:** a faculty co-author or university lab affiliation
+  (even an informal collaboration with a Georgia Tech or Emory PI strengthens it)
+
+**What STS judges want to see that ISEF doesn't require:**
+- Written research paper (5,000–10,000 words), not just a poster
+- Statistical rigor (confidence intervals, p-values, n large enough)
+- Clear "so what" — why does accurate peptide docking matter for drug discovery?
+
+---
+
+### Path C — Other Georgia/National Competitions
+
+**Siemens Competition** — discontinued (was a good STS alternative; no longer exists)
+
+**Junior Science and Humanities Symposium (JSHS)**
+- Army-sponsored; regional fairs lead to national symposium
+- Less competitive than STS/ISEF; good for a first public presentation of the work
+- Georgia JSHS typically January–February
+
+**Georgia Junior Academy of Science (GJAS)**
+- State-level for GA students; annual meeting in April
+- Oral presentation format; good stepping stone before ISEF
+
+---
+
+### Timeline for US Competitions
+
+| Deadline | Event | Action needed |
+|----------|-------|--------------|
+| **ASAP** | ISEF 1 forms | Get from science teacher, file before project is "official" |
+| Sep 2026 | STS application opens | Start research paper draft in parallel with iGEM |
+| Oct 2026 | iGEM wiki freeze | Post bioRxiv preprint same week |
+| Nov 1, 2026 | **Regeneron STS deadline** | Submit paper + application if senior |
+| Feb 2027 | Forsyth County Science Fair | Regional ISEF qualifier |
+| Mar 2027 | GSEF state fair | If placed at county |
+| Mar 2027 | STS finalists announced | 40 invited to DC |
+| May 2027 | Regeneron ISEF | If placed at GSEF |
 
 **Important:** ISEF requires the project to be "primarily the student's work." With 164 commits
-and ~90-120 hours of tracked development, you easily satisfy this. Have your git log ready to
-show the judging panel if asked.
+and ~90–120 hours of tracked development as sole developer, you easily satisfy this.
+Have your git log ready — it is timestamped evidence of your contribution timeline.
+
+---
+
+### Affiliation line for competition / paper
+
+```
+Denmark High School, Forsyth County, Georgia, USA
+iGEM 2026 [Team Name] | [Supervisor name], [Institution]
+```
 
 ---
 
