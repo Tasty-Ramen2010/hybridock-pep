@@ -181,7 +181,7 @@ def main() -> None:
             rcsb["source"] = rcsb["source"].fillna("rcsb")
         frames.append(rcsb)
 
-    # Affinity supplement
+    # Affinity supplement (PDBe + ChEMBL + REMARK)
     supp_path = DATA_DIR / "affinity_supplement.csv"
     if supp_path.exists():
         supp = pd.read_csv(supp_path)
@@ -191,6 +191,17 @@ def main() -> None:
         else:
             supp["source"] = supp["source"].fillna("supplement")
         frames.append(supp)
+
+    # Bulk RCSB affinity (2689 records for 294 PDB IDs, from all manifests)
+    bulk_path = DATA_DIR / "rcsb_binding_affinity_bulk.csv"
+    if bulk_path.exists():
+        bulk = pd.read_csv(bulk_path)
+        bulk = bulk.rename(columns={"value": "kd_nM"})
+        if "source" not in bulk.columns:
+            bulk["source"] = "rcsb_bulk"
+        else:
+            bulk["source"] = bulk["source"].fillna("rcsb_bulk")
+        frames.append(bulk)
 
     # BindingDB expanded (the few rows with sequences)
     exp_path = DATA_DIR / "training_complexes_expanded.csv"
