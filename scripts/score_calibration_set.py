@@ -329,6 +329,13 @@ def main() -> None:
                         help="Filter: only score these affinity types (e.g. Kd Ki). Default: all.")
     parser.add_argument("--max-entries", type=int, default=None,
                         help="Score at most N entries (for testing).")
+    parser.add_argument("--quality-csv", type=Path,
+                        default=None,
+                        help="Path to calibration_quality.csv from analyze_calibration_structures.py. "
+                             "RED and MISSING entries are automatically excluded. "
+                             "Default: datasets/calibration_quality.csv if present.")
+    parser.add_argument("--skip-red", action="store_true",
+                        help="Skip RED/MISSING entries using quality CSV (auto-enabled if quality CSV exists).")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -348,6 +355,25 @@ def main() -> None:
     if args.affinity_types:
         df = df[df["affinity_type"].isin(args.affinity_types)]
         _log.info("After affinity filter (%s): %d entries", args.affinity_types, len(df))
+
+    # Exclude RED/MISSING entries from structural quality analysis
+    quality_csv = args.quality_csv or (REPO / "datasets" / "calibration_quality.csv")
+    if quality_csv.exists() and args.skip_red:
+        qdf = pd.read_csv(quality_csv)
+        bad_ids = set(qdf[qdf["flag"].isin(["RED", "MISSING"])]["pdb_id"].str.upper())
+        before = len(df)
+        df = df[~df["pdb_id"].str.upper().isin(bad_ids)]
+        _log.info("Excluded %d RED/MISSING entries (quality filter): %d → %d",
+                  before - len(df), before, len(df))
+    elif quality_csv.exists() and not args.quality_csv:
+        # Auto-detect: if quality CSV exists, log a reminder but don't auto-skip
+        qdf = pd.read_csv(quality_csv)
+        n_bad = (qdf["flag"].isin(["RED", "MISSING"])).sum()
+        if n_bad:
+            _log.warning(
+                "Found %d RED/MISSING entries in %s — add --skip-red to exclude them",
+                n_bad, quality_csv
+            )
 
     if args.max_entries:
         df = df.head(args.max_entries)

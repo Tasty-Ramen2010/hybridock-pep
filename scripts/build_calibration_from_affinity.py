@@ -105,10 +105,33 @@ def _extract_chains_from_pdb(pdb_path: Path) -> list[tuple[str, str]]:
 
     chains: dict[str, dict[int, str]] = {}  # chain → {resnum: aa}
 
+    in_model: bool = False
+    skip_rest: bool = False
+
     for line in text.splitlines():
-        if not (line.startswith("ATOM") or line.startswith("HETATM")):
+        tag = line[:6].rstrip()
+
+        # NMR multi-model: only parse MODEL 1
+        if tag == "MODEL":
+            if not in_model:
+                in_model = True
+            else:
+                skip_rest = True
+            continue
+        if tag == "ENDMDL":
+            if in_model:
+                skip_rest = True
+            continue
+        if skip_rest:
+            continue
+
+        if not (tag == "ATOM" or tag == "HETATM"):
             continue
         if len(line) < 27:
+            continue
+        # ALTLOC filtering: only accept blank or 'A'
+        altloc = line[16] if len(line) > 16 else " "
+        if altloc not in (" ", "A"):
             continue
         try:
             chain = line[21]

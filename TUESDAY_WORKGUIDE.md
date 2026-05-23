@@ -443,15 +443,23 @@ score them on the Linux machine (where Vina+AD4 are installed) and recalibrate.
 ```bash
 conda activate score-env
 
-# Score all 284 calibration entries with Vina + AD4
+# STEP 0 (optional, ~5 min CPU): Verify structural quality before scoring
+# Already run on Mac — 279/284 GREEN (98.2%), 5 RED/MISSING identified
+# On Linux, re-verify with the transferred datasets:
+python scripts/analyze_calibration_structures.py \
+    --save-red-list datasets/bad_calibration_entries.txt
+# Expect: GREEN ≥ 275, RED ≤ 9.  Report → datasets/calibration_quality.csv
+
+# STEP 1: Score all 284 entries (5 RED/MISSING auto-excluded via --skip-red)
 # --workers 8 runs 8 complexes in parallel (all CPU, safe alongside GPU fine-tune)
 conda run --no-capture-output -n score-env python scripts/score_calibration_set.py \
     --training-csv data/training_complexes_full.csv \
     --output-csv runs/calibration_full/scores.csv \
     --output-json data/training_scores_full.json \
     --workers 8 \
+    --skip-red \
     --verbose
-# Expected: ~1-2 hrs at 8 workers
+# Expected: 279 entries scored in ~1-2 hrs at 8 workers
 # Checkpoint-safe: if interrupted, re-run the same command to resume
 ```
 
@@ -491,8 +499,9 @@ conda run --no-capture-output -n score-env python scripts/score_calibration_set.
     --output-csv runs/calibration_kdki/scores.csv \
     --output-json data/training_scores_kdki.json \
     --affinity-types Kd Ki \
+    --skip-red \
     --workers 8
-# Expected: ~122 entries (67 Kd + 55 Ki)
+# Expected: ~122 entries (67 Kd + 55 Ki), minus any RED entries in that subset
 ```
 
 **Promote new calibration:**
@@ -854,6 +863,9 @@ PepSet excluded. Source: bindingdb_kd N rows, bindingdb_ki N rows."
 | `scripts/fetch_affinity_supplement.py` | New — PDBe + ChEMBL + REMARK affinity fetcher |
 | `scripts/fetch_rcsb_affinity_bulk.py` | New — RCSB GraphQL bulk affinity for all 6982 structure IDs |
 | `scripts/build_calibration_from_affinity.py` | New — builds calibration CSV from affinity + structure files |
+| `scripts/analyze_calibration_structures.py` | New — structural quality analysis: chains, distances, clashes, NMR/ALTLOC filters; 279/284 GREEN |
+| `datasets/calibration_quality.csv` | New — per-entry quality report (flag: GREEN/YELLOW/RED/MISSING, min_dist_A, n_contacts, clash_count) |
+| `datasets/bad_calibration_entries.txt` | New — 5 RED/MISSING entries to exclude from scoring (1NOP, 2PXJ, 2Q8E, 5HI3, 6H8P) |
 | `datasets/ppii_enriched/manifest.csv` | Modified — 29→74 included (relaxed filter) |
 | `datasets/pdb_2024_2026/manifest.csv` | Modified — 394→646 included (CIF retry) |
 | `datasets/pdb_2019_2023/` | New — 1717 structures downloaded |
