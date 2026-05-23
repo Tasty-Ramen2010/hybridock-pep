@@ -313,6 +313,20 @@ def _run_autogrid(rec_pdbqt: Path, centre: list[float], box: list[float], maps_d
         raise RuntimeError(f"autogrid4 failed: {result.stderr[:300]}")
 
 
+def _score_row(row_dict: dict, work_dir: Path) -> tuple[str, dict | None, str | None]:
+    """Wrap score_one() with row dict input and exception capture.
+
+    Module-level (not a closure) so ProcessPoolExecutor can pickle it for workers.
+    """
+    pdb_id = row_dict["pdb_id"]
+    rec_chain = str(row_dict.get("receptor_chain", "") or "")
+    try:
+        result = score_one(pdb_id, rec_chain, None, work_dir)
+        return pdb_id, result, None
+    except Exception as exc:
+        return pdb_id, None, str(exc)
+
+
 def score_one(pdb_id: str, rec_chain: str, pep_chain: str | None, work_dir: Path) -> dict:
     """Score a single complex. Returns dict with vina_score, ad4_score, n_contact_residues."""
     struct_path = _find_structure(pdb_id)
@@ -473,20 +487,14 @@ def main() -> None:
             succeeded = 0
             failed = []
 
-            def _score_row(row_dict: dict) -> tuple[str, dict | None, str | None]:
-                pdb_id = row_dict["pdb_id"]
-                rec_chain = str(row_dict.get("receptor_chain", "") or "")
-                try:
-                    result = score_one(pdb_id, rec_chain, None, args.work_dir)
-                    return pdb_id, result, None
-                except Exception as exc:
-                    return pdb_id, None, str(exc)
-
             todo_dicts = todo.to_dict("records")
 
             if args.workers > 1:
                 with ProcessPoolExecutor(max_workers=args.workers) as pool:
-                    futures = {pool.submit(_score_row, row): row["pdb_id"] for row in todo_dicts}
+                    futures = {
+                        pool.submit(_score_row, row, args.work_dir): row["pdb_id"]
+                        for row in todo_dicts
+                    }
                     for future in as_completed(futures):
                         pdb_id, result, err = future.result()
                         if err:
@@ -507,7 +515,7 @@ def main() -> None:
                                       result["n_contact_residues"], succeeded, len(todo))
             else:
                 for row_dict in todo_dicts:
-                    pdb_id, result, err = _score_row(row_dict)
+                    pdb_id, result, err = _score_row(row_dict, args.work_dir)
                     if err:
                         _log.error("[%s] FAILED: %s", pdb_id, err)
                         failed.append(pdb_id)
