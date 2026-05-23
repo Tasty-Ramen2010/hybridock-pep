@@ -141,19 +141,36 @@ def _parse_heavy_atoms(pdb_text: str) -> list[tuple[int, float, float, float]]:
 
 
 def _count_contact_residues(rec_text: str, pep_text: str) -> int:
+    """Number of PEPTIDE residues with ≥1 heavy atom within _CONTACT_CUTOFF of receptor.
+
+    Matches the convention in src/hybridock_pep/scoring/entropy.py:count_contact_residues().
+    The hybrid score formula uses ``alpha * n_eff_residues`` where n_eff is a function
+    of the peptide-side contact count — so calibration and inference must both count on
+    the same side (peptide residues), not opposite sides (receptor residues).
+    """
     rec_atoms = _parse_heavy_atoms(rec_text)
     pep_atoms = _parse_heavy_atoms(pep_text)
     if not rec_atoms or not pep_atoms:
         return 0
     rec_arr = np.array([(x, y, z) for _, x, y, z in rec_atoms])
-    pep_arr = np.array([(x, y, z) for _, x, y, z in pep_atoms])
-    rec_resnums = np.array([r for r, _, _, _ in rec_atoms])
 
-    contacts: set[int] = set()
-    for px, py, pz in pep_arr:
-        dists = np.sqrt(np.sum((rec_arr - [px, py, pz]) ** 2, axis=1))
-        contacts.update(rec_resnums[dists < _CONTACT_CUTOFF].tolist())
-    return len(contacts)
+    # Group peptide atoms by residue number
+    pep_by_res: dict[int, list[tuple[float, float, float]]] = {}
+    for resnum, x, y, z in pep_atoms:
+        pep_by_res.setdefault(resnum, []).append((x, y, z))
+
+    n_contact = 0
+    cutoff_sq = _CONTACT_CUTOFF ** 2
+    for coords in pep_by_res.values():
+        if not coords:
+            continue
+        arr = np.array(coords)
+        # Min squared-distance from any atom in this residue to any receptor atom
+        diffs = arr[:, np.newaxis, :] - rec_arr[np.newaxis, :, :]
+        sq_dists = np.sum(diffs ** 2, axis=-1)
+        if sq_dists.min() <= cutoff_sq:
+            n_contact += 1
+    return n_contact
 
 
 def _get_box_center_size(pep_text: str) -> tuple[list[float], list[float]]:
@@ -208,7 +225,10 @@ def _score_ad4(pep_pdbqt: Path, maps_dir: Path) -> float:
     )
     dlg_path = maps_dir / "autodock.dlg"
     if not dlg_path.exists():
-        raise RuntimeError("AutoDock DLG not created")
+        raise RuntimeError(
+            f"AutoDock DLG not created (exit {result.returncode}): "
+            f"{result.stderr[:300] or result.stdout[:300]}"
+        )
     for line in dlg_path.read_text().splitlines():
         if "DOCKED: USER    Estimated Free Energy" in line:
             return float(line.split("=")[1].split("kcal")[0].strip())

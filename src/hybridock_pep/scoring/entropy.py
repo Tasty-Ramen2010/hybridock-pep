@@ -331,7 +331,7 @@ def apply_hybrid_score(
 
     Args:
         pose: ScoredPose with vina_score and ad4_score already set.
-        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
+        alpha: Burial correction coefficient (kcal/mol/contact-residue).
         beta: AD4 blending weight (dimensionless).
         n_residues: Full peptide length; used to compute non-contact count.
         n_contact_residues: Number of residues in contact with receptor (≤ n_residues).
@@ -551,7 +551,7 @@ def apply_ensemble_hybrid_scores(
 
     Args:
         poses: Scored poses; each must have vina_score set.
-        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
+        alpha: Burial correction coefficient (kcal/mol/contact-residue).
         n_residues: Full peptide length.
         ad4_blend_weight: Fraction of the z-score blend assigned to AD4 [0, 1].
             Default 0.3 (30% AD4, 70% Vina). Set to 0 to disable AD4.
