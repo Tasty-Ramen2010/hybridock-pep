@@ -3,11 +3,11 @@
 This script is a thin wrapper around ``hybridock_pep.scoring.entropy.fit_calibration()``.
 All optimization logic lives in entropy.py. This script handles I/O only:
 
-1. Read training CSV (D-08 schema: pdb_id, peptide_sequence, experimental_pkd).
+1. Read training CSV (calibration schema: pdb_id, peptide_sequence, experimental_pkd).
 2. Read --scores-json (mapping pdb_id → {vina_score, ad4_score}).
 3. Derive n_residues from len(peptide_sequence) in the CSV.
 4. Call fit_calibration() with the assembled arrays.
-5. Write calibration.json via write_calibration() (D-11 schema).
+5. Write calibration.json via write_calibration() (calibration schema).
 6. Self-validate with load_calibration() — aborts if bounds exceeded.
 
 Usage (Phase 3, pre-computed scores):
@@ -54,7 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=Path("data/training_complexes.csv"),
         metavar="PATH",
         help=(
-            "Path to 3-column D-08 training CSV "
+            "Path to 3-column  training CSV "
             "(pdb_id, peptide_sequence, experimental_pkd). "
             "Default: data/training_complexes.csv"
         ),
@@ -78,7 +78,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=Path("data/calibration.json"),
         metavar="PATH",
-        help="Path to write calibration.json (D-11 schema). Default: data/calibration.json",
+        help="Path to write calibration.json (calibration schema). Default: data/calibration.json",
     )
     parser.add_argument(
         "--gamma",
@@ -140,7 +140,7 @@ def main(args: argparse.Namespace | None = None) -> None:
     _log.debug("Loading scores JSON from %s", args.scores_json)
     scores: dict[str, dict[str, float]] = json.loads(Path(args.scores_json).read_text())
 
-    # Read training CSV (D-08 schema)
+    # Read training CSV (calibration schema)
     _log.debug("Reading training CSV from %s", args.training_csv)
     with Path(args.training_csv).open(newline="") as fh:
         reader = csv.DictReader(fh)

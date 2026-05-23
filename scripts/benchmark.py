@@ -165,7 +165,7 @@ def run_complex(
 ) -> dict:
     """Run the full benchmark pipeline for one complex.
 
-    Implements the two-invocation pattern (D-04):
+    Implements the two-invocation pattern:
     1. Download PDB from RCSB.
     2. Run hybridock-pep dock --scoring vina,ad4 (full hybrid run).
     3. Run hybridock-pep dock --scoring vina --input-poses <same dir> (vina-only rescore).
@@ -260,7 +260,7 @@ def run_complex(
         return result
     result["hybrid_score"] = hybrid_score
 
-    # Step 3: Vina-only rescore from SAME poses (D-04 — avoids nondeterminism confound)
+    # Step 3: Vina-only rescore from SAME poses (avoids nondeterminism confound)
     vina_out = (work_dir / "vina_only").resolve()
     vina_out.mkdir(parents=True, exist_ok=True)
     cmd_vina = [
@@ -295,7 +295,7 @@ def run_complex(
 
 
 def write_results_csv(results: list[dict], path: Path) -> None:
-    """Write benchmark_results.csv with D-03 schema.
+    """Write benchmark_results.csv with calibration schema.
 
     Args:
         results: List of result dicts from run_complex().

@@ -84,9 +84,9 @@ def generate_ad4_maps(config: DockConfig, receptor_pdbqt: Path) -> Path:
     Builds a Grid Parameter File (GPF) programmatically from DockConfig fields,
     writes it to output_dir/maps/receptor.gpf, runs autogrid4, then checks that
     receptor.HD.map was produced. If HD.map is absent, raises PrepError immediately
-    with a diagnostic message — this is a hard abort (D-05).
+    with a diagnostic message — this is a hard abort.
 
-    All autogrid4 outputs (.map, .gpf, .glg) go to output_dir/maps/ (D-07).
+    All autogrid4 outputs (.map, .gpf, .glg) go to output_dir/maps/.
 
     Args:
         config: Validated DockConfig. Uses site_coords, box_size, output_dir.
@@ -129,7 +129,7 @@ def generate_ad4_maps(config: DockConfig, receptor_pdbqt: Path) -> Path:
             f"autogrid4 failed (exit {result.returncode}):\n{result.stderr}"
         )
 
-    # D-05: hard abort if HD map absent — vina --scoring ad4 will silently fail without it
+    # hard abort if HD map absent — vina --scoring ad4 will silently fail without it
     hd_map = maps_dir / "receptor.HD.map"
     if not hd_map.exists():
         raise PrepError(

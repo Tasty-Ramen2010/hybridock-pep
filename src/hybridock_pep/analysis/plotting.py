@@ -23,7 +23,7 @@ def plot_convergence(
 
     Sorts poses by hybrid_score ascending (most negative first) and plots running
     mean ± σ to visualize ranking stability. This tests how quickly the top-N
-    score distribution stabilizes — NOT arrival-order sampling convergence (D-03).
+    score distribution stabilizes — NOT arrival-order sampling convergence.
 
     Args:
         scored_poses: Poses with populated hybrid_score. Order does not matter;
@@ -38,7 +38,7 @@ def plot_convergence(
     if not scored_poses:
         raise ValueError("scored_poses must not be empty")
 
-    scores = sorted(p.hybrid_score for p in scored_poses)  # ascending (D-03)
+    scores = sorted(p.hybrid_score for p in scored_poses)  # ascending
     n = len(scores)
     ns = np.arange(1, n + 1)
     running_mean = np.array([np.mean(scores[:i]) for i in ns])
@@ -73,7 +73,7 @@ def plot_silhouette(
     figsize: tuple[int, int] = (8, 5),
     dpi: int = 150,
 ) -> None:
-    """Generate silhouette score plot across k range with k_optimal annotated (D-07).
+    """Generate silhouette score plot across k range with k_optimal annotated.
 
     Args:
         sil_scores: Dict mapping k → silhouette_score for k = 2..k_max.

@@ -24,7 +24,7 @@ def _seed_everything(seed):
     """Seed torch, torch.cuda, numpy, and random before inference starts.
 
     Called BEFORE any RAPiDock import so that ESM embedding computation and
-    all downstream RNG calls are deterministic (D-08).
+    all downstream RNG calls are deterministic.
 
     Args:
         seed: Integer RNG seed to apply to all backends.
@@ -102,12 +102,12 @@ def main():
     )
     args = parser.parse_args()
 
-    # Seed BEFORE any torch/numpy/RAPiDock import (D-08)
+    # Seed BEFORE any torch/numpy/RAPiDock import
     # Doing this here ensures ESM embeddings and all diffusion steps are reproducible
     if args.seed is not None:
         _seed_everything(args.seed)
 
-    # Resolve all paths to absolute (D-07: conda run has unpredictable cwd)
+    # Resolve all paths to absolute (conda run has unpredictable cwd)
     receptor_abs = str(Path(args.receptor).resolve())
     output_dir_abs = str(Path(args.output_dir).resolve())
     rapidock_dir_abs = str(Path(args.rapidock_dir).resolve())

@@ -51,7 +51,7 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
 
     Sorts all scored_poses by hybrid_score ascending (most negative = best first),
     takes the top 10, formats floats to 4 decimal places, and writes atomically.
-    delta_g is identical to hybrid_score per D-04 (same number, scientific label).
+    delta_g is identical to hybrid_score  (same number, scientific label).
 
     Args:
         scored_poses: All scored poses from the pipeline. Sorted internally.
@@ -80,7 +80,7 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
                     if pose.entropy_correction is not None
                     else ""
                 ),
-                "delta_g": f"{hs:.4f}",  # D-04: same value as hybrid_score
+                "delta_g": f"{hs:.4f}",  # same value as hybrid_score
                 "cluster_id": pose.cluster_id if pose.cluster_id is not None else "",
                 "pose_filename": pose.pdb_path.name,
                 "n_contact_residues": (
