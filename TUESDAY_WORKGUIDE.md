@@ -422,41 +422,89 @@ until Tier 1.3 produces the 200-complex version.
 
 ---
 
-## 8. Tier 0.3 — BindingDB Join (Run in Parallel with Tier 0.1 GPU Work)
+## 8. Tier 1.3 — Score 284-Entry Calibration Set (Tuesday, CPU, ~2 hrs)
 
-This is CPU-only, runs in parallel with the GPU fine-tune.
+**This replaces Tier 0.3 (BindingDB join was superseded by RCSB bulk affinity).**
+`data/training_complexes_full.csv` already has 284 entries ready. You just need to
+score them on the Linux machine (where Vina+AD4 are installed) and recalibrate.
+
+**⚠️ Critical prerequisite: transfer the dataset directories from Mac to Linux first (§1)**
 
 ```bash
-# In a separate terminal while Tier 0.1 runs on GPU:
 conda activate score-env
 
-# Verify rdkit
-python -c "from rdkit import Chem; print('rdkit ok')"
+# Score all 284 calibration entries with Vina + AD4
+# --workers 8 runs 8 complexes in parallel (all CPU, safe alongside GPU fine-tune)
+conda run --no-capture-output -n score-env python scripts/score_calibration_set.py \
+    --training-csv data/training_complexes_full.csv \
+    --output-csv runs/calibration_full/scores.csv \
+    --output-json data/training_scores_full.json \
+    --workers 8 \
+    --verbose
+# Expected: ~1-2 hrs at 8 workers
+# Checkpoint-safe: if interrupted, re-run the same command to resume
+```
 
-# Run the join (reads 8.81 GB bindingdb file)
-python scripts/bindingdb_calibration_join.py --use-ki
-# Expected: 15-25 min on first run
-# Expected output: data/training_complexes_expanded.csv with ≥50 rows
+**Monitor progress:**
+```bash
+# Watch the checkpoint CSV grow
+watch -n 30 "wc -l runs/calibration_full/scores.csv"
+# Should grow from 1 (header only) to 285 (284 entries + header)
+```
 
-# Validation
+**After scoring completes, recalibrate:**
+```bash
+conda run --no-capture-output -n score-env python scripts/calibrate_alpha.py \
+    --training-csv data/training_complexes_full.csv \
+    --scores-json data/training_scores_full.json \
+    --output data/calibration_full.json \
+    --verbose
+
+# Check result
 python3 -c "
-import pandas as pd
-df = pd.read_csv('data/training_complexes_expanded.csv')
-print('Total rows:', len(df))
-empty = df['peptide_sequence'].isna() | (df['peptide_sequence'] == '')
-print('With sequences:', (~empty).sum())
-print('pKd range:', df['experimental_pkd'].min(), '-', df['experimental_pkd'].max())
-pepset = set(open('datasets/pepset/pepset_ids.txt').read().split())
-leak = set(df['pdb_id'].str.upper()) & pepset
-print('PepSet leaks:', leak)
-assert not leak, 'PEPSET LEAK'
-print('OK')
+import json
+c = json.load(open('data/calibration_full.json'))
+print('α =', c['alpha'], '(should be 0.12-1.0)')
+print('β =', c.get('beta', 0.0))
+print('r =', c.get('pearson_r', 'N/A'), '(target ≥ 0.5)')
+print('n =', c.get('n_complexes', '?'))
+assert 0.10 < c['alpha'] < 1.5, f'α out of range: {c[\"alpha\"]}'
+assert c.get('pearson_r', 0) > 0.4, f'r too low: {c.get(\"pearson_r\", 0)}'
+print('CALIBRATION VALID')
 "
 ```
 
-**NOTE**: If you only get ~50-84 rows with sequences, that's expected given the BindingDB
-peptide coverage finding (~84 genuine peptide-protein pairs). Accept it and continue.
-The population-level accuracy from Tier 1.2 will still be measured on the 10 test complexes.
+**If you want Kd/Ki-only calibration (higher quality, fewer entries):**
+```bash
+conda run --no-capture-output -n score-env python scripts/score_calibration_set.py \
+    --training-csv data/training_complexes_full.csv \
+    --output-csv runs/calibration_kdki/scores.csv \
+    --output-json data/training_scores_kdki.json \
+    --affinity-types Kd Ki \
+    --workers 8
+# Expected: ~122 entries (67 Kd + 55 Ki)
+```
+
+**Promote new calibration:**
+```bash
+cp data/calibration.json data/calibration_legacy_6complex.json
+cp data/calibration_full.json data/calibration.json
+# Or for Kd/Ki only: cp data/calibration_kdki.json data/calibration.json
+```
+
+**Validation gate (no regression):**
+```bash
+# Verify no PepSet leak
+python3 -c "
+import pandas as pd
+df = pd.read_csv('data/training_complexes_full.csv')
+pepset = set(line.strip().upper() for line in open('data/pepset_ids.txt') if line.strip())
+leak = set(df['pdb_id'].str.upper()) & pepset
+assert not leak, f'PEPSET LEAK: {leak}'
+print('PepSet check: OK (no leakage)')
+print(f'Calibration entries: {len(df)}, pKd: {df[\"experimental_pkd\"].min():.1f}–{df[\"experimental_pkd\"].max():.1f}')
+"
+```
 
 ---
 
