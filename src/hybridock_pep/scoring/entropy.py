@@ -1,12 +1,14 @@
-"""Backbone entropy correction and hybrid score calibration (SCORE-03).
+"""Backbone entropy (contact-burial) correction and hybrid score calibration (SCORE-03).
 
-Implements the D-01 hybrid score formula:
+Implements the hybrid score formula (see docs/specs/README.md for D-XX ID legend):
     hybrid = vina + beta*(ad4 - vina) + alpha*n_eff_residues
 
-where ``alpha * n_eff_residues`` is the backbone entropy correction term,
-``n_eff_residues`` is either the full peptide length or the contact-residue
-count (residues with at least one heavy atom within 5 Å of the receptor),
-and ``beta`` controls the blending weight of AD4 relative to Vina.
+where ``alpha * n_eff_residues`` is the backbone contact-burial correction term
+(called "entropy" for historical reasons — it is a contact-count penalty, not a true
+thermodynamic entropy calculation), ``n_eff_residues`` is either the full peptide length
+or the contact-residue count (residues with at least one heavy atom within
+``CONTACT_DIST_ANG`` (4.5 Å) of the receptor), and ``beta`` controls the blending
+weight of AD4 relative to Vina.
 
 When ``is_ad4_anomaly`` is True (AD4 score > 0), beta is forced to 0 so
 the anomalous AD4 signal does not corrupt the hybrid score.
@@ -47,6 +49,13 @@ _ALPHA_MIN = 0.1
 _ALPHA_MAX = 2.0
 _BETA_MIN = 0.0
 _BETA_MAX = 0.5
+
+# Contact distance threshold (Fix A — unified across inference and calibration).
+# ALL code that counts contact residues (driver.py, score_crystal_poses.py,
+# score_calibration_set.py) must import and use this constant so that α is
+# calibrated on the same contact counts that inference uses at prediction time.
+# Changing this value requires re-running Tier 1.3 calibration.
+CONTACT_DIST_ANG: float = 4.5  # Å heavy-atom distance for "in contact" classification
 
 
 def load_calibration(path: Path) -> dict:
@@ -224,7 +233,7 @@ def load_receptor_heavy_atom_coords(receptor_pdb: Path) -> np.ndarray:
 def count_contact_residues(
     pose_pdb: Path,
     receptor_coords: np.ndarray,
-    cutoff: float = 5.0,
+    cutoff: float = CONTACT_DIST_ANG,
 ) -> int:
     """Count peptide residues with at least one heavy atom within cutoff of receptor.
 
@@ -235,11 +244,16 @@ def count_contact_residues(
     over-penalizing peptides where most residues are disordered / not
     contacting the protein.
 
+    **Calibration consistency:** The default cutoff is ``CONTACT_DIST_ANG`` (4.5 Å).
+    All calibration scripts must use the same constant so that α is fitted on contact
+    counts computed with the same cutoff used at inference time. Do not pass a
+    different cutoff without re-running Tier 1.3 calibration.
+
     Args:
         pose_pdb: Path to the peptide pose PDB file.
         receptor_coords: (N, 3) array of receptor heavy atom coordinates,
             pre-loaded via load_receptor_heavy_atom_coords() for efficiency.
-        cutoff: Distance cutoff in Angstroms. Default 5.0 Å.
+        cutoff: Distance cutoff in Angstroms. Default ``CONTACT_DIST_ANG`` (4.5 Å).
 
     Returns:
         Number of residues with at least one heavy atom within cutoff.

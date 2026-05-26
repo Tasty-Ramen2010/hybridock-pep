@@ -31,13 +31,14 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+from hybridock_pep.scoring.entropy import CONTACT_DIST_ANG  # Fix A: unified cutoff
 
 _log = logging.getLogger(__name__)
 
 _ADFR_BIN = Path("/home/igem/ADFRsuite_x86_64Linux_1.0/bin")
 _BOX_MARGIN = 15.0     # Å — added to each side of peptide bounding box
 _BOX_MIN = 20.0        # Å — minimum box size
-_CONTACT_CUTOFF = 4.5  # Å — heavy-atom distance for contact residue count
+_CONTACT_CUTOFF = CONTACT_DIST_ANG  # unified with entropy.py — do not set independently
 _GRID_SPACING = 0.375  # Å — AutoDock standard
 
 # Atom types for autogrid4 GPF (covers all amino acid atom types)
