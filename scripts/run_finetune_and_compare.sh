@@ -54,9 +54,19 @@ echo "[$(date)] Stale checkpoints cleared from $OUTDIR" | tee -a "$LOG"
 echo "[$(date)] Training complete." | tee -a "$LOG"
 
 # --- Comparison ---------------------------------------------------------
+# Use the FINAL checkpoint (most trained weights), not "best" (which would
+# be epoch 1 if val_loss is 0.0 due to eval-mode compute_loss issue).
+# Fall back to best if final doesn't exist (e.g. training was interrupted).
+FINAL_CKPT="$OUTDIR/rapidock_finetuned_final.pt"
 BEST_CKPT="$OUTDIR/rapidock_finetuned_best.pt"
-if [ ! -f "$BEST_CKPT" ]; then
-    echo "[$(date)] ERROR: Fine-tuned checkpoint not found after training. Check $LOG" | tee -a "$LOG"
+if [ -f "$FINAL_CKPT" ]; then
+    USE_CKPT="$FINAL_CKPT"
+    echo "[$(date)] Using final trained checkpoint: $FINAL_CKPT" | tee -a "$LOG"
+elif [ -f "$BEST_CKPT" ]; then
+    USE_CKPT="$BEST_CKPT"
+    echo "[$(date)] WARNING: final checkpoint not found, using best checkpoint (may be epoch 1)" | tee -a "$LOG"
+else
+    echo "[$(date)] ERROR: No fine-tuned checkpoint found after training. Check $LOG" | tee -a "$LOG"
     exit 1
 fi
 
