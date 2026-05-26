@@ -20,7 +20,17 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export REPO
 PEPSET_CSV="$REPO/datasets/pepset/inference_input.csv"
 ORIGINAL_CKPT="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/rapidock_local.pt"
-FINETUNED_CKPT="$REPO/third_party/RAPiDock_finetuned/finetune_out/rapidock_finetuned_best.pt"
+# Prefer final checkpoint (all 50 epochs) over best (often epoch 1 if val_loss
+# monitoring is broken). Fall back to best if final doesn't exist.
+_FINAL="$REPO/third_party/RAPiDock_finetuned/finetune_out/rapidock_finetuned_final.pt"
+_BEST="$REPO/third_party/RAPiDock_finetuned/finetune_out/rapidock_finetuned_best.pt"
+if [ -f "$_FINAL" ]; then
+    FINETUNED_CKPT="$_FINAL"
+    echo "Using final trained checkpoint for comparison"
+else
+    FINETUNED_CKPT="$_BEST"
+    echo "WARNING: Using best checkpoint (may be epoch 1 — not full training)"
+fi
 MODEL_DIR="$REPO/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
 OUT_BASE="$REPO/runs/model_comparison"
 
@@ -34,8 +44,7 @@ if [ ! -f "$PEPSET_CSV" ]; then
 fi
 
 if [ ! -f "$FINETUNED_CKPT" ]; then
-    echo "ERROR: Fine-tuned checkpoint not found at $FINETUNED_CKPT"
-    echo "Run train_lastlayer.py first."
+    echo "ERROR: No fine-tuned checkpoint found (neither final nor best). Run train_lastlayer.py first."
     exit 1
 fi
 
