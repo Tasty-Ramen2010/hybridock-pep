@@ -1,14 +1,15 @@
-"""RAPiDock inference shim — executed inside rapidock-env (Python 3.9).
+"""RAPiDock-Reloaded inference shim — executed inside the rapidock conda env (Python 3.10).
 
-This script is called by rapidock_runner.py via:
-    conda run --no-capture-output -n rapidock-env python /abs/path/run_rapidock.py [args]
+This script is called by rapidock_runner.py via the rapidock env's python3 binary:
+    /path/to/miniconda3/envs/rapidock/bin/python3 /abs/path/run_rapidock.py [args]
 
 It seeds all RNGs (torch, numpy, random) BEFORE calling rd_inference.main() so that
 --seed N is honoured for reproducibility even though inference.py has no --seed arg.
 
-CRITICAL: This file must be strictly Python 3.9 compatible. No match/case, no X|Y
-         unions, no walrus in comprehensions, no TypeAlias. Use Optional[X] not X|None.
-         from __future__ import annotations is safe (Python 3.7+).
+Uses RAPiDock-Reloaded (Tasty-Ramen2010/RAPiDock-Reloaded) which runs on:
+  - CUDA (Linux/Windows, RTX 5070 Blackwell CC 12.0 with PyTorch 2.7 + cu128)
+  - MPS (macOS Apple Silicon — automatic via PYTORCH_ENABLE_MPS_FALLBACK)
+  - CPU (fallback)
 """
 from __future__ import annotations
 
@@ -42,7 +43,7 @@ def main():
     # type: () -> None
     """Parse CLI args, seed RNGs, and invoke rd_inference.main()."""
     parser = argparse.ArgumentParser(
-        description="RAPiDock inference shim (Python 3.9, rapidock-env)"
+        description="RAPiDock-Reloaded inference shim (Python 3.10, rapidock env)"
     )
     parser.add_argument(
         "--peptide",
