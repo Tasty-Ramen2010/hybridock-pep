@@ -4,9 +4,11 @@ This document walks you through setting up both conda environments and the
 non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 
 > **macOS ARM note:** Stage 2 (scoring and analysis) runs natively on macOS ARM.
-> Stage 1 (GPU sampling via RAPiDock) requires a CUDA-capable GPU and cannot run
-> on Apple Silicon. Use `--input-poses` to skip Stage 1 on macOS and supply
-> pre-generated poses from a Linux/CUDA machine.
+> Stage 1 (GPU sampling via RAPiDock-Reloaded) now also runs on macOS Apple Silicon via
+> MPS (Metal Performance Shaders). MPS is slower than CUDA but functional. Set `--n-samples`
+> to a lower value (e.g. 20) on MPS to keep runtimes reasonable. Full 100-pose runs
+> should still be done on a CUDA machine. Use `--input-poses` to skip Stage 1 entirely
+> and supply pre-generated poses.
 
 ---
 
@@ -40,9 +42,9 @@ Verify: `hybridock-pep --help` prints the CLI usage.
 
 ## Step 2 — Create the GPU sampling environment
 
-`rapidock` (note: **no** `-env` suffix) contains the RAPiDock diffusion model
-stack. PyTorch + PyG must be installed via pip after the base env is created,
-because the CUDA-specific wheels are not on conda-forge.
+`rapidock` (note: **no** `-env` suffix) contains the **RAPiDock-Reloaded** diffusion model
+stack. RAPiDock-Reloaded auto-detects your device (CUDA → MPS → CPU) at runtime.
+PyTorch + PyG must be installed via pip after the base env is created (platform-specific):
 
 ```bash
 # 2a. Create the base env (Python, NumPy, MDAnalysis, e3nn, RDKit, fair-esm)
@@ -58,6 +60,13 @@ conda run -n rapidock pip install torch-scatter torch-sparse torch-cluster \
     -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
 ```
 
+**macOS Apple Silicon (MPS):**
+```bash
+conda run -n rapidock pip install torch torchvision torchaudio
+conda run -n rapidock pip install torch-scatter torch-sparse torch-cluster torch_geometric
+# inference.py sets PYTORCH_ENABLE_MPS_FALLBACK=1 automatically — no extra config needed
+```
+
 > **Why separate pip steps?** PyTorch's CUDA-specific wheels (`+cu128` builds)
 > are only available from `download.pytorch.org`, not conda-forge. Mixing the
 > conda solve with these pip URLs causes solver conflicts; two-phase install
@@ -65,10 +74,11 @@ conda run -n rapidock pip install torch-scatter torch-sparse torch-cluster \
 
 ---
 
-## Step 3 — Initialise the RAPiDock submodule
+## Step 3 — Initialise the RAPiDock-Reloaded submodule
 
-RAPiDock is bundled as a git submodule at `third_party/RAPiDock/` (pinned to
-commit `36b2f78`). If you cloned with `--recursive` you already have it. Otherwise:
+**RAPiDock-Reloaded** is bundled as a git submodule at `third_party/RAPiDock/` (pinned to
+commit `bee46c3` of `Tasty-Ramen2010/RAPiDock-Reloaded`). If you cloned with `--recursive`
+you already have it. Otherwise:
 
 ```bash
 git submodule update --init --recursive
@@ -80,7 +90,7 @@ directly from `third_party/RAPiDock/` at runtime.
 ### Step 3b — Download model weights (required)
 
 The pre-trained checkpoint files are **not** stored in git (binary, 55 MB each).
-Download them from the [RAPiDock releases page](https://github.com/huifengzhao/RAPiDock)
+Download them from [Zenodo (RAPiDock checkpoints)](https://zenodo.org/records/14193621):
 and place them here:
 
 ```
