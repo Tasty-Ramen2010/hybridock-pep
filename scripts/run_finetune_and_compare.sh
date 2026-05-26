@@ -35,7 +35,12 @@ fi
 
 echo "[$(date)] Launching last-layer fine-tuning (30 epochs)..." | tee -a "$LOG"
 
-/home/igem/miniconda3/envs/rapidock/bin/python \
+# Remove stale checkpoints from any previous (broken) run so we don't accidentally
+# pick up pretrained-weight checkpoints as if they were trained ones.
+rm -f "$OUTDIR"/rapidock_finetuned_*.pt
+echo "[$(date)] Stale checkpoints cleared from $OUTDIR" | tee -a "$LOG"
+
+/home/igem/miniconda3/envs/rapidock/bin/python -u \
     "$REPO/third_party/RAPiDock_finetuned/train_lastlayer.py" \
     --train-csv "$REPO/datasets/training_formatted/training_data.csv" \
     --val-csv   "$REPO/datasets/training_formatted/val_data.csv" \
