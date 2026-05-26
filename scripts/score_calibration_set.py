@@ -255,6 +255,57 @@ def _prepare_receptor_pdbqt(rec_pdb: Path, out_pdbqt: Path) -> None:
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if not out_pdbqt.exists():
         raise RuntimeError(f"prepare_receptor failed: {result.stderr[:300]}")
+    # Post-process PDBQT to remove lines that break Vina / autogrid4:
+    # 1. Unrecognized AD4 atom types (Na, Ni, K, etc.) → autogrid4 "unknown type"
+    # 2. Non-primary alternate conformations (altloc ≠ ' ' and ≠ 'A') → Vina PDBQT
+    #    parser misreads coordinate fields when alt-loc char displaces residue name
+    # 3. Malformed coordinate fields — prepare_receptor sometimes emits lines where
+    #    numeric altloc chars (e.g. '1') appear at column 17 (index 16='A' in atom
+    #    name) producing residue-name like '1GL' and unreadable X/Y/Z → Vina crash.
+    #    Guard: validate X/Y/Z are parseable floats; drop lines that fail.
+    lines = out_pdbqt.read_text().splitlines(keepends=True)
+    cleaned = []
+    dropped = 0
+    for ln in lines:
+        if ln.startswith("ATOM") or ln.startswith("HETATM"):
+            # Altloc filter: drop non-primary conformers.
+            # Also guard against shifted altloc at index 17 (HE2A1GLN pattern):
+            # if char at index 16 == 'A' but char at 17 is a digit, the line has a
+            # numeric altloc one column to the right — treat as non-primary and drop.
+            altloc16 = ln[16] if len(ln) > 16 else " "
+            char17 = ln[17] if len(ln) > 17 else " "
+            if altloc16 not in (" ", "A"):
+                dropped += 1
+                continue
+            if altloc16 == "A" and char17.isdigit():
+                # Shifted numeric altloc (prepare_receptor artefact) — drop
+                dropped += 1
+                continue
+            # Atom-type filter: drop lines with types autogrid4 won't accept.
+            # Also handles short lines (len ≤ 77) — treat missing type as unknown
+            # for HETATM records (keep for ATOM records which are always protein).
+            parts = ln[77:].split() if len(ln) > 77 else []
+            if not parts:
+                if ln.startswith("HETATM"):
+                    dropped += 1
+                    continue
+            elif parts[0] not in _AD4_KNOWN_TYPES:
+                dropped += 1
+                continue
+            # Coordinate sanity check: drop lines whose X/Y/Z columns don't parse.
+            # This catches any remaining malformed lines that would crash Vina.
+            if len(ln) >= 54:
+                try:
+                    float(ln[30:38])
+                    float(ln[38:46])
+                    float(ln[46:54])
+                except ValueError:
+                    dropped += 1
+                    continue
+        cleaned.append(ln)
+    if dropped:
+        out_pdbqt.write_text("".join(cleaned))
+        _log.debug("Stripped %d problematic lines from %s (altloc/unknown-type/coord)", dropped, out_pdbqt.name)
 
 
 def _wrap_rigid_pdbqt(pdbqt: Path) -> None:
@@ -282,15 +333,25 @@ def _prepare_ligand_pdbqt(pep_pdb: Path, out_pdbqt: Path) -> None:
     _wrap_rigid_pdbqt(out_pdbqt)
 
 
+_AD4_KNOWN_TYPES = frozenset(
+    "C A N NA OA SA HD S NS F Cl Br I P Mg Mn Zn Ca Fe Cu Li "
+    "MG MN ZN CA FE CU LI W".split()
+)
+
+
 def _get_receptor_atom_types(rec_pdbqt: Path) -> str:
-    """Extract unique atom type strings from the PDBQT atom-type column (col 77+)."""
+    """Extract unique AD4 atom types from the PDBQT atom-type column (col 77+).
+
+    Filters to known AD4 types — unknown types (e.g. Na, K, Cs metal ions from
+    crystal water/salt) are silently dropped. autogrid4 will error on unknown types.
+    """
     types: set[str] = set()
     for line in rec_pdbqt.read_text().splitlines():
         if not (line.startswith("ATOM") or line.startswith("HETATM")):
             continue
         if len(line) > 77:
             parts = line[77:].split()
-            if parts:
+            if parts and parts[0] in _AD4_KNOWN_TYPES:
                 types.add(parts[0])
     return " ".join(sorted(types)) if types else _RECEPTOR_TYPES
 
@@ -306,8 +367,11 @@ def _run_autogrid(rec_pdbqt: Path, centre: list[float], box: list[float], maps_d
     """
     import shutil as _shutil
     receptor_copy = maps_dir / "receptor.pdbqt"
-    if not receptor_copy.exists():
-        _shutil.copy2(rec_pdbqt, receptor_copy)
+    # Always overwrite the maps-dir copy — a stale copy from a previous failed run
+    # (generated before the PDBQT post-processing filter was applied) causes autogrid4
+    # to fail with "unknown type" errors on Na/Ni/etc. atoms that were later stripped
+    # from the parent receptor.pdbqt but survive in the cached copy.
+    _shutil.copy2(rec_pdbqt, receptor_copy)
 
     rec_types = _get_receptor_atom_types(receptor_copy)
     n_pts = [int(s / _GRID_SPACING) | 1 for s in box]  # ensure odd
