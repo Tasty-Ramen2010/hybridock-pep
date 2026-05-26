@@ -10,6 +10,16 @@ or the contact-residue count (residues with at least one heavy atom within
 ``CONTACT_DIST_ANG`` (4.5 Å) of the receptor), and ``beta`` controls the blending
 weight of AD4 relative to Vina.
 
+NOTE ON TERMINOLOGY
+    The "entropy" label in this module refers to the contact-count burial correction
+    (``alpha × n_contact``), which approximates the entropic cost of peptide burial
+    at the protein–peptide interface.  It is **not** a true entropy calculation —
+    no phase-space integration or partition function is evaluated.  The name is a
+    shorthand adopted from implicit-solvent literature (Lazaridis & Karplus, 1999;
+    Street & Mayo, 1998) where contact number serves as a proxy for solvation
+    entropy change upon burial.  Calibrated ``alpha`` absorbs both the magnitude
+    and sign of this effect from experimental pKd data via L-BFGS-B optimization.
+
 When ``is_ad4_anomaly`` is True (AD4 score > 0), beta is forced to 0 so
 the anomalous AD4 signal does not corrupt the hybrid score.
 
