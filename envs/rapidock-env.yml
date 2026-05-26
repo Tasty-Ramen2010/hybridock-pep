@@ -1,4 +1,18 @@
 name: rapidock
+# RAPiDock-Reloaded (Tasty-Ramen2010/RAPiDock-Reloaded) environment.
+# Now cross-platform: CUDA (Linux/Windows), MPS (macOS Apple Silicon), and CPU.
+#
+# For CUDA (RTX 5070, Blackwell CC 12.0) — install PyTorch after env creation:
+#   pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
+#   pip install torch-scatter torch-sparse torch-cluster torch-spline-conv \
+#               -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
+#
+# For macOS (MPS, Apple Silicon):
+#   pip install torch torchvision torchaudio
+#   pip install torch-scatter torch-sparse torch-cluster torch_geometric
+#   (MPS fallback is enabled automatically by inference.py — no env vars needed)
+#
+# RAPiDock-Reloaded auto-detects the device at runtime (CUDA → MPS → CPU).
 channels:
   - pytorch
   - nvidia
@@ -17,12 +31,12 @@ dependencies:
   - conda-forge::rdkit>=2024.03
   - conda-forge::mdanalysis>=2.7
   - conda-forge::e3nn>=0.5
+  - conda-forge::psutil
   - pip:
-      # PyTorch 2.7 + CUDA 12.8 — required for Blackwell (CC 12.0, RTX 5070).
-      # Install separately after env creation (see INSTALL.md Step 2):
-      #   pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
-      #   pip install torch-scatter torch-sparse torch-cluster torch-spline-conv \
-      #               -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
       - "fair-esm>=2.0"
-      # RAPiDock: bundled as a git submodule at third_party/RAPiDock/ (see INSTALL.md Step 3).
-      # No pip install needed — the runner imports directly from that directory.
+      - "opt-einsum"
+      - "PeptideBuilder"
+      - "sympy"
+      # PyTorch + PyG: see platform-specific instructions above.
+      # RAPiDock-Reloaded: bundled as a git submodule at third_party/RAPiDock/ (see INSTALL.md).
+      # No pip install needed — run_rapidock.py imports directly from that directory.

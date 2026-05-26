@@ -94,3 +94,10 @@ datasets/cache/
 # RAPiDock copies (large external repo — not redistributed)
 third_party/RAPiDock/
 third_party/RAPiDock_finetuned/
+
+# Local clones of external repos (not redistributed here)
+# hybridock-pep/ = local clone of Tasty-Ramen2010/hybridock-pep (public GitHub mirror)
+hybridock-pep/
+# RAPiDock-Reloaded/ = local working clone; canonical copy is at third_party/RAPiDock/
+RAPiDock-Reloaded/
+
