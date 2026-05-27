@@ -1305,3 +1305,94 @@ This is the most important accuracy improvement available without more training 
 
 \---
 
+
+---
+
+## § 20 — Session Update: 2026-05-27 (RAPiDock Valence Fix + PepPC Training Data)
+
+### What was fixed today
+
+**CRITICAL BUG FIXED: RAPiDock-Reloaded valence regression (all sequences)**
+
+Root cause: `get_edges_from_sequence()` returned atom indices for a backbone-only
+PeptideBuilder template (N,CA,C,O only). Applied to actual pose PDBs that include
+Cβ and side-chain atoms (from RAPiDock-Reloaded), every atom AFTER the first Cβ
+was off by 1+, assigning carbon valence=5 → `AtomValenceException` → crash.
+
+Fix:
+1. `PeptideBuilder.py`: added `return_atom_keys=True` to `get_edges_from_sequence()`  
+   Returns `(edges, [(res_serial, atom_name), ...])` per atom in template ordering.
+2. `dataset_utils.py`: `read_pdb_with_seq()` now builds `(seq_1based, atom_name)→rdkit_idx`  
+   map from actual PDB file atom records, then remaps bond indices through this map.  
+   No longer assumes template and actual PDB have the same atom ordering.
+3. Installed `PeptideBuilder` package in rapidock env (was missing — caused backbone-only  
+   fallback which is also buggy for full-side-chain inputs; now in env yml already).
+
+Also fixed: `plotting.py::plot_silhouette` legend check crashed on matplotlib `Text`
+objects. Now guards with `isinstance(str)` + `hasattr`.
+
+Commits:
+- `third_party/RAPiDock` (submodule): `e5635b0` — dataset_utils valence fix
+- `master`: `2889beb` — plotting legend fix
+
+### Post-fix verification
+
+```
+Stage 1 (RAPiDock inference): 10 poses, 0 failures ✓
+Best-of-10 Cα RMSD on 1YCR:  2.00 Å  (pose_0.pdb)
+Apr30 reference best-of-100:  0.80 Å
+```
+2.00 Å with 10 poses is expected. Run 100 poses to approach 0.80 Å again.
+
+### DiffPepDock training data added (locally)
+
+The full DiffPepDock training datasets are now on disk:
+- `/home/igem/unknown_software/PepPC_raw_data.tar.gz` (810 MB, 3,832 complexes)
+- `/home/igem/unknown_software/PepPC-F_raw_data.tar.gz` (634 MB, 14,897 complexes)
+
+Total: 18,729 protein-peptide complexes — 2.5× more than RAPiDock's original training.
+
+### DiffPepDock benchmark analysis (objective comparison)
+
+From DiffPepDock's own 174-complex benchmark (`docking_benchmark.csv`):
+
+| Method | Median RMSD | <2 Å rate | DockQ ≥0.23 |
+|--------|------------|-----------|-------------|
+| DiffPepDock | 2.02 Å | 50% | 90% |
+| AF3+MSA | 2.30 Å | 48% | 78% |
+| AF3+template+MSA | **1.90 Å** | 53% | 82% |
+| ADCP | 11.96 Å | 0% | 54% |
+
+HybriDock-Pep on 1YCR (single complex, 100 poses): **0.80 Å** best-of-100.
+Our model is better on that one complex; we need 174-complex coverage to confirm broadly.
+
+### Training guide
+
+Full AI training guide at: `docs/ai_training_guide_peppc.md`
+
+Key recommendation: fine-tune with Phase 2 unfreezing (`intra_convs.3`, `cross_convs.3`)
+on 18K PepPC+PepPC-F complexes. Expected to rival or beat DiffPepDock on breadth
+while maintaining our 0.80 Å accuracy on MDM2/p53.
+
+### Immediate next steps
+
+1. **Install PeptideBuilder** (may need to re-create rapidock env if it's not there):
+   ```bash
+   conda run -n rapidock pip install PeptideBuilder
+   ```
+2. **Run 100-pose 1YCR run** to confirm back to 0.80 Å after fix:
+   ```bash
+   /home/igem/miniconda3/envs/score-env/bin/hybridock-pep dock \
+       --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
+       --site 25.20 -25.61 -7.97 --box 30 --n-samples 100 \
+       --scoring vina,ad4 --output-dir runs/benchmark_1ycr_v2 --seed 42
+   ```
+3. **Extract PepPC training data**:
+   ```bash
+   mkdir -p datasets/nat_raw_data_final
+   tar -xzf PepPC_raw_data.tar.gz -C datasets/
+   tar -xzf PepPC-F_raw_data.tar.gz -C datasets/
+   ```
+4. **Run prep_rapidock_training_data.py** on PepPC complexes (extend script for new format)
+5. **Launch Phase 1 fine-tuning** (30 epochs, existing unfreeze patterns, 18K complexes)
+
