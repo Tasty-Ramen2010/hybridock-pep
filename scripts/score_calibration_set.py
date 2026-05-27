@@ -183,17 +183,40 @@ def _count_contact_residues(rec_text: str, pep_text: str) -> int:
     The hybrid score formula uses ``alpha * n_eff_residues`` where n_eff is a function
     of the peptide-side contact count — so calibration and inference must both count on
     the same side (peptide residues), not opposite sides (receptor residues).
+
+    Peptide side: ATOM records only, amino-acid residues only (AA3 filter). HETATM lines
+    (HOH waters, ions) in the peptide chain are excluded — they inflate nc above nres and
+    cause the calibration to saturate at alpha=_ALPHA_MAX (2.0) on any dataset with
+    co-crystallised water molecules assigned to the peptide chain.
+    Receptor side: includes HETATM (metal ions, cofactors) for correct contact geometry.
     """
     rec_atoms = _parse_heavy_atoms(rec_text)
-    pep_atoms = _parse_heavy_atoms(pep_text)
-    if not rec_atoms or not pep_atoms:
+    if not rec_atoms:
         return 0
     rec_arr = np.array([(x, y, z) for _, x, y, z in rec_atoms])
 
-    # Group peptide atoms by residue number
+    # Group peptide atoms by residue number — ATOM-only, amino-acid residues only.
+    # Using _iter_clean_atom_lines directly (rather than _parse_heavy_atoms) so we
+    # can inspect the record type (ATOM vs HETATM) and residue name before including.
     pep_by_res: dict[int, list[tuple[float, float, float]]] = {}
-    for resnum, x, y, z in pep_atoms:
-        pep_by_res.setdefault(resnum, []).append((x, y, z))
+    for line in _iter_clean_atom_lines(pep_text):
+        if not line.startswith("ATOM"):          # exclude HETATM in peptide chain
+            continue
+        resname = line[17:20].strip() if len(line) > 20 else ""
+        if resname not in AA3:                   # exclude non-amino-acid records
+            continue
+        atom_name = line[12:16].strip() if len(line) > 16 else ""
+        if atom_name.startswith("H"):            # exclude hydrogens
+            continue
+        try:
+            resnum = int(line[22:26].strip())
+            x, y, z = float(line[30:38]), float(line[38:46]), float(line[46:54])
+            pep_by_res.setdefault(resnum, []).append((x, y, z))
+        except (ValueError, IndexError):
+            continue
+
+    if not pep_by_res:
+        return 0
 
     n_contact = 0
     cutoff_sq = _CONTACT_CUTOFF ** 2
