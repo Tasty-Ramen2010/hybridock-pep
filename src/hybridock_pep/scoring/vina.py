@@ -222,6 +222,29 @@ def score_vina_batch(
                     "Pose %d: clash relief optimization %.2f → %.2f kcal/mol",
                     pose.pose_idx, raw_score, optimized_score,
                 )
+                if optimized_score > 0:
+                    # Optimization failed to relieve clash — ligand still inside receptor.
+                    # Recording a positive Vina score would corrupt ensemble z-score
+                    # statistics (the huge positive outliers inflate mean and std,
+                    # making well-scored poses appear as implausibly extreme outliers).
+                    # Treat as a scoring failure instead.
+                    logger.warning(
+                        "Pose %d: clash relief failed (score %.2f → %.2f still positive); "
+                        "excluding from scored set",
+                        pose.pose_idx, raw_score, optimized_score,
+                    )
+                    failures.append(
+                        PoseFailure(
+                            pose_idx=pose.pose_idx,
+                            stage="scoring",
+                            error_msg=(
+                                f"clash_relief_failed: Vina optimize reduced "
+                                f"{raw_score:.2f} → {optimized_score:.2f} kcal/mol "
+                                "but score remains positive (receptor overlap unresolved)"
+                            ),
+                        )
+                    )
+                    continue
                 # Overwrite PDBQT with clash-free geometry (AD4 scoring reads this file)
                 v.write_pose(str(pose.pdbqt_path), overwrite=True)
                 pose.vina_score = optimized_score

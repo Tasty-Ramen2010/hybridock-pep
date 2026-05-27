@@ -48,11 +48,14 @@ def _write_csv_atomic(path: Path, rows: list[dict[str, Any]], fieldnames: list[s
 
 
 def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path:
-    """Write top-10 poses ranked by hybrid_score to ranked_poses.csv.
+    """Write all scored poses ranked by hybrid_score to ranked_poses.csv.
 
     Sorts all scored_poses by hybrid_score ascending (most negative = best first),
-    takes the top 10, formats floats to 4 decimal places, and writes atomically.
+    formats floats to 4 decimal places, and writes atomically.
     delta_g is identical to hybrid_score per D-04 (same number, scientific label).
+
+    All poses are written (no truncation) so users can inspect the full
+    score distribution and clustering results.
 
     Args:
         scored_poses: All scored poses from the pipeline. Sorted internally.
@@ -65,10 +68,9 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
         scored_poses,
         key=lambda p: (p.hybrid_score if p.hybrid_score is not None else float("inf")),
     )
-    top10 = sorted_poses[:10]
 
     rows: list[dict[str, Any]] = []
-    for rank, pose in enumerate(top10, start=1):
+    for rank, pose in enumerate(sorted_poses, start=1):
         hs = pose.hybrid_score if pose.hybrid_score is not None else float("nan")
         rows.append(
             {
