@@ -95,16 +95,21 @@ class TestWriteRankedCsv:
         assert scores == sorted(scores), f"Rows not sorted ascending: {scores}"
         assert scores[0] == -5.0, f"Best score should be first; got {scores[0]}"
 
-    def test_write_ranked_csv_top10_limit(self, tmp_path: Path) -> None:
+    def test_write_ranked_csv_all_poses(self, tmp_path: Path) -> None:
+        """All scored poses are written to the CSV — no top-10 truncation."""
         from hybridock_pep.output.csv_writer import write_ranked_csv
 
         config = _make_config(tmp_path)
-        poses = [_make_scored_pose(i, tmp_path, hybrid_score=-float(i + 1)) for i in range(15)]
+        n_poses = 15
+        poses = [_make_scored_pose(i, tmp_path, hybrid_score=-float(i + 1)) for i in range(n_poses)]
         write_ranked_csv(poses, config)
 
         csv_path = config.output_dir / "ranked_poses.csv"
         rows = list(csv.DictReader(csv_path.open()))
-        assert len(rows) == 10, f"Expected 10 rows, got {len(rows)}"
+        assert len(rows) == n_poses, (
+            f"Expected all {n_poses} poses in CSV, got {len(rows)}. "
+            "write_ranked_csv must not truncate."
+        )
 
     def test_write_ranked_csv_delta_g_equals_hybrid(self, tmp_path: Path) -> None:
         from hybridock_pep.output.csv_writer import write_ranked_csv
