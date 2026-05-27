@@ -20,6 +20,13 @@ _RECEPTOR_TYPES = "C A N NA OA SA HD"
 # Missing types → zero-coverage grid cells → positive (unphysical) AD4 scores.
 _LIGAND_TYPES = "C A N NA OA SA HD S NS F Cl Br I P"
 _GRID_SPACING = 0.375  # Angstrom — AutoDock standard; spec does not override
+# Padding added to each side of the autogrid4 box beyond the Vina box size.
+# AutoDock4 uses trilinear interpolation between grid points; atoms right at
+# the boundary of the Vina box land at the edge of the AD4 grid where
+# interpolation pulls from partially undefined neighbour cells → anomalous
+# scores (+700k kcal/mol observed on MDM2/p53 run).  A 2 Å pad puts the
+# physically-reachable box interior well away from grid edges.
+_AD4_GRID_PADDING = 2.0  # Angstrom per side
 
 
 def _get_pdbqt_atom_types(pdbqt_path: Path) -> list[str]:
@@ -148,8 +155,11 @@ def _build_gpf(config: DockConfig, maps_dir: Path, receptor_pdbqt: Path) -> str:
     autogrid4 runs with cwd=maps_dir. Full paths break autogrid4's internal
     file handling.
 
-    Grid points per dimension: npts = int(config.box_size / _GRID_SPACING).
-    The box is cubic (same npts for all three dimensions).
+    Grid points per dimension: npts = int((config.box_size + 2 * _AD4_GRID_PADDING) / _GRID_SPACING).
+    The box is cubic (same npts for all three dimensions).  _AD4_GRID_PADDING extends
+    the grid beyond the Vina scoring box to prevent boundary interpolation artefacts
+    (atoms near the Vina box edge can hit partially-undefined AD4 grid cells →
+    anomalous scores in the hundreds-of-thousands kcal/mol range).
 
     receptor_types is derived dynamically from the actual PDBQT atom type
     column — prevents autogrid4 "Unknown receptor type" errors when the
@@ -164,7 +174,8 @@ def _build_gpf(config: DockConfig, maps_dir: Path, receptor_pdbqt: Path) -> str:
     Returns:
         GPF file content as a string, ready to write to receptor.gpf.
     """
-    npts = int(config.box_size / _GRID_SPACING)
+    padded_box = config.box_size + 2 * _AD4_GRID_PADDING
+    npts = int(padded_box / _GRID_SPACING)
     cx, cy, cz = config.site_coords
 
     receptor_type_list = _get_pdbqt_atom_types(receptor_pdbqt)
