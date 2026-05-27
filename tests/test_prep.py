@@ -580,14 +580,19 @@ class TestBuildGpf:
         assert "gridcenter 22.5 14.1 38.7" in gpf_text
 
     def test_npts_derived_from_box_size(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
-        """npts = int(box_size / 0.375) for a cubic box."""
-        from hybridock_pep.prep.grids import _build_gpf
+        """npts = int((box_size + 2*AD4_GRID_PADDING) / 0.375) for a cubic box.
+
+        The AD4 grid is padded by _AD4_GRID_PADDING (2.0 Å) on each side beyond
+        the Vina box to prevent boundary interpolation artefacts.
+        """
+        from hybridock_pep.prep.grids import _AD4_GRID_PADDING, _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
         gpf_text = _build_gpf(config, maps_dir, receptor_pdbqt)
-        # box_size=20.0, spacing=0.375 -> npts=53
-        expected_npts = int(20.0 / 0.375)
+        # box_size=20.0, padding=2.0 each side → padded=24.0, spacing=0.375 → npts=64
+        padded_box = 20.0 + 2 * _AD4_GRID_PADDING
+        expected_npts = int(padded_box / 0.375)
         npts_line = next(
             (ln for ln in gpf_text.splitlines() if ln.startswith("npts")), None
         )
@@ -1053,15 +1058,21 @@ class TestGrids:
         )
 
     def test_build_gpf_npts_from_box_size(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
-        """npts must equal int(box_size / 0.375) = 53 for box_size=20.0."""
-        from hybridock_pep.prep.grids import _build_gpf
+        """npts = int((box_size + 2*_AD4_GRID_PADDING) / 0.375) for a cubic box.
+
+        The AD4 grid is padded by 2 Å on each side beyond the Vina box to prevent
+        boundary interpolation artefacts from autogrid4.
+        """
+        from hybridock_pep.prep.grids import _AD4_GRID_PADDING, _build_gpf
 
         maps_dir = tmp_path / "maps"
         maps_dir.mkdir()
         gpf_content = _build_gpf(config, maps_dir, receptor_pdbqt)
-        expected = int(20.0 / 0.375)  # 53
+        # box_size=20.0, _AD4_GRID_PADDING=2.0 → padded=24.0, spacing=0.375 → npts=64
+        padded = 20.0 + 2 * _AD4_GRID_PADDING
+        expected = int(padded / 0.375)
         assert f"npts {expected} {expected} {expected}" in gpf_content, (
-            f"Expected 'npts 53 53 53' in GPF, got:\n{gpf_content}"
+            f"Expected 'npts {expected} {expected} {expected}' in GPF, got:\n{gpf_content}"
         )
 
     def test_build_gpf_gridcenter_from_site_coords(self, config, receptor_pdbqt: Path, tmp_path: Path) -> None:
