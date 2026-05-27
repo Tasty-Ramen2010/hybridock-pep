@@ -4,10 +4,12 @@
 # Usage:
 #   bash scripts/chain_training_phases.sh 2>&1 | tee logs/chain_training.log &
 #
-# Phase layout:
-#   Phase 1: score heads + output convs (27.9% = 2.1M params), 30 epochs, lr=1e-4
-#   Phase 2: +last two equivariant blocks (73.0% = 5.5M params), 50 epochs, lr=5e-5, warmup=3
-#   Phase 3: full retrain (all 7.5M params), 200 epochs, lr=1e-4, warmup=10
+# Phase layout (hyperparameters revised after deep analysis — see docs/training_strategy_analysis.md):
+#   Phase 1: score heads + output convs + output embeddings (27.9% = 2.1M), 30 ep, lr=1e-4
+#   Phase 2: +cross_convs.2/3 + intra_convs.3 (NOT intra_convs.2), 50 ep, lr=2e-5, warmup=5
+#            cross_convs prioritised over intra_convs; intra_convs.2 held for P3 full context
+#   Phase 3: full retrain all 7.5M, 100 ep (was 200), lr=2e-5→1e-7 cosine (was 1e-4 plateau)
+#            lower LR+epochs prevent catastrophic forgetting of inner-layer physics priors
 #
 # Key fix (May 27 2026): --esm-device cpu avoids WSL2 TDR crash that killed the
 #   previous run at batch 790/874 during ESM embedding pre-computation.
@@ -80,10 +82,13 @@ echo "[chain] Phase 1 complete."
 sleep 5
 
 # ─── Phase 2 ─────────────────────────────────────────────────────────────────
+# cross_convs.3, cross_convs.2, intra_convs.3 (NOT intra_convs.2 — see analysis)
+# LR reduced 5e-5 → 2e-5; warmup 3 → 5 (more conservative since we're touching
+# deeper geometric layers; intra_convs.2 frozen until Phase 3 full-model context)
 echo ""
 echo "========================================================================"
-echo "[chain] Phase 2 — +last 2 equivariant blocks (73.0%), lr=5e-5, 50 epochs, warmup=3"
-echo "  ESM device: cpu  (one-time cost; training loop stays on GPU)"
+echo "[chain] Phase 2 — cross_convs.2/3 + intra_convs.3, lr=2e-5, 50 epochs, warmup=5"
+echo "  ESM device: cpu  (cache hit expected — ~30s load vs ~4h recompute)"
 echo "========================================================================"
 mkdir -p "$P2_OUT"
 $CONDA python3 "$SCRIPT" \
@@ -93,8 +98,9 @@ $CONDA python3 "$SCRIPT" \
     --output-dir     "$P2_OUT" \
     --unfreeze-phase 2 \
     --n-epochs       50 \
-    --lr             5e-5 \
-    --warmup-epochs  3 \
+    --lr             2e-5 \
+    --warmup-epochs  5 \
+    --lr-schedule    plateau \
     --grad-accum     4 \
     --save-every     5 \
     --seed           42 \
@@ -107,10 +113,17 @@ echo "[chain] Phase 2 complete."
 sleep 5
 
 # ─── Phase 3 ─────────────────────────────────────────────────────────────────
+# Full retrain — all 7.5M params including intra_convs.0/1, cross_convs.0/1
+# LR reduced 1e-4 → 2e-5  (5× lower: prevents catastrophic forgetting of inner
+#   layers' physically grounded geometric representations)
+# Epochs reduced 200 → 100  (after 80 epochs of P1+P2 the remaining optimum is
+#   close; 200 full-model epochs at any LR risks eroding physics priors)
+# Cosine schedule (not plateau): deterministic monotone decay avoids oscillation
+#   around pre-trained inner-layer representations; reaches 1e-7 at epoch 100
 echo ""
 echo "========================================================================"
-echo "[chain] Phase 3 — full retrain (all 7.5M params), lr=1e-4, 200 epochs, warmup=10"
-echo "  ESM device: cpu  (one-time cost; training loop stays on GPU)"
+echo "[chain] Phase 3 — full retrain (all 7.5M), lr=2e-5→1e-7 cosine, 100 epochs, warmup=10"
+echo "  ESM device: cpu  (cache hit expected)"
 echo "========================================================================"
 mkdir -p "$P3_OUT"
 $CONDA python3 "$SCRIPT" \
@@ -119,9 +132,11 @@ $CONDA python3 "$SCRIPT" \
     --checkpoint     "$P2_BEST" \
     --output-dir     "$P3_OUT" \
     --unfreeze-phase 3 \
-    --n-epochs       200 \
-    --lr             1e-4 \
+    --n-epochs       100 \
+    --lr             2e-5 \
     --warmup-epochs  10 \
+    --lr-schedule    cosine \
+    --cosine-min-lr  1e-7 \
     --grad-accum     4 \
     --save-every     10 \
     --seed           42 \
