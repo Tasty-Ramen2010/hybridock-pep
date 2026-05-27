@@ -115,8 +115,10 @@ def plot_silhouette(
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("Silhouette score")
     ax.set_title("Silhouette score vs. number of clusters")
-    if any(artist.get_label() and not artist.get_label().startswith("_")
-           for artist in ax.get_children()):
+    if any(isinstance(artist.get_label(), str)
+           and artist.get_label() and not artist.get_label().startswith("_")
+           for artist in ax.get_children()
+           if hasattr(artist, "get_label")):
         ax.legend()
     fig.tight_layout()
     fig.savefig(output_path, dpi=dpi)
