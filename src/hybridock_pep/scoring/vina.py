@@ -10,10 +10,14 @@ Key design decisions (from RESEARCH.md / STATE.md):
 - float(v.score()[0]) used throughout — never raw numpy array comparisons.
 - Vina SWIG bindings have no documented thread safety; sequential scoring only.
 - optimize_clashing=True (default): when initial score > 0 (receptor-peptide clash),
-  call v.optimize() to find the nearest local minimum and write the optimized PDBQT.
+  call v.optimize() up to max_clash_relief_rounds times, stopping early when the
+  score drops below 0 or BFGS has converged (< 0.5 kcal/mol improvement per round).
   RAPiDock-Reloaded generates side-chain torsions that can overlap receptor atoms;
   Vina local optimization resolves these clashes in the same scoring function used
   for ranking, keeping the comparison self-consistent.
+  Multi-round relief helps for marginal clashes; severe overlaps (> 50 kcal/mol)
+  typically need no_final_step_noise=True at the RAPiDock level to prevent the
+  clash at source.
 """
 
 from __future__ import annotations
@@ -131,6 +135,7 @@ def score_vina_batch(
     verbosity: int = 0,
     metadata_path: Path | None = None,
     optimize_clashing: bool = True,
+    max_clash_relief_rounds: int = 5,
 ) -> tuple[list[ScoredPose], list[PoseFailure]]:
     """Score a batch of poses with Vina --score_only using a single Vina instance.
 
@@ -144,13 +149,16 @@ def score_vina_batch(
     (SCORE-01).
 
     When optimize_clashing=True (default): poses with initial score > 0 (positive =
-    receptor-peptide clash or severe steric overlap) are locally optimized via
-    v.optimize() before scoring. The optimized PDBQT is written back to pdbqt_path
-    so that subsequent AD4 scoring uses the same clash-free geometry. This is needed
-    for RAPiDock-Reloaded, whose side-chain torsion diffusion can land aromatic rings
-    (PHE, TRP) partially inside receptor atoms. Vina local optimization resolves the
-    clash using the same scoring function used for ranking, keeping the comparison
-    self-consistent.
+    receptor-peptide clash or severe steric overlap) are locally optimized via up to
+    max_clash_relief_rounds rounds of v.optimize(). Each round is a BFGS minimization
+    from the current ligand position. Rounds stop early when:
+      (a) the score drops below 0 (clash resolved), or
+      (b) a round improves the score by less than 0.5 kcal/mol (BFGS converged).
+    Multi-round relief recovers marginal clashes that need > 1 BFGS pass;
+    deeply-embedded poses (> 50 kcal/mol initial) should instead be prevented at
+    source via RAPiDock's no_final_step_noise=True flag.
+    The optimized PDBQT is written back to pdbqt_path so that subsequent AD4
+    scoring uses the same clash-free geometry.
 
     Note: Vina SWIG bindings are not thread-safe; poses are scored sequentially.
 
@@ -164,6 +172,10 @@ def score_vina_batch(
         optimize_clashing: When True (default), locally optimize poses whose
             initial Vina score > 0 (indicating receptor clash) and update the
             PDBQT file with the clash-free geometry before final scoring.
+        max_clash_relief_rounds: Maximum number of BFGS optimization rounds to
+            attempt when the initial score is positive. Each round starts from
+            the previous round's position. Early stop triggers when score < 0
+            or improvement < 0.5 kcal/mol. Default 5.
 
     Returns:
         A tuple (scored, failures) where scored contains successfully scored
@@ -187,8 +199,8 @@ def score_vina_batch(
     )
 
     logger.info(
-        "Vina scorer: %d poses, receptor=%s, optimize_clashing=%s",
-        len(poses), receptor_pdbqt, optimize_clashing,
+        "Vina scorer: %d poses, receptor=%s, optimize_clashing=%s, max_clash_relief_rounds=%d",
+        len(poses), receptor_pdbqt, optimize_clashing, max_clash_relief_rounds,
     )
 
     for pose in poses:
@@ -214,32 +226,53 @@ def score_vina_batch(
             # Clash relief: locally optimize poses with positive Vina score (receptor overlap).
             # v.optimize() finds the nearest energy minimum in the Vina scoring function —
             # it moves the ligand just enough to relieve VDW clashes without global resampling.
-            # The optimized PDBQT is written back so AD4 scoring uses the same geometry.
+            # Multi-round: repeat until score < 0, BFGS converged (< 0.5 kcal/mol improvement),
+            # or max_clash_relief_rounds reached. The optimized PDBQT is written back so
+            # AD4 scoring uses the same clash-free geometry.
             if optimize_clashing and raw_score > 0 and not pose.is_clipped:
-                v.optimize()
-                optimized_score = float(v.score()[0])
+                prev_score = raw_score
+                final_score = raw_score
+                rounds_done = 0
+                for round_num in range(1, max_clash_relief_rounds + 1):
+                    v.optimize()
+                    round_score = float(v.score()[0])
+                    improvement = prev_score - round_score
+                    logger.debug(
+                        "Pose %d: clash relief round %d/%d: %.2f → %.2f kcal/mol (Δ=%.2f)",
+                        pose.pose_idx, round_num, max_clash_relief_rounds,
+                        prev_score, round_score, improvement,
+                    )
+                    final_score = round_score
+                    rounds_done = round_num
+                    if round_score <= 0:
+                        break  # clash fully resolved — stop early
+                    if improvement < 0.5:
+                        break  # BFGS has converged; further rounds won't help
+                    prev_score = round_score
+
                 logger.info(
-                    "Pose %d: clash relief optimization %.2f → %.2f kcal/mol",
-                    pose.pose_idx, raw_score, optimized_score,
+                    "Pose %d: clash relief %d round(s): %.2f → %.2f kcal/mol",
+                    pose.pose_idx, rounds_done, raw_score, final_score,
                 )
-                if optimized_score > 0:
-                    # Optimization failed to relieve clash — ligand still inside receptor.
+
+                if final_score > 0:
+                    # All rounds failed to relieve clash — ligand still inside receptor.
                     # Recording a positive Vina score would corrupt ensemble z-score
                     # statistics (the huge positive outliers inflate mean and std,
                     # making well-scored poses appear as implausibly extreme outliers).
                     # Treat as a scoring failure instead.
                     logger.warning(
-                        "Pose %d: clash relief failed (score %.2f → %.2f still positive); "
-                        "excluding from scored set",
-                        pose.pose_idx, raw_score, optimized_score,
+                        "Pose %d: clash relief failed after %d round(s) "
+                        "(%.2f → %.2f kcal/mol still positive); excluding from scored set",
+                        pose.pose_idx, rounds_done, raw_score, final_score,
                     )
                     failures.append(
                         PoseFailure(
                             pose_idx=pose.pose_idx,
                             stage="scoring",
                             error_msg=(
-                                f"clash_relief_failed: Vina optimize reduced "
-                                f"{raw_score:.2f} → {optimized_score:.2f} kcal/mol "
+                                f"clash_relief_failed: Vina optimize ({rounds_done} rounds) "
+                                f"reduced {raw_score:.2f} → {final_score:.2f} kcal/mol "
                                 "but score remains positive (receptor overlap unresolved)"
                             ),
                         )
@@ -247,7 +280,7 @@ def score_vina_batch(
                     continue
                 # Overwrite PDBQT with clash-free geometry (AD4 scoring reads this file)
                 v.write_pose(str(pose.pdbqt_path), overwrite=True)
-                pose.vina_score = optimized_score
+                pose.vina_score = final_score
             else:
                 pose.vina_score = raw_score
 
