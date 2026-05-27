@@ -9,6 +9,11 @@ Key design decisions (from RESEARCH.md / STATE.md):
 - compute_vina_maps() called ONCE before the pose loop (all 22 atom types).
 - float(v.score()[0]) used throughout — never raw numpy array comparisons.
 - Vina SWIG bindings have no documented thread safety; sequential scoring only.
+- optimize_clashing=True (default): when initial score > 0 (receptor-peptide clash),
+  call v.optimize() to find the nearest local minimum and write the optimized PDBQT.
+  RAPiDock-Reloaded generates side-chain torsions that can overlap receptor atoms;
+  Vina local optimization resolves these clashes in the same scoring function used
+  for ranking, keeping the comparison self-consistent.
 """
 
 from __future__ import annotations
@@ -125,6 +130,7 @@ def score_vina_batch(
     *,
     verbosity: int = 0,
     metadata_path: Path | None = None,
+    optimize_clashing: bool = True,
 ) -> tuple[list[ScoredPose], list[PoseFailure]]:
     """Score a batch of poses with Vina --score_only using a single Vina instance.
 
@@ -137,6 +143,15 @@ def score_vina_batch(
     a WARNING is logged, and the pose entry is appended to run_metadata.json
     (SCORE-01).
 
+    When optimize_clashing=True (default): poses with initial score > 0 (positive =
+    receptor-peptide clash or severe steric overlap) are locally optimized via
+    v.optimize() before scoring. The optimized PDBQT is written back to pdbqt_path
+    so that subsequent AD4 scoring uses the same clash-free geometry. This is needed
+    for RAPiDock-Reloaded, whose side-chain torsion diffusion can land aromatic rings
+    (PHE, TRP) partially inside receptor atoms. Vina local optimization resolves the
+    clash using the same scoring function used for ranking, keeping the comparison
+    self-consistent.
+
     Note: Vina SWIG bindings are not thread-safe; poses are scored sequentially.
 
     Args:
@@ -146,6 +161,9 @@ def score_vina_batch(
         verbosity: Vina verbosity level (0=silent). Default 0.
         metadata_path: If provided, clipped pose entries are appended to this
             JSON file. Parent directories are created if absent.
+        optimize_clashing: When True (default), locally optimize poses whose
+            initial Vina score > 0 (indicating receptor clash) and update the
+            PDBQT file with the clash-free geometry before final scoring.
 
     Returns:
         A tuple (scored, failures) where scored contains successfully scored
@@ -168,7 +186,10 @@ def score_vina_batch(
         box_size=[config.box_size] * 3,
     )
 
-    logger.info("Vina scorer: %d poses, receptor=%s", len(poses), receptor_pdbqt)
+    logger.info(
+        "Vina scorer: %d poses, receptor=%s, optimize_clashing=%s",
+        len(poses), receptor_pdbqt, optimize_clashing,
+    )
 
     for pose in poses:
         try:
@@ -188,7 +209,25 @@ def score_vina_batch(
                     _append_clipped_pose(metadata_path, pose.pose_idx, pose.pdbqt_path)
 
             v.set_ligand_from_file(str(pose.pdbqt_path))
-            pose.vina_score = float(v.score()[0])
+            raw_score = float(v.score()[0])
+
+            # Clash relief: locally optimize poses with positive Vina score (receptor overlap).
+            # v.optimize() finds the nearest energy minimum in the Vina scoring function —
+            # it moves the ligand just enough to relieve VDW clashes without global resampling.
+            # The optimized PDBQT is written back so AD4 scoring uses the same geometry.
+            if optimize_clashing and raw_score > 0 and not pose.is_clipped:
+                v.optimize()
+                optimized_score = float(v.score()[0])
+                logger.info(
+                    "Pose %d: clash relief optimization %.2f → %.2f kcal/mol",
+                    pose.pose_idx, raw_score, optimized_score,
+                )
+                # Overwrite PDBQT with clash-free geometry (AD4 scoring reads this file)
+                v.write_pose(str(pose.pdbqt_path), overwrite=True)
+                pose.vina_score = optimized_score
+            else:
+                pose.vina_score = raw_score
+
             scored.append(pose)
 
         except Exception as e:  # noqa: BLE001 — per-pose isolation required (D-07)
