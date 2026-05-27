@@ -229,6 +229,107 @@ class TestVinaScorer:
         assert len(data["clipped_poses"]) > 0, "clipped_poses must be non-empty"
         assert data["clipped_poses"][0]["pose_idx"] == 7
 
+    def test_multi_round_clash_relief_resolves_on_second_round(self, tmp_path: Path) -> None:
+        """Pose needing 2 optimization rounds: succeeds when round 2 drops score below 0."""
+        import numpy as np
+        from hybridock_pep.models import DockConfig, ScoredPose
+        from hybridock_pep.scoring.vina import score_vina_batch
+
+        receptor = tmp_path / "receptor.pdbqt"
+        receptor.write_text("REMARK dummy\n")
+        pdbqt = tmp_path / "pose_clash.pdbqt"
+        # Atom inside box so is_clipped=False
+        atom_inside = (
+            f"ATOM      1  CA  ALA A   1    "
+            f"{self._SITE[0]:8.3f}{self._SITE[1]:8.3f}{self._SITE[2]:8.3f}"
+            f"  0.00  0.00     +0.000 C \n"
+        )
+        pdbqt.write_text(atom_inside)
+
+        config = DockConfig(
+            peptide_sequence="A",
+            receptor_path=receptor,
+            site_coords=self._SITE,
+            box_size=self._BOX,
+            output_dir=tmp_path,
+        )
+        pose = ScoredPose(
+            pose_idx=42,
+            pdb_path=tmp_path / "pose_42.pdb",
+            sequence="A",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        # Initial score > 0 (clash); round 1 still positive; round 2 → negative
+        mock_vina_instance.score.side_effect = [
+            [+15.0],  # raw_score — triggers clash relief
+            [+3.0],   # after round 1 optimize() — still positive, improvement=12 > 0.5
+            [-4.5],   # after round 2 optimize() — resolved
+        ]
+
+        with mock.patch("hybridock_pep.scoring.vina.Vina", return_value=mock_vina_instance):
+            scored, failures = score_vina_batch(
+                [pose], config, receptor, max_clash_relief_rounds=5
+            )
+
+        assert len(failures) == 0, "Pose should succeed after 2 rounds"
+        assert len(scored) == 1
+        assert scored[0].vina_score == pytest.approx(-4.5)
+        assert mock_vina_instance.optimize.call_count == 2
+
+    def test_multi_round_clash_relief_fails_when_converged_positive(
+        self, tmp_path: Path
+    ) -> None:
+        """BFGS converges to positive-score minimum → PoseFailure after early stop."""
+        import numpy as np
+        from hybridock_pep.models import DockConfig, PoseFailure, ScoredPose
+        from hybridock_pep.scoring.vina import score_vina_batch
+
+        receptor = tmp_path / "receptor.pdbqt"
+        receptor.write_text("REMARK dummy\n")
+        pdbqt = tmp_path / "pose_clash.pdbqt"
+        atom_inside = (
+            f"ATOM      1  CA  ALA A   1    "
+            f"{self._SITE[0]:8.3f}{self._SITE[1]:8.3f}{self._SITE[2]:8.3f}"
+            f"  0.00  0.00     +0.000 C \n"
+        )
+        pdbqt.write_text(atom_inside)
+
+        config = DockConfig(
+            peptide_sequence="A",
+            receptor_path=receptor,
+            site_coords=self._SITE,
+            box_size=self._BOX,
+            output_dir=tmp_path,
+        )
+        pose = ScoredPose(
+            pose_idx=77,
+            pdb_path=tmp_path / "pose_77.pdb",
+            sequence="A",
+            ca_coords=np.zeros((1, 3)),
+            pdbqt_path=pdbqt,
+        )
+
+        mock_vina_instance = mock.MagicMock()
+        # Raw positive → round 1 improves by only 0.1 kcal/mol → early stop (BFGS converged)
+        mock_vina_instance.score.side_effect = [
+            [+80.0],   # raw_score
+            [+79.9],   # after round 1 — improvement 0.1 < 0.5 → early stop
+        ]
+
+        with mock.patch("hybridock_pep.scoring.vina.Vina", return_value=mock_vina_instance):
+            scored, failures = score_vina_batch(
+                [pose], config, receptor, max_clash_relief_rounds=5
+            )
+
+        assert len(scored) == 0
+        assert len(failures) == 1
+        assert isinstance(failures[0], PoseFailure)
+        assert "clash_relief_failed" in failures[0].error_msg
+        assert mock_vina_instance.optimize.call_count == 1  # stopped after 1 round
+
 
 # ---------------------------------------------------------------------------
 # SCORE-02: AD4 scorer (plan 03-02)
