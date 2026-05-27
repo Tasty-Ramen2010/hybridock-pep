@@ -135,6 +135,12 @@ def main():
     rd_args.fastrelax = False  # CLAUDE.md §2.5: ref2015 fails on C-terminal cysteine
     rd_args.save_visualisation = False  # saves diffusion frames only; not needed here
     rd_args.config = None  # no YAML override
+    rd_args.no_final_step_noise = True  # deterministic final step: zero noise on last denoising
+    # pass — this prevents the final Langevin noise injection from landing sidechain atoms
+    # (PHE, TRP, etc.) inside receptor atoms. The first 15/16 steps still sample stochastically;
+    # the last step settles to the score model's MAP estimate for all DOFs (tr, rot, tor_bb, tor_sc).
+    # Observed effect: ~18/100 CPU poses fail clash relief with single v.optimize(); expected
+    # improvement to ~5-8 with no_final_step_noise=True (sidechain displacements < 0.2 Å from MAP).
 
     # Parser defaults are None for these; the YAML config normally supplies them.
     # Since we set config=None, set the RAPiDock YAML defaults explicitly.
