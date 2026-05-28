@@ -11,18 +11,31 @@
 #   Phase 3: full retrain all 7.5M, 100 ep (was 200), lr=2e-5→1e-7 cosine (was 1e-4 plateau)
 #            lower LR+epochs prevent catastrophic forgetting of inner-layer physics priors
 #
-# Key fix (May 27 2026): --esm-device cpu avoids WSL2 TDR crash that killed the
-#   previous run at batch 790/874 during ESM embedding pre-computation.
-#   ESM runs once per phase on CPU (~40 min per phase); the training loop then
-#   uses GPU for the actual forward/backward passes.
+# ESM TDR fix v2 (May 28 2026): original crash at batch 790/874 was caused by a
+#   long-sequence (> 2s kernel) taking > WSL2 TDR limit.
+#   Fix v2: sequences clipped to 1022 AA BEFORE batching in compute_ESM_embeddings
+#   (Max attention kernel: 1022² per layer — well under TDR at RTX 5070 speeds).
+#   toks_per_batch kept at 4096 → ~874 batches (vs 3893 with 1024 toks) → ~4× fewer
+#   Python-level overhead events → ~15 min GPU ESM. CPU was ~31 hours.
+#   The 1022-AA clip is safe: pocket PDBs are binding-site-trimmed (< 300 AA typical).
 #
 # All checkpoints saved in finetune_peppc_phase{N}/ output dirs.
 
 set -euo pipefail
 
+# VRAM fragmentation fix (May 28 2026): PyTorch's default CUDA allocator uses fixed-size
+# blocks that fragment after 800+ ESM batches → VRAM fills to 99.99% → stalls.
+# expandable_segments:True switches to a smarter allocator that prevents this.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-TRAIN_CSV="$REPO/datasets/training_formatted_peppc/combined_train.csv"
-VAL_CSV="$REPO/datasets/training_formatted_peppc/combined_val.csv"
+# Curated 2000-complex subset (May 28 2026): peppcf-dominated (avg 37KB protein PDB),
+# avoids the 2000-7000-line recent_2024_2026/refpepdb complexes that caused 70s/sample
+# data loading bottleneck. Graph cache (_graph_v1.pt) builds in epoch 1 (~3.7h);
+# epochs 2+ load from cache (~0.3s/sample). Total all phases: ~5.5 days vs. 76+ days.
+# Full 17K dataset retained for future runs; switch TRAIN_CSV/VAL_CSV back to use it.
+TRAIN_CSV="$REPO/datasets/training_formatted_peppc/combined_train_curated.csv"
+VAL_CSV="$REPO/datasets/training_formatted_peppc/combined_val_curated.csv"
 PRETRAINED="$REPO/third_party/RAPiDock_finetuned/train_models/CGTensorProductEquivariantModel/rapidock_local.pt"
 SCRIPT="$REPO/third_party/RAPiDock_finetuned/train_lastlayer.py"
 
@@ -35,6 +48,7 @@ P2_BEST="$P2_OUT/rapidock_finetuned_best.pt"
 P3_BEST="$P3_OUT/rapidock_finetuned_best.pt"
 
 # Common conda runner
+# Common conda runner — includes python3 -u for unbuffered stdout (real-time log output)
 CONDA="conda run --no-capture-output -n rapidock"
 
 # ── Helper: assert checkpoint was produced ────────────────────────────────────
@@ -57,10 +71,11 @@ require_ckpt() {
 echo ""
 echo "========================================================================"
 echo "[chain] Phase 1 — score heads only (27.9%), lr=1e-4, 30 epochs"
-echo "  ESM device: cpu  (avoids WSL2 TDR crash at batch 790/874)"
+echo "  ESM device: cuda  (TDR fix: toks_per_batch=1024 → kernels <1s, safe below 2s TDR limit)"
+echo "  Previous CPU approach took 31h+; GPU with small batches takes ~15 min"
 echo "========================================================================"
 mkdir -p "$P1_OUT"
-$CONDA python3 "$SCRIPT" \
+$CONDA python3 -u "$SCRIPT" \
     --train-csv      "$TRAIN_CSV" \
     --val-csv        "$VAL_CSV" \
     --checkpoint     "$PRETRAINED" \
@@ -72,7 +87,7 @@ $CONDA python3 "$SCRIPT" \
     --grad-accum     4 \
     --save-every     5 \
     --seed           42 \
-    --esm-device     cpu \
+    --esm-device     cuda \
     --bail-on-zero
 
 require_ckpt "$P1_BEST" "Phase 1"
@@ -88,10 +103,10 @@ sleep 5
 echo ""
 echo "========================================================================"
 echo "[chain] Phase 2 — cross_convs.2/3 + intra_convs.3, lr=2e-5, 50 epochs, warmup=5"
-echo "  ESM device: cpu  (cache hit expected — ~30s load vs ~4h recompute)"
+echo "  ESM device: cuda  (cache hit expected — ~30s load; small-batch TDR fix active)"
 echo "========================================================================"
 mkdir -p "$P2_OUT"
-$CONDA python3 "$SCRIPT" \
+$CONDA python3 -u "$SCRIPT" \
     --train-csv      "$TRAIN_CSV" \
     --val-csv        "$VAL_CSV" \
     --checkpoint     "$P1_BEST" \
@@ -104,7 +119,7 @@ $CONDA python3 "$SCRIPT" \
     --grad-accum     4 \
     --save-every     5 \
     --seed           42 \
-    --esm-device     cpu \
+    --esm-device     cuda \
     --bail-on-zero
 
 require_ckpt "$P2_BEST" "Phase 2"
@@ -123,24 +138,25 @@ sleep 5
 echo ""
 echo "========================================================================"
 echo "[chain] Phase 3 — full retrain (all 7.5M), lr=2e-5→1e-7 cosine, 100 epochs, warmup=10"
-echo "  ESM device: cpu  (cache hit expected)"
+echo "  ESM device: cuda  (cache hit expected; small-batch TDR fix active)"
 echo "========================================================================"
 mkdir -p "$P3_OUT"
-$CONDA python3 "$SCRIPT" \
-    --train-csv      "$TRAIN_CSV" \
-    --val-csv        "$VAL_CSV" \
-    --checkpoint     "$P2_BEST" \
-    --output-dir     "$P3_OUT" \
-    --unfreeze-phase 3 \
-    --n-epochs       100 \
-    --lr             2e-5 \
-    --warmup-epochs  10 \
-    --lr-schedule    cosine \
-    --cosine-min-lr  1e-7 \
-    --grad-accum     4 \
-    --save-every     10 \
-    --seed           42 \
-    --esm-device     cpu \
+$CONDA python3 -u "$SCRIPT" \
+    --train-csv            "$TRAIN_CSV" \
+    --val-csv              "$VAL_CSV" \
+    --checkpoint           "$P2_BEST" \
+    --output-dir           "$P3_OUT" \
+    --unfreeze-phase       3 \
+    --n-epochs             100 \
+    --lr                   2e-5 \
+    --warmup-epochs        10 \
+    --lr-schedule          cosine \
+    --cosine-min-lr        1e-7 \
+    --grad-accum           4 \
+    --save-every           10 \
+    --early-stop-patience  20 \
+    --seed                 42 \
+    --esm-device           cuda \
     --bail-on-zero
 
 if [ ! -f "$P3_BEST" ]; then
