@@ -73,18 +73,27 @@ $CONDA python3 -u "$REPO/scripts/analyze_training.py" \
     --out-dir "$REPO/logs/analysis_v1" \
     2>&1 | tee "$REPO/logs/analysis_v1.log" || true   # don't abort pipeline on analysis failure
 
-# ─── Step 4: Small cooldown (let GPU VRAM flush) ─────────────────────────────
-echo "[pipeline] Cooling down for 30 s before starting v2..."
-sleep 30
-
-# ─── Step 5: Launch v2 chain ─────────────────────────────────────────────────
-echo ""
-echo "========================================================================"
-echo "[pipeline] Starting v2 chain (improved hyperparameters)..."
-echo "========================================================================"
-
-bash "$REPO/scripts/chain_training_phases_v2.sh" \
-    2>&1 | tee -a "$REPO/logs/chain_training_v2.log"
+# ─── Step 4 (SKIPPED): v2 chain was started manually before v1 finished ───────
+# v2 is already running in parallel. This pipeline just waits for v2 to complete
+# so it can do the final comparison.
+echo "[pipeline] v2 chain was already started in parallel — waiting for it to finish..."
+V2_PID_FILE="$REPO/logs/chain_v2.pid"
+if [ -f "$V2_PID_FILE" ]; then
+    V2_PID=$(cat "$V2_PID_FILE")
+    echo "[pipeline] v2 PID: $V2_PID"
+    while kill -0 "$V2_PID" 2>/dev/null; do
+        sleep 120
+        echo "[pipeline] $(date '+%H:%M:%S') — v2 still running..."
+    done
+    echo "[pipeline] v2 chain done."
+else
+    echo "[pipeline] WARNING: no v2 PID file found. Checking for v2 Phase 3 checkpoint..."
+    # Just wait for the v2 Phase 3 output to appear
+    while [ ! -f "$V2_P3_BEST" ] && [ ! -f "$REPO/third_party/RAPiDock_finetuned/finetune_peppc_v2_phase3/rapidock_finetuned_final.pt" ]; do
+        sleep 300
+        echo "[pipeline] $(date '+%H:%M:%S') — waiting for v2 Phase 3 checkpoint..."
+    done
+fi
 
 # ─── Step 6: Post-v2 comparison ──────────────────────────────────────────────
 echo ""
