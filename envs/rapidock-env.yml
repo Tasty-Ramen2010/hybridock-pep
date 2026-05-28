@@ -1,22 +1,19 @@
 name: rapidock
-# RAPiDock-Reloaded (Tasty-Ramen2010/RAPiDock-Reloaded) environment.
-# Now cross-platform: CUDA (Linux/Windows), MPS (macOS Apple Silicon), and CPU.
+# RAPiDock-Reloaded (Tasty-Ramen2010/RAPiDock-Reloaded) environment — CUDA / Linux+WSL2.
+# For macOS Apple Silicon (MPS) use envs/rapidock-env-macos.yml instead.
 #
-# For CUDA (RTX 5070, Blackwell CC 12.0) — install PyTorch after env creation:
-#   pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
-#   pip install torch-scatter torch-sparse torch-cluster torch-spline-conv \
-#               -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
+# After creating the env, install PyTorch + PyG via pip:
 #
-# For macOS (MPS, Apple Silicon):
-#   pip install torch torchvision torchaudio
-#   pip install torch-scatter torch-sparse torch-cluster torch_geometric
-#   (MPS fallback is enabled automatically by inference.py — no env vars needed)
+#   CUDA 12.8 (RTX 5070 / Blackwell CC 12.0, Linux):
+#     conda run -n rapidock pip install torch==2.7.0 \
+#         --index-url https://download.pytorch.org/whl/cu128
+#     conda run -n rapidock pip install \
+#         torch-scatter torch-sparse torch-cluster torch-spline-conv \
+#         -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
 #
-# RAPiDock-Reloaded auto-detects the device at runtime (CUDA → MPS → CPU).
+# RAPiDock-Reloaded auto-detects CUDA → MPS → CPU at runtime.
+# Bundled at third_party/RAPiDock/ — no pip install needed.
 channels:
-  - pytorch
-  - nvidia
-  - pyg
   - conda-forge
   - defaults
 dependencies:
@@ -37,6 +34,5 @@ dependencies:
       - "opt-einsum"
       - "PeptideBuilder"
       - "sympy"
-      # PyTorch + PyG: see platform-specific instructions above.
-      # RAPiDock-Reloaded: bundled as a git submodule at third_party/RAPiDock/ (see INSTALL.md).
-      # No pip install needed — run_rapidock.py imports directly from that directory.
+      # PyTorch + PyG: install via pip AFTER env creation (see header above).
+      # RAPiDock-Reloaded: bundled at third_party/RAPiDock/ — import directly.
