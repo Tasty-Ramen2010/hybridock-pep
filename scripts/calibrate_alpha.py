@@ -156,11 +156,11 @@ def main(args: argparse.Namespace | None = None) -> None:
 
     for row in rows:
         pdb_id = row["pdb_id"]
-        pdb_id_key = pdb_id.lower()
+        pdb_id_key = pdb_id.upper()
         peptide_sequence = row["peptide_sequence"]
         experimental_pkd_str = row["experimental_pkd"]
 
-        if pdb_id not in scores:
+        if pdb_id_key not in scores:
             _log.warning("Skipping %s — not found in scores JSON (RED/excluded entry)", pdb_id)
             continue
 
