@@ -138,7 +138,9 @@ def main(args: argparse.Namespace | None = None) -> None:
         )
 
     _log.debug("Loading scores JSON from %s", args.scores_json)
-    scores: dict[str, dict[str, float]] = json.loads(Path(args.scores_json).read_text())
+    _scores_raw: dict[str, dict[str, float]] = json.loads(Path(args.scores_json).read_text())
+    # Normalise keys to uppercase so CSV (uppercase) and JSON (lowercase) match
+    scores: dict[str, dict[str, float]] = {k.upper(): v for k, v in _scores_raw.items()}
 
     # Read training CSV (D-08 schema)
     _log.debug("Reading training CSV from %s", args.training_csv)
@@ -158,10 +160,8 @@ def main(args: argparse.Namespace | None = None) -> None:
         experimental_pkd_str = row["experimental_pkd"]
 
         if pdb_id not in scores:
-            raise ValueError(
-                f"pdb_id '{pdb_id}' from training CSV not found in scores JSON. "
-                f"Available pdb_ids: {sorted(scores.keys())}"
-            )
+            _log.warning("Skipping %s — not found in scores JSON (RED/excluded entry)", pdb_id)
+            continue
 
         entry = scores[pdb_id]
         try:
