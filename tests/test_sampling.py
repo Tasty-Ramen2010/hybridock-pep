@@ -293,3 +293,159 @@ class TestPoseIO:
         assert records[0].sequence == "AAA", (
             f"Expected ATOM-fallback sequence 'AAA', got {records[0].sequence!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform: _detect_device_platform + _seed_everything macOS paths
+# ---------------------------------------------------------------------------
+
+class TestCrossPlatformDetection:
+    """Tests for macOS/Linux/WSL2 device detection and seed safety."""
+
+    def test_detect_device_linux_with_cuda(self) -> None:
+        """On Linux with nvidia-smi present, should return CUDA label."""
+        from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
+
+        with mock.patch("sys.platform", "linux"):
+            with mock.patch("hybridock_pep.sampling.rapidock_runner.shutil.which",
+                            return_value="/usr/bin/nvidia-smi"):
+                label = _detect_device_platform()
+        assert "CUDA" in label
+
+    def test_detect_device_linux_no_gpu(self) -> None:
+        """On Linux without nvidia-smi, should return CPU label."""
+        from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
+
+        with mock.patch("sys.platform", "linux"):
+            with mock.patch("hybridock_pep.sampling.rapidock_runner.shutil.which",
+                            return_value=None):
+                label = _detect_device_platform()
+        assert "CPU" in label and "Linux" in label
+
+    def test_detect_device_macos_arm64(self) -> None:
+        """On macOS arm64, should return MPS label."""
+        from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
+        import platform as _platform
+
+        with mock.patch("sys.platform", "darwin"):
+            with mock.patch.object(_platform, "machine", return_value="arm64"):
+                label = _detect_device_platform()
+        assert "MPS" in label and "Apple Silicon" in label
+
+    def test_detect_device_macos_intel(self) -> None:
+        """On macOS x86_64, should return CPU label for Intel."""
+        from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
+        import platform as _platform
+
+        with mock.patch("sys.platform", "darwin"):
+            with mock.patch.object(_platform, "machine", return_value="x86_64"):
+                label = _detect_device_platform()
+        assert "CPU" in label and "Intel" in label
+
+    def test_seed_everything_no_cuda(self) -> None:
+        """_seed_everything must not call cuda.manual_seed_all when CUDA unavailable (macOS)."""
+        import sys
+        import types
+
+        # run_rapidock.py lives in the rapidock env (Python 3.10) — torch is not in score-env.
+        # Inject a fake torch module so we can import the shim and test _seed_everything.
+        mock_torch = types.ModuleType("torch")
+        mock_cuda_mod = types.ModuleType("torch.cuda")
+        mock_cuda_mod.is_available = mock.MagicMock(return_value=False)
+        mock_cuda_mod.manual_seed_all = mock.MagicMock()
+        mock_torch.cuda = mock_cuda_mod
+        mock_torch.manual_seed = mock.MagicMock()
+        mock_torch.backends = types.ModuleType("torch.backends")
+        mock_torch.backends.mps = types.SimpleNamespace(is_available=lambda: False)
+
+        mock_np = types.ModuleType("numpy")
+        mock_np_random = types.ModuleType("numpy.random")
+        mock_np_random.seed = mock.MagicMock()
+        mock_np.random = mock_np_random
+
+        shim_path = Path(__file__).parent.parent / "src" / "hybridock_pep" / "sampling"
+        sys.path.insert(0, str(shim_path))
+        orig_torch = sys.modules.pop("torch", None)
+        orig_np = sys.modules.pop("numpy", None)
+        orig_rr = sys.modules.pop("run_rapidock", None)
+
+        sys.modules["torch"] = mock_torch
+        sys.modules["numpy"] = mock_np
+        sys.modules["numpy.random"] = mock_np_random
+        try:
+            import run_rapidock as rr  # noqa: PLC0415
+            import importlib; importlib.reload(rr)
+            rr._seed_everything(42)
+        except ImportError:
+            pytest.skip("run_rapidock not importable — OK in isolation")
+            return
+        finally:
+            sys.path.pop(0)
+            if orig_torch is not None:
+                sys.modules["torch"] = orig_torch
+            else:
+                sys.modules.pop("torch", None)
+            if orig_np is not None:
+                sys.modules["numpy"] = orig_np
+            else:
+                sys.modules.pop("numpy", None)
+            if orig_rr is not None:
+                sys.modules["run_rapidock"] = orig_rr
+            else:
+                sys.modules.pop("run_rapidock", None)
+
+        mock_torch.manual_seed.assert_called_once_with(42)
+        mock_cuda_mod.manual_seed_all.assert_not_called()
+
+    def test_seed_everything_with_cuda(self) -> None:
+        """_seed_everything calls cuda.manual_seed_all when CUDA is available."""
+        import sys
+        import types
+
+        mock_torch = types.ModuleType("torch")
+        mock_cuda_mod = types.ModuleType("torch.cuda")
+        mock_cuda_mod.is_available = mock.MagicMock(return_value=True)
+        mock_cuda_mod.manual_seed_all = mock.MagicMock()
+        mock_torch.cuda = mock_cuda_mod
+        mock_torch.manual_seed = mock.MagicMock()
+        mock_torch.backends = types.ModuleType("torch.backends")
+        mock_torch.backends.mps = types.SimpleNamespace(is_available=lambda: False)
+
+        mock_np = types.ModuleType("numpy")
+        mock_np_random = types.ModuleType("numpy.random")
+        mock_np_random.seed = mock.MagicMock()
+        mock_np.random = mock_np_random
+
+        shim_path = Path(__file__).parent.parent / "src" / "hybridock_pep" / "sampling"
+        sys.path.insert(0, str(shim_path))
+        orig_torch = sys.modules.pop("torch", None)
+        orig_np = sys.modules.pop("numpy", None)
+        orig_rr = sys.modules.pop("run_rapidock", None)
+
+        sys.modules["torch"] = mock_torch
+        sys.modules["numpy"] = mock_np
+        sys.modules["numpy.random"] = mock_np_random
+        try:
+            import run_rapidock as rr  # noqa: PLC0415
+            import importlib; importlib.reload(rr)
+            rr._seed_everything(99)
+        except ImportError:
+            pytest.skip("run_rapidock not importable — OK in isolation")
+            return
+        finally:
+            sys.path.pop(0)
+            if orig_torch is not None:
+                sys.modules["torch"] = orig_torch
+            else:
+                sys.modules.pop("torch", None)
+            if orig_np is not None:
+                sys.modules["numpy"] = orig_np
+            else:
+                sys.modules.pop("numpy", None)
+            if orig_rr is not None:
+                sys.modules["run_rapidock"] = orig_rr
+            else:
+                sys.modules.pop("run_rapidock", None)
+
+        mock_torch.manual_seed.assert_called_once_with(99)
+        mock_cuda_mod.manual_seed_all.assert_called_once_with(99)
