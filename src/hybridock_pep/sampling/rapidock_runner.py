@@ -25,14 +25,37 @@ from __future__ import annotations
 import logging
 import os
 import re
+import platform
 import shutil
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
 from hybridock_pep.models import DockConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _detect_device_platform() -> str:
+    """Return a human-readable string describing the expected inference device.
+
+    Used for log messages and user-facing warnings. Inspects sys.platform and
+    the presence of the nvidia-smi binary to distinguish CUDA, MPS, and CPU.
+
+    Returns:
+        One of "CUDA (Linux/WSL2)", "MPS (macOS Apple Silicon)",
+        "CPU (macOS Intel)", or "CPU (Linux — no GPU detected)".
+    """
+    if sys.platform == "darwin":
+        machine = platform.machine()  # "arm64" on Apple Silicon, "x86_64" on Intel
+        if machine == "arm64":
+            return "MPS (macOS Apple Silicon)"
+        return "CPU (macOS Intel — MPS not available on x86_64)"
+    # Linux / WSL2: check for CUDA via nvidia-smi
+    if shutil.which("nvidia-smi") is not None:
+        return "CUDA (Linux/WSL2)"
+    return "CPU (Linux — nvidia-smi not found, no GPU detected)"
 
 
 def _stream_stderr(stderr_pipe) -> None:
@@ -218,6 +241,16 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     model_dir_abs = str(_find_model_dir())
     ckpt_name = _find_ckpt_name()
 
+    device_label = _detect_device_platform()
+    logger.info("Stage 1: RAPiDock-Reloaded sampling — device: %s", device_label)
+    if sys.platform == "darwin" and platform.machine() == "arm64":
+        logger.info(
+            "macOS Apple Silicon detected — using MPS backend. "
+            "PYTORCH_ENABLE_MPS_FALLBACK=1 is set by inference.py for ops not yet on Metal. "
+            "For full 100-pose runs, a CUDA machine is faster (~10× vs MPS). "
+            "Use --n-samples 20 for quick exploratory runs on MPS."
+        )
+
     cmd = [
         rapidock_python, shim_path,
         "--peptide", config.peptide_sequence,
@@ -252,8 +285,16 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
 
     # Non-zero exit is always a fatal error — no retry
     if proc.returncode != 0:
+        device_hint = ""
+        if sys.platform == "darwin":
+            device_hint = (
+                " On macOS, verify: (1) the rapidock env has PyTorch installed "
+                "(conda run -n rapidock python -c 'import torch; print(torch.__version__)'), "
+                "(2) torch-scatter/torch-sparse are installed. "
+                "See envs/rapidock-env-macos.yml for the install sequence."
+            )
         raise RuntimeError(
-            f"RAPiDock subprocess exited with code {proc.returncode}"
+            f"RAPiDock subprocess exited with code {proc.returncode}.{device_hint}"
         )
 
     # Rename rank*.pdb → pose_N.pdb (

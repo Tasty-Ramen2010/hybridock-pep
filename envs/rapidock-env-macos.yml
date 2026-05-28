@@ -1,0 +1,47 @@
+name: rapidock
+# RAPiDock-Reloaded environment — macOS Apple Silicon (MPS) and Intel (CPU).
+#
+# After creating the env, install PyTorch + PyG via pip:
+#
+#   macOS Apple Silicon (MPS — recommended):
+#     conda run -n rapidock pip install torch torchvision torchaudio
+#     conda run -n rapidock pip install \
+#         torch-scatter torch-sparse torch-cluster torch_geometric
+#
+#   macOS Intel (CPU only):
+#     conda run -n rapidock pip install torch torchvision torchaudio
+#     conda run -n rapidock pip install \
+#         torch-scatter torch-sparse torch-cluster torch_geometric
+#
+# RAPiDock-Reloaded auto-detects MPS (Apple Silicon) or CPU at runtime.
+# inference.py sets PYTORCH_ENABLE_MPS_FALLBACK=1 automatically so ops not
+# yet ported to Metal fall back to CPU transparently.
+#
+# Performance note: MPS is roughly 5–8× faster than CPU for diffusion inference.
+# A 20-pose run (~2 min on MPS) is practical for exploratory work. Full 100-pose
+# runs are best done on a CUDA machine.
+#
+# Bundled at third_party/RAPiDock/ — no pip install needed.
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - conda-forge::numpy>=1.26
+  - conda-forge::scipy>=1.13
+  - conda-forge::scikit-learn>=1.4
+  - conda-forge::biopython>=1.83
+  - conda-forge::networkx>=3.0
+  - conda-forge::pandas>=2.0
+  - conda-forge::tqdm>=4.60
+  - conda-forge::rdkit>=2024.03
+  - conda-forge::mdanalysis>=2.7
+  - conda-forge::e3nn>=0.5
+  - conda-forge::psutil
+  - pip:
+      - "fair-esm>=2.0"
+      - "opt-einsum"
+      - "PeptideBuilder"
+      - "sympy"
+      # PyTorch + PyG: install via pip AFTER env creation (see header above).
+      # RAPiDock-Reloaded: bundled at third_party/RAPiDock/ — import directly.

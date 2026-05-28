@@ -22,10 +22,16 @@ from typing import Optional
 
 def _seed_everything(seed):
     # type: (int) -> None
-    """Seed torch, torch.cuda, numpy, and random before inference starts.
+    """Seed torch, CUDA/MPS (if available), numpy, and random before inference.
 
     Called BEFORE any RAPiDock import so that ESM embedding computation and
     all downstream RNG calls are deterministic.
+
+    Platform notes:
+    - CUDA: torch.cuda.manual_seed_all seeds all GPU devices.
+    - MPS (macOS Apple Silicon): torch.manual_seed covers the MPS backend;
+      there is no separate mps.manual_seed_all as of PyTorch 2.7.
+    - CPU: torch.manual_seed is sufficient.
 
     Args:
         seed: Integer RNG seed to apply to all backends.
@@ -34,7 +40,9 @@ def _seed_everything(seed):
     import numpy as np
 
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    # MPS: torch.manual_seed already covers MPS; no extra call needed.
     np.random.seed(seed)
     random.seed(seed)
 
