@@ -98,6 +98,48 @@ def _wrap_pdbqt_rigid(flat_pdbqt_path: Path) -> None:
     flat_pdbqt_path.write_text(wrapped)
 
 
+def _has_coordinate_overflow(pdbqt_path: Path) -> bool:
+    """Return True if any ATOM/HETATM line has a coordinate with |value| > 999.0.
+
+    PDBQT uses 8.3f fixed-width fields for x, y, z (columns 30-38, 38-46, 46-54).
+    A value outside the range [-999.999, 999.999] overflows into adjacent columns,
+    corrupting atom-type, charge, and other fields that Vina/AD4 parse.  Crystal
+    structures with extreme absolute coordinates (e.g. wrong unit cell origin) or
+    unit-cell-fractional coordinates that were not converted to Cartesian are the
+    most common cause.
+
+    Args:
+        pdbqt_path: Path to the PDBQT file to inspect.
+
+    Returns:
+        True if at least one coordinate overflows; False otherwise.
+    """
+    try:
+        for line in pdbqt_path.read_text().splitlines():
+            if not (line.startswith("ATOM") or line.startswith("HETATM")):
+                continue
+            if len(line) < 54:
+                continue
+            # Parse each coordinate field independently.  When a coordinate
+            # overflows the 8.3f field (e.g. x=1234.567), the subsequent
+            # fields can be corrupted and unparseable.  A single try/except
+            # around all three would skip the overflow check if z fails —
+            # precisely the case we need to detect.  Instead we check each
+            # coordinate right after it is parsed successfully.
+            for col_start, col_end in ((30, 38), (38, 46), (46, 54)):
+                try:
+                    val = float(line[col_start:col_end])
+                except ValueError:
+                    # Field corrupted (possibly by an adjacent overflow) — skip
+                    # this field but continue checking remaining ones.
+                    continue
+                if abs(val) > 999.0:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
 def _try_prepare_ligand4_fallback(pdb_path: Path, pdbqt_out: Path) -> Path | None:
     """Attempt PDBQT prep via ADFRsuite prepare_ligand4.py when babel produces UNL.
 
@@ -252,6 +294,18 @@ def _prepare_single_ligand(
                 f"{result.stderr.strip()}"
             )
         _wrap_pdbqt_rigid(pdbqt_path)
+
+        # Coordinate overflow detection: PDBQT 8.3f fields cannot represent
+        # |coord| > 999.999 Å.  Overflow silently corrupts adjacent columns
+        # (atom type, charge) and produces wrong Vina/AD4 scores without any
+        # error from either tool.  Likely causes: crystal structure built in
+        # non-standard frame or fractional coordinates not converted to Cartesian.
+        if _has_coordinate_overflow(pdbqt_path):
+            raise RuntimeError(
+                f"PDBQT coordinate overflow: one or more atoms have |coord| > 999 Å "
+                f"(PDB file: {pdb_path.name}). This corrupts AD4/Vina PDBQT parsing. "
+                f"Likely cause: crystal structure with extreme coordinates or wrong unit cell."
+            )
 
         # UNL detection: babel falls back to "unknown ligand" when it cannot
         # parse residue names (N1+/O1- element column markers, unusual atom
