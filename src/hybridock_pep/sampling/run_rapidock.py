@@ -22,15 +22,19 @@ from typing import Optional
 
 def _seed_everything(seed):
     # type: (int) -> None
-    """Seed torch, CUDA/MPS (if available), numpy, and random before inference.
+    """Seed torch and all GPU backends (CUDA/ROCm/XPU), numpy, and random.
 
     Called BEFORE any RAPiDock import so that ESM embedding computation and
     all downstream RNG calls are deterministic.
 
     Platform notes:
-    - CUDA: torch.cuda.manual_seed_all seeds all GPU devices.
-    - MPS (macOS Apple Silicon): torch.manual_seed covers the MPS backend;
-      there is no separate mps.manual_seed_all as of PyTorch 2.7.
+    - CUDA (NVIDIA) / ROCm (AMD): torch.cuda.manual_seed_all seeds all devices.
+      ROCm uses the CUDA API — torch.cuda.is_available() returns True on ROCm.
+    - XPU (Intel): torch.xpu.manual_seed_all seeds Intel GPU devices.
+      Available when intel-extension-for-pytorch (ipex) is installed or when
+      using PyTorch 2.4+ with native XPU support on Linux x86_64.
+    - MPS (macOS Apple Silicon): torch.manual_seed covers MPS; no separate
+      mps.manual_seed_all exists as of PyTorch 2.7.
     - CPU: torch.manual_seed is sufficient.
 
     Args:
@@ -40,9 +44,18 @@ def _seed_everything(seed):
     import numpy as np
 
     torch.manual_seed(seed)
+
+    # CUDA (NVIDIA) and ROCm (AMD) — both use the cuda API in PyTorch
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    # MPS: torch.manual_seed already covers MPS; no extra call needed.
+
+    # Intel XPU — available with ipex or native PyTorch 2.4+ XPU build
+    if hasattr(torch, "xpu") and callable(getattr(torch.xpu, "is_available", None)):
+        if torch.xpu.is_available():
+            torch.xpu.manual_seed_all(seed)
+
+    # MPS: torch.manual_seed covers MPS backend already.
+
     np.random.seed(seed)
     random.seed(seed)
 

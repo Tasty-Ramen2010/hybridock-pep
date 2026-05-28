@@ -303,17 +303,22 @@ class TestCrossPlatformDetection:
     """Tests for macOS/Linux/WSL2 device detection and seed safety."""
 
     def test_detect_device_linux_with_cuda(self) -> None:
-        """On Linux with nvidia-smi present, should return CUDA label."""
+        """On Linux with nvidia-smi present and returning exit 0, return CUDA label."""
         from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
+        import subprocess as _sp
 
+        # which() returns a path; subprocess.run() exits 0 → CUDA detected
+        mock_result = mock.MagicMock()
+        mock_result.returncode = 0
         with mock.patch("sys.platform", "linux"):
             with mock.patch("hybridock_pep.sampling.rapidock_runner.shutil.which",
                             return_value="/usr/bin/nvidia-smi"):
-                label = _detect_device_platform()
+                with mock.patch("subprocess.run", return_value=mock_result):
+                    label = _detect_device_platform()
         assert "CUDA" in label
 
     def test_detect_device_linux_no_gpu(self) -> None:
-        """On Linux without nvidia-smi, should return CPU label."""
+        """On Linux without nvidia-smi (which returns None), return CPU label."""
         from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
 
         with mock.patch("sys.platform", "linux"):
