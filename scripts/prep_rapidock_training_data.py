@@ -184,6 +184,15 @@ def prep_new_complex(
 def collect_refpepdb_entries() -> list[dict]:
     """Return CSV rows for all pre-formatted RefPepDB entries."""
     rows = []
+    if not REFPEPDB_DIR.exists():
+        _log.warning(
+            "RefPepDB-RecentSet not found at %s — proceeding with new entries only. "
+            "Expected count will drop from ~925 to ~%d. To restore RefPepDB-RecentSet, "
+            "clone from https://github.com/DMCB-GIST/RefPepDB and place under "
+            "datasets/RefPepDB-RecentSet/",
+            REFPEPDB_DIR, 925 - 523,
+        )
+        return rows
     for entry_dir in sorted(REFPEPDB_DIR.iterdir()):
         if not entry_dir.is_dir():
             continue
@@ -220,10 +229,16 @@ def collect_new_entries(
     tasks = []
     for _, row in passing.iterrows():
         pdb_id = str(row["pdb_id"]).upper()
-        gz_path = struct_dir / f"{row['pdb_id']}.pdb.gz"
+        # Try uppercase first (download_from_manifests.py writes uppercase),
+        # then raw case from manifest, so mixed-case entries still resolve.
+        gz_path = struct_dir / f"{pdb_id}.pdb.gz"
         if not gz_path.exists():
-            _log.debug("Skipping %s — structure file missing", pdb_id)
-            continue
+            alt = struct_dir / f"{row['pdb_id']}.pdb.gz"
+            if alt.exists():
+                gz_path = alt
+            else:
+                _log.debug("Skipping %s — structure file missing", pdb_id)
+                continue
         pep_chain = str(row.get("peptide_chain", "")).strip()
         rec_chain = str(row.get("receptor_chain", "")).strip()
         if not pep_chain or pep_chain == "nan":

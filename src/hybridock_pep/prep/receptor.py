@@ -17,15 +17,15 @@ logger = logging.getLogger(__name__)
 def prepare_receptor(config: DockConfig) -> Path:
     """Clean a receptor PDB with pdbfixer and convert it to PDBQT via prepare_receptor.
 
-    Always regenerates the PDBQT — no caching, no mtime checks (D-02).
-    pdbfixer steps run unconditionally (D-01):
+    Always regenerates the PDBQT — no caching, no mtime checks.
+    pdbfixer steps run unconditionally:
       1. Strip non-water HETATM and alternate-occupancy atoms (keep alt ' ' or 'A').
       2. Find and add missing residues.
       3. Find and add missing atoms.
       4. Add hydrogens at pH 7.4.
 
     If prepare_receptor exits non-zero, raises PrepError immediately with the
-    full stderr captured (D-03). No retry, no fallback.
+    full stderr captured. No retry, no fallback.
 
     Args:
         config: Validated DockConfig. Uses receptor_path and output_dir.
@@ -49,7 +49,7 @@ def prepare_receptor(config: DockConfig) -> Path:
         cleaned_pdb_path = Path(tmp.name)
 
     try:
-        # --- Step 2: pdbfixer — all three fixes, unconditionally (D-01) ---
+        # --- Step 2: pdbfixer — all three fixes, unconditionally ---
         fixer = PDBFixer(filename=str(cleaned_pdb_path))
         fixer.findMissingResidues()
         fixer.findMissingAtoms()
@@ -86,7 +86,7 @@ def prepare_receptor(config: DockConfig) -> Path:
     finally:
         cleaned_pdb_path.unlink(missing_ok=True)
 
-    # --- Step 3: prepare_receptor (always regenerate — D-02) ---
+    # --- Step 3: prepare_receptor (always regenerate) ---
     # -A hydrogens: force H addition even if pdbfixer already added them (idempotent);
     # guards against cases where pdbfixer's addMissingHydrogens fails (e.g. HIS edge cases).
     cmd = [

@@ -106,7 +106,7 @@ def _contact_zone_indices(
     """Return peptide residue indices whose Cα is within cutoff Å of any receptor Cα.
 
     Uses numpy broadcasting to compute all pairwise distances in one pass.
-    The D-02 fallback (< 3 contacts → full peptide) is applied at the
+    The short-peptide fallback (< 3 contacts → full peptide) is applied at the
     RMSD matrix level using per-pair intersection logic.
 
     Args:
@@ -170,7 +170,7 @@ def _build_rmsd_matrix(
     For each pose pair (i, j), RMSD is computed over the intersection of
     their contact-zone indices after optimal Kabsch superposition. If the
     intersection has fewer than 3 residues, falls back to full-peptide
-    indices (D-02). Kabsch alignment removes orientation bias introduced by
+    indices. Kabsch alignment removes orientation bias introduced by
     the diffusion model's stochastic global placement.
 
     Args:
@@ -188,7 +188,7 @@ def _build_rmsd_matrix(
         for j in range(i + 1, n):
             common = np.intersect1d(contact_indices[i], contact_indices[j])
             if len(common) < 3:
-                # D-02 fallback: use full-peptide indices
+                # fallback: use full-peptide indices
                 max_len = min(len(ca_arrays[i]), len(ca_arrays[j]))
                 common = np.arange(max_len)
 
@@ -264,10 +264,10 @@ def cluster_poses(
     Orchestrates the full clustering pipeline:
     1. Load receptor Cα coordinates from config.receptor_path.
     2. Compute per-pose contact-zone indices against the receptor.
-    3. Build pairwise RMSD distance matrix using contact-zone Cα (D-01/D-02).
-    4. Select k via argmax silhouette score (D-05/D-06).
-    5. Fit final AgglomerativeClustering and mutate ScoredPose.cluster_id in-place (D-08).
-    6. Delegate CSV and plot output to statistics.py and plotting.py (D-10).
+    3. Build pairwise RMSD distance matrix using contact-zone Cα.
+    4. Select k via argmax silhouette score.
+    5. Fit final AgglomerativeClustering and mutate ScoredPose.cluster_id in-place.
+    6. Delegate CSV and plot output to statistics.py and plotting.py.
 
     Args:
         scored_poses: List of ScoredPose objects with populated ca_coords and
@@ -317,7 +317,7 @@ def cluster_poses(
     )
     labels = agg.fit_predict(dist_matrix)
 
-    # Mutate in-place (D-08, mirrors apply_hybrid_score pattern)
+    # Mutate in-place (mirrors apply_hybrid_score pattern)
     for i, pose in enumerate(scored_poses):
         pose.cluster_id = int(labels[i])
 

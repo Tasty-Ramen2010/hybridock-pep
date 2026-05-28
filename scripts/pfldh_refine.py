@@ -217,7 +217,7 @@ def main() -> None:
                 if line.startswith("ATOM") or line.startswith("HETATM") or line.startswith("END")
             ]
             min_pose_pdb.write_text("\n".join(pdb_lines) + "\n")
-            n_contact = count_contact_residues(min_pose_pdb, rec_coords, cutoff=5.0)
+            n_contact = count_contact_residues(min_pose_pdb, rec_coords)  # uses CONTACT_DIST_ANG default
         except Exception:
             n_contact = orig_n_contact  # fallback to original
 

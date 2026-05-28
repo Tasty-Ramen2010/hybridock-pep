@@ -142,7 +142,7 @@ def score_vina_batch(
     Creates one Vina instance, loads the receptor once, computes maps once
     before the pose loop, then calls set_ligand_from_file() per pose.
     Per-pose exceptions are caught and recorded as PoseFailure; the batch
-    never aborts on a single bad pose (D-07).
+    never aborts on a single bad pose.
 
     Clipped poses (atoms outside grid bounds) are flagged with is_clipped=True,
     a WARNING is logged, and the pose entry is appended to run_metadata.json
@@ -286,7 +286,7 @@ def score_vina_batch(
 
             scored.append(pose)
 
-        except Exception as e:  # noqa: BLE001 — per-pose isolation required (D-07)
+        except Exception as e:  # noqa: BLE001 — per-pose isolation required
             logger.warning("Pose %d scoring failed: %s: %s", pose.pose_idx, type(e).__name__, e)
             failures.append(
                 PoseFailure(
