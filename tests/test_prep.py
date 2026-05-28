@@ -1129,3 +1129,72 @@ class TestGrids:
 
         assert result == config.output_dir / "maps"
         assert result.is_dir()
+
+
+# ---------------------------------------------------------------------------
+# PDBQT coordinate overflow detection (_has_coordinate_overflow)
+# ---------------------------------------------------------------------------
+
+class TestCoordinateOverflow:
+    """Tests for _has_coordinate_overflow() in ligand.py."""
+
+    _ATOM_NORMAL = "ATOM      1  C   ALA A   1     123.456  -78.901   45.678  1.00  0.00     C  \n"
+    _ATOM_OVERFLOW_X = "ATOM      1  C   ALA A   1    1234.567  -78.901   45.678  1.00  0.00     C  \n"
+    _ATOM_OVERFLOW_NEG = "ATOM      1  C   ALA A   1    -1234.56  -78.901   45.678  1.00  0.00     C  \n"
+    _ATOM_BOUNDARY = "ATOM      1  C   ALA A   1     999.000  -78.901   45.678  1.00  0.00     C  \n"
+
+    def test_normal_coords_not_overflow(self, tmp_path: Path) -> None:
+        """Coordinates within ±999 Å do not trigger overflow detection."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "normal.pdbqt"
+        pdbqt.write_text(self._ATOM_NORMAL)
+        assert _has_coordinate_overflow(pdbqt) is False
+
+    def test_overflow_positive_x(self, tmp_path: Path) -> None:
+        """Coordinate x > 999 Å triggers overflow."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "overflow.pdbqt"
+        pdbqt.write_text(self._ATOM_OVERFLOW_X)
+        assert _has_coordinate_overflow(pdbqt) is True
+
+    def test_overflow_negative_x(self, tmp_path: Path) -> None:
+        """Coordinate x < -999 Å triggers overflow."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "overflow_neg.pdbqt"
+        pdbqt.write_text(self._ATOM_OVERFLOW_NEG)
+        assert _has_coordinate_overflow(pdbqt) is True
+
+    def test_boundary_999_not_overflow(self, tmp_path: Path) -> None:
+        """Coordinate exactly 999.000 does NOT trigger overflow (within 8.3f range)."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "boundary.pdbqt"
+        pdbqt.write_text(self._ATOM_BOUNDARY)
+        assert _has_coordinate_overflow(pdbqt) is False
+
+    def test_empty_pdbqt_no_overflow(self, tmp_path: Path) -> None:
+        """A PDBQT with no ATOM/HETATM lines returns False."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "empty.pdbqt"
+        pdbqt.write_text("REMARK  no atoms\nEND\n")
+        assert _has_coordinate_overflow(pdbqt) is False
+
+    def test_mixed_normal_and_overflow(self, tmp_path: Path) -> None:
+        """One overflow atom in a file with normal atoms still returns True."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "mixed.pdbqt"
+        pdbqt.write_text(self._ATOM_NORMAL + self._ATOM_OVERFLOW_X)
+        assert _has_coordinate_overflow(pdbqt) is True
+
+    def test_malformed_coords_skipped(self, tmp_path: Path) -> None:
+        """Lines with non-float coordinate columns are silently skipped."""
+        from hybridock_pep.prep.ligand import _has_coordinate_overflow
+
+        pdbqt = tmp_path / "malformed.pdbqt"
+        pdbqt.write_text("ATOM      1  C   ALA A   1      XX.XXX  YY.YYY  ZZ.ZZZ  1.00  0.00     C  \n")
+        assert _has_coordinate_overflow(pdbqt) is False
