@@ -40,22 +40,51 @@ logger = logging.getLogger(__name__)
 def _detect_device_platform() -> str:
     """Return a human-readable string describing the expected inference device.
 
-    Used for log messages and user-facing warnings. Inspects sys.platform and
-    the presence of the nvidia-smi binary to distinguish CUDA, MPS, and CPU.
+    Used for log messages and user-facing warnings.  Detection priority:
+      1. NVIDIA CUDA  — nvidia-smi present
+      2. AMD ROCm     — rocminfo or rocm-smi present, or /dev/kfd exists
+      3. Intel XPU    — sycl-ls present (Intel Level-Zero / oneAPI driver)
+      4. Apple MPS    — macOS arm64
+      5. CPU fallback
+
+    ROCm note: PyTorch ROCm uses the CUDA API (torch.cuda.is_available() returns
+    True on ROCm).  We detect it here via CLI tools rather than torch to avoid
+    importing torch in the score-env process.
 
     Returns:
-        One of "CUDA (Linux/WSL2)", "MPS (macOS Apple Silicon)",
-        "CPU (macOS Intel)", or "CPU (Linux — no GPU detected)".
+        Human-readable device label, e.g. "CUDA — NVIDIA (Linux/WSL2)",
+        "ROCm — AMD GPU (Linux)", "XPU — Intel GPU (Linux)",
+        "MPS (macOS Apple Silicon)", or "CPU".
     """
     if sys.platform == "darwin":
         machine = platform.machine()  # "arm64" on Apple Silicon, "x86_64" on Intel
         if machine == "arm64":
             return "MPS (macOS Apple Silicon)"
         return "CPU (macOS Intel — MPS not available on x86_64)"
-    # Linux / WSL2: check for CUDA via nvidia-smi
+
+    # Linux / WSL2 — check GPU backends in priority order
     if shutil.which("nvidia-smi") is not None:
-        return "CUDA (Linux/WSL2)"
-    return "CPU (Linux — nvidia-smi not found, no GPU detected)"
+        try:
+            import subprocess as _sp
+            _sp.run(["nvidia-smi"], capture_output=True, timeout=5, check=True)
+            return "CUDA — NVIDIA GPU (Linux/WSL2)"
+        except Exception:
+            pass  # nvidia-smi present but failed; continue
+
+    # AMD ROCm: rocminfo (preferred) → rocm-smi → /dev/kfd kernel device
+    if shutil.which("rocminfo") is not None:
+        return "ROCm — AMD GPU (Linux)"
+    if shutil.which("rocm-smi") is not None:
+        return "ROCm — AMD GPU (Linux)"
+    import pathlib as _pl
+    if _pl.Path("/dev/kfd").exists():
+        return "ROCm — AMD GPU (Linux, /dev/kfd)"
+
+    # Intel XPU: sycl-ls from Intel oneAPI Base Toolkit
+    if shutil.which("sycl-ls") is not None:
+        return "XPU — Intel GPU (Linux)"
+
+    return "CPU (Linux — no GPU detected)"
 
 
 def _stream_stderr(stderr_pipe) -> None:
