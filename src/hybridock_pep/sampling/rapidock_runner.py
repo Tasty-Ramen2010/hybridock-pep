@@ -6,10 +6,10 @@ Streams stdout/stderr in real time so GPU OOM errors surface immediately. Rename
 rank*.pdb output files to pose_0.pdb...pose_{N-1}.pdb for downstream stages.
 
 Architecture:
-- subprocess.Popen (not subprocess.run/communicate) for real-time streaming (D-01, D-02)
-- stderr drained on a daemon thread to prevent pipe deadlock (D-01)
-- All paths are resolved to absolute (D-07)
-- Seed forwarded as --seed N only when DockConfig.seed is not None (D-08)
+- subprocess.Popen (not subprocess.run/communicate) for real-time streaming
+- stderr drained on a daemon thread to prevent pipe deadlock
+- All paths are resolved to absolute
+- Seed forwarded as --seed N only when DockConfig.seed is not None
 - RAPIDOCK_PYTHON env var overrides the rapidock Python 3 path; auto-detected otherwise
 - RAPIDOCK_DIR and RAPIDOCK_MODEL_DIR/RAPIDOCK_CKPT env vars configure
   RAPiDock install location (Phase 5 will wire via DockConfig)
@@ -184,15 +184,15 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     to avoid a PATH-resolution bug where conda run picks the caller's python3
     instead of the target environment's. See module docstring for details.
 
-    All paths are resolved to absolute (D-07).
+    All paths are resolved to absolute.
 
     Streaming: stdout read in main thread readline() loop; stderr on daemon
-    thread to prevent pipe deadlock (D-01). Both use iter(pipe.readline, b"")
+    thread to prevent pipe deadlock. Both use iter(pipe.readline, b"")
     sentinel pattern.
 
     Renaming: RAPiDock writes rank*.pdb to {output_dir}/poses_raw/poses_raw/.
     These are renamed to pose_0.pdb...pose_{N-1}.pdb under {output_dir}/poses/
-    (D-09, D-10, D-11).
+   .
 
     Args:
         config: Validated DockConfig. Uses peptide_sequence, receptor_path,
@@ -206,8 +206,8 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
         config.output_dir/poses/.
 
     Raises:
-        RuntimeError: If RAPiDock subprocess exits non-zero (D-03).
-        RuntimeError: If zero poses are produced after subprocess exits (D-11).
+        RuntimeError: If RAPiDock subprocess exits non-zero.
+        RuntimeError: If zero poses are produced after subprocess exits.
     """
     rapidock_python = _find_rapidock_python()
     shim_path = str((Path(__file__).resolve().parent / "run_rapidock.py"))
@@ -234,14 +234,14 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
 
     logger.info("Running: %s", " ".join(str(c) for c in cmd))
 
-    # Popen with pipes — bytes mode (no text=True); both pipes needed for streaming (D-01)
+    # Popen with pipes — bytes mode (no text=True); both pipes needed for streaming
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    # Drain stderr on daemon thread — prevents pipe buffer deadlock when stderr fills (D-01)
+    # Drain stderr on daemon thread — prevents pipe buffer deadlock when stderr fills
     t = threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True)
     t.start()
 
-    # Drain stdout on main thread — readline sentinel loop (D-02)
+    # Drain stdout on main thread — readline sentinel loop
     for raw_line in iter(proc.stdout.readline, b""):
         line = raw_line.decode("utf-8", errors="replace").rstrip()
         if line:
@@ -250,13 +250,13 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     proc.wait()
     t.join()
 
-    # Non-zero exit is always a fatal error — no retry (D-03)
+    # Non-zero exit is always a fatal error — no retry
     if proc.returncode != 0:
         raise RuntimeError(
             f"RAPiDock subprocess exited with code {proc.returncode}"
         )
 
-    # Rename rank*.pdb → pose_N.pdb (D-09, D-10, D-11)
+    # Rename rank*.pdb → pose_N.pdb (
     # RAPiDock writes to {output_dir}/{complex_name}/ where complex_name="poses_raw"
     # so raw files are at: {output_dir}/poses_raw/poses_raw/rank*.pdb
     raw_dir = config.output_dir / "poses_raw" / "poses_raw"
@@ -276,13 +276,13 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
 
     logger.info("Renamed %d rank*.pdb → pose_*.pdb in %s", len(renamed), poses_dir)
 
-    # Zero poses = hard failure (D-11)
+    # Zero poses = hard failure
     if len(renamed) == 0:
         raise RuntimeError(
             f"RAPiDock produced 0 poses in {raw_dir}. Check stderr logs above."
         )
 
-    # Shortfall = warning only (D-09); caller decides what to do
+    # Shortfall = warning only; caller decides what to do
     if len(renamed) < config.n_samples:
         logger.warning(
             "RAPiDock pose shortfall: requested %d, generated %d",

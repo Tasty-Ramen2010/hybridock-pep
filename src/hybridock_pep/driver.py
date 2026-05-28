@@ -31,10 +31,10 @@ def run_dock(
     input_poses_dir: Path | None,
     calibration_path: Path,
 ) -> tuple[list[ScoredPose], ClusterResult | None]:
-    """Orchestrate the full two-stage docking pipeline (per D-02).
+    """Orchestrate the full two-stage docking pipeline.
 
     Stage 0: Write metadata skeleton before any subprocess is launched.
-    Stage 1: Run RAPiDock sampling OR read from input_poses_dir (D-01 bypass).
+    Stage 1: Run RAPiDock sampling OR read from input_poses_dir (bypass).
     Stage 2a: Prepare receptor PDBQT and AD4 grid maps.
     Stage 2b: Prepare ligand PDBQTs in batch.
     Stage 2c: Construct ScoredPose objects from PoseRecord + pdbqt_path pairs.
@@ -47,7 +47,7 @@ def run_dock(
     Args:
         config: Validated DockConfig from cli._run_dock(). Never re-validated here.
         input_poses_dir: If not None, skip run_sampling() and parse poses from this
-            directory instead (--input-poses bypass, D-01). Required on macOS.
+            directory instead (--input-poses bypass). Required on macOS.
         calibration_path: Path to calibration.json for entropy correction coefficients.
 
     Returns:
@@ -63,7 +63,7 @@ def run_dock(
     config.output_dir.resolve().mkdir(parents=True, exist_ok=True)
     write_metadata_skeleton(config, metadata_path)
 
-    # Stage 1: Sampling or bypass (D-01)
+    # Stage 1: Sampling or bypass
     if input_poses_dir is not None:
         poses_dir = input_poses_dir.resolve()
         logger.info("Stage 1 bypassed: reading poses from %s", poses_dir)

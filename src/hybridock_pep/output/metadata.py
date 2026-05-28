@@ -1,13 +1,13 @@
 """Provenance metadata writer for HybriDock-Pep runs (SAMP-02).
 
-Implements the two-write pattern (D-15):
+Implements the two-write pattern:
 1. write_metadata_skeleton() — written BEFORE conda run launches. Contains
    status="running" so a crash leaves a diagnosable partial record.
 2. finalize_metadata() — written AFTER pose_io parsing completes. Uses
    read-modify-write (same atomic pattern as scoring/vina.py _append_clipped_pose)
    to preserve any clipped_poses entries written during scoring (Pitfall 6).
 
-Required fields (D-16): git_sha, rapidock_commit_sha, cli_args, seed,
+Required fields: git_sha, rapidock_commit_sha, cli_args, seed,
 vina_version, openmm_version, cuda_version, receptor_sha256,
 peptide_sequence_hash, timestamp_start, timestamp_end,
 poses_requested, poses_generated, status.
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def write_metadata_skeleton(config: DockConfig, metadata_path: Path) -> None:
-    """Write initial run_metadata.json before sampling starts (D-15).
+    """Write initial run_metadata.json before sampling starts.
 
     Contains status="running" and all fields knowable before inference:
     git_sha, rapidock_commit_sha, receptor_sha256, peptide_sequence_hash,
@@ -67,7 +67,7 @@ def finalize_metadata(
     cuda_version: Optional[str] = None,
     status: str = "complete",
 ) -> None:
-    """Overwrite run_metadata.json with final counts and status (D-15).
+    """Overwrite run_metadata.json with final counts and status.
 
     Uses read-modify-write to preserve any clipped_poses entries that
     scoring/vina.py _append_clipped_pose() may have written (Pitfall 6).

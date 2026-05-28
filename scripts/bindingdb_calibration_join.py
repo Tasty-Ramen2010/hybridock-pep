@@ -44,7 +44,7 @@ DATA_DIR = REPO / "data"
 PEPSET_DIR = REPO / "datasets" / "pepset"
 
 BINDINGDB_BROWSE_URL = "https://www.bindingdb.org/rwd/bind/chemsearch/marvin/Download.jsp"
-BINDINGDB_FALLBACK_URL = "https://www.bindingdb.org/bind/downloads/BindingDB_All_202605_tsv.zip"
+BINDINGDB_FALLBACK_URL = "https://www.bindingdb.org/rwd/bind/downloads/BindingDB_All_202605_tsv.zip"
 RCSB_GRAPHQL = "https://data.rcsb.org/graphql"
 
 PKD_MIN, PKD_MAX = 3.0, 12.0

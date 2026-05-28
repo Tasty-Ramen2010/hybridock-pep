@@ -9,9 +9,9 @@ Key design decisions:
 - One Vina(sf_name='ad4') instance per batch; load_maps() called ONCE before loop.
 - Per-pose: set_ligand_from_file() → float(v.score()[0]).
 - is_ad4_anomaly=True when ad4_score > 0 (repulsive / unphysical); pose still
-  included in scored list — informational flag per D-06.
+  included in scored list — informational flag .
 - Defensive HD map existence check before load_maps() for clear diagnostics.
-- Per-pose exception → PoseFailure(stage="scoring"); batch never aborts (D-07).
+- Per-pose exception → PoseFailure(stage="scoring"); batch never aborts.
 """
 
 from __future__ import annotations
@@ -41,10 +41,10 @@ def score_ad4_batch(
     Creates one Vina instance with sf_name='ad4', loads pre-computed AD4 grid
     maps once via load_maps() before the pose loop, then calls
     set_ligand_from_file() per pose. Per-pose exceptions are caught and recorded
-    as PoseFailure; the batch never aborts on a single bad pose (D-07).
+    as PoseFailure; the batch never aborts on a single bad pose.
 
     Poses with ad4_score > 0 (repulsive/unphysical) are flagged with
-    is_ad4_anomaly=True but are still included in the scored list (D-06).
+    is_ad4_anomaly=True but are still included in the scored list.
 
     Note: The receptor-setter API must NOT be used when sf_name='ad4' is
     active — the Vina C++ binding raises RuntimeError. Use load_maps() only.
@@ -95,7 +95,7 @@ def score_ad4_batch(
                 )
             scored.append(pose)
 
-        except Exception as e:  # noqa: BLE001 — per-pose isolation required (D-07)
+        except Exception as e:  # noqa: BLE001 — per-pose isolation required
             logger.warning("Pose %d AD4 scoring failed: %s: %s", pose.pose_idx, type(e).__name__, e)
             failures.append(
                 PoseFailure(

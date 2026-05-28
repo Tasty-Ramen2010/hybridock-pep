@@ -23,9 +23,9 @@ NOTE ON TERMINOLOGY
 When ``is_ad4_anomaly`` is True (AD4 score > 0), beta is forced to 0 so
 the anomalous AD4 signal does not corrupt the hybrid score.
 
-Calibration (alpha, beta) is loaded from a JSON file and validated
-on every read per T-03-09 (load_calibration raises ValueError for
-out-of-range values). Fitting uses scipy L-BFGS-B with hardcoded bounds.
+Calibration (alpha, beta) is loaded from a JSON file and validated on every
+read (load_calibration raises ValueError for out-of-range values). Fitting
+uses scipy L-BFGS-B with hardcoded bounds.
 """
 
 from __future__ import annotations
@@ -44,7 +44,12 @@ from hybridock_pep.models import ScoredPose
 
 _log = logging.getLogger(__name__)
 
-# Thermodynamic constant: RT at 298 K in kcal/mol (D-09, hardcoded in v1).
+# Contact distance cutoff — must match score_calibration_set.py _CONTACT_CUTOFF.
+# Changing this requires re-running Tier 1.3 so calibration and inference use
+# the same contact counts.
+CONTACT_DIST_ANG: float = 4.5
+
+# Thermodynamic constant: RT at 298 K in kcal/mol (hardcoded in v1).
 _RT = 0.592
 # pKd → ΔG: ΔG = -RT * ln(10) * pKd  (Kd = 10^-pKd, ΔG = RT*ln(Kd))
 _LN10 = math.log(10)
@@ -77,7 +82,7 @@ def load_calibration(path: Path) -> dict:
     fewer effective residues than full sequence length.
 
     Args:
-        path: Path to the calibration JSON file (D-11 schema).
+        path: Path to the calibration JSON file.
 
     Returns:
         Dictionary containing calibration data including 'alpha' and 'beta'.
@@ -103,7 +108,7 @@ def load_calibration(path: Path) -> dict:
     if not (_ALPHA_MIN <= alpha <= _ALPHA_MAX):
         raise ValueError(
             f"Calibrated α={alpha:.3f} is outside valid range [{_ALPHA_MIN}, {_ALPHA_MAX}] "
-            "kcal/mol/contact-residue — check training data coverage. SCORE-03 abort."
+            "kcal/mol/contact-residue — check training data coverage."
         )
     if not (_BETA_MIN <= beta <= _BETA_MAX):
         raise ValueError(
@@ -139,16 +144,16 @@ def write_calibration(
     beta: float,
     **kwargs: float | int | str,
 ) -> None:
-    """Write calibration parameters to a JSON file (D-11 schema).
+    """Write calibration parameters to a JSON file.
 
     Always sets 'calibrated_at' to the current UTC time in ISO 8601 format.
     Creates parent directories as needed.
 
     Args:
         path: Destination path for the calibration JSON file.
-        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
+        alpha: Burial correction coefficient (kcal/mol/contact-residue).
         beta: AD4 blending weight (dimensionless, [0.0, 0.5]).
-        **kwargs: Additional D-11 fields to include (e.g., n_complexes,
+        **kwargs: Additional fields to include (e.g., n_complexes,
             pearson_r, rmse_kcal_mol, training_csv).
     """
     payload = {
@@ -250,7 +255,7 @@ def count_contact_residues(
     A residue is counted as a contact residue if any of its heavy atoms are
     within ``cutoff`` Angstroms of any receptor heavy atom. This gives a
     physically meaningful measure of binding interface size, and is used
-    instead of full sequence length in the entropy correction to avoid
+    instead of full sequence length in the burial correction to avoid
     over-penalizing peptides where most residues are disordered / not
     contacting the protein.
 
@@ -324,7 +329,7 @@ def apply_hybrid_score(
     n_contact_residues: int | None = None,
     gamma: float = 0.0,
 ) -> None:
-    """Apply the D-01 hybrid score formula to a ScoredPose in place.
+    """Apply the hybrid score formula to a ScoredPose in place.
 
     Sets ``pose.entropy_correction = alpha * n_eff`` and
     ``pose.hybrid_score = vina + effective_beta*(ad4 - vina) + alpha*n_eff``
@@ -344,7 +349,7 @@ def apply_hybrid_score(
 
     Args:
         pose: ScoredPose with vina_score and ad4_score already set.
-        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
+        alpha: Burial correction coefficient (kcal/mol/contact-residue).
         beta: AD4 blending weight (dimensionless).
         n_residues: Full peptide length; used to compute non-contact count.
         n_contact_residues: Number of residues in contact with receptor (≤ n_residues).
@@ -433,7 +438,7 @@ def fit_calibration(
         alpha ∈ [0.1, 2.0]
         beta  ∈ [0.0, 0.5]
 
-    Starting point: x0 = [0.65, 0.22] (D-10 defaults).
+    Starting point: x0 = [0.65, 0.22] (empirical defaults).
 
     Args:
         vina_scores: List of Vina --score_only values in kcal/mol.
@@ -564,7 +569,7 @@ def apply_ensemble_hybrid_scores(
 
     Args:
         poses: Scored poses; each must have vina_score set.
-        alpha: Backbone entropy coefficient (kcal/mol/contact-residue).
+        alpha: Burial correction coefficient (kcal/mol/contact-residue).
         n_residues: Full peptide length.
         ad4_blend_weight: Fraction of the z-score blend assigned to AD4 [0, 1].
             Default 0.3 (30% AD4, 70% Vina). Set to 0 to disable AD4.

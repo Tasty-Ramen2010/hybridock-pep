@@ -1,0 +1,285 @@
+pdb_id,rec_chain_given,pep_chain_given,struct_path,n_chains_total,chain_summary,rec_chain_len,pep_chain_len,pep_chain_found,min_dist_A,n_contacts,clash_count,flag,issues,experimental_pkd,affinity_type,source
+1A0N,B,,datasets/raw_pdbs/1A0N.pdb,2,B:58  A:14,58,14,A,2.42,10,0,GREEN,,4.6,Kd,manual
+1C5W,B,,datasets/pdb_pre2010/structures/1C5W.pdb.gz,2,B:229  A:9,229,9,A,2.01,20,0,GREEN,,5.77,Ki,rcsb_bulk
+1C5X,B,,datasets/pdb_pre2010/structures/1C5X.pdb.gz,2,B:229  A:9,229,9,A,2.02,20,0,GREEN,,6.678,Ki,rcsb_bulk
+1C5Y,B,,datasets/pdb_pre2010/structures/1C5Y.pdb.gz,2,B:229  A:9,229,9,A,2.01,20,0,GREEN,,4.201,Ki,rcsb_bulk
+1CVU,B,,datasets/pdb_pre2010/structures/1CVU.pdb.gz,3,B:552  A:551  F:9,552,9,F,3.31,7,0,GREEN,,5.093,Kd,rcsb_bulk
+1DDV,A,,datasets/raw_pdbs/1DDV.pdb,2,A:104  B:6,104,6,B,2.6,10,0,GREEN,,5.0,Kd,manual
+1GJA,B,,datasets/pdb_pre2010/structures/1GJA.pdb.gz,2,B:226  A:13,226,13,A,2.01,19,0,GREEN,,5.42,Ki,rcsb_bulk
+1GJD,B,,datasets/pdb_pre2010/structures/1GJD.pdb.gz,2,B:226  A:13,226,13,A,2.02,18,0,GREEN,,5.222,Ki,rcsb_bulk
+1L2Z,A,,datasets/raw_pdbs/1L2Z.pdb,2,A:62  B:11,62,11,B,2.48,11,0,GREEN,,5.7,Kd,manual
+1LCK,A,,datasets/pdb_pre2010/structures/1LCK.pdb.gz,2,A:164  B:9,164,9,B,2.69,18,0,GREEN,,3.398,Kd,rcsb_bulk
+1NOP,B,,datasets/pdb_pre2010/structures/1NOP.pdb.gz,3,B:433  A:425  C:5,433,5,C,32.72,0,0,RED,not in contact (min dist 32.7Å ≥ 8.0Å) | few contacts (0 < 3),5.398,IC50,rcsb_bulk
+1NRL,A,,datasets/raw_pdbs/1NRL.pdb,4,A:278  B:275  C:15  D:15,278,15,C,2.76,15,0,GREEN,,6.0,Kd,manual
+1NVR,A,,datasets/pdb_pre2010/structures/1NVR.pdb.gz,2,A:264  B:5,264,5,B,2.68,9,0,GREEN,,8.699,IC50,rcsb_bulk
+1NVS,A,,datasets/pdb_pre2010/structures/1NVS.pdb.gz,2,A:264  B:5,264,5,B,2.77,9,0,GREEN,,7.824,IC50,rcsb_bulk
+1O5B,B,,datasets/pdb_pre2010/structures/1O5B.pdb.gz,2,B:226  A:8,226,8,A,2.03,17,0,GREEN,,6.678,Ki,rcsb_bulk
+1Q8W,A,,datasets/pdb_pre2010/structures/1Q8W.pdb.gz,2,A:337  B:20,337,20,B,2.58,31,0,GREEN,,5.796,Ki,rcsb_bulk
+1STC,E,,datasets/pdb_pre2010/structures/1STC.pdb.gz,2,E:336  I:17,336,17,I,2.59,22,0,GREEN,,8.638,IC50,rcsb_bulk
+1T5Z,A,,datasets/pdb_pre2010/structures/1T5Z.pdb.gz,2,A:250  B:11,250,11,B,2.89,16,0,GREEN,,9.602,Kd,rcsb_bulk
+1T63,A,,datasets/pdb_pre2010/structures/1T63.pdb.gz,2,A:250  B:14,250,14,B,2.68,19,0,GREEN,,9.602,Kd,rcsb_bulk
+1T65,A,,datasets/pdb_pre2010/structures/1T65.pdb.gz,2,A:251  B:7,251,7,B,2.74,9,0,GREEN,,9.602,Kd,rcsb_bulk
+1T73,A,,datasets/pdb_pre2010/structures/1T73.pdb.gz,2,A:250  B:8,250,8,B,2.61,15,0,GREEN,,9.602,Kd,rcsb_bulk
+1T74,A,,datasets/pdb_pre2010/structures/1T74.pdb.gz,2,A:249  B:8,249,8,B,2.81,13,0,GREEN,,9.602,Kd,rcsb_bulk
+1T76,A,,datasets/pdb_pre2010/structures/1T76.pdb.gz,2,A:249  B:9,249,9,B,2.94,13,0,GREEN,,9.602,Kd,rcsb_bulk
+1T79,A,,datasets/pdb_pre2010/structures/1T79.pdb.gz,2,A:250  B:8,250,8,B,2.66,13,0,GREEN,,9.602,Kd,rcsb_bulk
+1T7F,A,,datasets/pdb_pre2010/structures/1T7F.pdb.gz,2,A:250  B:8,250,8,B,2.9,16,0,GREEN,,9.602,Kd,rcsb_bulk
+1T7M,A,,datasets/pdb_pre2010/structures/1T7M.pdb.gz,2,A:249  B:12,249,12,B,2.61,15,0,GREEN,,9.602,Kd,rcsb_bulk
+1T7R,A,,datasets/pdb_pre2010/structures/1T7R.pdb.gz,2,A:250  B:10,250,10,B,2.62,16,0,GREEN,,9.602,Kd,rcsb_bulk
+1TA2,A,,datasets/pdb_pre2010/structures/1TA2.pdb.gz,2,A:241  B:10,241,10,B,2.87,14,0,GREEN,,8.523,Ki,rcsb_bulk
+1X7J,A,,datasets/pdb_pre2010/structures/1X7J.pdb.gz,4,A:225  B:225  C:10  D:10,225,10,C,2.53,13,0,GREEN,,7.62,Ki,rcsb_bulk
+1YCR,A,,datasets/raw_pdbs/1YCR.pdb,2,A:85  B:13,85,13,B,2.68,22,0,GREEN,,6.52,Kd,manual
+1YDS,E,,datasets/pdb_pre2010/structures/1YDS.pdb.gz,2,E:336  I:20,336,20,I,2.6,31,0,GREEN,,5.921,Ki,rcsb_bulk
+1YDT,E,,datasets/pdb_pre2010/structures/1YDT.pdb.gz,2,E:336  I:20,336,20,I,2.68,32,0,GREEN,,7.638,Kd,rcsb_bulk
+1YWI,A,,datasets/raw_pdbs/1YWI.pdb,2,A:28  B:6,28,6,B,2.63,10,0,GREEN,short receptor (28 aa) — may be peptide,4.1,Kd,manual
+1ZAF,A,,datasets/pdb_pre2010/structures/1ZAF.pdb.gz,4,A:228  B:228  C:13  D:13,228,13,C,2.43,14,0,GREEN,,7.699,IC50,rcsb_bulk
+1ZGV,A,,datasets/pdb_pre2010/structures/1ZGV.pdb.gz,2,A:241  B:9,241,9,B,2.85,14,0,GREEN,,6.0,IC50,rcsb_bulk
+1ZGY,A,,datasets/pdb_pre2010/structures/1ZGY.pdb.gz,2,A:272  B:12,272,12,B,2.68,15,0,GREEN,,5.481,Kd,rcsb_bulk
+2BDY,A,,datasets/pdb_pre2010/structures/2BDY.pdb.gz,2,A:276  B:9,276,9,B,2.73,14,0,GREEN,,7.77,IC50,rcsb_bulk
+2C1A,A,,datasets/pdb_pre2010/structures/2C1A.pdb.gz,2,A:337  I:20,337,20,I,2.53,32,0,GREEN,,6.77,IC50,rcsb_bulk
+2GNI,A,,datasets/pdb_pre2010/structures/2GNI.pdb.gz,2,A:341  I:20,341,20,I,2.68,34,0,GREEN,,5.796,Ki,rcsb_bulk
+2HWN,A,,datasets/raw_pdbs/2HWN.pdb,6,B:45  D:43  C:40  A:39  F:20  E:19,39,19,E,2.9,9,0,GREEN,,8.7,Kd,manual
+2JDO,A,,datasets/ppii_enriched/structures/2JDO.pdb.gz,2,A:315  C:10,315,10,C,2.55,21,0,GREEN,,6.638,IC50,rcsb
+2JDT,A,,datasets/pdb_pre2010/structures/2JDT.pdb.gz,2,A:336  I:20,336,20,I,2.68,33,0,GREEN,,6.77,IC50,rcsb_bulk
+2OD9,A,,datasets/pdb_pre2010/structures/2OD9.pdb.gz,2,A:291  B:6,291,6,B,2.53,14,0,GREEN,,4.041,IC50,rcsb_bulk
+2OQ6,A,,datasets/pdb_pre2010/structures/2OQ6.pdb.gz,4,A:348  B:348  C:6  D:6,348,6,C,2.81,19,0,GREEN,,3.602,IC50,rcsb_bulk
+2OS2,B,,datasets/pdb_pre2010/structures/2OS2.pdb.gz,4,B:348  A:347  C:10  D:10,348,10,D,2.74,24,0,GREEN,,3.602,IC50,rcsb_bulk
+2OT7,A,,datasets/pdb_pre2010/structures/2OT7.pdb.gz,4,A:349  B:348  C:6  D:6,349,6,C,2.59,19,0,GREEN,,4.071,IC50,rcsb_bulk
+2OX0,A,,datasets/pdb_pre2010/structures/2OX0.pdb.gz,4,A:349  B:348  C:7  D:7,349,7,C,2.7,28,0,GREEN,,4.071,IC50,rcsb_bulk
+2OY2,A,,datasets/raw_pdbs/2OY2.pdb,4,A:157  F:157  W:3  Y:3,157,3,W,2.66,12,0,GREEN,very short peptide (3 aa),6.22,Kd,manual
+2P5B,A,,datasets/ppii_enriched/structures/2P5B.pdb.gz,4,A:347  B:337  I:16  J:13,347,16,I,2.58,25,0,GREEN,,4.071,IC50,rcsb
+2PXJ,A,,datasets/pdb_pre2010/structures/2PXJ.pdb.gz,4,A:347  B:337  J:5  I:4,347,5,J,14.33,0,0,RED,not in contact (min dist 14.3Å ≥ 8.0Å) | few contacts (0 < 3),3.602,IC50,rcsb_bulk
+2Q7I,A,,datasets/pdb_pre2010/structures/2Q7I.pdb.gz,2,A:241  B:10,241,10,B,2.63,14,0,GREEN,,9.398,Kd,rcsb_bulk
+2Q7J,A,,datasets/pdb_pre2010/structures/2Q7J.pdb.gz,2,A:247  B:13,247,13,B,2.37,15,0,GREEN,,9.398,Kd,rcsb_bulk
+2Q7K,A,,datasets/pdb_pre2010/structures/2Q7K.pdb.gz,2,A:242  B:10,242,10,B,2.61,15,0,GREEN,,9.398,Kd,rcsb_bulk
+2Q7L,A,,datasets/pdb_pre2010/structures/2Q7L.pdb.gz,2,A:247  B:13,247,13,B,2.37,15,0,GREEN,,9.398,Kd,rcsb_bulk
+2Q8E,A,,datasets/ppii_enriched/structures/2Q8E.pdb.gz,4,A:344  B:337  G:6  F:3,344,6,G,28.08,0,0,RED,not in contact (min dist 28.1Å ≥ 8.0Å) | few contacts (0 < 3),4.071,IC50,rcsb
+2QPY,A,,datasets/pdb_pre2010/structures/2QPY.pdb.gz,2,A:248  B:10,248,10,B,2.93,13,0,GREEN,,9.602,Kd,rcsb_bulk
+2QQG,A,,datasets/pdb_pre2010/structures/2QQG.pdb.gz,2,A:291  B:6,291,6,B,2.53,14,0,GREEN,,4.041,IC50,rcsb_bulk
+2XUM,A,,datasets/pdb_2010_2018/structures/2XUM.pdb.gz,2,A:349  S:18,349,18,S,2.59,34,0,GREEN,,4.337,IC50,rcsb_bulk
+3AMA,A,,datasets/pdb_2010_2018/structures/3AMA.pdb.gz,2,A:345  B:20,345,20,B,2.67,33,0,GREEN,,5.0,Kd,rcsb_bulk
+3CBL,A,,datasets/pdb_pre2010/structures/3CBL.pdb.gz,2,A:356  B:5,356,5,B,2.66,15,0,GREEN,,8.796,IC50,rcsb_bulk
+3CD3,A,,datasets/pdb_pre2010/structures/3CD3.pdb.gz,2,A:353  B:5,353,5,B,2.55,14,0,GREEN,,8.796,IC50,rcsb_bulk
+3CS8,A,,datasets/pdb_pre2010/structures/3CS8.pdb.gz,2,A:269  B:12,269,12,B,2.64,16,0,GREEN,,7.523,EC50,rcsb_bulk
+3CY3,A,,datasets/pdb_pre2010/structures/3CY3.pdb.gz,2,A:271  B:8,271,8,B,2.57,21,0,GREEN,,7.097,IC50,rcsb_bulk
+3ET1,B,,datasets/ppii_enriched/structures/3ET1.pdb.gz,4,B:270  A:263  Q:16  P:15,270,16,Q,2.76,16,0,GREEN,,5.939,EC50,rcsb_bulk
+3FUR,A,,datasets/pdb_pre2010/structures/3FUR.pdb.gz,2,A:256  H:12,256,12,H,2.63,16,0,GREEN,,8.0,Ki,rcsb_bulk
+3HM1,B,,datasets/pdb_2010_2018/structures/3HM1.pdb.gz,4,B:236  A:232  C:10  D:9,236,9,D,3.17,12,0,GREEN,,7.538,IC50,rcsb_bulk
+3HQR,A,,datasets/pdb_pre2010/structures/3HQR.pdb.gz,2,A:225  S:17,225,17,S,2.52,37,0,GREEN,,5.469,Kd,rcsb_bulk
+3HQU,A,,datasets/pdb_pre2010/structures/3HQU.pdb.gz,2,A:215  S:7,215,7,S,2.69,14,0,GREEN,,7.097,Kd,rcsb_bulk
+3I7Z,A,,datasets/pdb_2010_2018/structures/3I7Z.pdb.gz,2,A:297  B:6,297,6,B,2.61,10,0,GREEN,,5.959,IC50,rcsb_bulk
+3IPQ,A,,datasets/pdb_2010_2018/structures/3IPQ.pdb.gz,2,A:220  B:15,220,15,B,2.67,16,0,GREEN,,5.157,Kd,rcsb_bulk
+3IPS,B,,datasets/pdb_2010_2018/structures/3IPS.pdb.gz,4,B:226  A:224  C:15  D:15,226,15,D,2.65,16,0,GREEN,,7.495,IC50,rcsb_bulk
+3KMR,A,,datasets/pdb_2010_2018/structures/3KMR.pdb.gz,2,A:234  C:10,234,10,C,2.77,13,0,GREEN,,5.854,Kd,rcsb_bulk
+3KMZ,A,,datasets/pdb_2010_2018/structures/3KMZ.pdb.gz,4,B:221  A:221  C:18  D:18,221,18,C,2.7,8,0,GREEN,,6.943,IC50,rcsb_bulk
+3KV4,A,,datasets/pdb_pre2010/structures/3KV4.pdb.gz,2,A:432  B:13,432,13,B,2.73,44,0,GREEN,,3.194,IC50,rcsb_bulk
+3L03,B,,datasets/pdb_2010_2018/structures/3L03.pdb.gz,4,B:242  A:235  C:11  D:9,242,9,D,2.62,13,0,GREEN,,8.31,Ki,rcsb_bulk
+3L0J,A,,datasets/ppii_enriched/structures/3L0J.pdb.gz,2,A:243  C:10,243,10,C,2.5,12,0,GREEN,,7.699,EC50,rcsb_bulk
+3L3X,A,,datasets/pdb_2010_2018/structures/3L3X.pdb.gz,2,A:250  B:12,250,12,B,2.71,15,0,GREEN,,9.602,Kd,rcsb_bulk
+3L3Z,A,,datasets/pdb_2010_2018/structures/3L3Z.pdb.gz,2,A:249  B:12,249,12,B,2.57,15,0,GREEN,,9.602,Kd,rcsb_bulk
+3MA3,A,,datasets/pdb_2010_2018/structures/3MA3.pdb.gz,2,A:267  B:7,267,7,B,2.54,20,0,GREEN,,7.222,IC50,rcsb_bulk
+3OAP,A,,datasets/pdb_2010_2018/structures/3OAP.pdb.gz,2,A:214  B:11,214,11,B,2.53,18,0,GREEN,,6.62,Kd,rcsb_bulk
+3OMO,A,,datasets/pdb_2010_2018/structures/3OMO.pdb.gz,4,A:229  B:224  C:10  D:10,229,10,C,2.15,14,0,GREEN,,5.337,EC50,rcsb_bulk
+3OMP,A,,datasets/pdb_2010_2018/structures/3OMP.pdb.gz,4,A:229  B:224  C:10  D:10,229,10,C,2.02,13,0,GREEN,,5.42,EC50,rcsb_bulk
+3OMQ,A,,datasets/pdb_2010_2018/structures/3OMQ.pdb.gz,4,A:229  B:224  C:10  D:10,229,10,C,1.97,14,0,GREEN,,6.222,EC50,rcsb_bulk
+3OXI,A,,datasets/pdb_2010_2018/structures/3OXI.pdb.gz,2,A:322  J:10,322,10,J,2.75,19,0,GREEN,,4.638,IC50,rcsb_bulk
+3V49,A,,datasets/pdb_2010_2018/structures/3V49.pdb.gz,2,A:244  B:11,244,11,B,2.8,14,0,GREEN,,8.018,IC50,rcsb_bulk
+3V4A,A,,datasets/pdb_2010_2018/structures/3V4A.pdb.gz,2,A:244  B:11,244,11,B,2.62,15,0,GREEN,,9.097,EC50,rcsb_bulk
+3VQH,A,,datasets/pdb_2010_2018/structures/3VQH.pdb.gz,2,A:347  B:20,347,20,B,2.65,33,0,GREEN,,7.638,Kd,rcsb_bulk
+4B7E,A,,datasets/pdb_2010_2018/structures/4B7E.pdb.gz,2,A:349  B:17,349,17,B,2.36,32,0,GREEN,,4.337,IC50,rcsb_bulk
+4B7K,A,,datasets/pdb_2010_2018/structures/4B7K.pdb.gz,2,A:338  B:15,338,15,B,2.29,28,0,GREEN,,4.337,IC50,rcsb_bulk
+4C34,A,,datasets/pdb_2010_2018/structures/4C34.pdb.gz,2,A:340  I:18,340,18,I,2.71,27,0,GREEN,,8.638,IC50,rcsb_bulk
+4C36,A,,datasets/pdb_2010_2018/structures/4C36.pdb.gz,2,A:338  I:20,338,20,I,2.67,32,0,GREEN,,6.42,Ki,rcsb_bulk
+4C78,A,,datasets/pdb_2010_2018/structures/4C78.pdb.gz,2,A:261  C:6,261,6,C,2.68,12,0,GREEN,,3.845,IC50,rcsb_bulk
+4DK7,A,,datasets/ppii_enriched/structures/4DK7.pdb.gz,4,A:235  C:229  B:12  D:12,235,12,B,2.49,14,0,GREEN,,7.699,IC50,rcsb
+4DM6,A,,datasets/ppii_enriched/structures/4DM6.pdb.gz,4,A:240  B:239  F:12  E:11,240,11,E,2.79,14,0,GREEN,,8.301,Kd,rcsb
+4G1W,A,,datasets/ppii_enriched/structures/4G1W.pdb.gz,2,A:322  B:9,322,9,B,2.61,19,0,GREEN,,7.237,IC50,rcsb
+4JAA,A,,datasets/pdb_2010_2018/structures/4JAA.pdb.gz,2,A:328  S:15,328,15,S,2.67,25,0,GREEN,,4.337,IC50,rcsb_bulk
+4JYG,B,,datasets/pdb_2010_2018/structures/4JYG.pdb.gz,4,B:240  A:239  F:11  G:11,240,11,F,2.79,12,0,GREEN,,5.481,IC50,rcsb_bulk
+4K4J,A,,datasets/pdb_2010_2018/structures/4K4J.pdb.gz,2,A:214  B:11,214,11,B,2.76,16,0,GREEN,,7.538,Kd,rcsb_bulk
+4K6I,A,,datasets/pdb_2010_2018/structures/4K6I.pdb.gz,2,A:214  B:11,214,11,B,2.71,15,0,GREEN,,7.745,Kd,rcsb_bulk
+4LSJ,A,,datasets/pdb_2010_2018/structures/4LSJ.pdb.gz,2,A:244  B:10,244,10,B,2.7,14,0,GREEN,,9.572,Ki,rcsb_bulk
+4NIE,A,,datasets/pdb_2010_2018/structures/4NIE.pdb.gz,4,A:245  B:245  D:10  C:9,245,9,C,2.66,3,0,GREEN,,4.602,IC50,rcsb_bulk
+4NM0,A,,datasets/pdb_2010_2018/structures/4NM0.pdb.gz,2,A:356  B:21,356,21,B,2.64,17,0,GREEN,,5.185,IC50,rcsb_bulk
+4NM3,A,,datasets/pdb_2010_2018/structures/4NM3.pdb.gz,2,A:358  B:19,358,19,B,2.59,16,0,GREEN,,5.185,IC50,rcsb_bulk
+4OAR,A,,datasets/pdb_2010_2018/structures/4OAR.pdb.gz,2,A:241  B:11,241,11,B,2.89,14,0,GREEN,,9.699,IC50,rcsb_bulk
+4OEY,A,,datasets/pdb_2010_2018/structures/4OEY.pdb.gz,2,A:241  B:8,241,8,B,2.51,13,0,GREEN,,9.602,Kd,rcsb_bulk
+4OEZ,A,,datasets/pdb_2010_2018/structures/4OEZ.pdb.gz,2,A:242  B:8,242,8,B,2.24,14,0,GREEN,,9.602,Kd,rcsb_bulk
+4OFR,A,,datasets/pdb_2010_2018/structures/4OFR.pdb.gz,2,A:243  B:8,243,8,B,2.52,15,0,GREEN,,9.602,Kd,rcsb_bulk
+4OFU,A,,datasets/pdb_2010_2018/structures/4OFU.pdb.gz,2,A:241  B:8,241,8,B,2.24,14,0,GREEN,,9.602,Kd,rcsb_bulk
+4OH5,A,,datasets/pdb_2010_2018/structures/4OH5.pdb.gz,2,A:242  B:9,242,9,B,2.69,13,0,GREEN,,7.569,Ki,rcsb_bulk
+4OHA,A,,datasets/pdb_2010_2018/structures/4OHA.pdb.gz,2,A:242  B:9,242,9,B,2.6,14,0,GREEN,,7.367,Ki,rcsb_bulk
+4OK1,A,,datasets/pdb_2010_2018/structures/4OK1.pdb.gz,2,A:249  B:9,249,9,B,2.7,12,0,GREEN,,6.932,Ki,rcsb_bulk
+4OKT,A,,datasets/pdb_2010_2018/structures/4OKT.pdb.gz,2,A:248  B:11,248,11,B,2.4,15,0,GREEN,,7.398,Ki,rcsb_bulk
+4OKW,A,,datasets/pdb_2010_2018/structures/4OKW.pdb.gz,2,A:239  B:8,239,8,B,2.51,13,0,GREEN,,6.821,Ki,rcsb_bulk
+4OKX,A,,datasets/pdb_2010_2018/structures/4OKX.pdb.gz,2,A:240  B:8,240,8,B,2.65,13,0,GREEN,,7.398,Ki,rcsb_bulk
+4POH,A,,datasets/pdb_2010_2018/structures/4POH.pdb.gz,2,A:214  B:11,214,11,B,2.68,17,0,GREEN,,5.633,Kd,rcsb_bulk
+4POJ,A,,datasets/pdb_2010_2018/structures/4POJ.pdb.gz,2,A:214  B:11,214,11,B,2.68,17,0,GREEN,,5.73,Kd,rcsb_bulk
+4PP3,A,,datasets/pdb_2010_2018/structures/4PP3.pdb.gz,2,A:214  B:11,214,11,B,2.68,15,0,GREEN,,7.824,Kd,rcsb_bulk
+4RMD,A,,datasets/pdb_2010_2018/structures/4RMD.pdb.gz,2,A:214  B:11,214,11,B,2.63,16,0,GREEN,,7.456,Kd,rcsb_bulk
+4UDD,A,,datasets/pdb_2010_2018/structures/4UDD.pdb.gz,2,A:249  B:13,249,13,B,2.79,15,0,GREEN,,9.509,Ki,rcsb_bulk
+4WLB,A,,datasets/pdb_2010_2018/structures/4WLB.pdb.gz,4,A:248  B:248  D:8  E:8,248,8,D,2.72,13,0,GREEN,,6.745,IC50,rcsb_bulk
+4WPF,A,,datasets/pdb_2010_2018/structures/4WPF.pdb.gz,4,A:246  D:246  B:11  E:11,246,11,B,2.76,14,0,GREEN,,6.604,IC50,rcsb_bulk
+4WQP,A,,datasets/pdb_2010_2018/structures/4WQP.pdb.gz,3,A:234  B:221  P:13,234,13,P,3.07,16,0,GREEN,,7.328,IC50,rcsb_bulk
+4ZN7,B,,datasets/pdb_2010_2018/structures/4ZN7.pdb.gz,4,B:236  A:234  D:11  C:9,236,9,C,2.79,12,0,GREEN,,9.699,Ki,rcsb_bulk
+5AB0,A,,datasets/pdb_2010_2018/structures/5AB0.pdb.gz,4,A:911  C:882  E:7  F:7,911,7,E,3.02,21,0,GREEN,,4.328,Ki,rcsb_bulk
+5APH,A,,datasets/pdb_2010_2018/structures/5APH.pdb.gz,2,A:252  C:12,252,12,C,2.75,15,0,GREEN,,7.222,IC50,rcsb_bulk
+5APJ,A,,datasets/pdb_2010_2018/structures/5APJ.pdb.gz,2,A:250  C:10,250,10,C,2.67,12,0,GREEN,,7.398,IC50,rcsb_bulk
+5APK,B,,datasets/pdb_2010_2018/structures/5APK.pdb.gz,3,B:236  A:229  D:13,236,13,D,3.09,14,0,GREEN,,7.398,IC50,rcsb_bulk
+5CJ6,A,,datasets/pdb_2010_2018/structures/5CJ6.pdb.gz,2,A:244  B:10,244,10,B,2.65,13,0,GREEN,,8.699,Ki,rcsb_bulk
+5EC9,A,,datasets/pdb_2010_2018/structures/5EC9.pdb.gz,2,A:210  B:11,210,11,B,2.66,15,0,GREEN,,8.201,EC50,rcsb_bulk
+5EI3,A,,datasets/pdb_2010_2018/structures/5EI3.pdb.gz,2,A:191  B:14,191,14,B,2.62,18,0,GREEN,,4.248,Kd,rcsb_bulk
+5G3J,A,,datasets/pdb_2010_2018/structures/5G3J.pdb.gz,2,A:248  B:13,248,13,B,2.74,16,0,GREEN,,8.921,IC50,rcsb_bulk
+5GTO,A,,datasets/pdb_2010_2018/structures/5GTO.pdb.gz,2,A:267  B:11,267,11,B,2.69,18,0,GREEN,,4.678,IC50,rcsb_bulk
+5GTP,A,,datasets/pdb_2010_2018/structures/5GTP.pdb.gz,2,A:261  B:11,261,11,B,2.64,17,0,GREEN,,4.678,IC50,rcsb_bulk
+5H15,B,,datasets/pdb_2010_2018/structures/5H15.pdb.gz,4,B:364  A:356  C:29  D:29,364,29,D,2.64,39,0,GREEN,,4.42,Kd,rcsb_bulk
+5H17,A,,datasets/pdb_2010_2018/structures/5H17.pdb.gz,2,A:357  B:27,357,27,B,2.71,30,0,GREEN,,6.051,IC50,rcsb_bulk
+5H19,A,,datasets/pdb_2010_2018/structures/5H19.pdb.gz,2,A:355  B:29,355,29,B,2.76,39,0,GREEN,,5.484,IC50,rcsb_bulk
+5H24,A,,datasets/pdb_2010_2018/structures/5H24.pdb.gz,4,A:364  B:359  C:29  D:29,364,29,C,2.67,39,0,GREEN,,6.0,IC50,rcsb_bulk
+5HI3,C,,,0,,0,0,,inf,0,0,MISSING,structure not on disk,6.18,Kd,bindingdb_kd
+5HJS,A,,datasets/pdb_2010_2018/structures/5HJS.pdb.gz,4,A:226  B:226  C:15  D:15,226,15,C,2.59,16,0,GREEN,,6.377,EC50,rcsb_bulk
+5KR9,A,,datasets/pdb_2010_2018/structures/5KR9.pdb.gz,4,A:236  B:233  C:12  D:9,236,12,C,2.62,15,0,GREEN,,7.959,IC50,rcsb_bulk
+5L11,A,,datasets/pdb_2010_2018/structures/5L11.pdb.gz,2,A:234  C:11,234,11,C,2.44,15,0,GREEN,,6.427,Ki,rcsb_bulk
+5L9V,A,,datasets/pdb_2010_2018/structures/5L9V.pdb.gz,4,A:215  B:215  C:19  D:19,215,19,C,2.04,33,0,GREEN,,5.553,Kd,rcsb_bulk
+5LAS,A,,datasets/pdb_2010_2018/structures/5LAS.pdb.gz,4,A:215  B:211  C:19  D:19,215,19,C,2.03,32,0,GREEN,,5.523,Kd,rcsb_bulk
+5LCP,A,,datasets/pdb_2010_2018/structures/5LCP.pdb.gz,2,A:353  B:20,353,20,B,2.72,26,0,GREEN,,6.337,Ki,rcsb_bulk
+5LYQ,A,,datasets/pdb_2010_2018/structures/5LYQ.pdb.gz,2,A:212  B:10,212,10,B,2.8,16,0,GREEN,,6.137,EC50,rcsb_bulk
+5MWP,A,,datasets/pdb_2010_2018/structures/5MWP.pdb.gz,2,A:243  B:10,243,10,B,2.73,12,0,GREEN,,7.398,Ki,rcsb_bulk
+5MWY,A,,datasets/pdb_2010_2018/structures/5MWY.pdb.gz,2,A:244  B:10,244,10,B,2.7,12,0,GREEN,,6.9,Ki,rcsb_bulk
+5NFT,A,,datasets/pdb_2010_2018/structures/5NFT.pdb.gz,2,A:248  B:13,248,13,B,2.78,15,0,GREEN,,10.31,IC50,rcsb_bulk
+5NI5,A,,datasets/ppii_enriched/structures/5NI5.pdb.gz,2,A:250  C:12,250,12,C,2.71,13,0,GREEN,,7.398,Ki,rcsb
+5NU1,A,,datasets/pdb_2010_2018/structures/5NU1.pdb.gz,4,A:245  B:245  Q:9  P:8,245,8,P,2.78,13,0,GREEN,,7.398,Ki,rcsb_bulk
+5NW8,A,,datasets/pdb_2010_2018/structures/5NW8.pdb.gz,2,A:340  D:18,340,18,D,2.63,24,0,GREEN,,5.796,Ki,rcsb_bulk
+5O0E,A,,datasets/pdb_2010_2018/structures/5O0E.pdb.gz,2,A:353  C:18,353,18,C,2.63,27,0,GREEN,,6.337,Ki,rcsb_bulk
+5OK3,A,,datasets/pdb_2010_2018/structures/5OK3.pdb.gz,2,A:353  D:17,353,17,D,2.69,27,0,GREEN,,5.796,Ki,rcsb_bulk
+5Q0I,A,,datasets/pdb_2010_2018/structures/5Q0I.pdb.gz,2,A:227  B:12,227,12,B,2.8,14,0,GREEN,,4.251,IC50,rcsb_bulk
+5Q0M,A,,datasets/pdb_2010_2018/structures/5Q0M.pdb.gz,2,A:223  B:10,223,10,B,2.69,16,0,GREEN,,8.102,IC50,rcsb_bulk
+5Q0R,A,,datasets/pdb_2010_2018/structures/5Q0R.pdb.gz,2,A:224  B:12,224,12,B,2.77,15,0,GREEN,,4.567,IC50,rcsb_bulk
+5Q0W,A,,datasets/pdb_2010_2018/structures/5Q0W.pdb.gz,2,A:228  B:12,228,12,B,2.8,15,0,GREEN,,7.237,IC50,rcsb_bulk
+5Q10,A,,datasets/pdb_2010_2018/structures/5Q10.pdb.gz,2,A:227  B:10,227,10,B,2.84,15,0,GREEN,,5.202,IC50,rcsb_bulk
+5Q15,A,,datasets/pdb_2010_2018/structures/5Q15.pdb.gz,4,A:230  C:229  B:11  D:10,230,11,B,2.78,15,0,GREEN,,8.051,IC50,rcsb_bulk
+5Q16,A,,datasets/pdb_2010_2018/structures/5Q16.pdb.gz,4,A:230  C:230  B:10  D:9,230,10,B,2.85,15,0,GREEN,,7.87,IC50,rcsb_bulk
+5Q17,A,,datasets/pdb_2010_2018/structures/5Q17.pdb.gz,2,A:224  B:12,224,12,B,2.79,13,0,GREEN,,5.249,IC50,rcsb_bulk
+5Q18,A,,datasets/pdb_2010_2018/structures/5Q18.pdb.gz,4,A:230  C:230  B:12  D:11,230,12,B,2.73,16,0,GREEN,,7.171,IC50,rcsb_bulk
+5Q1G,A,,datasets/pdb_2010_2018/structures/5Q1G.pdb.gz,2,A:224  B:9,224,9,B,2.89,13,0,GREEN,,3.58,IC50,rcsb_bulk
+5SYZ,A,,datasets/pdb_2010_2018/structures/5SYZ.pdb.gz,2,A:237  C:11,237,11,C,2.81,15,0,GREEN,,6.4,EC50,rcsb_bulk
+5TLO,B,,datasets/pdb_2010_2018/structures/5TLO.pdb.gz,4,B:232  A:229  C:9  D:9,232,9,D,2.39,14,0,GREEN,,8.0,EC50,rcsb_bulk
+5TLU,B,,datasets/pdb_2010_2018/structures/5TLU.pdb.gz,4,B:238  A:229  C:10  D:9,238,9,D,2.85,13,0,GREEN,,8.0,EC50,rcsb_bulk
+5UNJ,A,,datasets/pdb_2010_2018/structures/5UNJ.pdb.gz,2,A:227  C:9,227,9,C,2.53,13,0,GREEN,,6.427,Ki,rcsb_bulk
+5YCN,A,,datasets/pdb_2010_2018/structures/5YCN.pdb.gz,2,A:263  B:11,263,11,B,2.67,16,0,GREEN,,7.745,IC50,rcsb_bulk
+5YCP,A,,datasets/pdb_2010_2018/structures/5YCP.pdb.gz,2,A:263  B:11,263,11,B,2.71,16,0,GREEN,,5.481,Kd,rcsb_bulk
+5Z5S,A,,datasets/pdb_2010_2018/structures/5Z5S.pdb.gz,2,A:260  C:10,260,10,C,2.61,16,0,GREEN,,7.167,EC50,rcsb_bulk
+5Z6S,A,,datasets/pdb_2010_2018/structures/5Z6S.pdb.gz,2,A:260  C:10,260,10,C,2.66,16,0,GREEN,,7.387,EC50,rcsb_bulk
+6AD9,A,,datasets/pdb_2010_2018/structures/6AD9.pdb.gz,2,A:255  B:10,255,10,B,2.45,15,0,GREEN,,8.62,EC50,rcsb_bulk
+6D94,A,,datasets/pdb_2019_2023/structures/6D94.pdb.gz,2,A:271  B:15,271,15,B,2.67,18,0,GREEN,,10.304,Ki,rcsb_bulk
+6E3G,A,,datasets/pdb_2019_2023/structures/6E3G.pdb.gz,4,A:245  B:245  C:8  D:8,245,8,C,2.78,13,0,GREEN,,7.357,IC50,rcsb_bulk
+6EL7,A,,datasets/pdb_2010_2018/structures/6EL7.pdb.gz,2,A:247  B:13,247,13,B,2.8,15,0,GREEN,,8.62,IC50,rcsb_bulk
+6EL9,A,,datasets/pdb_2010_2018/structures/6EL9.pdb.gz,2,A:247  B:13,247,13,B,2.76,16,0,GREEN,,8.42,IC50,rcsb_bulk
+6ERW,A,,datasets/pdb_2010_2018/structures/6ERW.pdb.gz,2,A:350  D:18,350,18,D,2.63,28,0,GREEN,,6.337,Ki,rcsb_bulk
+6FZF,B,,datasets/pdb_2019_2023/structures/6FZF.pdb.gz,4,B:275  A:271  C:13  D:13,275,13,D,2.59,16,0,GREEN,,10.304,Ki,rcsb_bulk
+6FZJ,B,,datasets/pdb_2019_2023/structures/6FZJ.pdb.gz,4,B:270  A:267  C:12  D:12,270,12,D,2.66,16,0,GREEN,,9.367,Ki,rcsb_bulk
+6FZP,A,,datasets/pdb_2019_2023/structures/6FZP.pdb.gz,2,A:258  C:9,258,9,C,2.42,14,0,GREEN,,8.699,Ki,rcsb_bulk
+6FZU,A,,datasets/pdb_2010_2018/structures/6FZU.pdb.gz,4,A:245  B:245  P:9  Q:9,245,9,P,2.81,13,0,GREEN,,3.666,IC50,rcsb_bulk
+6G05,A,,datasets/pdb_2010_2018/structures/6G05.pdb.gz,4,A:245  B:245  P:8  Q:8,245,8,P,2.71,12,0,GREEN,,8.0,IC50,rcsb_bulk
+6GEV,A,,datasets/pdb_2019_2023/structures/6GEV.pdb.gz,2,A:247  B:10,247,10,B,2.75,14,0,GREEN,,8.699,Ki,rcsb_bulk
+6GG8,A,,datasets/pdb_2019_2023/structures/6GG8.pdb.gz,2,A:242  B:10,242,10,B,2.7,13,0,GREEN,,9.1,Ki,rcsb_bulk
+6GGG,A,,datasets/pdb_2019_2023/structures/6GGG.pdb.gz,2,A:233  B:12,233,12,B,2.75,14,0,GREEN,,9.2,Ki,rcsb_bulk
+6GTV,A,,datasets/pdb_2019_2023/structures/6GTV.pdb.gz,4,A:279  C:279  B:13  D:13,279,13,B,2.65,36,0,GREEN,,5.638,Kd,rcsb_bulk
+6GTZ,A,,datasets/pdb_2019_2023/structures/6GTZ.pdb.gz,4,A:279  C:279  B:13  D:13,279,13,B,2.7,35,0,GREEN,,5.638,Kd,rcsb_bulk
+6H8P,B,,datasets/pdb_2010_2018/structures/6H8P.pdb.gz,4,B:353  A:346  C:5  D:4,353,5,C,26.74,0,0,RED,not in contact (min dist 26.7Å ≥ 8.0Å) | few contacts (0 < 3),4.071,IC50,rcsb_bulk
+6H9J,A,,datasets/pdb_2019_2023/structures/6H9J.pdb.gz,2,A:338  D:22,338,22,D,2.73,38,0,GREEN,,4.337,IC50,rcsb_bulk
+6HA6,A,,datasets/pdb_2019_2023/structures/6HA6.pdb.gz,2,A:340  D:14,340,14,D,2.21,23,0,GREEN,,4.337,IC50,rcsb_bulk
+6HC8,A,,datasets/pdb_2019_2023/structures/6HC8.pdb.gz,2,A:344  E:16,344,16,E,2.69,25,0,GREEN,,4.337,IC50,rcsb_bulk
+6HK3,A,,datasets/pdb_2019_2023/structures/6HK3.pdb.gz,3,A:350  B:350  N:8,350,8,N,2.52,8,0,GREEN,,5.185,IC50,rcsb_bulk
+6HKP,A,,datasets/pdb_2019_2023/structures/6HKP.pdb.gz,2,A:338  S:14,338,14,S,2.33,26,0,GREEN,,4.337,IC50,rcsb_bulk
+6HL1,A,,datasets/pdb_2019_2023/structures/6HL1.pdb.gz,2,A:225  B:13,225,13,B,2.46,15,0,GREEN,,6.0,EC50,rcsb_bulk
+6HL5,A,,datasets/pdb_2019_2023/structures/6HL5.pdb.gz,2,A:338  S:14,338,14,S,2.51,23,0,GREEN,,4.337,IC50,rcsb_bulk
+6HL6,A,,datasets/pdb_2019_2023/structures/6HL6.pdb.gz,2,A:335  S:17,335,17,S,2.58,26,0,GREEN,,4.337,IC50,rcsb_bulk
+6I2A,A,,datasets/pdb_2019_2023/structures/6I2A.pdb.gz,2,A:353  D:18,353,18,D,2.75,25,0,GREEN,,5.796,Ki,rcsb_bulk
+6I2C,A,,datasets/pdb_2019_2023/structures/6I2C.pdb.gz,2,A:338  B:18,338,18,B,2.67,28,0,GREEN,,5.796,Ki,rcsb_bulk
+6ITM,C,,datasets/pdb_2019_2023/structures/6ITM.pdb.gz,4,C:228  A:225  B:12  D:12,228,12,D,2.82,16,0,GREEN,,5.244,EC50,rcsb_bulk
+6IZM,A,,datasets/pdb_2019_2023/structures/6IZM.pdb.gz,2,A:266  C:10,266,10,C,2.58,16,0,GREEN,,6.564,EC50,rcsb_bulk
+6IZN,A,,datasets/pdb_2019_2023/structures/6IZN.pdb.gz,2,A:265  C:10,265,10,C,2.62,15,0,GREEN,,6.609,EC50,rcsb_bulk
+6KKB,X,,datasets/pdb_2019_2023/structures/6KKB.pdb.gz,2,X:243  D:11,243,11,D,2.33,12,0,GREEN,,7.886,EC50,rcsb_bulk
+6L71,A,,datasets/pdb_2019_2023/structures/6L71.pdb.gz,2,A:296  C:6,296,6,C,2.67,15,0,GREEN,,5.921,IC50,rcsb_bulk
+6LB5,C,,datasets/pdb_2019_2023/structures/6LB5.pdb.gz,4,C:220  A:211  D:11  B:10,220,11,D,2.51,15,0,GREEN,,5.886,Kd,rcsb_bulk
+6LB6,A,,datasets/pdb_2019_2023/structures/6LB6.pdb.gz,2,A:211  B:10,211,10,B,2.4,14,0,GREEN,,6.772,EC50,rcsb_bulk
+6ONI,B,,datasets/pdb_2019_2023/structures/6ONI.pdb.gz,2,B:261  D:13,261,13,D,2.73,16,0,GREEN,,8.328,IC50,rcsb_bulk
+6ONJ,A,,datasets/pdb_2019_2023/structures/6ONJ.pdb.gz,2,A:258  C:14,258,14,C,2.31,22,0,GREEN,,7.319,Kd,rcsb_bulk
+6OQX,A,,datasets/pdb_2019_2023/structures/6OQX.pdb.gz,2,A:239  C:11,239,11,C,2.55,16,0,GREEN,,6.222,EC50,rcsb_bulk
+6OQY,A,,datasets/pdb_2019_2023/structures/6OQY.pdb.gz,2,A:237  C:11,237,11,C,2.55,15,0,GREEN,,6.222,EC50,rcsb_bulk
+6OR1,A,,datasets/pdb_2019_2023/structures/6OR1.pdb.gz,2,A:235  C:11,235,11,C,2.4,16,0,GREEN,,4.886,EC50,rcsb_bulk
+6PDZ,B,,datasets/pdb_2019_2023/structures/6PDZ.pdb.gz,4,B:262  A:256  C:13  D:12,262,13,C,2.5,15,0,GREEN,,6.0,IC50,rcsb_bulk
+6R7J,A,,datasets/pdb_2019_2023/structures/6R7J.pdb.gz,2,A:252  C:12,252,12,C,2.78,15,0,GREEN,,7.301,IC50,rcsb_bulk
+6RUJ,A,,datasets/pdb_2019_2023/structures/6RUJ.pdb.gz,2,A:349  B:14,349,14,B,2.5,24,0,GREEN,,4.337,IC50,rcsb_bulk
+6SSQ,B,,datasets/pdb_2019_2023/structures/6SSQ.pdb.gz,4,B:249  A:239  G:11  F:10,249,10,F,2.85,13,0,GREEN,,5.747,Ki,rcsb_bulk
+6STI,A,,datasets/pdb_2019_2023/structures/6STI.pdb.gz,2,A:213  B:12,213,12,B,2.56,18,0,GREEN,,8.097,Ki,rcsb_bulk
+6T1V,A,,datasets/pdb_2019_2023/structures/6T1V.pdb.gz,2,A:268  C:10,268,10,C,2.67,15,0,GREEN,,9.0,Ki,rcsb_bulk
+6TOF,A,,datasets/pdb_2019_2023/structures/6TOF.pdb.gz,2,A:124  B:6,124,6,B,2.77,6,0,GREEN,,4.066,IC50,rcsb_bulk
+6TOG,A,,datasets/pdb_2019_2023/structures/6TOG.pdb.gz,2,A:124  B:6,124,6,B,2.82,5,0,GREEN,,3.684,IC50,rcsb_bulk
+6TOH,A,,datasets/pdb_2019_2023/structures/6TOH.pdb.gz,2,A:124  B:6,124,6,B,2.8,6,0,GREEN,,4.979,IC50,rcsb_bulk
+6TOI,A,,datasets/pdb_2019_2023/structures/6TOI.pdb.gz,2,A:125  B:6,125,6,B,2.88,5,0,GREEN,,5.77,IC50,rcsb_bulk
+6TON,A,,datasets/pdb_2019_2023/structures/6TON.pdb.gz,2,A:125  B:6,125,6,B,2.9,5,0,GREEN,,7.06,IC50,rcsb_bulk
+6TOO,A,,datasets/pdb_2019_2023/structures/6TOO.pdb.gz,2,A:125  B:6,125,6,B,2.88,6,0,GREEN,,5.337,IC50,rcsb_bulk
+6VC2,A,,datasets/pdb_2019_2023/structures/6VC2.pdb.gz,2,A:236  C:12,236,12,C,2.53,15,0,GREEN,,5.921,Ki,rcsb_bulk
+6VIF,A,,datasets/pdb_2019_2023/structures/6VIF.pdb.gz,2,A:235  B:11,235,11,B,2.49,14,0,GREEN,,7.42,Ki,rcsb_bulk
+6YNA,A,,datasets/pdb_2019_2023/structures/6YNA.pdb.gz,2,A:353  B:13,353,13,B,2.63,29,0,GREEN,,6.337,Ki,rcsb_bulk
+6YW2,A,,datasets/pdb_2019_2023/structures/6YW2.pdb.gz,2,A:209  B:12,209,12,B,2.68,22,0,GREEN,,7.097,Kd,rcsb_bulk
+6YW4,A,,datasets/pdb_2019_2023/structures/6YW4.pdb.gz,2,A:210  B:12,210,12,B,2.7,22,0,GREEN,,5.523,Kd,rcsb_bulk
+7AKO,B,,datasets/pdb_2019_2023/structures/7AKO.pdb.gz,4,B:271  A:270  C:10  D:10,271,10,D,2.75,16,0,GREEN,,9.0,IC50,rcsb_bulk
+7APO,A,,datasets/pdb_2019_2023/structures/7APO.pdb.gz,4,A:233  B:233  C:26  D:26,233,26,C,3.09,16,0,GREEN,,5.866,Kd,rcsb_bulk
+7BPY,A,,datasets/pdb_2019_2023/structures/7BPY.pdb.gz,4,A:271  C:266  B:14  D:11,271,14,B,2.66,19,0,GREEN,,4.26,EC50,rcsb_bulk
+7BPZ,A,,datasets/pdb_2019_2023/structures/7BPZ.pdb.gz,4,A:265  C:259  B:11  D:8,265,11,B,2.56,16,0,GREEN,,4.332,EC50,rcsb_bulk
+7BQ0,C,,datasets/pdb_2019_2023/structures/7BQ0.pdb.gz,4,C:271  A:270  B:13  D:13,271,13,D,2.67,16,0,GREEN,,4.456,Ki,rcsb_bulk
+7BQ2,A,,datasets/pdb_2019_2023/structures/7BQ2.pdb.gz,2,A:259  B:10,259,10,B,2.74,15,0,GREEN,,9.0,EC50,rcsb_bulk
+7BQ3,A,,datasets/pdb_2019_2023/structures/7BQ3.pdb.gz,2,A:255  B:11,255,11,B,2.54,17,0,GREEN,,7.495,Kd,rcsb_bulk
+7BQ4,A,,datasets/pdb_2019_2023/structures/7BQ4.pdb.gz,2,A:260  B:10,260,10,B,2.89,15,0,GREEN,,5.959,IC50,rcsb_bulk
+7BQU,A,,datasets/pdb_2019_2023/structures/7BQU.pdb.gz,2,A:109  B:24,109,24,B,2.72,13,0,GREEN,,5.0,IC50,rcsb_bulk
+7JYD,A,,datasets/pdb_2019_2023/structures/7JYD.pdb.gz,2,A:240  C:10,240,10,C,2.55,14,0,GREEN,,6.398,EC50,rcsb_bulk
+7KCO,A,,datasets/ppii_enriched/structures/7KCO.pdb.gz,4,A:248  B:248  D:13  C:11,248,11,C,2.78,12,0,GREEN,,8.377,Ki,rcsb
+7OFI,A,,datasets/pdb_2019_2023/structures/7OFI.pdb.gz,2,A:252  C:12,252,12,C,2.78,16,0,GREEN,,7.31,IC50,rcsb_bulk
+7OFK,A,,datasets/pdb_2019_2023/structures/7OFK.pdb.gz,2,A:252  C:12,252,12,C,2.77,15,0,GREEN,,7.076,IC50,rcsb_bulk
+7OKE,A,,datasets/pdb_2019_2023/structures/7OKE.pdb.gz,2,A:125  B:6,125,6,B,2.84,5,0,GREEN,,5.565,IC50,rcsb_bulk
+7OKF,A,,datasets/pdb_2019_2023/structures/7OKF.pdb.gz,2,A:125  B:6,125,6,B,2.84,5,0,GREEN,,5.578,IC50,rcsb_bulk
+7OKG,A,,datasets/pdb_2019_2023/structures/7OKG.pdb.gz,2,A:125  B:6,125,6,B,2.84,5,0,GREEN,,5.74,IC50,rcsb_bulk
+7OKH,A,,datasets/pdb_2019_2023/structures/7OKH.pdb.gz,2,A:124  B:6,124,6,B,2.85,6,0,GREEN,,5.883,IC50,rcsb_bulk
+7OKI,A,,datasets/pdb_2019_2023/structures/7OKI.pdb.gz,2,A:125  B:6,125,6,B,2.87,6,0,GREEN,,6.611,IC50,rcsb_bulk
+7OKJ,A,,datasets/pdb_2019_2023/structures/7OKJ.pdb.gz,2,A:125  B:6,125,6,B,2.8,5,0,GREEN,,6.26,IC50,rcsb_bulk
+7OKK,A,,datasets/pdb_2019_2023/structures/7OKK.pdb.gz,2,A:123  B:6,123,6,B,2.87,5,0,GREEN,,4.623,IC50,rcsb_bulk
+7OKL,A,,datasets/pdb_2019_2023/structures/7OKL.pdb.gz,2,A:125  B:6,125,6,B,2.86,5,0,GREEN,,7.1,IC50,rcsb_bulk
+7OKM,A,,datasets/pdb_2019_2023/structures/7OKM.pdb.gz,2,A:125  B:6,125,6,B,2.88,5,0,GREEN,,6.328,IC50,rcsb_bulk
+7PDQ,A,,datasets/pdb_2019_2023/structures/7PDQ.pdb.gz,2,A:208  B:12,208,12,B,2.55,16,0,GREEN,,8.523,Kd,rcsb_bulk
+7Q5V,A,,datasets/pdb_2019_2023/structures/7Q5V.pdb.gz,2,A:223  B:20,223,20,B,2.67,34,0,GREEN,,5.523,Kd,rcsb_bulk
+7Q7S,A,,datasets/pdb_2019_2023/structures/7Q7S.pdb.gz,2,A:125  B:6,125,6,B,2.86,5,0,GREEN,,5.252,IC50,rcsb_bulk
+7Q7T,A,,datasets/pdb_2019_2023/structures/7Q7T.pdb.gz,2,A:124  B:6,124,6,B,2.9,5,0,GREEN,,5.0,IC50,rcsb_bulk
+7QFM,A,,datasets/pdb_2019_2023/structures/7QFM.pdb.gz,2,A:271  D:8,271,8,D,2.62,22,0,GREEN,,5.562,IC50,rcsb_bulk
+7RLE,C,,datasets/pdb_2019_2023/structures/7RLE.pdb.gz,4,C:263  A:262  B:18  D:14,263,14,D,2.6,18,0,GREEN,,9.367,Ki,rcsb_bulk
+7SQA,A,,datasets/pdb_2019_2023/structures/7SQA.pdb.gz,4,A:259  B:256  C:15  D:12,259,12,D,2.8,14,0,GREEN,,9.699,IC50,rcsb_bulk
+7SXF,A,,datasets/pdb_2019_2023/structures/7SXF.pdb.gz,2,A:340  B:17,340,17,B,3.33,17,0,GREEN,,7.18,IC50,rcsb_bulk
+7SXJ,A,,datasets/pdb_2019_2023/structures/7SXJ.pdb.gz,2,A:347  B:17,347,17,B,3.21,15,0,GREEN,,7.18,IC50,rcsb_bulk
+7UJV,B,,datasets/pdb_2019_2023/structures/7UJV.pdb.gz,2,B:219  A:20,219,20,A,2.72,35,0,GREEN,,5.469,Kd,rcsb_bulk
+7UW4,A,,datasets/pdb_2019_2023/structures/7UW4.pdb.gz,2,A:210  B:10,210,10,B,2.83,16,0,GREEN,,5.699,Kd,rcsb_bulk
+7WGO,A,,datasets/pdb_2019_2023/structures/7WGO.pdb.gz,2,A:276  B:12,276,12,B,2.65,16,0,GREEN,,4.153,EC50,rcsb_bulk
+7WGQ,A,,datasets/pdb_2019_2023/structures/7WGQ.pdb.gz,2,A:277  B:10,277,10,B,2.53,15,0,GREEN,,5.77,EC50,rcsb_bulk
+7WLX,A,,datasets/pdb_2019_2023/structures/7WLX.pdb.gz,2,A:230  B:11,230,11,B,2.48,13,0,GREEN,,7.854,EC50,rcsb_bulk
+7XVY,B,,datasets/ppii_enriched/structures/7XVY.pdb.gz,4,B:224  A:219  C:11  D:10,224,10,D,2.75,12,0,GREEN,,8.74,Ki,rcsb
+7ZWV,A,,datasets/pdb_2019_2023/structures/7ZWV.pdb.gz,2,A:124  B:6,124,6,B,2.82,6,0,GREEN,,4.155,IC50,rcsb_bulk
+7ZWY,A,,datasets/pdb_2019_2023/structures/7ZWY.pdb.gz,2,A:125  B:6,125,6,B,2.84,5,0,GREEN,,3.921,IC50,rcsb_bulk
+8AFR,A,,datasets/pdb_2019_2023/structures/8AFR.pdb.gz,2,A:264  C:9,264,9,C,2.71,21,0,GREEN,,4.578,IC50,rcsb_bulk
+8B8W,A,,datasets/pdb_2019_2023/structures/8B8W.pdb.gz,4,A:259  B:244  D:13  C:12,259,12,C,2.78,20,0,GREEN,,5.951,IC50,rcsb_bulk
+8B8X,A,,datasets/pdb_2019_2023/structures/8B8X.pdb.gz,4,A:268  B:252  C:12  D:12,268,12,C,2.69,17,0,GREEN,,9.699,IC50,rcsb_bulk
+8B8Y,A,,datasets/pdb_2019_2023/structures/8B8Y.pdb.gz,4,A:254  B:243  C:11  D:11,254,11,C,2.47,17,0,GREEN,,8.699,IC50,rcsb_bulk
+8B8Z,A,,datasets/pdb_2019_2023/structures/8B8Z.pdb.gz,4,A:262  B:243  D:12  C:11,262,11,C,2.52,17,0,GREEN,,8.699,IC50,rcsb_bulk
+8B90,A,,datasets/pdb_2019_2023/structures/8B90.pdb.gz,4,A:259  B:234  D:12  C:11,259,11,C,2.77,17,0,GREEN,,5.301,IC50,rcsb_bulk
+8B93,A,,datasets/pdb_2019_2023/structures/8B93.pdb.gz,4,A:248  B:241  C:12  D:12,248,12,C,2.94,14,0,GREEN,,8.131,IC50,rcsb_bulk
+8B94,A,,datasets/pdb_2019_2023/structures/8B94.pdb.gz,4,A:260  B:240  D:12  C:11,260,11,C,2.64,17,0,GREEN,,8.06,IC50,rcsb_bulk
+8B95,A,,datasets/pdb_2019_2023/structures/8B95.pdb.gz,4,A:260  B:239  D:12  C:11,260,11,C,2.58,16,0,GREEN,,7.62,IC50,rcsb_bulk
+8DKN,A,,datasets/pdb_2019_2023/structures/8DKN.pdb.gz,2,A:265  C:13,265,13,C,2.77,14,0,GREEN,,8.328,IC50,rcsb_bulk
+8FE2,A,,datasets/pdb_2024_2026/structures/8FE2.pdb.gz,4,A:403  B:400  I:20  J:19,403,20,I,2.59,31,0,GREEN,,7.076,IC50,rcsb
+8FHE,B,,datasets/pdb_2024_2026/structures/8FHE.pdb.gz,2,B:262  D:11,262,11,D,2.59,14,0,GREEN,,8.481,IC50,rcsb
+8HUM,A,,datasets/pdb_2019_2023/structures/8HUM.pdb.gz,2,A:277  B:10,277,10,B,2.55,14,0,GREEN,,6.678,EC50,rcsb_bulk
+8HUP,A,,datasets/pdb_2019_2023/structures/8HUP.pdb.gz,2,A:276  B:13,276,13,B,2.58,16,0,GREEN,,6.0,EC50,rcsb_bulk
+8HUQ,A,,datasets/pdb_2019_2023/structures/8HUQ.pdb.gz,2,A:257  B:9,257,9,B,2.73,15,0,GREEN,,7.347,EC50,rcsb_bulk
+8IA5,A,,datasets/pdb_2019_2023/structures/8IA5.pdb.gz,2,A:86  B:9,86,9,B,2.4,7,0,GREEN,,5.187,Kd,rcsb_bulk
+8PP0,A,,datasets/pdb_2024_2026/structures/8PP0.pdb.gz,2,A:214  B:13,214,13,B,2.25,15,0,GREEN,,7.022,Kd,rcsb
+8R0Y,A,,datasets/pdb_2024_2026/structures/8R0Y.pdb.gz,2,A:271  B:8,271,8,B,2.68,21,0,GREEN,,7.131,IC50,rcsb
