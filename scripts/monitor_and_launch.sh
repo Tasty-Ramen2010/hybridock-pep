@@ -214,10 +214,10 @@ echo ""
 echo "  Waiting for:  v2 P3  ($V2_P3_OUT)"
 echo "               v2b P3 ($V2B_P3_OUT)"
 echo ""
+echo "  NOTE: v3 is assumed to already be running independently."
 echo "  Then launching in sequence:"
-echo "    1. v3 ($SCRIPTS/chain_training_v3.sh)"
-echo "    2. v4 ($SCRIPTS/chain_training_v4.sh)"
-echo "    3. v5 ($SCRIPTS/chain_training_v5.sh)"
+echo "    1. v4 ($SCRIPTS/chain_training_v4.sh)"
+echo "    2. v5 ($SCRIPTS/chain_training_v5.sh)"
 echo ""
 
 # Initial status check
@@ -230,21 +230,15 @@ training_status "v2b P3" "$V2B_P3_OUT" "$V2B_LOG"
 # ── Step 1: wait for v2 + v2b ─────────────────────────────────────────────────
 wait_for_v2_v2b
 
-# ── Step 2: launch v3 ─────────────────────────────────────────────────────────
-launch_and_wait \
-    "v3" \
-    "$SCRIPTS/chain_training_v3.sh" \
-    "$FINETUNED/finetune_peppc_v3_phase3" \
-    "$LOGS/chain_training_v3.log"
-
-# ── Step 3: launch v4 ─────────────────────────────────────────────────────────
+# ── Step 2: launch v4 ─────────────────────────────────────────────────────────
+# (v3 is already running independently in a separate process)
 launch_and_wait \
     "v4" \
     "$SCRIPTS/chain_training_v4.sh" \
     "$FINETUNED/finetune_peppc_v4_phase3" \
     "$LOGS/chain_training_v4.log"
 
-# ── Step 4: launch v5 ─────────────────────────────────────────────────────────
+# ── Step 3: launch v5 ─────────────────────────────────────────────────────────
 launch_and_wait \
     "v5" \
     "$SCRIPTS/chain_training_v5.sh" \
@@ -253,7 +247,7 @@ launch_and_wait \
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 separator
-log "ALL CHAINS COMPLETE (v3 + v4 + v5)"
+log "ALL CHAINS COMPLETE (v4 + v5)"
 echo ""
 echo "  Checkpoints:"
 for v in v3 v4 v5; do

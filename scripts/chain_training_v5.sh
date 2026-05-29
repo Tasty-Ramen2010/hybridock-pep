@@ -16,6 +16,10 @@
 #   - EMA=0.9997→0.9998→0.9999 (slower EMA integration)
 #   - Save every epoch after warmup for late-checkpoint ensemble
 #
+# Resumable: re-running this script is safe.
+#   - Each phase is skipped if its final checkpoint already exists.
+#   - Within a phase, --resume loads the latest epoch checkpoint and continues.
+#
 # Usage:
 #   nohup bash scripts/chain_training_v5.sh > logs/chain_training_v5.log 2>&1 &
 #   tail -f logs/chain_training_v5.log
@@ -59,26 +63,31 @@ echo "=================================================================="
 echo "[v5-chain] Phase 1: score heads ONLY  (epochs 1-20)"
 echo "=================================================================="
 
-conda run --no-capture-output -n "$CONDA_ENV" python3 -u "$TRAIN_SCRIPT" \
-    --train-csv      "$TRAIN_CSV" \
-    --val-csv        "$VAL_CSV" \
-    --checkpoint     "$PRETRAINED_CKPT" \
-    --output-dir     "$P1_OUT" \
-    --unfreeze-phase 1 \
-    --v5-mode \
-    --n-epochs       20 \
-    --lr             1e-5 \
-    --warmup-epochs  8 \
-    --lr-schedule    plateau \
-    --grad-clip-norm 0.5 \
-    --ema-decay      0.9997 \
-    --grad-accum     4 \
-    --save-every     5 \
-    --save-every-after 8 \
-    --early-stop-patience 999 \
-    --seed           42 \
-    --esm-device     cuda \
-    --bail-on-zero
+if [[ -f "$P1_OUT/rapidock_finetuned_final.pt" ]]; then
+    echo "[v5-chain] Phase 1: ALREADY COMPLETE — skipping"
+else
+    conda run --no-capture-output -n "$CONDA_ENV" python3 -u "$TRAIN_SCRIPT" \
+        --train-csv      "$TRAIN_CSV" \
+        --val-csv        "$VAL_CSV" \
+        --checkpoint     "$PRETRAINED_CKPT" \
+        --output-dir     "$P1_OUT" \
+        --unfreeze-phase 1 \
+        --v5-mode \
+        --n-epochs       20 \
+        --lr             1e-5 \
+        --warmup-epochs  8 \
+        --lr-schedule    plateau \
+        --grad-clip-norm 0.5 \
+        --ema-decay      0.9997 \
+        --grad-accum     4 \
+        --save-every     5 \
+        --save-every-after 8 \
+        --early-stop-patience 999 \
+        --seed           42 \
+        --esm-device     cuda \
+        --bail-on-zero \
+        --resume
+fi
 
 P1_CKPT="$P1_OUT/rapidock_finetuned_best.pt"
 ckpt_info "$P1_CKPT" "p1"
@@ -93,27 +102,32 @@ echo "=================================================================="
 echo "[v5-chain] Phase 2: heads + cross_convs.3  (epochs 1-30)"
 echo "=================================================================="
 
-conda run --no-capture-output -n "$CONDA_ENV" python3 -u "$TRAIN_SCRIPT" \
-    --train-csv      "$TRAIN_CSV" \
-    --val-csv        "$VAL_CSV" \
-    --checkpoint     "$P1_CKPT" \
-    --output-dir     "$P2_OUT" \
-    --unfreeze-phase 2 \
-    --v5-mode \
-    --n-epochs       30 \
-    --lr             2e-6 \
-    --warmup-epochs  8 \
-    --lr-schedule    plateau \
-    --grad-clip-norm 0.5 \
-    --weight-decay   1e-6 \
-    --ema-decay      0.9998 \
-    --grad-accum     4 \
-    --save-every     5 \
-    --save-every-after 8 \
-    --early-stop-patience 999 \
-    --seed           42 \
-    --esm-device     cuda \
-    --bail-on-zero
+if [[ -f "$P2_OUT/rapidock_finetuned_final.pt" ]]; then
+    echo "[v5-chain] Phase 2: ALREADY COMPLETE — skipping"
+else
+    conda run --no-capture-output -n "$CONDA_ENV" python3 -u "$TRAIN_SCRIPT" \
+        --train-csv      "$TRAIN_CSV" \
+        --val-csv        "$VAL_CSV" \
+        --checkpoint     "$P1_CKPT" \
+        --output-dir     "$P2_OUT" \
+        --unfreeze-phase 2 \
+        --v5-mode \
+        --n-epochs       30 \
+        --lr             2e-6 \
+        --warmup-epochs  8 \
+        --lr-schedule    plateau \
+        --grad-clip-norm 0.5 \
+        --weight-decay   1e-6 \
+        --ema-decay      0.9998 \
+        --grad-accum     4 \
+        --save-every     5 \
+        --save-every-after 8 \
+        --early-stop-patience 999 \
+        --seed           42 \
+        --esm-device     cuda \
+        --bail-on-zero \
+        --resume
+fi
 
 P2_CKPT="$P2_OUT/rapidock_finetuned_best.pt"
 ckpt_info "$P2_CKPT" "p2"
@@ -129,28 +143,33 @@ echo "=================================================================="
 echo "[v5-chain] Phase 3: full model (ESM frozen); aggressive layerwise  (epochs 1-60)"
 echo "=================================================================="
 
-conda run --no-capture-output -n "$CONDA_ENV" python3 -u "$TRAIN_SCRIPT" \
-    --train-csv      "$TRAIN_CSV" \
-    --val-csv        "$VAL_CSV" \
-    --checkpoint     "$P2_CKPT" \
-    --output-dir     "$P3_OUT" \
-    --unfreeze-phase 3 \
-    --v5-mode \
-    --n-epochs       60 \
-    --lr             5e-6 \
-    --warmup-epochs  15 \
-    --lr-schedule    cosine \
-    --cosine-min-lr  1e-7 \
-    --grad-clip-norm 0.5 \
-    --weight-decay   1e-5 \
-    --ema-decay      0.9999 \
-    --grad-accum     4 \
-    --save-every     10 \
-    --save-every-after 15 \
-    --early-stop-patience 999 \
-    --seed           42 \
-    --esm-device     cuda \
-    --bail-on-zero
+if [[ -f "$P3_OUT/rapidock_finetuned_final.pt" ]]; then
+    echo "[v5-chain] Phase 3: ALREADY COMPLETE — skipping"
+else
+    conda run --no-capture-output -n "$CONDA_ENV" python3 -u "$TRAIN_SCRIPT" \
+        --train-csv      "$TRAIN_CSV" \
+        --val-csv        "$VAL_CSV" \
+        --checkpoint     "$P2_CKPT" \
+        --output-dir     "$P3_OUT" \
+        --unfreeze-phase 3 \
+        --v5-mode \
+        --n-epochs       60 \
+        --lr             5e-6 \
+        --warmup-epochs  15 \
+        --lr-schedule    cosine \
+        --cosine-min-lr  1e-7 \
+        --grad-clip-norm 0.5 \
+        --weight-decay   1e-5 \
+        --ema-decay      0.9999 \
+        --grad-accum     4 \
+        --save-every     10 \
+        --save-every-after 15 \
+        --early-stop-patience 999 \
+        --seed           42 \
+        --esm-device     cuda \
+        --bail-on-zero \
+        --resume
+fi
 
 P3_CKPT="$P3_OUT/rapidock_finetuned_best.pt"
 ckpt_info "$P3_CKPT" "p3"
