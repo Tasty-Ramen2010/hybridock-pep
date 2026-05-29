@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 # monitor_and_launch.sh
 #
-# Monitors v2 and v2b P3 training, reports GPU + training status every hour,
-# then automatically launches v3 → v4 → v5 in sequence when each finishes.
+# Monitors v3 P3 training, reports GPU + training status every hour,
+# then automatically launches v3b when v3 finishes.
+#
+# Sequence:
+#   v3  — running independently (chain_training_v3.sh, all phases chained)
+#   v3b — launched here after v3 P3 completes (chain_training_v3b.sh)
+#
+# Note: v2/v2b were terminated at ep50 (best checkpoints at ep22, val~47.57).
+#       Their P3 final.pt files exist as tombstones (copied from best.pt).
+#       v4/v5 chains are on hold pending hyperparameter fixes.
 #
 # Usage (run in a persistent tmux session):
 #   tmux new-session -d -s training_monitor
@@ -19,10 +27,8 @@ FINETUNED="$REPO/third_party/RAPiDock_finetuned"
 LOGS="$REPO/logs"
 SCRIPTS="$REPO/scripts"
 
-V2_P3_OUT="$FINETUNED/finetune_peppc_v2_phase3"
-V2B_P3_OUT="$FINETUNED/finetune_peppc_v2b_phase3"
-V2_LOG="$LOGS/chain_training_v2.log"
-V2B_LOG="$LOGS/chain_training_v2b.log"
+V3_P3_OUT="$FINETUNED/finetune_peppc_v3_phase3"
+V3_LOG="$LOGS/chain_training_v3.log"
 
 POLL_INTERVAL=3600   # 1 hour between status checks
 
@@ -102,32 +108,52 @@ training_status() {
     fi
 }
 
-# Wait until both v2 and v2b P3 are complete
-wait_for_v2_v2b() {
+# Print full v3 chain phase status
+v3_chain_status() {
+    echo ""
+    echo "  ── v3 chain (all 3 phases) ──"
+    for phase in 1 2 3; do
+        local pout="$FINETUNED/finetune_peppc_v3_phase${phase}"
+        local pfinal="$pout/rapidock_finetuned_final.pt"
+        local pbest="$pout/rapidock_finetuned_best.pt"
+        if [[ -f "$pfinal" ]]; then
+            echo "  P${phase}: COMPLETE ✓"
+        elif [[ -f "$pbest" ]]; then
+            local is_run; pgrep -f "output-dir.*v3_phase${phase}" &>/dev/null && is_run="RUNNING" || is_run="STOPPED (best exists)"
+            echo "  P${phase}: $is_run"
+        else
+            echo "  P${phase}: not started yet"
+        fi
+    done
+}
+
+# Wait until v3 P3 is complete
+wait_for_v3() {
     while true; do
-        local v2_done=false v2b_done=false
-
-        is_complete "$V2_P3_OUT"  && v2_done=true
-        is_complete "$V2B_P3_OUT" && v2b_done=true
-
-        if $v2_done && $v2b_done; then
-            log "Both v2 P3 and v2b P3 COMPLETE. Proceeding to launch v3."
+        if is_complete "$V3_P3_OUT"; then
+            log "V3 P3 COMPLETE. Proceeding to launch v3b."
             return 0
         fi
 
         # Status report
         separator
-        log "STATUS CHECK — waiting for v2 + v2b to finish"
+        log "STATUS CHECK — waiting for v3 P3 to finish"
         gpu_status
-        training_status "v2  P3" "$V2_P3_OUT"  "$V2_LOG"
-        training_status "v2b P3" "$V2B_P3_OUT" "$V2B_LOG"
+        v3_chain_status
         echo ""
+        # Show last few log lines
+        echo "  Recent v3 log:"
+        tail -5 "$V3_LOG" 2>/dev/null | sed 's/^/    /' || echo "    (no log)"
 
-        if ! $v2_done && ! is_running "$V2_P3_OUT"; then
-            log "WARNING: v2 P3 process not found but not complete — may have crashed!"
-        fi
-        if ! $v2b_done && ! is_running "$V2B_P3_OUT"; then
-            log "WARNING: v2b P3 process not found but not complete — may have crashed!"
+        if ! is_running "$V3_P3_OUT" && ! is_complete "$V3_P3_OUT"; then
+            # Check if P2 is still running (chain may not have reached P3 yet)
+            if is_running "$FINETUNED/finetune_peppc_v3_phase2" || \
+               is_running "$FINETUNED/finetune_peppc_v3_phase1"; then
+                log "  (v3 P2/P1 still in progress — P3 not started yet)"
+            else
+                log "WARNING: v3 P3 process not found but not complete — may have crashed!"
+                log "  Check $V3_LOG for errors."
+            fi
         fi
 
         log "Next check in $((POLL_INTERVAL / 60)) minutes..."
@@ -162,11 +188,9 @@ launch_and_wait() {
         gpu_status
         echo ""
 
-        local all_outs=("$FINETUNED/finetune_peppc_$(echo "$label" | tr '[:upper:]' '[:lower:]')_phase1"
-                        "$FINETUNED/finetune_peppc_$(echo "$label" | tr '[:upper:]' '[:lower:]')_phase2"
-                        "$FINETUNED/finetune_peppc_$(echo "$label" | tr '[:upper:]' '[:lower:]')_phase3")
+        local vbase="finetune_peppc_$(echo "$label" | tr '[:upper:]' '[:lower:]')"
         for phase in 1 2 3; do
-            local pout="${all_outs[$((phase-1))]}"
+            local pout="$FINETUNED/${vbase}_phase${phase}"
             local pfinal="$pout/rapidock_finetuned_final.pt"
             local pbest="$pout/rapidock_finetuned_best.pt"
             if [[ -f "$pfinal" ]]; then
@@ -211,46 +235,36 @@ log "monitor_and_launch.sh starting"
 log "Repo: $REPO"
 log "Poll interval: $((POLL_INTERVAL / 60)) minutes"
 echo ""
-echo "  Waiting for:  v2 P3  ($V2_P3_OUT)"
-echo "               v2b P3 ($V2B_P3_OUT)"
+echo "  Sequence:"
+echo "    1. Wait for v3 P3 to complete (chain_training_v3.sh running independently)"
+echo "    2. Launch v3b (chain_training_v3b.sh)"
 echo ""
-echo "  NOTE: v3 is assumed to already be running independently."
-echo "  Then launching in sequence:"
-echo "    1. v4 ($SCRIPTS/chain_training_v4.sh)"
-echo "    2. v5 ($SCRIPTS/chain_training_v5.sh)"
+echo "  Status: v2/v2b terminated at ep50 — best checkpoints saved from ep22."
+echo "          v4/v5 on hold pending hyperparameter review."
 echo ""
 
 # Initial status check
 separator
 log "INITIAL STATUS"
 gpu_status
-training_status "v2  P3" "$V2_P3_OUT"  "$V2_LOG"
-training_status "v2b P3" "$V2B_P3_OUT" "$V2B_LOG"
+v3_chain_status
 
-# ── Step 1: wait for v2 + v2b ─────────────────────────────────────────────────
-wait_for_v2_v2b
+# ── Step 1: wait for v3 P3 ────────────────────────────────────────────────────
+wait_for_v3
 
-# ── Step 2: launch v4 ─────────────────────────────────────────────────────────
-# (v3 is already running independently in a separate process)
+# ── Step 2: launch v3b ────────────────────────────────────────────────────────
 launch_and_wait \
-    "v4" \
-    "$SCRIPTS/chain_training_v4.sh" \
-    "$FINETUNED/finetune_peppc_v4_phase3" \
-    "$LOGS/chain_training_v4.log"
-
-# ── Step 3: launch v5 ─────────────────────────────────────────────────────────
-launch_and_wait \
-    "v5" \
-    "$SCRIPTS/chain_training_v5.sh" \
-    "$FINETUNED/finetune_peppc_v5_phase3" \
-    "$LOGS/chain_training_v5.log"
+    "v3b" \
+    "$SCRIPTS/chain_training_v3b.sh" \
+    "$FINETUNED/finetune_peppc_v3b_phase3" \
+    "$LOGS/chain_training_v3b.log"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 separator
-log "ALL CHAINS COMPLETE (v4 + v5)"
+log "ALL CHAINS COMPLETE (v3 + v3b)"
 echo ""
 echo "  Checkpoints:"
-for v in v3 v4 v5; do
+for v in v3 v3b; do
     for p in 1 2 3; do
         ckpt="$FINETUNED/finetune_peppc_${v}_phase${p}/rapidock_finetuned_best.pt"
         [[ -f "$ckpt" ]] && echo "    ✓ $ckpt" || echo "    ✗ MISSING: $ckpt"
@@ -258,8 +272,11 @@ for v in v3 v4 v5; do
 done
 echo ""
 echo "  Next steps:"
-echo "    1. Run benchmark:  python3 scripts/benchmark_inference_multi.py"
-echo "    2. Update Excel:   python3 scripts/update_training_excel.py"
-echo "    3. Update report:  logs/finetuning_analysis_report.md"
+echo "    1. Compare v3 vs v3b: python3 scripts/analyze_training.py \\"
+echo "         --phase-dirs $FINETUNED/finetune_peppc_v3b_phase{1,2,3} \\"
+echo "         --compare-dirs $FINETUNED/finetune_peppc_v3_phase{1,2,3} \\"
+echo "         --out-dir logs/analysis_v3_v3b"
+echo "    2. Run benchmark: python3 scripts/benchmark_inference_multi.py"
+echo "    3. Update Excel:  python3 scripts/update_training_excel.py"
 echo ""
 log "monitor_and_launch.sh complete."
