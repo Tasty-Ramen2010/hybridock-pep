@@ -632,6 +632,35 @@ Hyperparameters:
 | P2 | **2e-6** | 5e-7 | 6 | 30 | +cross_convs.2 @ **0.5×** |
 | P3 | 5e-6 | 1e-7 | 10 | 60 | full-ESM; layerwise **0.4/0.15/0.03** |
 
+#### V5N — ultra-conservative manifold preservation (QUEUED, runs after v4n)
+- **Status**: chain script ready; launches automatically after v4n P3 completes
+- **Core hypothesis**: the pretrained RAPiDock diffusion prior is already near-optimal.
+  Previous runs may have reduced exploration diversity by over-energizing the score field.
+  Extremely gentle adaptation may provide the best balance of specialization and generalization.
+- **Architecture** (most conservative of all experiments):
+  - P1: score heads + output convs ONLY — no embeddings, no cross_convs, no intra_convs
+  - P2: + cross_convs.3 at uniform 1e-6 LR (same conv set, lower LR than any prior run)
+  - P3: full except ESM; layerwise **1.0/0.25/0.08/0.02** (early equivariants barely move)
+- **New feature**: EMA skip on spike — EMA updates paused for 2 epochs after norm spike
+  so that unstable spike-epoch weights cannot leak into the EMA checkpoint
+- **New monitoring**: val_loss_std + val_tr_norm_var per epoch (score diversity tracking)
+- **Log**: `logs/chain_training_v5new.log`
+
+Hyperparameters:
+| Phase | LR peak | LR floor | Warmup | Epochs | Unfreeze |
+|---|---|---|---|---|---|
+| P1 | **5e-6** | 1e-6 | 8 | 18 | heads + output convs ONLY (no embeddings) |
+| P2 | **1e-6** | 2e-7 | 8 | 25 | +cross_convs.3 @ uniform 1e-6 |
+| P3 | **3e-6** | 1e-7 | 12 | 55 | full-ESM; layerwise **1.0/0.25/0.08/0.02** |
+
+Layerwise multipliers comparison (all experiments):
+| Group | standard | v3b P3 | v4n P3 | v5 P3 | **v5n P3** |
+|---|---|---|---|---|---|
+| Score heads/output convs | 1.0× | 1.0× | 1.0× | 1.0× | **1.0×** |
+| Late cross/intra_convs | 0.50× | 0.50× | 0.40× | 0.30× | **0.25×** |
+| Middle conv layers | 0.20× | 0.20× | 0.15× | 0.10× | **0.08×** |
+| Early equivariant layers | 0.05× | 0.05× | 0.03× | 0.02× | **0.02×** |
+
 ---
 
 ### 12.5 Stability Design Rules (derived from v2/v2b/v3 experiments)
@@ -643,5 +672,20 @@ Hyperparameters:
 5. **Adaptive spike LR**: auto-halves LR for 2 epochs on val tr_norm >10× — recovery backstop
 6. **P1 LR ≤ 1e-5** — 2e-5 (v3 P1) causes ep7 norm ×59 even with cosine; 1e-5 safer
 7. **Phase 1 should be ≤20 epochs** — ep16 best is always reachable; extra epochs just oscillate
+8. **EMA skip on spike (v5n)**: pausing EMA updates during spike recovery prevents contamination
+   of the EMA posterior by unstable transient weights
 
-These rules are implemented in `--v3b-mode` and `--v4n-mode` in `train_lastlayer.py`.
+These rules are implemented in `--v3b-mode`, `--v4n-mode`, and `--v5n-mode` in `train_lastlayer.py`.
+
+### 12.6 Architecture Comparison Table (all experiments)
+
+| Experiment | P1 unfreeze | P2 unfreeze | P3 layerwise | Spike LR | EMA skip | Status |
+|---|---|---|---|---|---|---|
+| v2 | heads+P2 full | full | 0.5/0.2/0.05 | ✗ | ✗ | terminated ep50 |
+| v2b | heads+P2 full | full | 0.5/0.2/0.05 | ✗ | ✗ | terminated ep50 |
+| v3 | heads+cc2/3 | +ic3 | 0.5/0.2/0.05 | ✗ | ✗ | terminated ep18 (plateau crash) |
+| v3b | heads+cc3 | +cc2@0.6× | 0.5/0.2/0.05 | ✓ | ✗ | RUNNING |
+| v4n | heads+cc3 | +cc2@0.5× | 0.4/0.15/0.03 | ✓ | ✗ | QUEUED |
+| **v5n** | **heads+output only** | **+cc3** | **1.0/0.25/0.08/0.02** | **✓** | **✓** | **QUEUED** |
+
+cc = cross_convs, ic = intra_convs, heads = score heads (tr/rot/tor_bb/tor_sc final_layer + feeding convs)
