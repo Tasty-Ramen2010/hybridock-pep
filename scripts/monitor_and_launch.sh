@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # monitor_and_launch.sh
 #
-# Monitors v3b training (all 3 phases run by chain_training_v3b.sh),
-# reports GPU + training status every hour, and alerts on errors.
-#
-# v3b chain is already running independently (launched directly).
-# This script just watches and reports progress.
+# Monitors v3b training (chain_training_v3b.sh), then automatically launches
+# v4n (chain_training_v4new.sh) once v3b P3 completes.  Reports GPU + training
+# status every hour.
 #
 # Usage (run in a persistent tmux session):
 #   tmux new-session -d -s training_monitor
@@ -22,6 +20,7 @@ FINETUNED="$REPO/third_party/RAPiDock_finetuned"
 LOGS="$REPO/logs"
 
 V3B_LOG="$LOGS/chain_training_v3b.log"
+V4N_LOG="$LOGS/chain_training_v4new.log"
 
 POLL_INTERVAL=3600   # 1 hour between status checks
 
@@ -55,34 +54,34 @@ is_complete() {
     [[ -f "$out_dir/rapidock_finetuned_final.pt" ]]
 }
 
-# Comprehensive v3b chain status
-v3b_chain_status() {
+# Per-experiment chain status display
+chain_status() {
+    local label="$1"   # e.g. "v3b"
+    local log_file="$2"
+    local chain_pattern="$3"  # pgrep pattern for the chain script
+    shift 3
+    local phase_dirs=("$@")  # array of output dirs
+
     echo ""
-    echo "  ── v3b chain progress ──"
-    local any_running=false
-    for phase in 1 2 3; do
-        local pout="$FINETUNED/finetune_peppc_v3b_phase${phase}"
+    echo "  ── ${label} chain progress ──"
+    for i in "${!phase_dirs[@]}"; do
+        local phase=$((i + 1))
+        local pout="${phase_dirs[$i]}"
         local pfinal="$pout/rapidock_finetuned_final.pt"
         local pbest="$pout/rapidock_finetuned_best.pt"
         local nbest; nbest=$(ls "$pout"/rapidock_finetuned_epoch*.pt 2>/dev/null | wc -l)
         if [[ -f "$pfinal" ]]; then
-            echo "  P${phase}: COMPLETE ✓  ($(du -sh $pfinal | cut -f1))"
+            echo "  P${phase}: COMPLETE ✓  ($(du -sh "$pfinal" | cut -f1))"
         elif is_running "$pout"; then
-            any_running=true
-            # Parse last epoch from log
-            local last; last=$(grep "^Epoch" "$V3B_LOG" 2>/dev/null | \
-                grep "phase${phase}" 2>/dev/null || \
-                grep "^Epoch" "$V3B_LOG" 2>/dev/null | tail -1 || echo "(starting)")
-            local best_line; best_line=$(grep "✓ New best" "$V3B_LOG" 2>/dev/null | tail -1 || echo "(no best yet)")
+            local best_line; best_line=$(grep "✓ New best" "$log_file" 2>/dev/null | tail -1 || echo "(no best yet)")
             echo "  P${phase}: RUNNING"
-            echo "           Last:   $(grep "^Epoch" "$V3B_LOG" 2>/dev/null | tail -1 || echo "(starting)")"
+            echo "           Last:   $(grep "^Epoch" "$log_file" 2>/dev/null | tail -1 || echo "(starting)")"
             echo "           Best:   $best_line"
             echo "           Saved epoch ckpts: $nbest"
-            # Spike LR events
-            grep "SPIKE LR" "$V3B_LOG" 2>/dev/null | tail -2 | sed 's/^/           SPIKE: /' || true
+            grep "SPIKE LR" "$log_file" 2>/dev/null | tail -2 | sed 's/^/           SPIKE: /' || true
         elif [[ -f "$pbest" ]]; then
             echo "  P${phase}: STOPPED (best checkpoint exists; process not found)"
-            echo "           $(ls -lh $pbest | awk '{print $5, $7, $8}')"
+            echo "           $(ls -lh "$pbest" | awk '{print $5, $7, $8}')"
         else
             echo "  P${phase}: waiting (not started yet)"
         fi
@@ -92,44 +91,66 @@ v3b_chain_status() {
 # ─── main ─────────────────────────────────────────────────────────────────────
 
 separator
-log "monitor_and_launch.sh starting — monitoring v3b chain"
+log "monitor_and_launch.sh starting — v3b → v4n sequential pipeline"
 log "Repo: $REPO"
 log "Poll interval: $((POLL_INTERVAL / 60)) minutes"
-log "Log: $V3B_LOG"
+log "v3b log: $V3B_LOG"
+log "v4n log: $V4N_LOG"
 echo ""
 echo "  History:"
 echo "    v2/v2b: terminated ep50, best from ep22 (val~47.57)"
 echo "    v3:     terminated: P1 complete (best ep16 val=39.005); P2 killed ep18 (best ep16 val=39.698)"
 echo "    v3b:    RUNNING — stable controlled spec (cosine + adaptive spike LR)"
+echo "    v4n:    queued — careful mechanistic probe (LR 8e-6/2e-6/5e-6; layerwise 0.40/0.15/0.03)"
 echo ""
 
 # Initial status
 separator
 log "INITIAL STATUS"
 gpu_status
-v3b_chain_status
+chain_status "v3b" "$V3B_LOG" "chain_training_v3b" \
+    "$FINETUNED/finetune_peppc_v3b_phase1" \
+    "$FINETUNED/finetune_peppc_v3b_phase2" \
+    "$FINETUNED/finetune_peppc_v3b_phase3"
+
+# If v4n already started show it too
+if [[ -d "$FINETUNED/finetune_peppc_v4n_phase1" ]] || \
+   pgrep -f "chain_training_v4new" &>/dev/null; then
+    chain_status "v4n" "$V4N_LOG" "chain_training_v4new" \
+        "$FINETUNED/finetune_peppc_v4n_phase1" \
+        "$FINETUNED/finetune_peppc_v4n_phase2" \
+        "$FINETUNED/finetune_peppc_v4n_phase3"
+fi
 
 # ── Monitor loop ───────────────────────────────────────────────────────────────
 while true; do
-    # Check if v3b P3 is complete — we're done
-    if is_complete "$FINETUNED/finetune_peppc_v3b_phase3"; then
+
+    # ── Check if everything is done ─────────────────────────────────────────
+    if is_complete "$FINETUNED/finetune_peppc_v4n_phase3"; then
         separator
-        log "V3B ALL 3 PHASES COMPLETE ✓"
+        log "ALL COMPLETE: v3b + v4n ✓"
         gpu_status
         echo ""
-        echo "  Checkpoints:"
+        echo "  v3b checkpoints:"
         for p in 1 2 3; do
             ckpt="$FINETUNED/finetune_peppc_v3b_phase${p}/rapidock_finetuned_best.pt"
             [[ -f "$ckpt" ]] && echo "    ✓ P${p}: $ckpt" || echo "    ✗ P${p}: MISSING"
         done
         echo ""
+        echo "  v4n checkpoints:"
+        for p in 1 2 3; do
+            ckpt="$FINETUNED/finetune_peppc_v4n_phase${p}/rapidock_finetuned_best.pt"
+            [[ -f "$ckpt" ]] && echo "    ✓ P${p}: $ckpt" || echo "    ✗ P${p}: MISSING"
+        done
+        echo ""
         echo "  Next steps:"
-        echo "    1. Compare v3 vs v3b: python3 scripts/analyze_training.py \\"
-        echo "         --phase-dirs $FINETUNED/finetune_peppc_v3b_phase{1,2,3} \\"
-        echo "         --compare-dirs $FINETUNED/finetune_peppc_v3_phase{1,2,3} \\"
-        echo "         --out-dir logs/analysis_v3_v3b"
-        echo "    2. Run benchmark: python3 scripts/benchmark_inference_multi.py"
-        echo "    3. Update Excel:  python3 scripts/update_training_excel.py"
+        echo "    1. Compare v3b vs v4n:"
+        echo "         python3 scripts/analyze_training.py \\"
+        echo "           --phase-dirs $FINETUNED/finetune_peppc_v3b_phase{1,2,3} \\"
+        echo "           --compare-dirs $FINETUNED/finetune_peppc_v4n_phase{1,2,3} \\"
+        echo "           --out-dir logs/analysis_v3b_v4n"
+        echo "    2. Benchmark: python3 scripts/benchmark_inference_multi.py"
+        echo "    3. Update AI doc: append to docs/ai_training_guide_peppc.md"
         log "monitor_and_launch.sh complete."
         exit 0
     fi
@@ -137,28 +158,69 @@ while true; do
     sleep "$POLL_INTERVAL"
 
     separator
-    log "STATUS CHECK — v3b training"
+    log "STATUS CHECK"
     gpu_status
-    v3b_chain_status
 
-    # Show recent log
+    # ── v3b status ────────────────────────────────────────────────────────────
+    chain_status "v3b" "$V3B_LOG" "chain_training_v3b" \
+        "$FINETUNED/finetune_peppc_v3b_phase1" \
+        "$FINETUNED/finetune_peppc_v3b_phase2" \
+        "$FINETUNED/finetune_peppc_v3b_phase3"
+
     echo ""
-    echo "  Recent v3b log (last 8 lines):"
-    tail -8 "$V3B_LOG" 2>/dev/null | sed 's/^/    /' || echo "    (no log yet)"
+    echo "  Recent v3b log (last 5 lines):"
+    tail -5 "$V3B_LOG" 2>/dev/null | sed 's/^/    /' || echo "    (no log yet)"
 
-    # Check if chain process died unexpectedly
-    # (check if any v3b phase is running; if not and P3 not complete → crash)
-    v3b_any_active=false
-    for phase in 1 2 3; do
-        is_running "$FINETUNED/finetune_peppc_v3b_phase${phase}" && v3b_any_active=true && break || true
-    done
-    # Also check the chain_training_v3b.sh process itself
-    pgrep -f "chain_training_v3b" &>/dev/null && v3b_any_active=true || true
+    # ── Launch v4n if v3b just finished ──────────────────────────────────────
+    if is_complete "$FINETUNED/finetune_peppc_v3b_phase3"; then
+        if ! pgrep -f "chain_training_v4new" &>/dev/null && \
+           ! is_complete "$FINETUNED/finetune_peppc_v4n_phase3"; then
+            separator
+            log "V3B COMPLETE ✓ — launching v4n now"
+            log "  Log: $V4N_LOG"
+            nohup bash "$REPO/scripts/chain_training_v4new.sh" \
+                >> "$V4N_LOG" 2>&1 &
+            log "  v4n PID: $!"
+        fi
+    fi
 
-    if ! $v3b_any_active; then
-        if is_complete "$FINETUNED/finetune_peppc_v3b_phase3"; then
-            : # handled above at top of loop next iteration
-        else
+    # ── v4n status (if started) ───────────────────────────────────────────────
+    if [[ -d "$FINETUNED/finetune_peppc_v4n_phase1" ]] || \
+       pgrep -f "chain_training_v4new" &>/dev/null; then
+        chain_status "v4n" "$V4N_LOG" "chain_training_v4new" \
+            "$FINETUNED/finetune_peppc_v4n_phase1" \
+            "$FINETUNED/finetune_peppc_v4n_phase2" \
+            "$FINETUNED/finetune_peppc_v4n_phase3"
+
+        echo ""
+        echo "  Recent v4n log (last 5 lines):"
+        tail -5 "$V4N_LOG" 2>/dev/null | sed 's/^/    /' || echo "    (no log yet)"
+
+        # crash detection for v4n
+        v4n_any_active=false
+        for phase in 1 2 3; do
+            is_running "$FINETUNED/finetune_peppc_v4n_phase${phase}" && \
+                v4n_any_active=true && break || true
+        done
+        pgrep -f "chain_training_v4new" &>/dev/null && v4n_any_active=true || true
+
+        if ! $v4n_any_active && ! is_complete "$FINETUNED/finetune_peppc_v4n_phase3"; then
+            log "WARNING: v4n chain process not found but P3 not complete — may have crashed!"
+            log "  Check $V4N_LOG for errors."
+            log "  To resume: nohup bash scripts/chain_training_v4new.sh >> $V4N_LOG 2>&1 &"
+        fi
+    fi
+
+    # crash detection for v3b (only while v3b still in progress)
+    if ! is_complete "$FINETUNED/finetune_peppc_v3b_phase3"; then
+        v3b_any_active=false
+        for phase in 1 2 3; do
+            is_running "$FINETUNED/finetune_peppc_v3b_phase${phase}" && \
+                v3b_any_active=true && break || true
+        done
+        pgrep -f "chain_training_v3b" &>/dev/null && v3b_any_active=true || true
+
+        if ! $v3b_any_active; then
             log "WARNING: v3b chain process not found but P3 not complete — may have crashed!"
             log "  Check $V3B_LOG for errors."
             log "  To resume: nohup bash scripts/chain_training_v3b.sh >> $V3B_LOG 2>&1 &"

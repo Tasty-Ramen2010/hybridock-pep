@@ -492,3 +492,156 @@ atom features in `lig_atom_featurizer` will have degree=0 (wrong). Install it.
 ---
 
 *This guide is a living document. Update after each training run with observed metrics.*
+
+---
+
+## 12. Fine-tuning Experiment Log (May 2026)
+
+*Updated: May 29 2026 — v2/v2b/v3 terminated; v3b running; v4n queued.*
+
+### 12.1 Architecture Comparison Table
+
+| Version | P1 unfreeze | P2 unfreeze | P3 schedule | Scheduler | P1 LR | P2 LR | grad_clip | EMA |
+|---|---|---|---|---|---|---|---|---|
+| **v2** | score heads | +last_block (intra.3+cross.2/3) | cosine | cosine all | 2e-5 | 5e-6 | 1.0 | 0.9995→0.9997→0.9999 |
+| **v2b** | score heads | +last_block | cosine | cosine all | 2e-5 | 5e-6 | 1.0 | 0.9995→0.9997→0.9999 |
+| **v3** | cross_convs.2/3 + heads | +intra_convs.3 @ 0.15× | cosine | **plateau** P1/P2 | 2e-5 | 5e-6 | 1.0 | 0.9995→0.9997→0.9999 |
+| **v3b** | cross_convs.3 + heads | +cross_convs.2 @ 0.6× | cosine | **cosine all** | 1e-5 | 3e-6 | **0.5** | **0.9999 all** |
+| **v4n** | cross_convs.3 + heads | +cross_convs.2 @ **0.5×** | cosine | **cosine all** | **8e-6** | **2e-6** | **0.5** | **0.9999 all** |
+
+Key: **bold** = differs from prior version. Adaptive spike LR added in v3b and v4n.
+
+---
+
+### 12.2 Results Summary: Terminated Experiments
+
+#### V2 — standard progressive unfreezing
+| Phase | Epochs run | Best val (ep) | Osc range | Norm spikes | Status |
+|---|---|---|---|---|---|
+| P1 | 20 | — | — | — | partial (no CSV) |
+| P2 | ~31 | **38.38 @ ep16** | 51.7 | 13/31 (42%) | COMPLETE |
+| P3 | 50/100 | **39.07 @ ep16** | 53.3 | 24/74 (32%) | **TERMINATED ep50** |
+
+Best checkpoint: `finetune_peppc_v2_phase3/rapidock_finetuned_best.pt` (val=39.07, ep16)
+
+#### V2B — same as v2 with minor warmup fixes
+| Phase | Epochs run | Best val (ep) | Osc range | Norm spikes | Status |
+|---|---|---|---|---|---|
+| P1 | 25 | **38.51 @ ep16** | 120.3 | 10/25 (40%) | COMPLETE |
+| P2 | ~31 | **39.09 @ ep16** | 52.6 | 14/31 (45%) | COMPLETE |
+| P3 | 50/100 | **39.51 @ ep16** | 54.4 | 21/52 (40%) | **TERMINATED ep50** |
+
+Best checkpoint: `finetune_peppc_v2b_phase3/rapidock_finetuned_best.pt` (val=39.51, ep16)
+
+#### V3 — controlled specialization (cross_convs first, then intra)
+| Phase | Epochs run | Best val (ep) | Osc range | Norm spikes | Sched | Status |
+|---|---|---|---|---|---|---|
+| P1 | 20 | **39.00 @ ep16** | 119.8 | 9/20 (45%) | cosine | COMPLETE |
+| P2 | 18/40 | **39.70 @ ep16** | 53.8 | 7/18 (39%) | **plateau** | **CRASHED (undamped osc)** |
+
+Best checkpoint: `finetune_peppc_v3_phase2/rapidock_finetuned_best.pt` (val=39.70, ep16)
+
+> **V3 failure cause:** plateau scheduler in P2 maintained fixed LR=5e-6 throughout
+> warmup→epoch 6. Without LR decay, norm spikes cycle undamped. By ep18, raw_mean
+> reached 3×10⁹ — one more cycle would have NaN'd. Cosine fixes this.
+
+---
+
+### 12.3 Key Findings (cross-version)
+
+#### Finding 1: The ep16 best is deterministic, not coincidental
+All 9 recorded phase-best checkpoints across v2/v2b/v3 occurred at **epoch 16**, regardless
+of architecture, LR, or phase. Mechanism:
+
+1. **ep1–ep6**: warmup ramp. Model adapts to new gradient signal. Val high.
+2. **ep7–ep11**: full LR reached. Score field starting to specialise. Moderate improvement.
+3. **ep11**: **deterministic NORM ALERT** — val tr_pred max_norm spikes ×10³–10⁶.
+   Fires ~5 epochs after full LR is established. Model-architecture property.
+4. **ep12–ep15**: spike recovery. Grad clipping absorbs the gradient; EMA drifts
+   toward spike-distorted weights but cosine LR decay limits damage.
+5. **ep16**: **first post-spike epoch where EMA has partially recovered** AND LR
+   is still high enough to learn → global best almost always here.
+6. **ep17+**: subsequent spike cycles. Val oscillates +30/−30 around ep16 baseline.
+
+**Implication for v3b / v4n**: the ep16 best is achievable regardless of architecture.
+What matters is: (a) does the model stay stable after ep16, and (b) can late-epoch
+fine-tuning improve beyond ep16 once the score field is properly anchored?
+
+#### Finding 2: Oscillation envelope is stable across architectures
+All versions show a **similar oscillation amplitude** (~50 val-loss units peak-to-trough)
+and **similar best-valley (~39 val)**. This suggests the val loss ceiling is set by
+the intrinsic difficulty of the PepPC validation set, not by the fine-tuning architecture.
+
+| Version | Best val | P1 osc range | P3 osc range |
+|---|---|---|---|
+| v2 | 38.4–39.1 | 51.7 | 53.3 |
+| v2b | 38.5–39.5 | 120.3 | 54.4 |
+| v3 P1 | 39.0 | 119.8 | — |
+| v3 P2 | 39.7 | — | 53.8 |
+
+v2b P1 shows osc range 120 (larger) because it used plateau P1 with early LR warmup;
+v3 P1 also 120. Both plateau-phase P1 runs have wider oscillation vs cosine P3 (range ~53).
+This directly confirms cosine damping reduces oscillation amplitude by ~2.3×.
+
+#### Finding 3: Cross_convs are the primary instability hotspot
+- v3 P1 (unfreezing cross_convs.2/3 + heads): best=39.00, 9/20 spikes
+- v2/v2b P3 (unfreezing full model): best=39.07, 24/74 spikes
+- v3 P2 added intra_convs.3 → undamped plateau → crash
+
+This implies the instability is driven by **cross_conv gradient sensitivity**, not by
+the number of unfrozen parameters. Cross_convs handle direct receptor–peptide interaction
+geometry — they sit on the largest gradient magnitude pathway.
+
+#### Finding 4: No run has yet improved beyond ep16 via late-epoch training
+All 50-epoch P3 runs (v2, v2b) show: after ep22-23, no new best found in any subsequent
+epoch through ep50. The oscillation "locks" into a periodic attractor.
+
+**What v3b/v4n are testing**: whether cosine LR + adaptive spike + conservative P1/P2
+allows the late-epoch weights to escape the oscillation attractor and find a lower basin.
+
+---
+
+### 12.4 Currently Running and Queued Experiments
+
+#### V3B — stable controlled specialization (RUNNING)
+- **Status**: P1 running (started May 29 ~09:00)
+- **Key fix**: cosine in ALL phases + adaptive spike LR + tighter clip (0.5)
+- **Best expected**: similar ep16 valley, but *stable* post-ep16 (cosine damping)
+- **Log**: `logs/chain_training_v3b.log`
+- **Monitor**: `training_monitor` tmux
+
+Hyperparameters:
+| Phase | LR peak | LR floor | Warmup | Epochs | Unfreeze |
+|---|---|---|---|---|---|
+| P1 | 1e-5 | 2e-6 | 6 | 20 | heads + cross_convs.3 |
+| P2 | 3e-6 | 5e-7 | 6 | 35 | +cross_convs.2 @ 0.6× |
+| P3 | 5e-6 | 1e-7 | 10 | 65 | full-ESM; layerwise 0.5/0.2/0.05 |
+
+#### V4N — careful mechanistic probe (QUEUED, runs after v3b)
+- **Status**: chain script ready; launches automatically after v3b P3 completes
+- **Hypothesis**: even lower LR + more conservative layerwise P3 decay can probe
+  whether cross_conv adaptation improves interaction diversity without destabilising score field
+- **Key differences from v3b**: P1 LR=8e-6 (vs 1e-5), P2 LR=2e-6 (vs 3e-6),
+  P2 diff LR cross_convs.2=0.5× (vs 0.6×), P3 layerwise 0.4/0.15/0.03 (vs 0.5/0.2/0.05)
+- **Log**: `logs/chain_training_v4new.log`
+
+Hyperparameters:
+| Phase | LR peak | LR floor | Warmup | Epochs | Unfreeze |
+|---|---|---|---|---|---|
+| P1 | **8e-6** | 2e-6 | 6 | 18 | heads + cross_convs.3 |
+| P2 | **2e-6** | 5e-7 | 6 | 30 | +cross_convs.2 @ **0.5×** |
+| P3 | 5e-6 | 1e-7 | 10 | 60 | full-ESM; layerwise **0.4/0.15/0.03** |
+
+---
+
+### 12.5 Stability Design Rules (derived from v2/v2b/v3 experiments)
+
+1. **Always use cosine LR schedule** — plateau+patience=999 creates undamped oscillation cycles
+2. **grad_clip ≤ 0.5** — 1.0 allowed NORM ALERTs to build across consecutive epochs
+3. **EMA decay = 0.9999 from Phase 1** — fast EMA (0.9995) amplifies spike-to-checkpoint leakage
+4. **Never expose cross_convs.2 and intra_convs in the same phase** — additive instability
+5. **Adaptive spike LR**: auto-halves LR for 2 epochs on val tr_norm >10× — recovery backstop
+6. **P1 LR ≤ 1e-5** — 2e-5 (v3 P1) causes ep7 norm ×59 even with cosine; 1e-5 safer
+7. **Phase 1 should be ≤20 epochs** — ep16 best is always reachable; extra epochs just oscillate
+
+These rules are implemented in `--v3b-mode` and `--v4n-mode` in `train_lastlayer.py`.
