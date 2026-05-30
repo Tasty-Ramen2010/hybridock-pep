@@ -168,15 +168,21 @@ def main() -> None:
     out_root.mkdir(parents=True, exist_ok=True)
 
     # Build ordered model list: pretrained first, then finetuned, then extras
+    def _label_from_ckpt(ckpt: Path) -> str:
+        """Derive a short model label from checkpoint directory name."""
+        lbl = ckpt.parent.name  # e.g. finetune_peppc_v5c_phase2
+        lbl = lbl.replace("finetune_peppc_", "")
+        for suffix in ("_phase1", "_phase2", "_phase3"):
+            lbl = lbl.replace(suffix, "")
+        return lbl or ckpt.stem
+
     models: list[tuple[str, Path]] = [
         ("pretrained",  Path(args.pretrained)),
-        ("v1",          Path(args.finetuned)),
+        (_label_from_ckpt(Path(args.finetuned)), Path(args.finetuned)),
     ]
     for extra in args.also_compare:
         ep = Path(extra)
-        label = ep.parent.name  # e.g. finetune_peppc_v2_phase3
-        label = label.replace("finetune_peppc_", "").replace("_phase3", "").replace("_phase2", "")
-        models.append((label, ep))
+        models.append((_label_from_ckpt(ep), ep))
 
     rapidock_python = _find_rapidock_python()
 
