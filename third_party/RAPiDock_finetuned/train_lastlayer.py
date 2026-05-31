@@ -1049,6 +1049,10 @@ def train_epoch(model, dataset, indices, transform, optimizer, device,
         reg_lambda:     Regularization strength for pretrained-weight L2 penalty.
     """
     model.train()
+    # BUG FIX (V6): model.train() resets ALL submodule modes, including BatchNorm layers
+    # that were set to .eval() by freeze_frozen_bn_stats(). Re-apply immediately after
+    # model.train() so frozen BN running stats don't update during training.
+    freeze_frozen_bn_stats(model)
     total_loss = 0.0
     n_ok = 0
     n_load_fail = 0
@@ -3087,11 +3091,10 @@ def main():
                 print(f"  [EMA SKIP] EMA resumes next epoch.")
         _train_ema = None if _ema_skip_this_epoch else ema
 
-        # V6 BUG FIX: re-apply frozen BN eval() after train_epoch will call model.train()
-        # (model.train() resets ALL submodule modes; we must re-freeze each epoch)
-        # This is done BEFORE train_epoch to pre-configure the model state; train_epoch
-        # calls model.train() internally which we then counter at the start of the epoch.
-        # Note: freeze_frozen_bn_stats() is a no-op for non-v6 modes (returns 0).
+        # freeze_frozen_bn_stats() is now called INSIDE train_epoch() immediately after
+        # model.train(), which is the only correct location (model.train() resets all
+        # submodule modes). This pre-epoch call is a no-op (harmless redundancy).
+        # Kept for belt-and-suspenders at val time (model is in train mode between epochs).
         if args.v6_mode:
             freeze_frozen_bn_stats(model)
 
