@@ -215,7 +215,8 @@ def main():
     ap.add_argument("--model-dir", default="train_models/confidence_model")
     ap.add_argument("--n-per-bucket", type=int, default=15)
     ap.add_argument("--out-dir", default="logs/confidence_ranking")
-    ap.add_argument("--tmp-dir", default="/tmp/conf_rank")
+    ap.add_argument("--tmp-dir", default="/tmp/conf_train",
+                    help="Temp dir for InferenceDataset cache; reuse training cache to skip ESM re-run")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--model", default="pretrained")
