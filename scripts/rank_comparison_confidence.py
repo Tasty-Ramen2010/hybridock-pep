@@ -42,22 +42,31 @@ sys.path.insert(0, str(REPO / "third_party" / "RAPiDock"))
 # ── model loading ─────────────────────────────────────────────────────────────
 
 def load_confidence_model(ckpt_path: Path, model_dir: Path, device):
-    """Load trained confidence model from checkpoint."""
+    """Load trained confidence model from checkpoint.
+
+    Training saved via models.model.ConfidenceModel which wraps
+    CGTensorProductEquivariantModel under self.encoder — so checkpoint
+    keys are 'encoder.xxx'.  We must use the same wrapper here.
+    """
     import yaml
     from argparse import Namespace
-    from models.diffusion import CGTensorProductEquivariantModel as ConfidenceModel
+    from models.model import ConfidenceModel
 
     with open(model_dir / "model_parameters.yml") as f:
         args = Namespace(**yaml.full_load(f))
-    if hasattr(args, "rmsd_classification_cutoff"):
-        delattr(args, "rmsd_classification_cutoff")
-    args.confidence_mode = True
+    # ConfidenceModel.__init__ reads rmsd_classification_cutoff; keep it if
+    # present so num_confidence_outputs matches the saved checkpoint exactly.
+    # (training used num_confidence_outputs=1, so the default is fine either way)
 
     model = ConfidenceModel(args)
     ckpt = torch.load(str(ckpt_path), map_location="cpu")
     state = ckpt.get("model", ckpt)
     missing, unexpected = model.load_state_dict(state, strict=False)
     log.info("Loaded checkpoint — missing: %d, unexpected: %d", len(missing), len(unexpected))
+    if missing:
+        log.debug("First 5 missing: %s", missing[:5])
+    if unexpected:
+        log.debug("First 5 unexpected: %s", unexpected[:5])
     model.to(device)
     model.eval()
     return model
@@ -68,7 +77,7 @@ def load_confidence_model(ckpt_path: Path, model_dir: Path, device):
 def build_base_graphs(selected: list[str], bench300_df: pd.DataFrame,
                       tmp_dir: Path) -> dict[str, object]:
     """Build InferenceDataset graphs for selected complexes."""
-    from datasets.process_mols import InferenceDataset
+    from utils.inference_utils import InferenceDataset
 
     names, receptors, peptides = [], [], []
     df_idx = bench300_df.set_index("name")
