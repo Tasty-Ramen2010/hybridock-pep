@@ -2,16 +2,17 @@
 """
 confidence_exp_e.py — Frozen vs partial encoder finetuning (standalone).
 
-Three conditions:
-  E0  Frozen encoder        Use cached 96-dim features, head-only training
-  E1  Unfreeze last block   cross_convs[-1] + head (1.05M trainable params)
-  E2  Unfreeze last 2       cross_convs[-2:] + head (1.70M trainable params)
+Four conditions:
+  E0  Frozen encoder           Cached 96-dim features, head-only training
+  E1  Unfreeze last block      cross_convs[-1] + head, bench_only
+  E2  Unfreeze last 2 blocks   cross_convs[-2:] + head, bench_only
+  E3  Unfreeze last block      cross_convs[-1] + head, 75B/25G dataset
 
 Memory design:
-  - base_graphs cached once (~500 MB for 240 receptors)
-  - Pose graphs built ON-THE-FLY inside training loop, discarded after each complex
+  - base_graphs cached once per dataset (~500 MB bench + ~800 MB gen)
+  - Pose graphs built ON-THE-FLY per complex, discarded immediately after
   - Peak GPU: ~1-2 GB (one complex batch at a time)
-  - Peak RAM: ~1-2 GB (base_graphs + one complex in flight)
+  - Peak RAM: ~1.5-2 GB (base_graphs + one complex in flight)
 
 Usage:
   conda run -n rapidock python3 -u scripts/confidence_exp_e.py --device cuda
@@ -47,6 +48,8 @@ sys.path.insert(0, str(REPO / "third_party" / "RAPiDock"))
 FEAT_BENCH = REPO / "logs" / "diagnosis" / "feats_bench300.pkl"
 BENCH_JSON = REPO / "logs" / "analysis_bench300" / "benchmark_results.json"
 BENCH_CSV  = REPO / "data" / "benchmark300.csv"
+GEN_JSON   = REPO / "logs" / "confidence_training_data" / "benchmark_results.json"
+GEN_CSV    = REPO / "data" / "confidence_training_500.csv"
 PARAMS_YML = REPO / "train_models" / "confidence_model" / "model_parameters.yml"
 PRETRAINED = REPO / "third_party" / "RAPiDock" / "train_models" / \
              "CGTensorProductEquivariantModel" / "rapidock_global.pt"
@@ -184,11 +187,11 @@ def load_model(n_unfreeze: int, device: str, new_head: nn.Module):
     return model, enc
 
 
-def build_base_graphs(bench_csv, bench_json_data):
+def build_base_graphs(csv_path, label: str = ""):
     """Build per-complex base graphs (receptor + peptide topology, no pose)."""
     from utils.inference_utils import InferenceDataset
 
-    df     = pd.read_csv(bench_csv)
+    df     = pd.read_csv(csv_path)
     names, recs, peps = [], [], []
     for _, row in df.iterrows():
         if Path(str(row.get("receptor", ""))).exists() and \
@@ -196,7 +199,7 @@ def build_base_graphs(bench_csv, bench_json_data):
             names.append(row["name"]); recs.append(str(row["receptor"]))
             peps.append(str(row["peptide_pdb"]))
 
-    tmp = "/tmp/exp_e_base"
+    tmp = f"/tmp/exp_e_base_{label}"
     os.makedirs(tmp, exist_ok=True)
     ds = InferenceDataset(
         output_dir=tmp, complex_name_list=names,
@@ -210,7 +213,7 @@ def build_base_graphs(bench_csv, bench_json_data):
             g = ds.get(i)
             if g is not None: base[n] = g
         except Exception: pass
-    log.info("Built %d base graphs", len(base))
+    log.info("Built %d base graphs (%s)", len(base), label)
     return base
 
 
@@ -268,9 +271,14 @@ def build_cx_graphs(cname, bench_json_data, base_graphs):
 # ── Exp E1 / E2: on-the-fly GPU finetuning ───────────────────────────────────
 
 def run_finetune(label: str, n_unfreeze: int, device: str,
-                 bench_json: dict, base_graphs: dict,
+                 train_json: dict, train_base_graphs: dict,
                  bench_ds: dict, train_c: list, val_c: list,
+                 val_json: dict | None = None, val_base_graphs: dict | None = None,
                  n_epochs: int = 20, pairs_per_cx: int = 10) -> dict:
+    """
+    train_json / train_base_graphs: used for training complexes (may be bench+gen merged).
+    val_json / val_base_graphs: used for eval; defaults to train_json/train_base_graphs.
+    """
     from torch_geometric.data import Batch
     from scipy import stats as sp
 
@@ -287,6 +295,10 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
         {"params": list(new_head.parameters()), "lr": 1e-3, "weight_decay": 1e-4},
     ])
 
+    # Default val data to same as train data
+    if val_json is None:       val_json        = train_json
+    if val_base_graphs is None: val_base_graphs = train_base_graphs
+
     rng       = np.random.RandomState(0)
     best_tau  = -1.0
     best_head = None
@@ -301,7 +313,7 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
         cx_order = list(train_c); rng.shuffle(cx_order)
 
         for cname in cx_order:
-            cx_data = build_cx_graphs(cname, bench_json, base_graphs)
+            cx_data = build_cx_graphs(cname, train_json, train_base_graphs)
             if len(cx_data) < 2: continue
 
             batch  = Batch.from_data_list([g for g, _ in cx_data]).to(device)
@@ -340,7 +352,7 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
         taus, tops = [], []
         with torch.no_grad():
             for cname in val_c:
-                cx_data = build_cx_graphs(cname, bench_json, base_graphs)
+                cx_data = build_cx_graphs(cname, val_json, val_base_graphs)
                 if len(cx_data) < 2: continue
 
                 batch  = Batch.from_data_list([g for g, _ in cx_data]).to(device)
@@ -414,25 +426,55 @@ def main():
     }]
 
     if device == "cpu":
-        log.warning("No GPU — skipping E1/E2")
+        log.warning("No GPU — skipping E1/E2/E3")
     else:
-        # ── build base graphs once ─────────────────────────────────────────────
-        log.info("Building base graphs (one-time, ~3-5 min)...")
-        base_graphs = build_base_graphs(BENCH_CSV, bench_json)
+        # ── build bench base graphs ────────────────────────────────────────────
+        log.info("Building bench base graphs (~3-5 min)...")
+        bench_base = build_base_graphs(BENCH_CSV, label="bench")
 
-        # ── E1: unfreeze last 1 cross_conv ─────────────────────────────────────
+        # ── build gen base graphs (needed for E3) ──────────────────────────────
+        log.info("Building gen base graphs (~5-8 min)...")
+        gen_json  = json.load(open(GEN_JSON))
+        gen_base  = build_base_graphs(GEN_CSV, label="gen")
+
+        # merged json+base for E3 training (bench + gen, val always bench)
+        merged_json = {**gen_json, **bench_json}   # bench keys override if overlap
+        merged_base = {**gen_base, **bench_base}
+
+        # 75B/25G train set: 75% of bench_train + all gen_train
+        gen_all   = sorted(gen_base.keys())
+        gen_train, _ = split_complexes(gen_all, 0.85, seed=42)
+        rng_mix   = np.random.RandomState(42)
+        n_bench_75 = int(round(0.75 * len(train_c)))
+        bench_75   = list(rng_mix.choice(train_c, n_bench_75, replace=False))
+        train_c_75b25g = bench_75 + gen_train
+        log.info("E3 train set: %d bench + %d gen = %d total",
+                 len(bench_75), len(gen_train), len(train_c_75b25g))
+
+        # ── E1: unfreeze last 1 cross_conv, bench_only ─────────────────────────
         rows.append(run_finetune(
-            "E1_unfreeze_last1", n_unfreeze=1, device=device,
-            bench_json=bench_json, base_graphs=base_graphs,
+            "E1_unfreeze_last1_bench", n_unfreeze=1, device=device,
+            train_json=bench_json, train_base_graphs=bench_base,
             bench_ds=bench_ds, train_c=train_c, val_c=val_c,
+            val_json=bench_json, val_base_graphs=bench_base,
             n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
         ))
 
-        # ── E2: unfreeze last 2 cross_convs ────────────────────────────────────
+        # ── E2: unfreeze last 2 cross_convs, bench_only ────────────────────────
         rows.append(run_finetune(
-            "E2_unfreeze_last2", n_unfreeze=2, device=device,
-            bench_json=bench_json, base_graphs=base_graphs,
+            "E2_unfreeze_last2_bench", n_unfreeze=2, device=device,
+            train_json=bench_json, train_base_graphs=bench_base,
             bench_ds=bench_ds, train_c=train_c, val_c=val_c,
+            val_json=bench_json, val_base_graphs=bench_base,
+            n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
+        ))
+
+        # ── E3: unfreeze last 1, 75B/25G ───────────────────────────────────────
+        rows.append(run_finetune(
+            "E3_unfreeze_last1_75B25G", n_unfreeze=1, device=device,
+            train_json=merged_json, train_base_graphs=merged_base,
+            bench_ds=bench_ds, train_c=train_c_75b25g, val_c=val_c,
+            val_json=bench_json, val_base_graphs=bench_base,
             n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
         ))
 
