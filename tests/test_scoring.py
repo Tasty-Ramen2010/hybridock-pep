@@ -149,7 +149,12 @@ class TestVinaScorer:
         assert failures[0].pose_idx == 0
 
     def test_score_vina_batch_sets_is_clipped(self, tmp_path: Path) -> None:
-        """Clipped pose has is_clipped=True on returned ScoredPose."""
+        """Clipped pose goes to failures immediately (skips set_ligand_from_file).
+
+        Clipped = heavy atom outside grid boundary. We skip Vina scoring to avoid
+        the ~12s RuntimeError that Vina raises for out-of-bounds ligands.
+        The PoseFailure has error_msg starting with 'is_clipped:'.
+        """
         import numpy as np
         from hybridock_pep.models import DockConfig, ScoredPose
         from hybridock_pep.scoring.vina import score_vina_batch
@@ -183,9 +188,13 @@ class TestVinaScorer:
         with mock.patch("hybridock_pep.scoring.vina.Vina", return_value=mock_vina_instance):
             scored, failures = score_vina_batch([pose], config, receptor)
 
-        assert len(failures) == 0
-        assert len(scored) == 1
-        assert scored[0].is_clipped is True
+        # Clipped poses now go directly to failures (no set_ligand_from_file call)
+        assert len(scored) == 0
+        assert len(failures) == 1
+        assert failures[0].pose_idx == 1
+        assert failures[0].error_msg.startswith("is_clipped:")
+        # Vina's set_ligand_from_file should NOT have been called (fast-fail)
+        mock_vina_instance.set_ligand_from_file.assert_not_called()
 
     def test_score_vina_batch_writes_clipped_to_metadata(self, tmp_path: Path) -> None:
         """Clipped pose written to run_metadata.json clipped_poses list."""

@@ -127,10 +127,46 @@ $CONDA python3 -u "$REPO/scripts/analyze_training.py" \
     --out-dir "$REPO/logs/analysis_v1_vs_v2" \
     2>&1 | tee "$REPO/logs/analysis_comparison.log" || true
 
+# ─── Step 8: Inference quality comparison (pretrained vs v1 vs v2 Phase 3) ──
+echo ""
+echo "========================================================================"
+echo "[pipeline] Inference quality comparison: pretrained vs v1 vs v2 Phase 3"
+echo "========================================================================"
+
+V1_P3_BEST_OR_FINAL="$V1_P3_BEST"
+if [ ! -f "$V1_P3_BEST" ] && [ -f "$V1_P3_FINAL" ]; then
+    V1_P3_BEST_OR_FINAL="$V1_P3_FINAL"
+fi
+
+ALSO_COMPARE_ARG=""
+if [ -f "$V2_P3_BEST" ]; then
+    ALSO_COMPARE_ARG="--also-compare $V2_P3_BEST"
+fi
+
+if [ -f "$V1_P3_BEST_OR_FINAL" ]; then
+    conda run --no-capture-output -n score-env python3 -u \
+        "$REPO/scripts/compare_rapidock_vs_finetuned.py" \
+        --receptor   "$REPO/data/pdbs/1YCR_mdm2.pdb" \
+        --peptide    "ETFSDLWKLLPE" \
+        --reference  "$REPO/data/pdbs/1YCR_peptide.pdb" \
+        --pretrained "$PRETRAINED" \
+        --finetuned  "$V1_P3_BEST_OR_FINAL" \
+        $ALSO_COMPARE_ARG \
+        --n-samples  20 \
+        --seed       42 \
+        --out-dir    "$REPO/logs/inference_comparison_v1_v2" \
+        2>&1 | tee "$REPO/logs/inference_comparison_v1_v2.log" || \
+        echo "[pipeline] WARNING: inference comparison failed — see logs/inference_comparison_v1_v2.log"
+    echo "[pipeline] Inference comparison saved: logs/inference_comparison_v1_v2/"
+else
+    echo "[pipeline] WARNING: no Phase 3 checkpoint found — skipping inference comparison"
+fi
+
 echo ""
 echo "========================================================================"
 echo "[pipeline] FULL PIPELINE COMPLETE."
-echo "  v1 comparison:       logs/comparison_v1.json"
-echo "  v1 vs v2 comparison: logs/comparison_v1_vs_v2.json"
-echo "  v2 analysis:         logs/analysis_v1_vs_v2/"
+echo "  v1 comparison:            logs/comparison_v1.json"
+echo "  v1 vs v2 comparison:      logs/comparison_v1_vs_v2.json"
+echo "  v2 analysis:              logs/analysis_v1_vs_v2/"
+echo "  Inference quality report: logs/inference_comparison_v1_v2/"
 echo "========================================================================"

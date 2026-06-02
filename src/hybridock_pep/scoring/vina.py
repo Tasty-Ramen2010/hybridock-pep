@@ -215,10 +215,20 @@ def score_vina_batch(
             )
             if pose.is_clipped:
                 logger.warning(
-                    "Pose %d: atoms outside grid bounds (is_clipped=True)", pose.pose_idx
+                    "Pose %d: atoms outside grid bounds (is_clipped=True) — "
+                    "skipping Vina scoring to avoid ~12s RuntimeError",
+                    pose.pose_idx,
                 )
                 if metadata_path is not None:
                     _append_clipped_pose(metadata_path, pose.pose_idx, pose.pdbqt_path)
+                failures.append(
+                    PoseFailure(
+                        pose_idx=pose.pose_idx,
+                        stage="scoring",
+                        error_msg="is_clipped: heavy atom outside grid bounds",
+                    )
+                )
+                continue  # skip set_ligand_from_file — saves ~12s per clipped pose
 
             v.set_ligand_from_file(str(pose.pdbqt_path))
             raw_score = float(v.score()[0])

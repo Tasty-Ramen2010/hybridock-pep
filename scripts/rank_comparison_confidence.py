@@ -44,23 +44,60 @@ sys.path.insert(0, str(REPO / "third_party" / "RAPiDock"))
 def load_confidence_model(ckpt_path: Path, model_dir: Path, device):
     """Load trained confidence model from checkpoint.
 
-    Training saved via models.model.ConfidenceModel which wraps
-    CGTensorProductEquivariantModel under self.encoder — so checkpoint
-    keys are 'encoder.xxx'.  We must use the same wrapper here.
+    Supports both v1 (stock tiny MLP head) and v2 (128-unit head + dropout).
+    Detection is automatic: v2 checkpoints carry a 'config' dict with 'hidden_dim'.
     """
+    import math
     import yaml
+    import torch.nn as nn
     from argparse import Namespace
     from models.model import ConfidenceModel
 
     with open(model_dir / "model_parameters.yml") as f:
         args = Namespace(**yaml.full_load(f))
-    # ConfidenceModel.__init__ reads rmsd_classification_cutoff; keep it if
-    # present so num_confidence_outputs matches the saved checkpoint exactly.
-    # (training used num_confidence_outputs=1, so the default is fine either way)
+    if hasattr(args, "rmsd_classification_cutoff"):
+        delattr(args, "rmsd_classification_cutoff")
 
-    model = ConfidenceModel(args)
     ckpt = torch.load(str(ckpt_path), map_location="cpu")
     state = ckpt.get("model", ckpt)
+    config = ckpt.get("config", {})          # v2 checkpoints carry config dict
+
+    model = ConfidenceModel(args)
+
+    if config.get("hidden_dim"):
+        # ── v2 checkpoint: replace head with ConfidencePredictorV2 ────────────
+        hidden_dim = int(config["hidden_dim"])
+        dropout    = float(config.get("dropout", 0.2))
+        log.info("Detected v2 checkpoint (hidden_dim=%d, dropout=%.2f)", hidden_dim, dropout)
+
+        # Infer input dim from current (stock) head's first linear layer
+        in_dim = 256  # safe default
+        try:
+            for mod in model.encoder.confidence_predictor.modules():
+                if isinstance(mod, nn.Linear):
+                    in_dim = mod.in_features
+                    break
+        except Exception:
+            pass
+
+        class _V2Head(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.net = nn.Sequential(
+                    nn.Linear(in_dim, hidden_dim),
+                    nn.LayerNorm(hidden_dim),
+                    nn.GELU(),
+                    nn.Dropout(dropout),
+                    nn.Linear(hidden_dim, hidden_dim // 2),
+                    nn.GELU(),
+                    nn.Dropout(dropout),
+                    nn.Linear(hidden_dim // 2, 1),
+                )
+            def forward(self, x):
+                return self.net(x)
+
+        model.encoder.confidence_predictor = _V2Head()
+
     missing, unexpected = model.load_state_dict(state, strict=False)
     log.info("Loaded checkpoint — missing: %d, unexpected: %d", len(missing), len(unexpected))
     if missing:
