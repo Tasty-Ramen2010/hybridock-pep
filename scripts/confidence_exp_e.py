@@ -245,39 +245,60 @@ def inject_pose(bg, pos):
     return g
 
 
-def build_cx_graphs(cname, bench_json_data, base_graphs):
-    """Build (graph, rmsd) list for one complex. Called per-epoch on-the-fly."""
-    bg  = base_graphs.get(cname)
-    if bg is None: return []
-    n_g = bg["pep_a"].pos.shape[0]
+def cache_pose_positions(json_data: dict, base_graphs: dict) -> dict:
+    """Load all pose PDB positions into RAM once. Returns:
+       {cname: [(pos_tensor, rmsd), ...]}
+    PDB I/O cost is paid here once; inject_pose runs in-memory each epoch.
+    """
+    cache: dict[str, list] = {}
+    n_ok = n_skip = 0
+    for cname, model_results in json_data.items():
+        bg = base_graphs.get(cname)
+        if bg is None: continue
+        n_g = bg["pep_a"].pos.shape[0]
+        poses = []
+        for mkey, res in model_results.items():
+            pdir  = Path(res["poses_dir"])
+            rmsds = res.get("ref_rmsds", [])
+            for i, rmsd in enumerate(rmsds):
+                pdb = pdir / f"pose_{i}.pdb"
+                if not pdb.exists(): continue
+                pos = load_pose_positions(str(pdb))
+                if pos is None: n_skip += 1; continue
+                if pos.shape[0] != n_g:
+                    pos = load_pose_positions(str(pdb), exclude_oxt=True)
+                    if pos is None or pos.shape[0] != n_g: n_skip += 1; continue
+                poses.append((pos, float(rmsd)))
+                n_ok += 1
+        if len(poses) >= 2:
+            cache[cname] = poses
+    log.info("Pose position cache: %d poses across %d complexes (%d skipped)",
+             n_ok, len(cache), n_skip)
+    return cache
+
+
+def build_cx_graphs_from_cache(cname: str, pos_cache: dict, base_graphs: dict) -> list:
+    """Build (graph, rmsd) list using cached positions — no disk I/O."""
+    bg = base_graphs.get(cname)
+    if bg is None or cname not in pos_cache: return []
     out = []
-    for mkey, res in bench_json_data.get(cname, {}).items():
-        pdir  = Path(res["poses_dir"])
-        rmsds = res.get("ref_rmsds", [])
-        for i, rmsd in enumerate(rmsds):
-            pdb = pdir / f"pose_{i}.pdb"
-            if not pdb.exists(): continue
-            pos = load_pose_positions(str(pdb))
-            if pos is None: continue
-            if pos.shape[0] != n_g:
-                pos = load_pose_positions(str(pdb), exclude_oxt=True)
-                if pos is None or pos.shape[0] != n_g: continue
-            try:
-                out.append((inject_pose(bg, pos), float(rmsd)))
-            except Exception: pass
+    for pos, rmsd in pos_cache[cname]:
+        try:
+            out.append((inject_pose(bg, pos), rmsd))
+        except Exception: pass
     return out
 
 
 # ── Exp E1 / E2: on-the-fly GPU finetuning ───────────────────────────────────
 
 def run_finetune(label: str, n_unfreeze: int, device: str,
-                 train_json: dict, train_base_graphs: dict,
+                 train_pos_cache: dict, train_base_graphs: dict,
                  bench_ds: dict, train_c: list, val_c: list,
-                 val_json: dict | None = None, val_base_graphs: dict | None = None,
+                 val_pos_cache: dict | None = None, val_base_graphs: dict | None = None,
                  n_epochs: int = 20, pairs_per_cx: int = 10) -> dict:
     """
-    train_json / train_base_graphs: used for training complexes (may be bench+gen merged).
-    val_json / val_base_graphs: used for eval; defaults to train_json/train_base_graphs.
+    train_pos_cache: {cname: [(pos_tensor, rmsd), ...]} — positions pre-loaded, no disk I/O per epoch.
+    val_pos_cache / val_base_graphs: used for eval; defaults to train cache.
     """
     from torch_geometric.data import Batch
     from scipy import stats as sp
@@ -296,7 +317,7 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
     ])
 
     # Default val data to same as train data
-    if val_json is None:       val_json        = train_json
+    if val_pos_cache is None:   val_pos_cache   = train_pos_cache
     if val_base_graphs is None: val_base_graphs = train_base_graphs
 
     rng       = np.random.RandomState(0)
@@ -313,7 +334,7 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
         cx_order = list(train_c); rng.shuffle(cx_order)
 
         for cname in cx_order:
-            cx_data = build_cx_graphs(cname, train_json, train_base_graphs)
+            cx_data = build_cx_graphs_from_cache(cname, train_pos_cache, train_base_graphs)
             if len(cx_data) < 2: continue
 
             batch  = Batch.from_data_list([g for g, _ in cx_data]).to(device)
@@ -352,7 +373,7 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
         taus, tops = [], []
         with torch.no_grad():
             for cname in val_c:
-                cx_data = build_cx_graphs(cname, val_json, val_base_graphs)
+                cx_data = build_cx_graphs_from_cache(cname, val_pos_cache, val_base_graphs)
                 if len(cx_data) < 2: continue
 
                 batch  = Batch.from_data_list([g for g, _ in cx_data]).to(device)
@@ -428,23 +449,31 @@ def main():
     if device == "cpu":
         log.warning("No GPU — skipping E1/E2/E3")
     else:
-        # ── build bench base graphs ────────────────────────────────────────────
+        # ── build base graphs (one-time topology, no pose coords) ─────────────
         log.info("Building bench base graphs (~3-5 min)...")
         bench_base = build_base_graphs(BENCH_CSV, label="bench")
 
-        # ── build gen base graphs (needed for E3) ──────────────────────────────
         log.info("Building gen base graphs (~5-8 min)...")
         gen_json  = json.load(open(GEN_JSON))
         gen_base  = build_base_graphs(GEN_CSV, label="gen")
 
-        # merged json+base for E3 training (bench + gen, val always bench)
-        merged_json = {**gen_json, **bench_json}   # bench keys override if overlap
+        # ── cache ALL pose positions in RAM (one-time disk I/O) ───────────────
+        # Positions are [N_atoms, 3] float32 tensors — ~5 MB total, trivial RAM.
+        # inject_pose() runs in-memory each epoch; no PDB reads after this point.
+        log.info("Caching bench pose positions (one-time PDB load)...")
+        bench_pos = cache_pose_positions(bench_json, bench_base)
+
+        log.info("Caching gen pose positions (one-time PDB load)...")
+        gen_pos   = cache_pose_positions(gen_json, gen_base)
+
+        # merged caches for E3
         merged_base = {**gen_base, **bench_base}
+        merged_pos  = {**gen_pos,  **bench_pos}
 
         # 75B/25G train set: 75% of bench_train + all gen_train
         gen_all   = sorted(gen_base.keys())
         gen_train, _ = split_complexes(gen_all, 0.85, seed=42)
-        rng_mix   = np.random.RandomState(42)
+        rng_mix    = np.random.RandomState(42)
         n_bench_75 = int(round(0.75 * len(train_c)))
         bench_75   = list(rng_mix.choice(train_c, n_bench_75, replace=False))
         train_c_75b25g = bench_75 + gen_train
@@ -454,27 +483,27 @@ def main():
         # ── E1: unfreeze last 1 cross_conv, bench_only ─────────────────────────
         rows.append(run_finetune(
             "E1_unfreeze_last1_bench", n_unfreeze=1, device=device,
-            train_json=bench_json, train_base_graphs=bench_base,
+            train_pos_cache=bench_pos, train_base_graphs=bench_base,
             bench_ds=bench_ds, train_c=train_c, val_c=val_c,
-            val_json=bench_json, val_base_graphs=bench_base,
+            val_pos_cache=bench_pos, val_base_graphs=bench_base,
             n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
         ))
 
         # ── E2: unfreeze last 2 cross_convs, bench_only ────────────────────────
         rows.append(run_finetune(
             "E2_unfreeze_last2_bench", n_unfreeze=2, device=device,
-            train_json=bench_json, train_base_graphs=bench_base,
+            train_pos_cache=bench_pos, train_base_graphs=bench_base,
             bench_ds=bench_ds, train_c=train_c, val_c=val_c,
-            val_json=bench_json, val_base_graphs=bench_base,
+            val_pos_cache=bench_pos, val_base_graphs=bench_base,
             n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
         ))
 
         # ── E3: unfreeze last 1, 75B/25G ───────────────────────────────────────
         rows.append(run_finetune(
             "E3_unfreeze_last1_75B25G", n_unfreeze=1, device=device,
-            train_json=merged_json, train_base_graphs=merged_base,
+            train_pos_cache=merged_pos, train_base_graphs=merged_base,
             bench_ds=bench_ds, train_c=train_c_75b25g, val_c=val_c,
-            val_json=bench_json, val_base_graphs=bench_base,
+            val_pos_cache=bench_pos, val_base_graphs=bench_base,
             n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
         ))
 
