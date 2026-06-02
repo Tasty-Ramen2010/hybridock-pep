@@ -223,7 +223,6 @@ def main() -> None:
     device = torch.device(device_str)
     print(f"Device: {device}")
     if device.type == "cuda":
-        import torch.cuda
         print(f"GPU: {torch.cuda.get_device_name(0)}")
 
     # Load model args
