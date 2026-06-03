@@ -4,6 +4,8 @@ import logging
 import shutil
 from pathlib import Path
 
+import numpy as np
+
 from hybridock_pep.models import DockConfig, PoseRecord, ScoredPose
 from hybridock_pep.analysis.clustering import ClusterResult
 from hybridock_pep.sampling.rapidock_runner import run_sampling
@@ -26,6 +28,84 @@ from hybridock_pep.scoring.entropy import (
 from hybridock_pep.output.metadata import write_metadata_skeleton, finalize_metadata
 
 logger = logging.getLogger(__name__)
+
+
+def _auto_expand_box_for_poses(
+    config: DockConfig,
+    records: list[PoseRecord],
+    safety_margin: float = 4.0,
+    log: logging.Logger | None = None,
+) -> DockConfig:
+    """Return a config with box_size expanded to contain all pose heavy atoms.
+
+    The Vina grid is built around ``config.site_coords`` with edge length
+    ``config.box_size``. Any pose atom outside the grid is silently clipped
+    during scoring (Vina returns +∞ for that pose). When RAPiDock samples
+    extended/groove binding sites it can produce poses with atoms 50+ Å from
+    the user-supplied site center; the user's box becomes the bottleneck.
+
+    This function measures the actual max-per-axis distance from
+    ``site_coords`` over all pose atoms and, if it exceeds ``box_size / 2``,
+    returns a copy of ``config`` with ``box_size`` expanded to fit (plus a
+    safety margin). The original ``site_coords`` is preserved — only the
+    box edge grows.
+
+    Args:
+        config: Frozen DockConfig with user-supplied box_size.
+        records: PoseRecord list from Stage 1. May be empty.
+        safety_margin: Extra Å added to the computed minimum box (default 4).
+        log: Optional logger; defaults to module logger.
+
+    Returns:
+        Either the original config (no expansion needed) or a copy with
+        ``box_size`` increased.
+    """
+    log = log or logger
+    if not records:
+        return config
+
+    site = np.array(config.site_coords)
+    half = config.box_size / 2.0
+
+    # Walk pose PDBs once, tracking the maximum per-axis offset from site.
+    # ca_coords is N×3 but doesn't cover side-chain atoms — we want heavy atoms
+    # that will actually enter the Vina grid. Parse from each pose file.
+    max_offset = 0.0
+    for record in records:
+        try:
+            for line in record.pdb_path.read_text().splitlines():
+                if not (line.startswith("ATOM") or line.startswith("HETATM")):
+                    continue
+                atom = line[12:16].strip()
+                if atom.startswith("H") or atom == "H":
+                    continue
+                try:
+                    x = float(line[30:38])
+                    y = float(line[38:46])
+                    z = float(line[46:54])
+                except ValueError:
+                    continue
+                offset = max(abs(x - site[0]), abs(y - site[1]), abs(z - site[2]))
+                if offset > max_offset:
+                    max_offset = offset
+        except OSError:
+            continue
+
+    if max_offset <= half:
+        log.debug(
+            "Auto-box: pose extent %.1f Å fits user box (half-edge %.1f Å); no change",
+            max_offset, half,
+        )
+        return config
+
+    # Need a bigger box; round up to a tenth-of-Å for clean logs.
+    new_edge = round((max_offset + safety_margin) * 2 + 0.5, 1)
+    log.warning(
+        "Auto-box: poses extend %.1f Å from site; user box %.1f Å too small. "
+        "Expanding to %.1f Å (+safety %.1f Å). Set --box ≥ %.0f next time to silence.",
+        max_offset, config.box_size, new_edge, safety_margin, new_edge,
+    )
+    return config.model_copy(update={"box_size": float(new_edge)})
 
 
 def run_dock(
@@ -117,6 +197,12 @@ def run_dock(
             if not dest.exists():
                 shutil.copy2(record.pdb_path, dest)
         logger.debug("poses_scored/ written: %d files → %s", len(records), scored_dir)
+
+    # Stage 1.7: Auto-expand box_size if pose spread exceeds user box.
+    # The user's --box flag becomes a MINIMUM; we never silently clip poses.
+    # Triggered when any pose has a heavy atom > config.box_size / 2 from
+    # site_coords on any axis (which would clip during Vina grid scoring).
+    config = _auto_expand_box_for_poses(config, records)
 
     # Stage 2a: Receptor prep (always required for Vina scoring)
     receptor_pdbqt = prepare_receptor(config)
