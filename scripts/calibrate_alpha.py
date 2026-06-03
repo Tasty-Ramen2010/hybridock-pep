@@ -94,6 +94,38 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--mode",
+        dest="mode",
+        choices=["legacy", "ridge"],
+        default="legacy",
+        help=(
+            "Calibration mode. 'legacy' fits single-α (L-BFGS-B on alpha, "
+            "beta with bounds). 'ridge' fits the v2 multivariate model "
+            "(w_vina, w_ad4, w_contact, intercept) and reports LOO-CV. "
+            "Production crystal calibration uses legacy; production-pose "
+            "PepSet-6 calibration uses ridge. Default: legacy."
+        ),
+    )
+    parser.add_argument(
+        "--ridge-alpha",
+        dest="ridge_alpha",
+        type=float,
+        default=0.1,
+        metavar="FLOAT",
+        help="Ridge regularisation strength when --mode ridge. Default: 0.1.",
+    )
+    parser.add_argument(
+        "--no-positive-constraint",
+        dest="positive_constraint",
+        action="store_false",
+        default=True,
+        help=(
+            "Drop the non-negative constraint on ridge weights (allows "
+            "signed weights, useful for diagnostic exploration). "
+            "Default: weights constrained ≥ 0."
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -205,42 +237,66 @@ def main(args: argparse.Namespace | None = None) -> None:
         )
 
     # Import scoring functions lazily to ensure package is installed in score-env
-    from hybridock_pep.scoring.entropy import fit_calibration, load_calibration, write_calibration
-
-    result = fit_calibration(
-        vina_scores,
-        ad4_scores,
-        n_residues_list,
-        pkd_list,
-        n_contact_residues_list=n_contact_list if has_contact_data else None,
-        gamma=args.gamma,
+    from hybridock_pep.scoring.entropy import (
+        fit_calibration, fit_calibration_ridge, load_calibration, write_calibration,
     )
 
-    extra_meta: dict = {}
-    if has_contact_data:
-        extra_meta["n_contact_residues_training"] = n_contact_list
+    if args.mode == "ridge":
+        if not has_contact_data:
+            raise ValueError(
+                "--mode ridge requires n_contact_residues in the scores JSON."
+            )
+        result = fit_calibration_ridge(
+            vina_scores=vina_scores,
+            ad4_scores=ad4_scores,
+            n_contact_residues_list=n_contact_list,
+            experimental_pkd=pkd_list,
+            ridge_alpha=args.ridge_alpha,
+            positive=args.positive_constraint,
+        )
+        write_calibration(
+            Path(args.output),
+            training_csv=str(args.training_csv),
+            n_contact_residues_training=n_contact_list,
+            **result,
+        )
+        _log.info(
+            "Calibrated (ridge): w_vina=%.3f w_ad4=%.3f w_contact=%.3f intercept=%.3f "
+            "r=%.3f LOO_r=%.3f RMSE=%.3f LOO_RMSE=%.3f -> %s",
+            result["w_vina"], result["w_ad4"], result["w_contact"], result["intercept"],
+            result["pearson_r"], result["loo_pearson_r"],
+            result["rmse_kcal_mol"], result["loo_rmse_kcal_mol"],
+            args.output,
+        )
+    else:
+        result = fit_calibration(
+            vina_scores,
+            ad4_scores,
+            n_residues_list,
+            pkd_list,
+            n_contact_residues_list=n_contact_list if has_contact_data else None,
+            gamma=args.gamma,
+        )
+        extra_meta: dict = {}
+        if has_contact_data:
+            extra_meta["n_contact_residues_training"] = n_contact_list
+        write_calibration(
+            Path(args.output),
+            training_csv=str(args.training_csv),
+            n_complexes=n_complexes,
+            **extra_meta,
+            **result,
+        )
+        _log.info(
+            "Calibrated: alpha=%.3f beta=%.3f r=%.3f RMSE=%.3f -> %s",
+            result["alpha"], result["beta"],
+            result["pearson_r"], result["rmse_kcal_mol"],
+            args.output,
+        )
 
-    write_calibration(
-        Path(args.output),
-        training_csv=str(args.training_csv),
-        n_complexes=n_complexes,
-        **extra_meta,
-        **result,
-    )
-
-    _log.info(
-        "Calibrated: alpha=%.3f beta=%.3f r=%.3f RMSE=%.3f -> %s",
-        result["alpha"],
-        result["beta"],
-        result["pearson_r"],
-        result["rmse_kcal_mol"],
-        args.output,
-    )
-
-    # Post-write self-check: load_calibration validates the just-written file.
-    # If alpha/beta converged outside bounds (should not happen with L-BFGS-B),
-    # this aborts with an informative ValueError rather than silently writing
-    # a corrupt calibration.
+    # Post-write self-check: load_calibration validates the just-written file
+    # against the appropriate schema.  Aborts with a clear ValueError if any
+    # field is out of range.
     load_calibration(Path(args.output))
     _log.debug("Post-write self-check passed: %s", args.output)
 

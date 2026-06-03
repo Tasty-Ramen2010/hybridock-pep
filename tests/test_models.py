@@ -30,7 +30,11 @@ class TestDockConfig:
         assert cfg.peptide_sequence == "LISDAELEAIFEADC"
         assert isinstance(cfg.run_id, str) and len(cfg.run_id) > 0
         assert cfg.n_samples == 100
-        assert cfg.scoring == {"vina", "ad4"}
+        # Default scoring set narrowed from {"vina", "ad4"} to {"vina"} in
+        # June 2026 — AD4 dropped after production-pose ridge fit gave w_ad4=0
+        # (see docs/calibration_notes.md "Why AD4 commits nothing" section).
+        # AD4 still opt-in via DockConfig(scoring={"vina", "ad4"}).
+        assert cfg.scoring == {"vina"}
 
     def test_uppercases_sequence(self, valid_receptor: Path, tmp_path: Path) -> None:
         cfg = DockConfig(

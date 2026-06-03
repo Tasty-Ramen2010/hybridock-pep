@@ -15,7 +15,9 @@ from hybridock_pep.scoring.vina import score_vina_batch
 from hybridock_pep.scoring.ad4 import score_ad4_batch
 from hybridock_pep.scoring.entropy import (
     apply_hybrid_score,
+    apply_calibration,
     apply_ensemble_hybrid_scores,
+    calibration_mode,
     load_calibration,
     load_receptor_heavy_atom_coords,
     count_contact_residues,
@@ -207,44 +209,108 @@ def run_dock(
         sum(1 for p in scored_poses if p.is_clashed),
     )
 
+    # Load calibration once; both the entropy-sum gate below and the
+    # hybrid-score stage further down consume the same dict.
     calibration = load_calibration(calibration_path.resolve())
-    alpha: float = calibration["alpha"]
-    beta: float = calibration["beta"]
-    gamma: float = calibration.get("gamma", 0.0)
-    ensemble_ad4_weight: float = calibration.get("ensemble_ad4_weight", 0.0)
+
+    # Stage 2d-pre-entropy: per-residue + SS-weighted entropy sums per pose.
+    # Only computed when the calibration references one of the w_s_* weights
+    # (else the work is wasted — legacy and original-v2 calibrations don't
+    # need these fields).  Adds ~1 ms per pose for the phi/psi pass.
+    _needs_entropy_sums = (
+        calibration_mode(calibration) == "ridge"
+        and any(
+            float(calibration.get(k, 0.0)) != 0.0
+            for k in ("w_s_sc", "w_s_bb", "w_s_ss_weighted")
+        )
+    )
+    if _needs_entropy_sums:
+        from hybridock_pep.scoring.per_residue_entropy import (  # noqa: PLC0415
+            compute_entropy_sums,
+        )
+        for pose in scored_poses:
+            try:
+                ent = compute_entropy_sums(
+                    pose.pdb_path, config.peptide_sequence,
+                    receptor_coords=receptor_coords,
+                )
+                pose.s_sc_sum = float(ent["s_sc_sum"])
+                pose.s_bb_sum = float(ent["s_bb_sum"])
+                pose.s_ss_weighted = float(ent["s_ss_weighted"])
+                pose.ss_loop_count = int(ent["ss_loop_count"])
+                pose.ss_helix_count = int(ent["ss_helix_count"])
+                pose.ss_sheet_count = int(ent["ss_sheet_count"])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Pose %d: entropy sums failed (%s); falling back to 0.0",
+                    pose.pose_idx, exc,
+                )
+                pose.s_sc_sum = 0.0
+                pose.s_bb_sum = 0.0
+                pose.s_ss_weighted = 0.0
+        logger.info(
+            "Stage 2d-pre-entropy: per-residue entropy sums computed for %d poses",
+            len(scored_poses),
+        )
+
+    # `calibration` already loaded earlier (Stage 2d-pre-entropy gate).
+    mode = calibration_mode(calibration)
     n_residues = len(config.peptide_sequence)
 
-    # Use ensemble z-score AD4 blending when beta=0 (calibration degenerate on
-    # crystal poses) but AD4 scores are available and ensemble_ad4_weight > 0.
-    # This re-integrates AD4's electrostatic signal via within-run normalization
-    # instead of absolute-scale blending. Falls back to per-pose when beta > 0
-    # (properly calibrated) or ensemble_ad4_weight = 0 (disabled).
-    use_ensemble = run_ad4 and ensemble_ad4_weight > 0.0 and beta == 0.0
-    if use_ensemble:
-        apply_ensemble_hybrid_scores(
-            scored_poses,
-            alpha=alpha,
-            n_residues=n_residues,
-            ad4_blend_weight=ensemble_ad4_weight,
-            gamma=gamma,
-        )
-        logger.info(
-            "Hybrid scoring: ensemble z-score mode (AD4 weight=%.2f, alpha=%.3f)",
-            ensemble_ad4_weight, alpha,
-        )
-    else:
+    if mode == "ridge":
+        # Schema v2: multivariate ridge.  Direct per-feature weights — no
+        # ensemble z-score blending (the ridge already captures AD4 signal
+        # in its w_ad4 weight, and the production-pose calibration gives
+        # w_ad4=0 because AD4 carries no marginal signal once N_contact
+        # is in the model.  See docs/calibration_notes.md "v2" section.)
         for pose in scored_poses:
-            apply_hybrid_score(
+            apply_calibration(
                 pose,
-                alpha=alpha,
-                beta=beta,
+                calibration,
                 n_residues=n_residues,
                 n_contact_residues=pose.n_contact_residues,
-                gamma=gamma,
             )
         logger.info(
-            "Hybrid scoring: per-pose mode (beta=%.3f, alpha=%.3f)", beta, alpha,
+            "Hybrid scoring: ridge mode (w_vina=%.3f, w_ad4=%.3f, "
+            "w_contact=%.3f, intercept=%.3f)",
+            calibration["w_vina"], calibration["w_ad4"],
+            calibration["w_contact"], calibration["intercept"],
         )
+    else:
+        alpha: float = calibration["alpha"]
+        beta: float = calibration["beta"]
+        gamma: float = calibration.get("gamma", 0.0)
+        ensemble_ad4_weight: float = calibration.get("ensemble_ad4_weight", 0.0)
+
+        # Legacy ensemble z-score blending only applies to the single-α
+        # schema (where β=0 ⇒ AD4 is unused on absolute scale; this re-
+        # introduces it via within-run normalization).
+        use_ensemble = run_ad4 and ensemble_ad4_weight > 0.0 and beta == 0.0
+        if use_ensemble:
+            apply_ensemble_hybrid_scores(
+                scored_poses,
+                alpha=alpha,
+                n_residues=n_residues,
+                ad4_blend_weight=ensemble_ad4_weight,
+                gamma=gamma,
+            )
+            logger.info(
+                "Hybrid scoring: ensemble z-score mode (AD4 weight=%.2f, alpha=%.3f)",
+                ensemble_ad4_weight, alpha,
+            )
+        else:
+            for pose in scored_poses:
+                apply_hybrid_score(
+                    pose,
+                    alpha=alpha,
+                    beta=beta,
+                    n_residues=n_residues,
+                    n_contact_residues=pose.n_contact_residues,
+                    gamma=gamma,
+                )
+            logger.info(
+                "Hybrid scoring: per-pose mode (beta=%.3f, alpha=%.3f)", beta, alpha,
+            )
 
     logger.info("Stage 2 complete: %d poses scored", len(scored_poses))
 
