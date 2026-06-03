@@ -62,7 +62,23 @@ def _detect_device_platform() -> str:
             return "MPS (macOS Apple Silicon)"
         return "CPU (macOS Intel — MPS not available on x86_64)"
 
-    # Linux / WSL2 — check GPU backends in priority order
+    # Linux / WSL2 — check GPU backends in priority order.
+    # WSL2 quirk: the WSL kernel exposes the host GPU via /usr/lib/wsl/lib/
+    # (libcuda.so.1, nvidia-smi) but does NOT add that dir to PATH and does
+    # NOT create /dev/nvidia* or /proc/driver/nvidia/. So shutil.which() and
+    # the usual procfs probes both miss the GPU even when PyTorch can see it.
+    # We check for the WSL libcuda stub and the WSL-mounted nvidia-smi binary
+    # in addition to PATH.
+    import os as _os
+    _WSL_NVIDIA_PATHS = (
+        "/usr/lib/wsl/lib/nvidia-smi",
+        "/usr/lib/wsl/lib/libcuda.so.1",
+    )
+    # WSL2 fast path: explicit libcuda or nvidia-smi in /usr/lib/wsl/lib/
+    # means the WSL kernel exposes the host GPU; no need to spawn a probe.
+    if any(_os.path.exists(p) for p in _WSL_NVIDIA_PATHS):
+        return "CUDA — NVIDIA GPU (Linux/WSL2)"
+    # Native Linux: nvidia-smi on PATH.
     if shutil.which("nvidia-smi") is not None:
         try:
             import subprocess as _sp

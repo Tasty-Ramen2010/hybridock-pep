@@ -318,13 +318,18 @@ class TestCrossPlatformDetection:
         assert "CUDA" in label
 
     def test_detect_device_linux_no_gpu(self) -> None:
-        """On Linux without nvidia-smi (which returns None), return CPU label."""
+        """On Linux without nvidia-smi and no WSL2 cuda libs, return CPU label."""
         from hybridock_pep.sampling.rapidock_runner import _detect_device_platform
 
         with mock.patch("sys.platform", "linux"):
             with mock.patch("hybridock_pep.sampling.rapidock_runner.shutil.which",
                             return_value=None):
-                label = _detect_device_platform()
+                # Also gate out WSL2 paths + AMD/Intel detection so we genuinely
+                # land on the CPU fallback (the test machine may have those
+                # libraries from a real WSL2 install).
+                with mock.patch("os.path.exists", return_value=False):
+                    with mock.patch("pathlib.Path.exists", return_value=False):
+                        label = _detect_device_platform()
         assert "CPU" in label and "Linux" in label
 
     def test_detect_device_macos_arm64(self) -> None:
