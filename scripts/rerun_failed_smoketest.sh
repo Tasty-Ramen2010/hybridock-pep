@@ -22,10 +22,19 @@ echo "Failed-3 re-run: $(date -Iseconds)"
 echo "================================================================"
 
 # pdb_id  peptide  site_x site_y site_z  box (bigger than pose extent)
+# pdb peptide site_x site_y site_z box
+# First three: original failures (clip-overflow on extended pockets).
+# Last three: collateral damage from hot-patching driver.py with an
+# undefined-name reference while the launcher was running (3OAP/5Q0I/6TOF
+# all crashed with NameError; box_size kept conservative since fixed driver
+# now auto-expands as needed).
 read -r -d '' RERUNS << 'EOF' || true
 3DAB SQETFSDLWKLL 4.497 23.078 35.681 100
 3EG6 GSARAEVHLRKS -15.024 -30.676 -6.803 90
 3TWR LPHLQRSPPDGQSFR 2.737 7.155 25.203 125
+3OAP KHKILHRLLQD 58.485 44.875 9.284 60
+5Q0I PSLLKKLLLAPA 28.315 10.49 41.42 60
+6TOF AWVIPA -49.893 23.241 -22.118 60
 EOF
 
 while IFS=' ' read -r pdb peptide sx sy sz box; do

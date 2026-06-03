@@ -151,13 +151,110 @@ def prepare_receptor_pdb(config: DockConfig) -> Path:
         # Do NOT add hydrogens for RAPiDock — RAPiDock uses heavy atoms only,
         # and addMissingHydrogens fails on HIS residues with non-standard atom
         # sets that are common in raw RCSB downloads.
-        with open(output_pdb, "w") as f:
+        fixed_path = output_dir / "receptor_for_rapidock_full.pdb"
+        with open(fixed_path, "w") as f:
             PDBFile.writeFile(fixer.topology, fixer.positions, f)
     finally:
         cleaned_pdb_path.unlink(missing_ok=True)
 
-    logger.debug("Cleaned receptor PDB for RAPiDock: %s", output_pdb)
+    # Pocket crop: RAPiDock's local-docking model expects a pocket-sized receptor,
+    # not the full protein. Without this crop the diffusion sampler ignores
+    # site_coords and scatters poses across the whole surface, which then
+    # silently blows the Vina grid bounds on extended/groove targets.
+    # Radius: half the Vina box edge + 5 Å margin, with a minimum of 12 Å
+    # (matches the prior PepSet-6 manual pocket files from May 27).
+    radius = max(12.0, config.box_size / 2.0 + 5.0)
+    n_residues = crop_to_pocket(
+        pdb_path=fixed_path,
+        site_coords=config.site_coords,
+        radius=radius,
+        output_path=output_pdb,
+    )
+    if n_residues < 10:
+        logger.warning(
+            "Pocket crop kept only %d residues — site_coords may be off, or "
+            "box_size too small. RAPiDock may struggle on this target.",
+            n_residues,
+        )
     return output_pdb
+
+
+def crop_to_pocket(
+    pdb_path: Path,
+    site_coords: tuple[float, float, float],
+    radius: float,
+    output_path: Path,
+) -> int:
+    """Write a residue-level pocket crop of a receptor PDB.
+
+    Keeps every residue with at least one heavy atom within ``radius`` Å of
+    ``site_coords``. Residues are kept atomically intact (all atoms of a
+    qualifying residue are written, including atoms outside the sphere) so
+    that residue connectivity stays valid for downstream tools.
+
+    Why this exists: RAPiDock's ``rapidock_local.pt`` checkpoint is a *local*
+    docking model — it expects a pocket-sized receptor, not the full protein.
+    Passing the full protein causes RAPiDock to sample poses across the
+    entire surface rather than at the intended binding site, since the
+    diffusion model has no explicit site/box input.
+
+    Args:
+        pdb_path: Source receptor PDB (already HETATM/altloc-cleaned).
+        site_coords: (x, y, z) binding-site center in Å.
+        radius: Inclusion radius. A residue is kept if ANY heavy atom is
+            within this distance of site_coords.
+        output_path: Destination PDB path.
+
+    Returns:
+        Number of residues kept.
+    """
+    sx, sy, sz = site_coords
+    r2 = radius * radius
+
+    # Pass 1: identify qualifying residues by (chain, resseq, icode)
+    keep: set[tuple[str, int, str]] = set()
+    for line in pdb_path.read_text().splitlines():
+        if not (line.startswith("ATOM") or line.startswith("HETATM")):
+            continue
+        atom_name = line[12:16].strip()
+        if atom_name.startswith("H"):
+            continue
+        try:
+            x = float(line[30:38])
+            y = float(line[38:46])
+            z = float(line[46:54])
+            res_seq = int(line[22:26].strip())
+        except ValueError:
+            continue
+        d2 = (x - sx) ** 2 + (y - sy) ** 2 + (z - sz) ** 2
+        if d2 <= r2:
+            keep.add((line[21], res_seq, line[26]))
+
+    # Pass 2: write all atom lines belonging to qualifying residues
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    kept_lines: list[str] = ["REMARK   Pocket crop: radius={:.1f} Å around ({:.2f}, {:.2f}, {:.2f})\n".format(
+        radius, sx, sy, sz)]
+    for line in pdb_path.read_text().splitlines(keepends=True):
+        record = line[:6].strip()
+        if record not in ("ATOM", "HETATM"):
+            if record in ("TER", "END"):
+                kept_lines.append(line)
+            continue
+        try:
+            res_seq = int(line[22:26].strip())
+        except ValueError:
+            continue
+        key = (line[21], res_seq, line[26])
+        if key in keep:
+            kept_lines.append(line)
+    if not kept_lines[-1].startswith("END"):
+        kept_lines.append("END\n")
+    output_path.write_text("".join(kept_lines))
+    logger.info(
+        "Pocket crop: kept %d residues within %.1f Å of (%.2f, %.2f, %.2f) → %s",
+        len(keep), radius, sx, sy, sz, output_path,
+    )
+    return len(keep)
 
 
 _PRESERVE_HETATM_RESNAMES: frozenset[str] = frozenset({"TPO", "SEP", "PTR", "HOH", "WAT"})
