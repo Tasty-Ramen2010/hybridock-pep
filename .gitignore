@@ -22,10 +22,13 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# macOS
+# macOS resource forks + finder junk (Windows mount artifacts too)
 .DS_Store
 ._*
-._.DS_Store
+**/._*
+**/.DS_Store
+*:Zone.Identifier
+**/*:Zone.Identifier
 
 # Run outputs — never committed; only tests/fixtures/ contains committed PDB/data
 runs/
@@ -99,6 +102,74 @@ datasets/training_expanded_structures/
 # RAPiDock copies (large external repo — not redistributed)
 third_party/RAPiDock/
 third_party/RAPiDock_finetuned/
+
+# Training pipeline state — never committed
+# (multi-GB ESM caches, RAPiDock fine-tuning datasets, train_models/ checkpoints)
+data/v6_*.pt
+data/*_esm_cache.pt
+data/poses_raw_graph_v1.pt
+data/_backups/
+data/confidence_training_*.csv
+data/inference_benchmark_set.csv
+data/sheet_complexes_peppc.csv
+data/training_sheet_*.csv
+data/benchmark_very_long.csv
+datasets/frag_raw_data_final/
+datasets/nat_raw_data_final/
+datasets/RefPepDB-RecentSet/
+datasets/cases/
+datasets/training_formatted/
+datasets/training_formatted_peppc/
+datasets/wang_pepset/
+datasets/ppii_*/
+datasets/family_targeted/
+datasets/pdb_*/
+# 382 PDBs, large; manifest-driven
+datasets/raw_pdbs/
+# 185 dirs of PepSet crystal poses; manifest-driven
+datasets/pepset/
+train_models/
+memory/
+tmp_inference_test.py
+
+# Supplementary material (papers + Excel tables) — leave on disk, don't ship
+*.pdf
+*.xls
+*.xlsx
+doi_*.zip
+
+# Logs — all transient
+logs/
+
+# Top-level scratch
+.p.npy
+
+# Experimental scripts for RAPiDock fine-tuning + confidence-model training.
+# These belong to a separate research campaign, not the shipping HybriDock-Pep
+# CLI/library. Keep on disk locally; do not redistribute.
+scripts/analyze_very_long_sampling.py
+scripts/analyze_vina_ranking.py
+scripts/build_benchmark30.py
+scripts/build_confidence_training_csv.py
+scripts/chain_training_*.sh
+scripts/launch_v*.sh
+scripts/run_v*.sh
+scripts/compare_rapidock_vs_finetuned.py
+scripts/confidence_pipeline_orchestrator.py
+scripts/encoder_audit.py
+scripts/eval_pose_diversity.py
+scripts/forensic_*.py
+scripts/generate_confidence_poses.py
+scripts/mega_benchmark_analysis.py
+scripts/rank_comparison_vina.py
+scripts/reranking_diagnostic.py
+scripts/score_bench300_poses.py
+scripts/score_best_poses_vina.py
+scripts/train_confidence_v2.py
+scripts/update_training_excel.py
+scripts/confidence_exp_e.py
+# Old binary training cache shouldn't have been in data/pdbs/
+data/pdbs/poses_raw_graph_v1.pt
 
 # Local clones of external repos (not redistributed here)
 # hybridock-pep/ = local clone of Tasty-Ramen2010/hybridock-pep (public GitHub mirror)
