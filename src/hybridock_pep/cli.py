@@ -231,6 +231,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to calibration.json (default: data/calibration.json).",
     )
 
+    # reproducibility subparser — multi-seed top-1 pose agreement
+    p_rep = sub.add_parser(
+        "reproducibility",
+        help="Run the pipeline K times with different seeds; report pose agreement.",
+    )
+    p_rep.add_argument("--peptide", required=True, metavar="SEQ")
+    p_rep.add_argument("--receptor", required=True, metavar="PDB")
+    p_rep.add_argument("--site", required=True, nargs=3, type=float,
+                       metavar=("X", "Y", "Z"))
+    p_rep.add_argument("--box", required=True, type=float, metavar="ANG")
+    p_rep.add_argument("--seeds", required=True, type=int, nargs="+",
+                       metavar="N",
+                       help="Two or more integer seeds (e.g. --seeds 1 2 3).")
+    p_rep.add_argument("--n-samples", type=int, default=100, metavar="N")
+    p_rep.add_argument("--scoring", default="vina", metavar="BACKENDS")
+    p_rep.add_argument("--calibration", default="data/calibration.json",
+                       metavar="JSON")
+    p_rep.add_argument("--output-dir", required=True, metavar="DIR",
+                       help="Parent dir; seed_N/ subdirs are created per seed.")
+
     # selectivity subparser — decoy ΔΔG between two receptors for one peptide
     p_sel = sub.add_parser(
         "selectivity",
@@ -379,6 +399,45 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     logger.info("Receptor prepared: %s", pdbqt_path)
 
 
+def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Run dock pipeline K times with different seeds, report top-1 pose agreement."""
+    import json
+    from pydantic import ValidationError
+    from hybridock_pep.reproducibility import run_reproducibility
+
+    if len(args.seeds) < 2:
+        parser.error("--seeds requires ≥2 integers")
+    out_root = Path(args.output_dir).resolve()
+
+    try:
+        cfg = DockConfig(
+            peptide_sequence=args.peptide,
+            receptor_path=Path(args.receptor).resolve(),
+            site_coords=(args.site[0], args.site[1], args.site[2]),
+            box_size=args.box,
+            n_samples=args.n_samples,
+            scoring=set(args.scoring.split(",")),
+            output_dir=out_root,
+            verbosity=args.verbose,
+        )
+    except ValidationError as exc:
+        parser.error(str(exc))
+        return
+
+    result = run_reproducibility(
+        base_config=cfg,
+        calibration_path=Path(args.calibration).resolve(),
+        seeds=args.seeds,
+    )
+    out_root.mkdir(parents=True, exist_ok=True)
+    (out_root / "reproducibility.json").write_text(json.dumps(result.to_json(), indent=2))
+    logger.info(
+        "Reproducibility: mean RMSD=%.2fÅ  pearson=%.3f  ΔG σ=%.2f kcal/mol  → %s",
+        result.mean_pairwise_rmsd, result.mean_pairwise_pearson,
+        result.dg_std, result.verdict,
+    )
+
+
 def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Run the dock pipeline on two receptors and report ΔΔG with bootstrap CI."""
     from pydantic import ValidationError
@@ -489,6 +548,7 @@ def main() -> None:
         "prep": _run_prep,
         "benchmark": _run_benchmark,
         "selectivity": _run_selectivity,
+        "reproducibility": _run_reproducibility,
     }
     if args.command is None:
         parser.print_help()
