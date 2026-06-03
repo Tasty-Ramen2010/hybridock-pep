@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -299,16 +300,77 @@ def run_dock(
     # hybrid-score stage further down consume the same dict.
     calibration = load_calibration(calibration_path.resolve())
 
+    # Per-family (schema v3) dispatch: route this receptor to its nearest
+    # family ridge once. Cached for the entropy gate and the hybrid-score loop.
+    _family_dispatch = None
+    if calibration_mode(calibration) == "per_family":
+        from hybridock_pep.scoring.per_family import (  # noqa: PLC0415
+            build_family_kmer_index, dispatch_per_family, receptor_sequence,
+        )
+        rec_seq = receptor_sequence(config.receptor_path)
+        if rec_seq is None:
+            logger.warning(
+                "Per-family dispatch: could not extract receptor sequence "
+                "from %s; using fallback ridge.",
+                config.receptor_path,
+            )
+            _family_dispatch = None
+        else:
+            raw_pdbs_dir = config.receptor_path.parent
+            # Try the project-root datasets/raw_pdbs if user receptor isn't co-located.
+            project_raw = (Path(__file__).resolve().parents[2] / "datasets" / "raw_pdbs")
+            if project_raw.exists():
+                raw_pdbs_dir = project_raw
+            kmer_index = build_family_kmer_index(calibration, raw_pdbs_dir)
+            _family_dispatch = dispatch_per_family(rec_seq, calibration, kmer_index)
+            logger.info(
+                "Per-family dispatch: routed to family %s (Jaccard %.3f, %s)",
+                _family_dispatch.family_id, _family_dispatch.similarity,
+                _family_dispatch.confidence_band,
+            )
+
+        # Persist dispatch decision into run_metadata.json so users see
+        # whether the prediction is in-distribution, borderline, or OOD.
+        if metadata_path.exists():
+            try:
+                _md = json.loads(metadata_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                _md = {}
+            _md["per_family_dispatch"] = (
+                {
+                    "routed_family": _family_dispatch.family_id,
+                    "dispatcher_similarity": round(_family_dispatch.similarity, 4),
+                    "confidence_band": _family_dispatch.confidence_band,
+                    "gate_threshold": 0.10,
+                }
+                if _family_dispatch is not None
+                else {
+                    "routed_family": "fallback",
+                    "dispatcher_similarity": 0.0,
+                    "confidence_band": "out_of_distribution",
+                    "gate_threshold": 0.10,
+                    "reason": "could not extract receptor sequence",
+                }
+            )
+            metadata_path.write_text(json.dumps(_md, indent=2))
+
     # Stage 2d-pre-entropy: per-residue + SS-weighted entropy sums per pose.
     # Only computed when the calibration references one of the w_s_* weights
     # (else the work is wasted — legacy and original-v2 calibrations don't
     # need these fields).  Adds ~1 ms per pose for the phi/psi pass.
+    def _ridge_uses_entropy(d: dict) -> bool:
+        return any(float(d.get(k, 0.0)) != 0.0
+                   for k in ("w_s_sc", "w_s_bb", "w_s_ss_weighted"))
+
     _needs_entropy_sums = (
-        calibration_mode(calibration) == "ridge"
-        and any(
-            float(calibration.get(k, 0.0)) != 0.0
-            for k in ("w_s_sc", "w_s_bb", "w_s_ss_weighted")
-        )
+        (calibration_mode(calibration) == "ridge"
+         and _ridge_uses_entropy(calibration))
+        or (calibration_mode(calibration) == "per_family"
+            and _family_dispatch is not None
+            and _ridge_uses_entropy(_family_dispatch.ridge))
+        or (calibration_mode(calibration) == "per_family"
+            and _family_dispatch is None
+            and _ridge_uses_entropy(calibration.get("fallback", {})))
     )
     if _needs_entropy_sums:
         from hybridock_pep.scoring.per_residue_entropy import (  # noqa: PLC0415
@@ -343,7 +405,28 @@ def run_dock(
     mode = calibration_mode(calibration)
     n_residues = len(config.peptide_sequence)
 
-    if mode == "ridge":
+    if mode == "per_family":
+        # Schema v3: dispatch already cached in _family_dispatch (or None →
+        # fallback ridge). Apply once-per-pose; per-pose dispatch overhead
+        # would be wasted since the receptor is identical across poses.
+        override = _family_dispatch.ridge if _family_dispatch is not None else None
+        for pose in scored_poses:
+            apply_calibration(
+                pose,
+                calibration,
+                n_residues=n_residues,
+                n_contact_residues=pose.n_contact_residues,
+                ridge_override=override,
+            )
+        fam_label = _family_dispatch.family_id if _family_dispatch else "fallback"
+        sim = _family_dispatch.similarity if _family_dispatch else 0.0
+        band = (_family_dispatch.confidence_band
+                if _family_dispatch else "out_of_distribution")
+        logger.info(
+            "Hybrid scoring: per-family mode (family=%s, sim=%.3f, %s)",
+            fam_label, sim, band,
+        )
+    elif mode == "ridge":
         # Schema v2: multivariate ridge.  Direct per-feature weights — no
         # ensemble z-score blending (the ridge already captures AD4 signal
         # in its w_ad4 weight, and the production-pose calibration gives
