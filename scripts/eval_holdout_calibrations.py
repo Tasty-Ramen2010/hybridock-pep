@@ -88,16 +88,34 @@ def chain_sequence(lines: list[str]) -> str:
     return "".join(seen)
 
 
-def find_peptide_chain(chains: dict[str, list[str]], target_seq: str) -> str | None:
-    """Find chain whose sequence contains target_seq as a contiguous substring."""
+def find_peptide_chain(
+    chains: dict[str, list[str]],
+    target_seq: str,
+    receptor_chain: str | None = None,
+) -> str | None:
+    """Find chain whose sequence contains target_seq as a contiguous substring.
+
+    If receptor_chain is given (single-letter ID), excludes that chain plus any
+    chain whose length is > target_seq + 5 residues — peptides are short by
+    construction, so any "match" inside a 100-residue chain is a sequence
+    coincidence, not the bound peptide.
+    """
     ts = target_seq.upper()
+    rc = (receptor_chain or "").strip().upper()
     best = None
+    best_len = None
+    max_extra = 5
     for cid, lines in chains.items():
+        if rc and cid.upper() == rc:
+            continue
         seq = chain_sequence(lines)
-        if ts in seq:
-            # Prefer the shortest chain that contains it (likely the peptide).
-            if best is None or len(seq) < len(chain_sequence(chains[best])):
-                best = cid
+        if ts not in seq:
+            continue
+        if len(seq) > len(ts) + max_extra:
+            continue  # avoid substring matches inside a receptor chain
+        if best is None or len(seq) < best_len:
+            best = cid
+            best_len = len(seq)
     return best
 
 
@@ -151,8 +169,9 @@ def main() -> None:
             skipped["no_pdb"] += 1
             continue
         seq = meta[pdb_lc]["peptide_sequence"]
+        rec_chain_hint = meta[pdb_lc].get("receptor_chain") or None
         chains = split_chains(raw_pdb)
-        pep_chain = find_peptide_chain(chains, seq)
+        pep_chain = find_peptide_chain(chains, seq, receptor_chain=rec_chain_hint)
         if pep_chain is None:
             skipped["no_chain"] += 1
             continue

@@ -424,3 +424,29 @@ will see it only on peptides longer than ~12 residues.
   per-residue entropy weights with leverage.
 - Decoy ΔΔG (§7+§15) is the right approach for the parent PfLDH selectivity
   question; absolute Kd prediction is the wrong frame for that deliverable.
+
+---
+
+## Eval audit (2026-06-02, same day)
+
+After the v1.2 result above I audited `eval_holdout_calibrations.py`
+(`scripts/audit_holdout_eval.py`) to confirm the negative Pearson wasn't a
+chain-mis-identification artefact.
+
+**Findings:**
+- Peptide chain length matches sequence length exactly in 239/242 entries.
+- Min peptide–receptor distance is 2–3 Å in all 242 (bonded contact range)
+  → crystal poses are correctly placed in the binding pocket.
+- **3 chain-picker bugs** found: 1a0n / 1l2z / +1 had the peptide sequence
+  as a substring inside a 100+ residue receptor chain, and the heuristic
+  picked the long chain. Fixed by:
+  - Using the `receptor_chain` column from `training_complexes_full.csv` to
+    exclude the receptor from candidates.
+  - Capping candidate chain length at `len(peptide_seq) + 5` (peptides are
+    short by construction; any "match" inside a long chain is a coincidence).
+- After the fix: 240 entries pass, numbers change by ≤0.01 on Pearson r and
+  ≤0.13 on RMSE. **The bug was not driving the negative Pearson.**
+
+The negative-r ceiling is the same one diagnosed in five prior calibration
+sessions (PEPBI, Wang, Kd-clean, 284-entry, etc.). Forward path is per-target
+(decoy ΔΔG / selectivity, §7) or per-family (§4) — not another global re-fit.

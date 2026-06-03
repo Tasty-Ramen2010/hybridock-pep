@@ -1,0 +1,3417 @@
+[
+  {
+    "pdb": "1ddv",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.6,
+    "n_within_5A": 24,
+    "n_contact_reported": 5,
+    "vina": -8.767,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1cvu",
+    "seq_len": 9,
+    "picked_chain": "F",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 3.31,
+    "n_within_5A": 22,
+    "n_contact_reported": 5,
+    "vina": -3.145,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "F"
+    ]
+  },
+  {
+    "pdb": "1a0n",
+    "seq_len": 14,
+    "picked_chain": "A",
+    "picked_chain_len": 350,
+    "min_dist_to_receptor": 0.44,
+    "n_within_5A": 1368,
+    "n_contact_reported": 7,
+    "vina": -5.664,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1c5y",
+    "seq_len": 9,
+    "picked_chain": "A",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.01,
+    "n_within_5A": 54,
+    "n_contact_reported": 14,
+    "vina": -8.951,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1l2z",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 165,
+    "min_dist_to_receptor": 0.81,
+    "n_within_5A": 728,
+    "n_contact_reported": 7,
+    "vina": -7.031,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1nvr",
+    "seq_len": 5,
+    "picked_chain": "B",
+    "picked_chain_len": 5,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 29,
+    "n_contact_reported": 5,
+    "vina": -7.338,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1nvs",
+    "seq_len": 5,
+    "picked_chain": "B",
+    "picked_chain_len": 5,
+    "min_dist_to_receptor": 2.77,
+    "n_within_5A": 29,
+    "n_contact_reported": 5,
+    "vina": -7.598,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1c5w",
+    "seq_len": 9,
+    "picked_chain": "A",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.01,
+    "n_within_5A": 54,
+    "n_contact_reported": 12,
+    "vina": -8.952,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1c5x",
+    "seq_len": 9,
+    "picked_chain": "A",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.02,
+    "n_within_5A": 54,
+    "n_contact_reported": 14,
+    "vina": -8.869,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1gjd",
+    "seq_len": 13,
+    "picked_chain": "A",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.02,
+    "n_within_5A": 63,
+    "n_contact_reported": 12,
+    "vina": -9.998,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1gja",
+    "seq_len": 13,
+    "picked_chain": "A",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.01,
+    "n_within_5A": 62,
+    "n_contact_reported": 14,
+    "vina": -10.546,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1o5b",
+    "seq_len": 8,
+    "picked_chain": "A",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.03,
+    "n_within_5A": 47,
+    "n_contact_reported": 14,
+    "vina": -8.87,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "A"
+    ]
+  },
+  {
+    "pdb": "1stc",
+    "seq_len": 17,
+    "picked_chain": "I",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 75,
+    "n_contact_reported": 20,
+    "vina": -14.853,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "1q8w",
+    "seq_len": 20,
+    "picked_chain": "B",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.58,
+    "n_within_5A": 97,
+    "n_contact_reported": 20,
+    "vina": -23.156,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t5z",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.89,
+    "n_within_5A": 62,
+    "n_contact_reported": 10,
+    "vina": -12.162,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t63",
+    "seq_len": 14,
+    "picked_chain": "B",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 77,
+    "n_contact_reported": 14,
+    "vina": -12.13,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t65",
+    "seq_len": 7,
+    "picked_chain": "B",
+    "picked_chain_len": 7,
+    "min_dist_to_receptor": 2.74,
+    "n_within_5A": 35,
+    "n_contact_reported": 11,
+    "vina": -4.303,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t73",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.61,
+    "n_within_5A": 49,
+    "n_contact_reported": 8,
+    "vina": -10.983,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t74",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.81,
+    "n_within_5A": 49,
+    "n_contact_reported": 7,
+    "vina": -11.081,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1ta2",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.87,
+    "n_within_5A": 51,
+    "n_contact_reported": 12,
+    "vina": -16.141,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t7m",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.61,
+    "n_within_5A": 71,
+    "n_contact_reported": 11,
+    "vina": -13.203,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1x7j",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 51,
+    "n_contact_reported": 9,
+    "vina": -8.598,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "1ycr",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 81,
+    "n_contact_reported": 11,
+    "vina": -19.625,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1yds",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.6,
+    "n_within_5A": 107,
+    "n_contact_reported": 19,
+    "vina": -22.986,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "1ydt",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 98,
+    "n_contact_reported": 19,
+    "vina": -22.665,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "1zaf",
+    "seq_len": 13,
+    "picked_chain": "C",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.43,
+    "n_within_5A": 66,
+    "n_contact_reported": 14,
+    "vina": -10.48,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "1zgv",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.85,
+    "n_within_5A": 46,
+    "n_contact_reported": 9,
+    "vina": -15.573,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1zgy",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 65,
+    "n_contact_reported": 10,
+    "vina": -12.353,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2c1a",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 104,
+    "n_contact_reported": 38,
+    "vina": -27.699,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "2od9",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 43,
+    "n_contact_reported": 9,
+    "vina": -11.883,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2jdo",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 69,
+    "n_contact_reported": 18,
+    "vina": -21.284,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "2q7i",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 51,
+    "n_contact_reported": 10,
+    "vina": -12.326,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2qqg",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 43,
+    "n_contact_reported": 9,
+    "vina": -11.883,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2qpy",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.93,
+    "n_within_5A": 46,
+    "n_contact_reported": 7,
+    "vina": -7.283,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2gni",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 103,
+    "n_contact_reported": 31,
+    "vina": -29.986,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "2jdt",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 107,
+    "n_contact_reported": 32,
+    "vina": -28.846,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "3ama",
+    "seq_len": 20,
+    "picked_chain": "B",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 102,
+    "n_contact_reported": 27,
+    "vina": -27.419,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3cs8",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.64,
+    "n_within_5A": 68,
+    "n_contact_reported": 10,
+    "vina": -12.587,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3cy3",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.57,
+    "n_within_5A": 57,
+    "n_contact_reported": 13,
+    "vina": -14.823,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3et1",
+    "seq_len": 16,
+    "picked_chain": "Q",
+    "picked_chain_len": 16,
+    "min_dist_to_receptor": 2.76,
+    "n_within_5A": 87,
+    "n_contact_reported": 15,
+    "vina": -15.34,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "Q"
+    ]
+  },
+  {
+    "pdb": "3fur",
+    "seq_len": 12,
+    "picked_chain": "H",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 58,
+    "n_contact_reported": 10,
+    "vina": -12.153,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "H"
+    ]
+  },
+  {
+    "pdb": "3hqr",
+    "seq_len": 17,
+    "picked_chain": "S",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 0.65,
+    "n_within_5A": 118,
+    "n_contact_reported": 17,
+    "vina": -26.44,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "3hqu",
+    "seq_len": 7,
+    "picked_chain": "S",
+    "picked_chain_len": 7,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 56,
+    "n_contact_reported": 7,
+    "vina": -9.814,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "3i7z",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.61,
+    "n_within_5A": 43,
+    "n_contact_reported": 7,
+    "vina": -11.197,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3ipq",
+    "seq_len": 15,
+    "picked_chain": "B",
+    "picked_chain_len": 15,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 83,
+    "n_contact_reported": 18,
+    "vina": -19.194,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3kmr",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.77,
+    "n_within_5A": 59,
+    "n_contact_reported": 10,
+    "vina": -10.683,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "3l3x",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 58,
+    "n_contact_reported": 15,
+    "vina": -10.628,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3l3z",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.57,
+    "n_within_5A": 69,
+    "n_contact_reported": 12,
+    "vina": -9.611,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3oap",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 61,
+    "n_contact_reported": 8,
+    "vina": -13.631,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3omo",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.15,
+    "n_within_5A": 62,
+    "n_contact_reported": 12,
+    "vina": -7.735,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "3omp",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.02,
+    "n_within_5A": 63,
+    "n_contact_reported": 12,
+    "vina": -8.023,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "3omq",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 1.97,
+    "n_within_5A": 66,
+    "n_contact_reported": 12,
+    "vina": -7.827,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "3oxi",
+    "seq_len": 10,
+    "picked_chain": "J",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.75,
+    "n_within_5A": 60,
+    "n_contact_reported": 11,
+    "vina": -15.086,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "J"
+    ]
+  },
+  {
+    "pdb": "4b7e",
+    "seq_len": 17,
+    "picked_chain": "B",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 2.36,
+    "n_within_5A": 95,
+    "n_contact_reported": 21,
+    "vina": -24.868,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4b7k",
+    "seq_len": 15,
+    "picked_chain": "B",
+    "picked_chain_len": 15,
+    "min_dist_to_receptor": 2.29,
+    "n_within_5A": 85,
+    "n_contact_reported": 13,
+    "vina": -21.121,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4c34",
+    "seq_len": 18,
+    "picked_chain": "I",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 90,
+    "n_contact_reported": 26,
+    "vina": -22.891,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "4c78",
+    "seq_len": 6,
+    "picked_chain": "C",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 46,
+    "n_contact_reported": 8,
+    "vina": -13.03,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "4dk7",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.49,
+    "n_within_5A": 68,
+    "n_contact_reported": 12,
+    "vina": -10.006,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "B",
+      "D"
+    ]
+  },
+  {
+    "pdb": "4g1w",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.61,
+    "n_within_5A": 57,
+    "n_contact_reported": 9,
+    "vina": -13.53,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4jyg",
+    "seq_len": 11,
+    "picked_chain": "F",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.79,
+    "n_within_5A": 56,
+    "n_contact_reported": 10,
+    "vina": -10.703,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "F",
+      "G"
+    ]
+  },
+  {
+    "pdb": "4k4j",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.76,
+    "n_within_5A": 60,
+    "n_contact_reported": 8,
+    "vina": -12.949,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4k6i",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 65,
+    "n_contact_reported": 10,
+    "vina": -12.488,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4lsj",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 52,
+    "n_contact_reported": 9,
+    "vina": -10.679,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4oar",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.89,
+    "n_within_5A": 39,
+    "n_contact_reported": 7,
+    "vina": -9.224,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4oey",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.51,
+    "n_within_5A": 44,
+    "n_contact_reported": 7,
+    "vina": -10.77,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4oez",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.24,
+    "n_within_5A": 44,
+    "n_contact_reported": 7,
+    "vina": -9.189,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4ofr",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.52,
+    "n_within_5A": 53,
+    "n_contact_reported": 6,
+    "vina": -11.093,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4ofu",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.24,
+    "n_within_5A": 48,
+    "n_contact_reported": 8,
+    "vina": -10.124,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4oha",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.6,
+    "n_within_5A": 45,
+    "n_contact_reported": 7,
+    "vina": -11.216,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4ok1",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 46,
+    "n_contact_reported": 8,
+    "vina": -11.309,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4okt",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.4,
+    "n_within_5A": 54,
+    "n_contact_reported": 9,
+    "vina": -11.803,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4okw",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.51,
+    "n_within_5A": 48,
+    "n_contact_reported": 6,
+    "vina": -10.773,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4okx",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.65,
+    "n_within_5A": 42,
+    "n_contact_reported": 6,
+    "vina": -10.532,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4poh",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 64,
+    "n_contact_reported": 10,
+    "vina": -13.102,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4poj",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 59,
+    "n_contact_reported": 9,
+    "vina": -13.628,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4pp3",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 60,
+    "n_contact_reported": 10,
+    "vina": -12.466,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4rmd",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 65,
+    "n_contact_reported": 9,
+    "vina": -13.898,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4wlb",
+    "seq_len": 8,
+    "picked_chain": "D",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.72,
+    "n_within_5A": 59,
+    "n_contact_reported": 8,
+    "vina": -9.385,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "D",
+      "E"
+    ]
+  },
+  {
+    "pdb": "4wpf",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.76,
+    "n_within_5A": 60,
+    "n_contact_reported": 12,
+    "vina": -12.717,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "B",
+      "E"
+    ]
+  },
+  {
+    "pdb": "4wqp",
+    "seq_len": 13,
+    "picked_chain": "P",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.83,
+    "n_within_5A": 92,
+    "n_contact_reported": 15,
+    "vina": -12.49,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "A",
+      "P"
+    ]
+  },
+  {
+    "pdb": "5aph",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.75,
+    "n_within_5A": 65,
+    "n_contact_reported": 17,
+    "vina": -14.565,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5apj",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 56,
+    "n_contact_reported": 10,
+    "vina": -9.016,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5apk",
+    "seq_len": 13,
+    "picked_chain": "D",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.66,
+    "n_within_5A": 89,
+    "n_contact_reported": 13,
+    "vina": -11.156,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "B",
+      "D"
+    ]
+  },
+  {
+    "pdb": "5cj6",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.65,
+    "n_within_5A": 48,
+    "n_contact_reported": 7,
+    "vina": -12.246,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5ec9",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.66,
+    "n_within_5A": 70,
+    "n_contact_reported": 10,
+    "vina": -12.465,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5ei3",
+    "seq_len": 14,
+    "picked_chain": "B",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.62,
+    "n_within_5A": 91,
+    "n_contact_reported": 32,
+    "vina": -21.492,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5g3j",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.74,
+    "n_within_5A": 71,
+    "n_contact_reported": 12,
+    "vina": -14.815,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5h17",
+    "seq_len": 27,
+    "picked_chain": "B",
+    "picked_chain_len": 27,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 117,
+    "n_contact_reported": 21,
+    "vina": -27.265,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5h24",
+    "seq_len": 29,
+    "picked_chain": "C",
+    "picked_chain_len": 29,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 138,
+    "n_contact_reported": 23,
+    "vina": -34.228,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "5hjs",
+    "seq_len": 15,
+    "picked_chain": "C",
+    "picked_chain_len": 15,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 85,
+    "n_contact_reported": 23,
+    "vina": -20.724,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "5kr9",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.62,
+    "n_within_5A": 55,
+    "n_contact_reported": 12,
+    "vina": -11.634,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5l11",
+    "seq_len": 11,
+    "picked_chain": "C",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.44,
+    "n_within_5A": 65,
+    "n_contact_reported": 9,
+    "vina": -11.923,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5l9v",
+    "seq_len": 19,
+    "picked_chain": "C",
+    "picked_chain_len": 19,
+    "min_dist_to_receptor": 2.04,
+    "n_within_5A": 107,
+    "n_contact_reported": 26,
+    "vina": -22.206,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "5las",
+    "seq_len": 19,
+    "picked_chain": "C",
+    "picked_chain_len": 19,
+    "min_dist_to_receptor": 2.03,
+    "n_within_5A": 113,
+    "n_contact_reported": 24,
+    "vina": -20.251,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "5lcp",
+    "seq_len": 20,
+    "picked_chain": "B",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.72,
+    "n_within_5A": 103,
+    "n_contact_reported": 33,
+    "vina": -26.271,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5mwy",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 54,
+    "n_contact_reported": 12,
+    "vina": -11.002,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5nft",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.78,
+    "n_within_5A": 82,
+    "n_contact_reported": 14,
+    "vina": -16.182,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5ni5",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 65,
+    "n_contact_reported": 10,
+    "vina": -10.945,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5nw8",
+    "seq_len": 18,
+    "picked_chain": "D",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 81,
+    "n_contact_reported": 22,
+    "vina": -21.253,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "5o0e",
+    "seq_len": 18,
+    "picked_chain": "C",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 103,
+    "n_contact_reported": 33,
+    "vina": -25.751,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5ok3",
+    "seq_len": 17,
+    "picked_chain": "D",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 78,
+    "n_contact_reported": 27,
+    "vina": -26.768,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "5q0m",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 65,
+    "n_contact_reported": 9,
+    "vina": -11.407,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q17",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.79,
+    "n_within_5A": 55,
+    "n_contact_reported": 10,
+    "vina": -11.245,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q18",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.73,
+    "n_within_5A": 69,
+    "n_contact_reported": 13,
+    "vina": -14.48,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q1g",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.89,
+    "n_within_5A": 58,
+    "n_contact_reported": 8,
+    "vina": -11.242,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5syz",
+    "seq_len": 11,
+    "picked_chain": "C",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.81,
+    "n_within_5A": 64,
+    "n_contact_reported": 12,
+    "vina": -13.424,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5unj",
+    "seq_len": 9,
+    "picked_chain": "C",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 51,
+    "n_contact_reported": 10,
+    "vina": -11.321,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5ycn",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 67,
+    "n_contact_reported": 10,
+    "vina": -12.808,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5ycp",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 67,
+    "n_contact_reported": 11,
+    "vina": -13.45,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5z5s",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.61,
+    "n_within_5A": 56,
+    "n_contact_reported": 12,
+    "vina": -12.027,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "5z6s",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.66,
+    "n_within_5A": 56,
+    "n_contact_reported": 10,
+    "vina": -12.375,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6ad9",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.45,
+    "n_within_5A": 54,
+    "n_contact_reported": 12,
+    "vina": -11.895,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6d94",
+    "seq_len": 15,
+    "picked_chain": "B",
+    "picked_chain_len": 15,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 78,
+    "n_contact_reported": 13,
+    "vina": -14.326,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6el7",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 73,
+    "n_contact_reported": 15,
+    "vina": -15.886,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6el9",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.76,
+    "n_within_5A": 72,
+    "n_contact_reported": 15,
+    "vina": -16.568,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6erw",
+    "seq_len": 18,
+    "picked_chain": "D",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 89,
+    "n_contact_reported": 24,
+    "vina": -22.949,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6fzu",
+    "seq_len": 9,
+    "picked_chain": "P",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.81,
+    "n_within_5A": 50,
+    "n_contact_reported": 8,
+    "vina": -10.429,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "P",
+      "Q"
+    ]
+  },
+  {
+    "pdb": "6g05",
+    "seq_len": 8,
+    "picked_chain": "P",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 41,
+    "n_contact_reported": 8,
+    "vina": -8.957,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "P",
+      "Q"
+    ]
+  },
+  {
+    "pdb": "6gtv",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.65,
+    "n_within_5A": 84,
+    "n_contact_reported": 19,
+    "vina": -35.113,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "B",
+      "D"
+    ]
+  },
+  {
+    "pdb": "6gtz",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 86,
+    "n_contact_reported": 32,
+    "vina": -34.74,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "B",
+      "D"
+    ]
+  },
+  {
+    "pdb": "6hl1",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.46,
+    "n_within_5A": 67,
+    "n_contact_reported": 13,
+    "vina": -12.966,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6i2a",
+    "seq_len": 18,
+    "picked_chain": "D",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.75,
+    "n_within_5A": 88,
+    "n_contact_reported": 26,
+    "vina": -24.901,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6i2c",
+    "seq_len": 18,
+    "picked_chain": "B",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 88,
+    "n_contact_reported": 20,
+    "vina": -24.457,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6izm",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.58,
+    "n_within_5A": 54,
+    "n_contact_reported": 11,
+    "vina": -12.762,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6izn",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.62,
+    "n_within_5A": 53,
+    "n_contact_reported": 11,
+    "vina": -12.0,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6kkb",
+    "seq_len": 11,
+    "picked_chain": "D",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.33,
+    "n_within_5A": 55,
+    "n_contact_reported": 12,
+    "vina": -11.195,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6l71",
+    "seq_len": 6,
+    "picked_chain": "C",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 39,
+    "n_contact_reported": 12,
+    "vina": -35.183,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6lb5",
+    "seq_len": 11,
+    "picked_chain": "D",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.51,
+    "n_within_5A": 62,
+    "n_contact_reported": 9,
+    "vina": -12.199,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6onj",
+    "seq_len": 14,
+    "picked_chain": "C",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.31,
+    "n_within_5A": 79,
+    "n_contact_reported": 14,
+    "vina": -12.193,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6oqx",
+    "seq_len": 11,
+    "picked_chain": "C",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 65,
+    "n_contact_reported": 11,
+    "vina": -12.604,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6oqy",
+    "seq_len": 11,
+    "picked_chain": "C",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 71,
+    "n_contact_reported": 10,
+    "vina": -12.136,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6or1",
+    "seq_len": 11,
+    "picked_chain": "C",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.4,
+    "n_within_5A": 69,
+    "n_contact_reported": 11,
+    "vina": -12.395,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6pdz",
+    "seq_len": 13,
+    "picked_chain": "C",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.5,
+    "n_within_5A": 45,
+    "n_contact_reported": 15,
+    "vina": -11.859,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6r7j",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.78,
+    "n_within_5A": 66,
+    "n_contact_reported": 17,
+    "vina": -14.197,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6ruj",
+    "seq_len": 14,
+    "picked_chain": "B",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.5,
+    "n_within_5A": 68,
+    "n_contact_reported": 20,
+    "vina": -23.377,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6sti",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.56,
+    "n_within_5A": 68,
+    "n_contact_reported": 15,
+    "vina": -15.462,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6t1v",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 57,
+    "n_contact_reported": 10,
+    "vina": -11.744,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6tof",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.77,
+    "n_within_5A": 32,
+    "n_contact_reported": 8,
+    "vina": -8.192,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6vc2",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 68,
+    "n_contact_reported": 13,
+    "vina": -13.337,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "6vif",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.49,
+    "n_within_5A": 70,
+    "n_contact_reported": 9,
+    "vina": -11.451,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6yw2",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 75,
+    "n_contact_reported": 15,
+    "vina": -22.667,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6yw4",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 75,
+    "n_contact_reported": 18,
+    "vina": -24.604,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t7f",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.9,
+    "n_within_5A": 47,
+    "n_contact_reported": 7,
+    "vina": -8.377,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t79",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.66,
+    "n_within_5A": 45,
+    "n_contact_reported": 7,
+    "vina": -12.08,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t76",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.94,
+    "n_within_5A": 42,
+    "n_contact_reported": 5,
+    "vina": -10.313,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1t7r",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.62,
+    "n_within_5A": 59,
+    "n_contact_reported": 9,
+    "vina": -12.547,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2oq6",
+    "seq_len": 6,
+    "picked_chain": "C",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.81,
+    "n_within_5A": 37,
+    "n_contact_reported": 13,
+    "vina": -21.266,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "2bdy",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.73,
+    "n_within_5A": 48,
+    "n_contact_reported": 8,
+    "vina": -16.016,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2ot7",
+    "seq_len": 6,
+    "picked_chain": "C",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 37,
+    "n_contact_reported": 11,
+    "vina": -19.474,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "2q7k",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.61,
+    "n_within_5A": 50,
+    "n_contact_reported": 11,
+    "vina": -12.483,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3cbl",
+    "seq_len": 5,
+    "picked_chain": "B",
+    "picked_chain_len": 5,
+    "min_dist_to_receptor": 2.66,
+    "n_within_5A": 41,
+    "n_contact_reported": 10,
+    "vina": -13.823,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3cd3",
+    "seq_len": 5,
+    "picked_chain": "B",
+    "picked_chain_len": 5,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 43,
+    "n_contact_reported": 11,
+    "vina": -13.602,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2q7l",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.37,
+    "n_within_5A": 63,
+    "n_contact_reported": 15,
+    "vina": -10.793,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "2q7j",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.37,
+    "n_within_5A": 67,
+    "n_contact_reported": 15,
+    "vina": -11.621,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "1nrl",
+    "seq_len": 15,
+    "picked_chain": "C",
+    "picked_chain_len": 15,
+    "min_dist_to_receptor": 2.76,
+    "n_within_5A": 71,
+    "n_contact_reported": 16,
+    "vina": -13.584,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "2xum",
+    "seq_len": 18,
+    "picked_chain": "S",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 90,
+    "n_contact_reported": 22,
+    "vina": -29.075,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "3kmz",
+    "seq_len": 18,
+    "picked_chain": "C",
+    "picked_chain_len": 18,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 84,
+    "n_contact_reported": 2,
+    "vina": -3.835,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "3l0j",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.5,
+    "n_within_5A": 53,
+    "n_contact_reported": 10,
+    "vina": -8.433,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "3ma3",
+    "seq_len": 7,
+    "picked_chain": "B",
+    "picked_chain_len": 7,
+    "min_dist_to_receptor": 2.54,
+    "n_within_5A": 51,
+    "n_contact_reported": 10,
+    "vina": -13.851,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3v49",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 58,
+    "n_contact_reported": 11,
+    "vina": -13.795,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3v4a",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.62,
+    "n_within_5A": 58,
+    "n_contact_reported": 12,
+    "vina": -13.603,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "3vqh",
+    "seq_len": 20,
+    "picked_chain": "B",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.65,
+    "n_within_5A": 101,
+    "n_contact_reported": 26,
+    "vina": -27.534,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4c36",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 99,
+    "n_contact_reported": 29,
+    "vina": -25.763,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "4jaa",
+    "seq_len": 15,
+    "picked_chain": "S",
+    "picked_chain_len": 15,
+    "min_dist_to_receptor": 2.67,
+    "n_within_5A": 72,
+    "n_contact_reported": 18,
+    "vina": -23.495,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "4nie",
+    "seq_len": 10,
+    "picked_chain": "D",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.77,
+    "n_within_5A": 74,
+    "n_contact_reported": 11,
+    "vina": -10.443,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "4nm0",
+    "seq_len": 21,
+    "picked_chain": "B",
+    "picked_chain_len": 21,
+    "min_dist_to_receptor": 2.64,
+    "n_within_5A": 86,
+    "n_contact_reported": 20,
+    "vina": -19.157,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4nm3",
+    "seq_len": 19,
+    "picked_chain": "B",
+    "picked_chain_len": 19,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 87,
+    "n_contact_reported": 18,
+    "vina": -17.895,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4oh5",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 48,
+    "n_contact_reported": 8,
+    "vina": -11.244,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "4udd",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.79,
+    "n_within_5A": 86,
+    "n_contact_reported": 13,
+    "vina": -14.092,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5ab0",
+    "seq_len": 7,
+    "picked_chain": "E",
+    "picked_chain_len": 7,
+    "min_dist_to_receptor": 3.02,
+    "n_within_5A": 57,
+    "n_contact_reported": 10,
+    "vina": -27.645,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "E",
+      "F"
+    ]
+  },
+  {
+    "pdb": "5gto",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 67,
+    "n_contact_reported": 11,
+    "vina": -13.149,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5gtp",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.64,
+    "n_within_5A": 70,
+    "n_contact_reported": 10,
+    "vina": -13.538,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5mwp",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.73,
+    "n_within_5A": 55,
+    "n_contact_reported": 10,
+    "vina": -10.606,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q0i",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 61,
+    "n_contact_reported": 12,
+    "vina": -11.564,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5lyq",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 62,
+    "n_contact_reported": 10,
+    "vina": -13.732,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q0r",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.77,
+    "n_within_5A": 57,
+    "n_contact_reported": 10,
+    "vina": -12.559,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q10",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.84,
+    "n_within_5A": 50,
+    "n_contact_reported": 9,
+    "vina": -10.852,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q16",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.85,
+    "n_within_5A": 59,
+    "n_contact_reported": 9,
+    "vina": -12.657,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q15",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.78,
+    "n_within_5A": 63,
+    "n_contact_reported": 11,
+    "vina": -12.626,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "5q0w",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 60,
+    "n_contact_reported": 14,
+    "vina": -13.322,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6e3g",
+    "seq_len": 8,
+    "picked_chain": "C",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.78,
+    "n_within_5A": 49,
+    "n_contact_reported": 9,
+    "vina": -9.479,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "6gev",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.75,
+    "n_within_5A": 56,
+    "n_contact_reported": 14,
+    "vina": -11.916,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6gg8",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.7,
+    "n_within_5A": 54,
+    "n_contact_reported": 14,
+    "vina": -11.651,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6ggg",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.75,
+    "n_within_5A": 57,
+    "n_contact_reported": 14,
+    "vina": -10.931,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6ha6",
+    "seq_len": 14,
+    "picked_chain": "D",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.21,
+    "n_within_5A": 70,
+    "n_contact_reported": 14,
+    "vina": -21.327,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6hk3",
+    "seq_len": 8,
+    "picked_chain": "N",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.52,
+    "n_within_5A": 20,
+    "n_contact_reported": 4,
+    "vina": -2.176,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "N"
+    ]
+  },
+  {
+    "pdb": "6hc8",
+    "seq_len": 16,
+    "picked_chain": "E",
+    "picked_chain_len": 16,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 79,
+    "n_contact_reported": 19,
+    "vina": -25.859,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "E"
+    ]
+  },
+  {
+    "pdb": "6h9j",
+    "seq_len": 22,
+    "picked_chain": "D",
+    "picked_chain_len": 22,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 132,
+    "n_contact_reported": 27,
+    "vina": -37.711,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6hkp",
+    "seq_len": 14,
+    "picked_chain": "S",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.33,
+    "n_within_5A": 80,
+    "n_contact_reported": 18,
+    "vina": -23.628,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "6hl5",
+    "seq_len": 14,
+    "picked_chain": "S",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.51,
+    "n_within_5A": 76,
+    "n_contact_reported": 16,
+    "vina": -23.26,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "6tog",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.82,
+    "n_within_5A": 31,
+    "n_contact_reported": 7,
+    "vina": -7.755,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6lb6",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.4,
+    "n_within_5A": 62,
+    "n_contact_reported": 8,
+    "vina": -11.498,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6toh",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 31,
+    "n_contact_reported": 9,
+    "vina": -7.621,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6toi",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.59,
+    "n_within_5A": 41,
+    "n_contact_reported": 11,
+    "vina": -8.142,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6ton",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.73,
+    "n_within_5A": 40,
+    "n_contact_reported": 7,
+    "vina": -7.379,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6too",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.42,
+    "n_within_5A": 41,
+    "n_contact_reported": 10,
+    "vina": -8.193,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "6hl6",
+    "seq_len": 17,
+    "picked_chain": "S",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 2.58,
+    "n_within_5A": 80,
+    "n_contact_reported": 26,
+    "vina": -27.249,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "S"
+    ]
+  },
+  {
+    "pdb": "6oni",
+    "seq_len": 13,
+    "picked_chain": "D",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.73,
+    "n_within_5A": 48,
+    "n_contact_reported": 18,
+    "vina": -12.677,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "6yna",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.63,
+    "n_within_5A": 87,
+    "n_contact_reported": 26,
+    "vina": -22.503,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7bpz",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.56,
+    "n_within_5A": 73,
+    "n_contact_reported": 10,
+    "vina": -10.678,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7bpy",
+    "seq_len": 14,
+    "picked_chain": "B",
+    "picked_chain_len": 14,
+    "min_dist_to_receptor": 2.66,
+    "n_within_5A": 82,
+    "n_contact_reported": 11,
+    "vina": -13.66,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7bq2",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.74,
+    "n_within_5A": 63,
+    "n_contact_reported": 10,
+    "vina": -12.135,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7bq3",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.54,
+    "n_within_5A": 71,
+    "n_contact_reported": 11,
+    "vina": -11.287,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7apo",
+    "seq_len": 26,
+    "picked_chain": "C",
+    "picked_chain_len": 26,
+    "min_dist_to_receptor": 3.09,
+    "n_within_5A": 73,
+    "n_contact_reported": 16,
+    "vina": -12.883,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "7bq4",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.89,
+    "n_within_5A": 62,
+    "n_contact_reported": 9,
+    "vina": -11.214,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7jyd",
+    "seq_len": 10,
+    "picked_chain": "C",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 61,
+    "n_contact_reported": 9,
+    "vina": -7.35,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "7kco",
+    "seq_len": 13,
+    "picked_chain": "D",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.78,
+    "n_within_5A": 79,
+    "n_contact_reported": 4,
+    "vina": -2.825,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "7ofi",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.78,
+    "n_within_5A": 69,
+    "n_contact_reported": 19,
+    "vina": -15.57,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "7ofk",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.77,
+    "n_within_5A": 68,
+    "n_contact_reported": 16,
+    "vina": -14.706,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "7oke",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.84,
+    "n_within_5A": 31,
+    "n_contact_reported": 9,
+    "vina": -8.378,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okf",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.84,
+    "n_within_5A": 31,
+    "n_contact_reported": 8,
+    "vina": -7.993,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okg",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.84,
+    "n_within_5A": 31,
+    "n_contact_reported": 8,
+    "vina": -7.898,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okh",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.8,
+    "n_within_5A": 41,
+    "n_contact_reported": 9,
+    "vina": -8.757,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7oki",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.65,
+    "n_within_5A": 40,
+    "n_contact_reported": 10,
+    "vina": -8.489,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okj",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.8,
+    "n_within_5A": 31,
+    "n_contact_reported": 9,
+    "vina": -8.004,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okk",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.87,
+    "n_within_5A": 31,
+    "n_contact_reported": 8,
+    "vina": -7.606,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okl",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.74,
+    "n_within_5A": 41,
+    "n_contact_reported": 9,
+    "vina": -7.692,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7okm",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.81,
+    "n_within_5A": 42,
+    "n_contact_reported": 11,
+    "vina": -8.473,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7pdq",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 64,
+    "n_contact_reported": 14,
+    "vina": -9.786,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7q7s",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.86,
+    "n_within_5A": 31,
+    "n_contact_reported": 8,
+    "vina": -7.766,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7q7t",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 0.6,
+    "n_within_5A": 40,
+    "n_contact_reported": 12,
+    "vina": -8.827,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7qfm",
+    "seq_len": 8,
+    "picked_chain": "D",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.62,
+    "n_within_5A": 56,
+    "n_contact_reported": 13,
+    "vina": -15.432,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "7sxf",
+    "seq_len": 17,
+    "picked_chain": "B",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 3.33,
+    "n_within_5A": 79,
+    "n_contact_reported": 13,
+    "vina": -17.133,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7sxj",
+    "seq_len": 17,
+    "picked_chain": "B",
+    "picked_chain_len": 17,
+    "min_dist_to_receptor": 3.21,
+    "n_within_5A": 78,
+    "n_contact_reported": 13,
+    "vina": -16.085,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7wgq",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.53,
+    "n_within_5A": 66,
+    "n_contact_reported": 9,
+    "vina": -11.519,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7uw4",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.83,
+    "n_within_5A": 60,
+    "n_contact_reported": 9,
+    "vina": -13.312,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7wlx",
+    "seq_len": 11,
+    "picked_chain": "B",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.48,
+    "n_within_5A": 60,
+    "n_contact_reported": 8,
+    "vina": -9.876,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7zwv",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.82,
+    "n_within_5A": 31,
+    "n_contact_reported": 8,
+    "vina": -7.81,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7wgo",
+    "seq_len": 12,
+    "picked_chain": "B",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.65,
+    "n_within_5A": 71,
+    "n_contact_reported": 10,
+    "vina": -11.941,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "7zwy",
+    "seq_len": 6,
+    "picked_chain": "B",
+    "picked_chain_len": 6,
+    "min_dist_to_receptor": 2.84,
+    "n_within_5A": 31,
+    "n_contact_reported": 10,
+    "vina": -7.772,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "8afr",
+    "seq_len": 9,
+    "picked_chain": "C",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.71,
+    "n_within_5A": 60,
+    "n_contact_reported": 13,
+    "vina": -16.187,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "8b8x",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.69,
+    "n_within_5A": 56,
+    "n_contact_reported": 11,
+    "vina": -13.275,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "8b8y",
+    "seq_len": 11,
+    "picked_chain": "C",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.47,
+    "n_within_5A": 55,
+    "n_contact_reported": 10,
+    "vina": -12.305,
+    "n_chains_containing_seq": 2,
+    "containing_chains": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "pdb": "8b93",
+    "seq_len": 12,
+    "picked_chain": "C",
+    "picked_chain_len": 12,
+    "min_dist_to_receptor": 2.94,
+    "n_within_5A": 43,
+    "n_contact_reported": 8,
+    "vina": -11.586,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "C"
+    ]
+  },
+  {
+    "pdb": "8hum",
+    "seq_len": 10,
+    "picked_chain": "B",
+    "picked_chain_len": 10,
+    "min_dist_to_receptor": 2.55,
+    "n_within_5A": 59,
+    "n_contact_reported": 9,
+    "vina": -10.897,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "8fhe",
+    "seq_len": 11,
+    "picked_chain": "D",
+    "picked_chain_len": 11,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 46,
+    "n_contact_reported": 14,
+    "vina": -11.73,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "D"
+    ]
+  },
+  {
+    "pdb": "8huq",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.73,
+    "n_within_5A": 59,
+    "n_contact_reported": 8,
+    "vina": -9.344,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "8hup",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.58,
+    "n_within_5A": 72,
+    "n_contact_reported": 10,
+    "vina": -11.431,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "8ia5",
+    "seq_len": 9,
+    "picked_chain": "B",
+    "picked_chain_len": 9,
+    "min_dist_to_receptor": 2.4,
+    "n_within_5A": 42,
+    "n_contact_reported": 9,
+    "vina": -12.41,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "8fe2",
+    "seq_len": 20,
+    "picked_chain": "I",
+    "picked_chain_len": 20,
+    "min_dist_to_receptor": 2.59,
+    "n_within_5A": 98,
+    "n_contact_reported": 13,
+    "vina": -23.24,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "I"
+    ]
+  },
+  {
+    "pdb": "8r0y",
+    "seq_len": 8,
+    "picked_chain": "B",
+    "picked_chain_len": 8,
+    "min_dist_to_receptor": 2.68,
+    "n_within_5A": 55,
+    "n_contact_reported": 10,
+    "vina": -14.563,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  },
+  {
+    "pdb": "8pp0",
+    "seq_len": 13,
+    "picked_chain": "B",
+    "picked_chain_len": 13,
+    "min_dist_to_receptor": 2.25,
+    "n_within_5A": 62,
+    "n_contact_reported": 11,
+    "vina": -13.483,
+    "n_chains_containing_seq": 1,
+    "containing_chains": [
+      "B"
+    ]
+  }
+]
