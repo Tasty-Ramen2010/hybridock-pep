@@ -4,6 +4,11 @@
 # Logs to logs/smoketest_jun02.log; per-complex output in runs/smoketest_jun02/{PDB}/.
 set -uo pipefail
 
+# Cron runs with a bare PATH (/usr/bin:/bin). Inject ADFRsuite + miniconda
+# explicitly so prepare_receptor, autogrid4, and the score-env binaries are
+# all resolvable. Mirrors the interactive shell's ~/.bashrc PATH setup.
+export PATH="/home/igem/ADFRsuite_x86_64Linux_1.0/bin:/home/igem/miniconda3/envs/score-env/bin:/home/igem/miniconda3/bin:/usr/local/bin:/usr/bin:/bin"
+
 ROOT="/home/igem/unknown_software"
 cd "$ROOT" || exit 1
 
@@ -50,16 +55,37 @@ while IFS=, read -r set pdb peptide pkd recep crystal sx sy sz box n_pep n_rec c
     echo "  output: $out_dir"
     echo "  start: $(date -Iseconds)"
 
+    # Reuse existing minimized poses if the prior aborted run left them behind
+    # (resumes from Stage 2 instead of redoing the ~3-min RAPiDock sampling)
+    POSES_FLAG=()
+    if [ -d "$out_dir/poses_minimized" ] && \
+       [ "$(ls -1 "$out_dir/poses_minimized" | wc -l)" -ge 20 ]; then
+        echo "  reusing $out_dir/poses_minimized (skip Stage 1)"
+        POSES_FLAG=(--input-poses "$out_dir/poses_minimized")
+    fi
+
     t0=$(date +%s)
-    "$HDP" dock \
-        --peptide "$peptide" \
-        --receptor "$ROOT/$recep" \
-        --site "$sx" "$sy" "$sz" \
-        --box "$box" \
-        --n-samples 100 \
-        --seed 42 \
-        --output-dir "$out_dir" \
-        --calibration "$CALIBRATION"
+    if [ "${#POSES_FLAG[@]}" -gt 0 ]; then
+        "$HDP" dock \
+            --peptide "$peptide" \
+            --receptor "$ROOT/$recep" \
+            --site "$sx" "$sy" "$sz" \
+            --box "$box" \
+            --seed 42 \
+            --output-dir "$out_dir" \
+            --calibration "$CALIBRATION" \
+            "${POSES_FLAG[@]}"
+    else
+        "$HDP" dock \
+            --peptide "$peptide" \
+            --receptor "$ROOT/$recep" \
+            --site "$sx" "$sy" "$sz" \
+            --box "$box" \
+            --n-samples 100 \
+            --seed 42 \
+            --output-dir "$out_dir" \
+            --calibration "$CALIBRATION"
+    fi
     code=$?
     t1=$(date +%s)
     elapsed=$((t1 - t0))
