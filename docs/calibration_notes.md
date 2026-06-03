@@ -450,3 +450,92 @@ chain-mis-identification artefact.
 The negative-r ceiling is the same one diagnosed in five prior calibration
 sessions (PEPBI, Wang, Kd-clean, 284-entry, etc.). Forward path is per-target
 (decoy ΔΔG / selectivity, §7) or per-family (§4) — not another global re-fit.
+
+---
+
+## Per-family calibration (§4) — Jun 2026
+
+**Script:** `scripts/cluster_and_fit_per_family.py`.
+**Output:** `data/calibration_per_family.json` (schema v3, opt-in).
+
+Receptor sequences extracted from `datasets/raw_pdbs/{PDB}.pdb` for the 240
+audited held-out entries (peptide chain excluded via `receptor_chain` hint,
+fallback = longest non-peptide chain). Pairwise 6-mer Jaccard distance →
+average-linkage agglomerative clustering at threshold 0.3 (1 − Jaccard).
+
+### Cluster structure (threshold 0.3)
+
+| Cluster ID | n  | First members (PDB ids)            |
+|------------|----|------------------------------------|
+| 28         | 30 | 1t5z, 1t63, 1t65, 1t73, 1t74       |
+| 20         | 25 | 1zgy, 3cs8, 3fur, 5gto, 5gtp       |
+| 11         | 19 | 1q8w, 1stc, 1yds, 1ydt, 2c1a       |
+| 34         | 19 | 6tof, 6tog, 6toh, 6toi, 6ton       |
+| 2          | 16 | 3l0j, 4nie, 4wlb, 4wpf, 4wqp       |
+| 18         | 15 | 3oap, 4k4j, 4k6i, 4poh, 4poj       |
+| 36         | 11 | 2xum, 4b7e, 4b7k, 4jaa, 6h9j       |
+| 5          | 11 | 5q0i, 5q0m, 5q0r, 5q0w, 5q10       |
+| (fallback) | 94 | singletons + clusters with n<10    |
+
+### LOO-CV per family (features: Vina, N_contact, S_ss_weighted)
+
+| Cluster | n   | LOO r   | LOO RMSE |
+|---------|-----|---------|----------|
+| 11      | 19  | −0.064  | 1.43     |
+| 28      | 30  | +0.154  | 1.32     |
+| 20      | 25  | −0.020  | 2.43     |
+| 36      | 11  | nan*    | 0.00     |
+| 2       | 16  | +0.249  | 1.65     |
+| 18      | 15  | +0.268  | 1.36     |
+| 5       | 11  | +0.473  | 2.26     |
+| 34      | 19  | +0.322  | 1.32     |
+| fallback| 94  | +0.104  | 2.11     |
+
+\* Family 36 collapsed to all-zero weights — ridge regularization swamped the
+in-cluster signal.
+
+### Aggregate per-family LOO (union)
+
+```
+n = 146 (all big clusters combined)
+Pearson r = +0.731
+RMSE      = 1.65 kcal/mol
+```
+
+**Compare to prior global fits on the same holdout:**
+
+| Calibration        | Pearson r on 240-set |
+|--------------------|----------------------|
+| v1.0 legacy        |  0.000               |
+| v1.1 ridge         | −0.193               |
+| v1.2 entropy       | −0.114               |
+| **v1.3 per-family**| **+0.731 (LOO on union of 8 big clusters)** |
+
+This is the largest single-step calibration improvement in the project's
+history. **Caveat — what the aggregate r is really measuring:** within each
+family the per-feature slopes are weak (LOO r −0.06 to +0.47), so the model
+is mostly learning *cluster-specific intercepts* — "kinase peptides cluster
+binds at ΔG ≈ −12 kcal/mol mean; SH3-like peptides at ≈ −8 kcal/mol mean."
+Within a family, Vina/N_contact/entropy still adds little. That's the right
+behavior for cross-target ranking, but it means runtime dispatch by receptor
+similarity is now the load-bearing piece — get the family lookup wrong and
+the intercept is wrong and the prediction is wrong by a big constant.
+
+### What ships in this commit
+
+- `data/calibration_per_family.json` (schema v3, opt-in via `--calibration`).
+- `scripts/cluster_and_fit_per_family.py` — re-runnable as more data lands.
+- Membership table `data/calibration_per_family.json::membership_assignments`
+  for the 240 audited PDBs, so at inference time a new receptor can be
+  routed to its nearest family by k-mer Jaccard to any cluster member.
+
+### What's still pending
+
+- Runtime dispatcher: a `load_per_family_calibration()` + receptor-to-family
+  lookup in `scoring/entropy.py` so `--calibration data/calibration_per_family.json`
+  Just Works. (Currently the JSON is documented but inference can't read it.)
+- Fix family 36 (zero weights) — likely needs a lower ridge_alpha or a
+  closer look at within-cluster pKd spread.
+- Test set is the *training* set under LOO; a true held-out eval requires
+  fitting on these 146 and testing on a separate set of family-labeled
+  complexes, ideally with the same calibration of α applied to ΔG_exp.

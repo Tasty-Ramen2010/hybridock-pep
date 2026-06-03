@@ -231,6 +231,48 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to calibration.json (default: data/calibration.json).",
     )
 
+    # selectivity subparser — decoy ΔΔG between two receptors for one peptide
+    p_sel = sub.add_parser(
+        "selectivity",
+        help="Run pipeline on two receptors and report ΔΔG with bootstrap CI.",
+    )
+    p_sel.add_argument("--peptide", required=True, metavar="SEQ",
+                       help="Peptide sequence (single-letter).")
+    p_sel.add_argument("--target-receptor", required=True, metavar="PDB",
+                       help="On-target receptor PDB.")
+    p_sel.add_argument("--target-site", required=True, nargs=3, type=float,
+                       metavar=("X", "Y", "Z"),
+                       help="Target grid box center coords (Å).")
+    p_sel.add_argument("--target-box", required=True, type=float, metavar="ANG",
+                       help="Target grid box edge length (Å).")
+    p_sel.add_argument("--offtarget-receptor", required=True, metavar="PDB",
+                       help="Off-target receptor PDB.")
+    p_sel.add_argument("--offtarget-site", required=True, nargs=3, type=float,
+                       metavar=("X", "Y", "Z"),
+                       help="Off-target grid box center coords (Å).")
+    p_sel.add_argument("--offtarget-box", required=True, type=float, metavar="ANG",
+                       help="Off-target grid box edge length (Å).")
+    p_sel.add_argument("--n-samples", type=int, default=100, metavar="N",
+                       help="RAPiDock samples per receptor (default: 100).")
+    p_sel.add_argument("--top-k", type=int, default=10, metavar="K",
+                       help="Top-K poses per side fed to ΔΔG (default: 10).")
+    p_sel.add_argument("--bootstrap", type=int, default=1000, metavar="N",
+                       help="Bootstrap iterations for ΔΔG 95%% CI (default: 1000).")
+    p_sel.add_argument("--seed", type=int, default=None, metavar="N",
+                       help="RNG seed (CUDA + bootstrap).")
+    p_sel.add_argument("--scoring", default="vina", metavar="BACKENDS",
+                       help="Scoring backends (default: vina). Same flag as dock.")
+    p_sel.add_argument("--calibration", default="data/calibration.json", metavar="JSON",
+                       help="Calibration JSON used on both sides.")
+    p_sel.add_argument("--output-dir", required=True, metavar="DIR",
+                       help="Parent dir; target/ and offtarget/ subdirs are created.")
+    p_sel.add_argument("--input-poses-target", default=None, metavar="DIR",
+                       help="Optional pre-generated target poses (skip Stage 1).")
+    p_sel.add_argument("--input-poses-offtarget", default=None, metavar="DIR",
+                       help="Optional pre-generated off-target poses (skip Stage 1).")
+    p_sel.add_argument("--no-minimize", action="store_true", default=False,
+                       help="Disable OpenMM minimization on both sides.")
+
     return parser
 
 
@@ -337,6 +379,62 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     logger.info("Receptor prepared: %s", pdbqt_path)
 
 
+def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Run the dock pipeline on two receptors and report ΔΔG with bootstrap CI."""
+    from pydantic import ValidationError
+    from hybridock_pep.selectivity import run_selectivity
+
+    out_root = Path(args.output_dir).resolve()
+    target_out = out_root / "target"
+    offtarget_out = out_root / "offtarget"
+
+    try:
+        target_cfg = DockConfig(
+            peptide_sequence=args.peptide,
+            receptor_path=Path(args.target_receptor).resolve(),
+            site_coords=(args.target_site[0], args.target_site[1], args.target_site[2]),
+            box_size=args.target_box,
+            n_samples=args.n_samples,
+            seed=args.seed,
+            scoring=set(args.scoring.split(",")),
+            output_dir=target_out,
+            verbosity=args.verbose,
+            minimize_poses=not args.no_minimize,
+        )
+        offtarget_cfg = DockConfig(
+            peptide_sequence=args.peptide,
+            receptor_path=Path(args.offtarget_receptor).resolve(),
+            site_coords=(args.offtarget_site[0], args.offtarget_site[1], args.offtarget_site[2]),
+            box_size=args.offtarget_box,
+            n_samples=args.n_samples,
+            seed=args.seed,
+            scoring=set(args.scoring.split(",")),
+            output_dir=offtarget_out,
+            verbosity=args.verbose,
+            minimize_poses=not args.no_minimize,
+        )
+    except ValidationError as exc:
+        parser.error(str(exc))
+        return
+
+    result = run_selectivity(
+        peptide=args.peptide,
+        target_config=target_cfg,
+        offtarget_config=offtarget_cfg,
+        calibration_path=Path(args.calibration).resolve(),
+        top_k=args.top_k,
+        bootstrap_n=args.bootstrap,
+        seed=args.seed,
+        input_poses_target=Path(args.input_poses_target).resolve() if args.input_poses_target else None,
+        input_poses_offtarget=Path(args.input_poses_offtarget).resolve() if args.input_poses_offtarget else None,
+    )
+    logger.info(
+        "Selectivity complete: ΔΔG=%+.2f kcal/mol  CI95=[%+.2f, %+.2f]  →  %s",
+        result.ddg, result.ddg_ci_low, result.ddg_ci_high,
+        result.to_json()["interpretation"],
+    )
+
+
 def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Dispatch benchmark subcommand to scripts/benchmark.py:main().
 
@@ -390,6 +488,7 @@ def main() -> None:
         "calibrate": _run_calibrate,
         "prep": _run_prep,
         "benchmark": _run_benchmark,
+        "selectivity": _run_selectivity,
     }
     if args.command is None:
         parser.print_help()
