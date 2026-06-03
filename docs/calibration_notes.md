@@ -539,3 +539,62 @@ the intercept is wrong and the prediction is wrong by a big constant.
 - Test set is the *training* set under LOO; a true held-out eval requires
   fitting on these 146 and testing on a separate set of family-labeled
   complexes, ideally with the same calibration of α applied to ΔG_exp.
+
+---
+
+## v1.3 generalization test (2026-06-03)
+
+**Script:** `scripts/test_v13_generalization.py`.
+**Output:** `data/v13_generalization_results.json`.
+
+The +0.731 LOO Pearson r reported above is leave-one-out *inside* the 146
+complexes that landed in the 8 big clusters. Truth check: route each of
+the 94 out-of-cluster complexes (in the 240-audit, not in any big family)
+to its nearest big family by k-mer Jaccard similarity, apply that family's
+ridge, and compare to experiment.
+
+### Results on 94 out-of-cluster complexes
+
+| Calibration | Pearson r | RMSE (kcal/mol) |
+|---|---|---|
+| **v1.3 dispatch** | **+0.311** | 2.77 |
+| Fallback ridge (one-size-fits-all) | +0.241 | 2.04 |
+| Vina only | −0.210 | — |
+
+v1.3 beats alternatives on Pearson but loses RMSE because per-family
+intercepts span 13 kcal/mol (−17.67 to +1.19); wrong-family routing
+puts predictions 8+ kcal/mol off.
+
+### The diagnostic that matters
+
+```
+Median dispatcher similarity (k-mer Jaccard): 0.002
+Fraction with sim ≥ 0.10: 1/94
+```
+
+93/94 out-of-cluster receptors have no meaningful k-mer overlap with any
+of the 8 family representatives. The dispatcher forces assignments where
+none fit; it accidentally beats Vina because the family intercepts cover
+the right *range* of binding energies, not because routing is correct.
+
+### Production implications
+
+| | In-distribution | Out-of-distribution |
+|---|---|---|
+| Pearson r | **+0.73** | **+0.31** |
+| Use case | "Your receptor looks like training" | "Your receptor is novel" |
+
+Both numbers are real; they describe different settings. **Before v1.3
+ships as default the dispatcher needs a similarity gate** (route to
+fallback ridge when max-Jaccard < 0.10) and a confidence flag in the
+output JSON.
+
+### Scaling forecast
+
+| Data scale | Expected OOD r | Notes |
+|---|---|---|
+| Current: 146 train, 8 families | +0.31 OOD | Sparse family coverage |
+| 500 complexes, 12 families | +0.45–0.55 OOD | Better routing hit rate |
+| 5000 complexes, 50 families | +0.55–0.65 OOD | Diminishing returns from intercepts alone |
+| To break +0.70 OOD | needs new features | Engineered Vina+entropy slope-limited |
+
