@@ -68,7 +68,13 @@ _BETA_MAX = 0.5
 # Schema v2 (multivariate ridge) bounds.  Wider than legacy because the
 # ridge fit has direct linear weights instead of the constrained α/β
 # formulation.  See docs/calibration_notes.md "Production-pose v2" section.
+# Strict v2 ridge bounds — a single global fit must respect Vina's sign
+# convention (more-negative = better binding). Per-family fits (schema v3)
+# can validly invert weights inside a narrow family where the per-family
+# intercept dominates and within-family slopes are noisy, so v3 uses
+# _W_VINA_MIN_LOOSE for its slope bounds.
 _W_VINA_MIN, _W_VINA_MAX = 0.0, 3.0
+_W_VINA_MIN_LOOSE = -2.0
 _W_AD4_MIN,  _W_AD4_MAX  = -1.0, 3.0
 _W_CONTACT_MIN, _W_CONTACT_MAX = -3.0, 3.0
 _INTERCEPT_MIN, _INTERCEPT_MAX = -30.0, 30.0
@@ -82,24 +88,31 @@ CONTACT_DIST_ANG: float = 4.5  # Å heavy-atom distance for "in contact" classif
 
 
 def calibration_mode(cal: dict) -> str:
-    """Return 'ridge' for a schema-v2 multivariate calibration, else 'legacy'.
-
-    A ridge calibration carries explicit per-feature weights
-    (``w_vina``, ``w_ad4``, ``w_contact``, ``intercept``).  Legacy v1
-    calibrations carry ``alpha`` + ``beta`` (+ ``gamma``).
+    """Return 'per_family', 'ridge', or 'legacy' based on calibration schema.
 
     Detection rule (in priority order):
-      1. ``cal["model_type"] == "ridge"`` → ridge
-      2. ``cal["schema_version"] >= 2`` and ``w_vina`` present → ridge
-      3. otherwise → legacy
+      1. ``cal["model_type"] == "per_family_ridge"`` → per_family
+      2. ``cal["schema_version"] >= 3`` and ``families`` present → per_family
+      3. ``cal["model_type"] == "ridge"`` → ridge
+      4. ``cal["schema_version"] >= 2`` and ``w_vina`` present → ridge
+      5. otherwise → legacy
+
+    Per-family (schema v3) carries a ``families`` dict mapping cluster IDs to
+    per-family ridge fits, plus a ``fallback`` ridge for out-of-distribution
+    receptors. Ridge (schema v2) carries flat per-feature weights. Legacy v1
+    carries ``alpha`` + ``beta``.
 
     Args:
         cal: A calibration dict returned by ``load_calibration``.
 
     Returns:
-        "ridge" or "legacy".
+        "per_family", "ridge", or "legacy".
     """
     model_type = cal.get("model_type")
+    if model_type == "per_family_ridge":
+        return "per_family"
+    if int(cal.get("schema_version", 1)) >= 3 and isinstance(cal.get("families"), dict):
+        return "per_family"
     if model_type == "ridge":
         return "ridge"
     if model_type == "legacy" or model_type == "single_alpha":
@@ -143,6 +156,28 @@ def load_calibration(path: Path) -> dict:
         cal = json.load(fh)
 
     mode = calibration_mode(cal)
+
+    if mode == "per_family":
+        # Validate that the schema-v3 file has both families and fallback,
+        # and that each family carries the same ridge keys we validate for v2.
+        families = cal.get("families")
+        fallback = cal.get("fallback")
+        if not isinstance(families, dict) or not families:
+            raise ValueError(
+                f"Per-family calibration {path} has no non-empty 'families' dict."
+            )
+        if not isinstance(fallback, dict):
+            raise ValueError(
+                f"Per-family calibration {path} requires a 'fallback' ridge dict."
+            )
+        _validate_ridge(fallback, path, loose=True)
+        for fam_id, fit in families.items():
+            _validate_ridge(fit, path, loose=True)
+        _log.debug(
+            "Loaded per-family calibration: %d families + fallback from %s",
+            len(families), path,
+        )
+        return cal
 
     if mode == "ridge":
         _validate_ridge(cal, path)
@@ -196,8 +231,16 @@ def load_calibration(path: Path) -> dict:
     return cal
 
 
-def _validate_ridge(cal: dict, path: Path) -> None:
-    """Validate the ridge / v2 calibration keys and ranges.  Raises ValueError on bad input."""
+def _validate_ridge(cal: dict, path: Path, *, loose: bool = False) -> None:
+    """Validate the ridge / v2 calibration keys and ranges.  Raises ValueError on bad input.
+
+    Args:
+        cal: Ridge fit dict.
+        path: Source file path (for error messages).
+        loose: If True, allow negative w_vina (per-family ridges in schema v3
+            can validly have inverted slopes when the cluster intercept does
+            most of the work and the within-family Vina trend is weak/noisy).
+    """
     required = ("w_vina", "w_ad4", "w_contact", "intercept")
     missing = [k for k in required if k not in cal]
     if missing:
@@ -205,8 +248,9 @@ def _validate_ridge(cal: dict, path: Path) -> None:
             f"Ridge calibration {path} is missing required keys: {missing}.  "
             "Re-run calibrate_alpha.py --mode ridge to regenerate."
         )
+    w_vina_lo = _W_VINA_MIN_LOOSE if loose else _W_VINA_MIN
     pairs = [
-        ("w_vina",    cal["w_vina"],    _W_VINA_MIN,    _W_VINA_MAX),
+        ("w_vina",    cal["w_vina"],    w_vina_lo,      _W_VINA_MAX),
         ("w_ad4",     cal["w_ad4"],     _W_AD4_MIN,     _W_AD4_MAX),
         ("w_contact", cal["w_contact"], _W_CONTACT_MIN, _W_CONTACT_MAX),
         ("intercept", cal["intercept"], _INTERCEPT_MIN, _INTERCEPT_MAX),
@@ -627,22 +671,50 @@ def apply_calibration(
     cal: dict,
     n_residues: int,
     n_contact_residues: int | None = None,
+    ridge_override: dict | None = None,
 ) -> None:
     """Dispatch to the correct hybrid-score formula based on calibration schema.
 
-    Reads ``calibration_mode(cal)`` and calls either ``apply_hybrid_score``
-    (legacy single-α) or ``apply_hybrid_score_ridge`` (schema v2).  This is
-    the call driver.py should make when it does not want to hard-code which
-    schema the calibration file uses.
+    Reads ``calibration_mode(cal)`` and applies one of three paths:
+
+    * ``legacy`` (v1, single-α): ``apply_hybrid_score``.
+    * ``ridge``  (v2, multivariate): ``apply_hybrid_score_ridge``.
+    * ``per_family`` (v3): the caller is expected to have already routed the
+      receptor to a per-family ridge via ``apply_per_family_calibration``
+      and to pass the resolved ridge fit via ``ridge_override``. If
+      ``ridge_override`` is None, the fallback ridge is used. This
+      double-dispatch avoids reloading the receptor PDB per pose.
 
     Args:
-        pose: ScoredPose with vina_score (and optionally ad4_score) populated.
+        pose: ScoredPose with vina_score populated.
         cal: Calibration dict from ``load_calibration``.
         n_residues: Full peptide length (used by legacy gamma path).
-        n_contact_residues: Contact residue count.  If None, the legacy path
+        n_contact_residues: Contact residue count. If None, the legacy path
             falls back to ``n_residues``; the ridge path treats missing as 0.
+        ridge_override: When set, treated as the per-feature ridge to apply
+            (must have ``w_vina``, ``w_ad4`` etc. keys). Used by the per-family
+            dispatcher to inject the routed family's ridge.
     """
     mode = calibration_mode(cal)
+    if mode == "per_family":
+        # Caller should have routed; honor override, else fallback ridge.
+        chosen = ridge_override if ridge_override is not None else cal.get("fallback")
+        if chosen is None:
+            raise ValueError(
+                "per-family calibration has no 'fallback' ridge and no ridge_override"
+            )
+        apply_hybrid_score_ridge(
+            pose,
+            w_vina=float(chosen["w_vina"]),
+            w_ad4=float(chosen.get("w_ad4", 0.0)),
+            w_contact=float(chosen["w_contact"]),
+            intercept=float(chosen["intercept"]),
+            n_contact_residues=int(n_contact_residues or 0),
+            w_s_sc=float(chosen.get("w_s_sc", 0.0)),
+            w_s_bb=float(chosen.get("w_s_bb", 0.0)),
+            w_s_ss_weighted=float(chosen.get("w_s_ss_weighted", 0.0)),
+        )
+        return
     if mode == "ridge":
         apply_hybrid_score_ridge(
             pose,
