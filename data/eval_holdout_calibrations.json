@@ -32,22 +32,6 @@
     "in_training": false
   },
   {
-    "pdb": "1a0n",
-    "affinity_type": "Kd",
-    "pkd": 4.6,
-    "dg_exp": -6.271179999999999,
-    "vina": -5.664,
-    "ad4": -6.373,
-    "n_contact": 7,
-    "s_ss_weighted": 20.3,
-    "s_sc_sum": 8.9,
-    "s_bb_sum": 11.7,
-    "pred_legacy": -5.176699999999999,
-    "pred_ridge": -8.815569676867346,
-    "pred_entropy": -12.75843,
-    "in_training": true
-  },
-  {
     "pdb": "1c5y",
     "affinity_type": "Ki",
     "pkd": 4.201,
@@ -62,22 +46,6 @@
     "pred_ridge": -17.91520955100389,
     "pred_entropy": -10.001895,
     "in_training": false
-  },
-  {
-    "pdb": "1l2z",
-    "affinity_type": "Kd",
-    "pkd": 5.7,
-    "dg_exp": -7.77081,
-    "vina": -7.031,
-    "ad4": -8.728,
-    "n_contact": 7,
-    "s_ss_weighted": 14.89,
-    "s_sc_sum": 9.15,
-    "s_bb_sum": 8.4,
-    "pred_legacy": -6.840099999999999,
-    "pred_ridge": -9.096313240523063,
-    "pred_entropy": -10.409949000000001,
-    "in_training": true
   },
   {
     "pdb": "1nvr",
