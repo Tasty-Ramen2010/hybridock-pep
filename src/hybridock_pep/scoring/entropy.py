@@ -65,6 +65,14 @@ _ALPHA_MAX = 2.0
 _BETA_MIN = 0.0
 _BETA_MAX = 0.5
 
+# Schema v2 (multivariate ridge) bounds.  Wider than legacy because the
+# ridge fit has direct linear weights instead of the constrained α/β
+# formulation.  See docs/calibration_notes.md "Production-pose v2" section.
+_W_VINA_MIN, _W_VINA_MAX = 0.0, 3.0
+_W_AD4_MIN,  _W_AD4_MAX  = -1.0, 3.0
+_W_CONTACT_MIN, _W_CONTACT_MAX = -3.0, 3.0
+_INTERCEPT_MIN, _INTERCEPT_MAX = -30.0, 30.0
+
 # Contact distance threshold (Fix A — unified across inference and calibration).
 # ALL code that counts contact residues (driver.py, score_crystal_poses.py,
 # score_calibration_set.py) must import and use this constant so that α is
@@ -73,29 +81,79 @@ _BETA_MAX = 0.5
 CONTACT_DIST_ANG: float = 4.5  # Å heavy-atom distance for "in contact" classification
 
 
+def calibration_mode(cal: dict) -> str:
+    """Return 'ridge' for a schema-v2 multivariate calibration, else 'legacy'.
+
+    A ridge calibration carries explicit per-feature weights
+    (``w_vina``, ``w_ad4``, ``w_contact``, ``intercept``).  Legacy v1
+    calibrations carry ``alpha`` + ``beta`` (+ ``gamma``).
+
+    Detection rule (in priority order):
+      1. ``cal["model_type"] == "ridge"`` → ridge
+      2. ``cal["schema_version"] >= 2`` and ``w_vina`` present → ridge
+      3. otherwise → legacy
+
+    Args:
+        cal: A calibration dict returned by ``load_calibration``.
+
+    Returns:
+        "ridge" or "legacy".
+    """
+    model_type = cal.get("model_type")
+    if model_type == "ridge":
+        return "ridge"
+    if model_type == "legacy" or model_type == "single_alpha":
+        return "legacy"
+    if int(cal.get("schema_version", 1)) >= 2 and "w_vina" in cal:
+        return "ridge"
+    return "legacy"
+
+
 def load_calibration(path: Path) -> dict:
     """Load and validate calibration parameters from a JSON file.
 
-    Validates that alpha is within [0.1, 2.0] kcal/mol/contact-residue
-    and beta within [0.0, 0.5]. The upper alpha bound is 2.0 (was 1.2)
-    to accommodate contact-based entropy where alpha compensates for
-    fewer effective residues than full sequence length.
+    Supports two on-disk schemas, dispatched by ``calibration_mode``:
+
+    * **Legacy (v1)** — single-α model: requires ``alpha`` ∈ [0.1, 2.0]
+      and ``beta`` ∈ [0.0, 0.5]; ``gamma`` optional in [0.0, 1.0];
+      ``ensemble_ad4_weight`` optional in [0.0, 1.0].  Production
+      formula: ``hybrid = vina + beta*(ad4 - vina) + alpha*n_eff``.
+    * **Ridge (v2)** — explicit per-feature weights: requires
+      ``w_vina`` ∈ [0, 3], ``w_ad4`` ∈ [-1, 3], ``w_contact`` ∈ [-3, 3],
+      ``intercept`` ∈ [-30, 30].  Production formula:
+      ``hybrid = w_vina*vina + w_ad4*ad4 + w_contact*n_contact + intercept``.
+      The ``w_contact`` sign is intuitive: negative means more contacts
+      → more binding (hydrophobic burial), positive means the legacy
+      entropy-penalty direction.
 
     Args:
         path: Path to the calibration JSON file.
 
     Returns:
-        Dictionary containing calibration data including 'alpha' and 'beta'.
+        Dictionary containing calibration data.  Use
+        ``calibration_mode(dict)`` to dispatch on schema.
 
     Raises:
         FileNotFoundError: If ``path`` does not exist.
-        ValueError: If alpha is outside [0.1, 2.0] or beta is outside [0.0, 0.5].
+        ValueError: If schema-specific fields are missing or out of range.
     """
     if not path.exists():
         raise FileNotFoundError(f"Calibration file not found: {path}")
     with path.open() as fh:
         cal = json.load(fh)
 
+    mode = calibration_mode(cal)
+
+    if mode == "ridge":
+        _validate_ridge(cal, path)
+        _log.debug(
+            "Loaded ridge calibration: w_vina=%.3f w_ad4=%.3f w_contact=%.3f "
+            "intercept=%.3f from %s",
+            cal["w_vina"], cal["w_ad4"], cal["w_contact"], cal["intercept"], path,
+        )
+        return cal
+
+    # Legacy single-α schema.
     try:
         alpha = cal["alpha"]
         beta = cal["beta"]
@@ -138,34 +196,81 @@ def load_calibration(path: Path) -> dict:
     return cal
 
 
+def _validate_ridge(cal: dict, path: Path) -> None:
+    """Validate the ridge / v2 calibration keys and ranges.  Raises ValueError on bad input."""
+    required = ("w_vina", "w_ad4", "w_contact", "intercept")
+    missing = [k for k in required if k not in cal]
+    if missing:
+        raise ValueError(
+            f"Ridge calibration {path} is missing required keys: {missing}.  "
+            "Re-run calibrate_alpha.py --mode ridge to regenerate."
+        )
+    pairs = [
+        ("w_vina",    cal["w_vina"],    _W_VINA_MIN,    _W_VINA_MAX),
+        ("w_ad4",     cal["w_ad4"],     _W_AD4_MIN,     _W_AD4_MAX),
+        ("w_contact", cal["w_contact"], _W_CONTACT_MIN, _W_CONTACT_MAX),
+        ("intercept", cal["intercept"], _INTERCEPT_MIN, _INTERCEPT_MAX),
+    ]
+    # Optional per-residue entropy weights (schema v2 extension): only
+    # validated when present.  Range matches w_contact (-3..3 kcal/mol per
+    # unit of the corresponding entropy proxy).
+    for opt_key in ("w_s_sc", "w_s_bb", "w_s_ss_weighted"):
+        if opt_key in cal:
+            pairs.append((opt_key, cal[opt_key], _W_CONTACT_MIN, _W_CONTACT_MAX))
+    for name, val, lo, hi in pairs:
+        if not (lo <= float(val) <= hi):
+            raise ValueError(
+                f"Ridge calibration {path}: {name}={val:.3f} is outside valid "
+                f"range [{lo}, {hi}].  Re-run calibration or update the bounds "
+                "in scoring/entropy.py if this is intentional."
+            )
+
+
 def write_calibration(
     path: Path,
-    alpha: float,
-    beta: float,
-    **kwargs: float | int | str,
+    alpha: float | None = None,
+    beta: float | None = None,
+    **kwargs: float | int | str | bool,
 ) -> None:
     """Write calibration parameters to a JSON file.
+
+    Supports both schemas.  Pass ``alpha`` and ``beta`` for a legacy
+    single-α calibration.  Pass ``schema_version=2``, ``model_type="ridge"``,
+    plus ``w_vina``/``w_ad4``/``w_contact``/``intercept`` via kwargs for a
+    ridge calibration; in that case ``alpha`` and ``beta`` may be omitted.
 
     Always sets 'calibrated_at' to the current UTC time in ISO 8601 format.
     Creates parent directories as needed.
 
     Args:
         path: Destination path for the calibration JSON file.
-        alpha: Burial correction coefficient (kcal/mol/contact-residue).
-        beta: AD4 blending weight (dimensionless, [0.0, 0.5]).
-        **kwargs: Additional fields to include (e.g., n_complexes,
-            pearson_r, rmse_kcal_mol, training_csv).
+        alpha: Burial correction coefficient (kcal/mol/contact-residue);
+            required for legacy schema.
+        beta: AD4 blending weight (dimensionless, [0.0, 0.5]);
+            required for legacy schema.
+        **kwargs: Additional fields.  For ridge schema, MUST include
+            ``schema_version``, ``model_type``, ``w_vina``, ``w_ad4``,
+            ``w_contact``, ``intercept``.
     """
-    payload = {
-        "alpha": alpha,
-        "beta": beta,
-        "calibrated_at": datetime.now(timezone.utc).isoformat(),
-        **kwargs,
-    }
+    payload: dict = {"calibrated_at": datetime.now(timezone.utc).isoformat()}
+    if alpha is not None:
+        payload["alpha"] = alpha
+    if beta is not None:
+        payload["beta"] = beta
+    payload.update(kwargs)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as fh:
         json.dump(payload, fh, indent=2)
-    _log.info("Wrote calibration to %s (alpha=%.3f, beta=%.3f)", path, alpha, beta)
+    if calibration_mode(payload) == "ridge":
+        _log.info(
+            "Wrote ridge calibration to %s (w_vina=%.3f w_ad4=%.3f w_contact=%.3f intercept=%.3f)",
+            path, payload["w_vina"], payload["w_ad4"], payload["w_contact"], payload["intercept"],
+        )
+    else:
+        _log.info(
+            "Wrote calibration to %s (alpha=%.3f, beta=%.3f)",
+            path, payload.get("alpha", float("nan")), payload.get("beta", float("nan")),
+        )
 
 
 def _parse_heavy_atoms_by_residue(pdb_path: Path) -> list[np.ndarray]:
@@ -408,6 +513,246 @@ def apply_hybrid_score(
             n_non_contact,
             gamma,
         )
+
+
+def apply_hybrid_score_ridge(
+    pose: ScoredPose,
+    *,
+    w_vina: float,
+    w_ad4: float,
+    w_contact: float,
+    intercept: float,
+    n_contact_residues: int,
+    w_s_sc: float = 0.0,
+    w_s_bb: float = 0.0,
+    w_s_ss_weighted: float = 0.0,
+) -> None:
+    """Apply the schema-v2 multivariate ridge hybrid-score formula.
+
+    ``hybrid = w_vina * vina
+             + w_ad4 * ad4
+             + w_contact * n_contact
+             + w_s_sc * s_sc_sum
+             + w_s_bb * s_bb_sum
+             + w_s_ss_weighted * s_ss_weighted
+             + intercept``
+
+    Per-residue entropy weights default to 0.0 so existing v2 calibrations
+    that only set ``w_vina`` / ``w_ad4`` / ``w_contact`` / ``intercept``
+    behave identically.  When ``w_s_*`` are non-zero, the corresponding
+    ``pose.s_*`` field must be populated (computed in driver.py Stage 2d-pre
+    via ``per_residue_entropy.compute_entropy_sums``).
+
+    Sign convention: negative weights on entropy features mean "more
+    entropy proxy → more binding," matching the PepSet-6 production-pose
+    ridge result.  Positive weights match the legacy entropy-penalty
+    direction.
+
+    AD4 anomaly bypass: when ``pose.is_ad4_anomaly`` is True or
+    ``pose.ad4_score`` is None, the AD4 term is dropped (effective w_ad4 = 0).
+
+    Args:
+        pose: ScoredPose with vina_score set; ad4_score / s_*_sum optional.
+        w_vina: Vina coefficient.
+        w_ad4: AD4 coefficient.
+        w_contact: Contact-count coefficient.
+        intercept: Constant offset, kcal/mol.
+        n_contact_residues: Peptide residues in contact with receptor (≥ 0).
+        w_s_sc: Side-chain Doig-Sternberg entropy sum coefficient.  Default 0.
+        w_s_bb: Backbone entropy sum coefficient.  Default 0.
+        w_s_ss_weighted: SS-weighted (s_sc + s_bb) sum coefficient.
+            Default 0.  See scoring/per_residue_entropy.py for the formula.
+
+    Raises:
+        RuntimeError: If ``pose.vina_score`` is None, or if a non-zero
+            ``w_s_*`` weight is set but the corresponding pose field is None.
+    """
+    if pose.vina_score is None:
+        raise RuntimeError(
+            f"Pose {pose.pose_idx}: vina_score is None — Vina must run before apply_hybrid_score_ridge"
+        )
+    use_ad4 = pose.ad4_score is not None and not pose.is_ad4_anomaly
+    ad4_term = w_ad4 * pose.ad4_score if use_ad4 else 0.0
+
+    # Per-residue entropy terms (zero by default; verified populated when used)
+    sc_term = 0.0
+    bb_term = 0.0
+    ss_term = 0.0
+    if w_s_sc != 0.0:
+        if pose.s_sc_sum is None:
+            raise RuntimeError(
+                f"Pose {pose.pose_idx}: w_s_sc set but pose.s_sc_sum is None — "
+                "compute_entropy_sums must run before apply_hybrid_score_ridge"
+            )
+        sc_term = w_s_sc * float(pose.s_sc_sum)
+    if w_s_bb != 0.0:
+        if pose.s_bb_sum is None:
+            raise RuntimeError(
+                f"Pose {pose.pose_idx}: w_s_bb set but pose.s_bb_sum is None"
+            )
+        bb_term = w_s_bb * float(pose.s_bb_sum)
+    if w_s_ss_weighted != 0.0:
+        if pose.s_ss_weighted is None:
+            raise RuntimeError(
+                f"Pose {pose.pose_idx}: w_s_ss_weighted set but pose.s_ss_weighted is None"
+            )
+        ss_term = w_s_ss_weighted * float(pose.s_ss_weighted)
+
+    contact_term = w_contact * float(n_contact_residues)
+    # Single number capturing the full non-Vina/non-AD4 entropy contribution.
+    pose.entropy_correction = contact_term + sc_term + bb_term + ss_term
+    pose.hybrid_score = (
+        w_vina * float(pose.vina_score)
+        + ad4_term
+        + pose.entropy_correction
+        + intercept
+    )
+    _log.debug(
+        "Pose %d (ridge): vina=%.3f ad4=%s nC=%d s_sc=%s s_bb=%s s_ss=%s "
+        "hybrid=%.3f (w_v=%.3f w_a=%.3f w_c=%.3f w_sc=%.3f w_bb=%.3f w_ss=%.3f intc=%.3f)",
+        pose.pose_idx,
+        float(pose.vina_score),
+        f"{float(pose.ad4_score):.3f}" if use_ad4 else "skipped",
+        n_contact_residues,
+        f"{pose.s_sc_sum:.2f}" if pose.s_sc_sum is not None else "—",
+        f"{pose.s_bb_sum:.2f}" if pose.s_bb_sum is not None else "—",
+        f"{pose.s_ss_weighted:.2f}" if pose.s_ss_weighted is not None else "—",
+        pose.hybrid_score,
+        w_vina, w_ad4, w_contact, w_s_sc, w_s_bb, w_s_ss_weighted, intercept,
+    )
+
+
+def apply_calibration(
+    pose: ScoredPose,
+    cal: dict,
+    n_residues: int,
+    n_contact_residues: int | None = None,
+) -> None:
+    """Dispatch to the correct hybrid-score formula based on calibration schema.
+
+    Reads ``calibration_mode(cal)`` and calls either ``apply_hybrid_score``
+    (legacy single-α) or ``apply_hybrid_score_ridge`` (schema v2).  This is
+    the call driver.py should make when it does not want to hard-code which
+    schema the calibration file uses.
+
+    Args:
+        pose: ScoredPose with vina_score (and optionally ad4_score) populated.
+        cal: Calibration dict from ``load_calibration``.
+        n_residues: Full peptide length (used by legacy gamma path).
+        n_contact_residues: Contact residue count.  If None, the legacy path
+            falls back to ``n_residues``; the ridge path treats missing as 0.
+    """
+    mode = calibration_mode(cal)
+    if mode == "ridge":
+        apply_hybrid_score_ridge(
+            pose,
+            w_vina=float(cal["w_vina"]),
+            w_ad4=float(cal["w_ad4"]),
+            w_contact=float(cal["w_contact"]),
+            intercept=float(cal["intercept"]),
+            n_contact_residues=int(n_contact_residues or 0),
+            w_s_sc=float(cal.get("w_s_sc", 0.0)),
+            w_s_bb=float(cal.get("w_s_bb", 0.0)),
+            w_s_ss_weighted=float(cal.get("w_s_ss_weighted", 0.0)),
+        )
+        return
+    apply_hybrid_score(
+        pose,
+        alpha=float(cal["alpha"]),
+        beta=float(cal["beta"]),
+        n_residues=n_residues,
+        n_contact_residues=n_contact_residues,
+        gamma=float(cal.get("gamma", 0.0)),
+    )
+
+
+def fit_calibration_ridge(
+    vina_scores: list[float],
+    ad4_scores: list[float],
+    n_contact_residues_list: list[int],
+    experimental_pkd: list[float],
+    *,
+    ridge_alpha: float = 0.1,
+    positive: bool = True,
+) -> dict:
+    """Fit the schema-v2 ridge model ``ΔG = w_vina·V + w_ad4·A + w_contact·N + c``.
+
+    Convention: features are (vina, ad4, ``-n_contact``) so the fitted
+    third weight is positive when "more contacts → more binding".  The
+    returned ``w_contact`` is the **negated** value (intuitive sign:
+    negative = binding direction; matches ``apply_hybrid_score_ridge``).
+
+    Reports both in-sample Pearson r and leave-one-out CV r when n ≥ 3.
+
+    Args:
+        vina_scores: Per-complex Vina aggregate (kcal/mol).
+        ad4_scores: Per-complex AD4 aggregate (kcal/mol).
+        n_contact_residues_list: Per-complex contact count.
+        experimental_pkd: Per-complex experimental pKd.
+        ridge_alpha: Ridge regularisation strength.  Default 0.1.
+        positive: If True, weights are constrained ≥ 0 (in the
+            (vina, ad4, -n_contact) basis), which means w_contact ≤ 0
+            after negation.
+
+    Returns:
+        Dict suitable for ``write_calibration`` and round-trip through
+        ``load_calibration`` (schema v2 / ridge).
+    """
+    try:
+        from sklearn.linear_model import Ridge
+        from sklearn.model_selection import LeaveOneOut
+    except ImportError as exc:
+        raise RuntimeError(
+            "fit_calibration_ridge requires scikit-learn.  "
+            "Install in score-env: pip install scikit-learn"
+        ) from exc
+
+    n = len(vina_scores)
+    lengths = (n, len(ad4_scores), len(n_contact_residues_list), len(experimental_pkd))
+    if len(set(lengths)) != 1:
+        raise ValueError(f"Input lengths must all match; got {lengths}")
+    if n < 3:
+        raise ValueError(f"Need ≥ 3 complexes for ridge fit; got {n}")
+
+    X = np.column_stack([
+        np.array(vina_scores, dtype=float),
+        np.array(ad4_scores, dtype=float),
+        -np.array(n_contact_residues_list, dtype=float),
+    ])
+    y = np.array([-_RT * _LN10 * p for p in experimental_pkd], dtype=float)
+
+    model = Ridge(alpha=ridge_alpha, positive=positive).fit(X, y)
+    pred = model.predict(X)
+    r_in = float(pearsonr(y, pred).statistic)
+    rmse_in = float(np.sqrt(((pred - y) ** 2).mean()))
+
+    # Leave-one-out CV
+    loo_preds = np.zeros_like(y)
+    for tr, te in LeaveOneOut().split(X):
+        loo_preds[te] = (
+            Ridge(alpha=ridge_alpha, positive=positive).fit(X[tr], y[tr]).predict(X[te])
+        )
+    r_loo = float(pearsonr(y, loo_preds).statistic)
+    rmse_loo = float(np.sqrt(((loo_preds - y) ** 2).mean()))
+
+    w_vina, w_ad4, w_neg_nc = (float(c) for c in model.coef_)
+    intercept = float(model.intercept_)
+
+    return {
+        "schema_version": 2,
+        "model_type": "ridge",
+        "w_vina": w_vina,
+        "w_ad4": w_ad4,
+        "w_contact": -w_neg_nc,   # sign-flip back to "positive = entropy penalty"
+        "intercept": intercept,
+        "ridge_alpha": ridge_alpha,
+        "positive_constraint": positive,
+        "pearson_r": r_in,
+        "rmse_kcal_mol": rmse_in,
+        "loo_pearson_r": r_loo,
+        "loo_rmse_kcal_mol": rmse_loo,
+        "n_complexes": n,
+    }
 
 
 def fit_calibration(

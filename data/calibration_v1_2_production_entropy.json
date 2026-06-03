@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "model_type": "ridge",
+  "w_vina": 0.0,
+  "w_ad4": 0.0,
+  "w_contact": 0.0,
+  "w_s_sc": 0.0,
+  "w_s_bb": 0.0,
+  "w_s_ss_weighted": -0.4341,
+  "intercept": -3.9462,
+  "ridge_alpha": 0.1,
+  "positive_constraint": true,
+  "pearson_r": 0.9344,
+  "rmse_kcal_mol": 0.7246,
+  "loo_pearson_r": 0.7154,
+  "loo_rmse_kcal_mol": 1.5137,
+  "n_complexes": 6,
+  "features_used": [
+    "vina_score",
+    "-s_ss_weighted"
+  ],
+  "training_csv": "data/training_complexes.csv",
+  "scores_json": "data/training_scores_production_entropy.json",
+  "ss_classification": "phi/psi from minimized pose; helix box (-100..-30, -80..-5)"
+}

@@ -1,0 +1,25 @@
+{
+  "calibrated_at": "2026-06-02T22:30:43.257736+00:00",
+  "training_csv": "data/training_complexes.csv",
+  "n_contact_residues_training": [
+    9,
+    6,
+    6,
+    5,
+    6,
+    4
+  ],
+  "schema_version": 2,
+  "model_type": "ridge",
+  "w_vina": 0.2053720290093031,
+  "w_ad4": 0.0,
+  "w_contact": -1.2035117163975662,
+  "intercept": 0.7722395102243098,
+  "ridge_alpha": 0.1,
+  "positive_constraint": true,
+  "pearson_r": 0.9474998943376423,
+  "rmse_kcal_mol": 0.650250460049417,
+  "loo_pearson_r": 0.7550211680149325,
+  "loo_rmse_kcal_mol": 1.442919046007391,
+  "n_complexes": 6
+}

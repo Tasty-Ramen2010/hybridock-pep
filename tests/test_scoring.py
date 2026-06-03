@@ -10,6 +10,8 @@ import json
 import unittest.mock as mock
 from pathlib import Path
 
+import numpy as np
+
 
 # ---------------------------------------------------------------------------
 # SCORE-01: Vina scorer
@@ -719,6 +721,232 @@ class TestEntropy:
         assert 0.1 <= result["alpha"] <= 2.0, f"alpha={result['alpha']} out of bounds"
         assert 0.0 <= result["beta"] <= 0.5, f"beta={result['beta']} out of bounds"
 
+    # ----- Schema v2 (multivariate ridge) tests --------------------------- #
+
+    def test_calibration_mode_detection(self) -> None:
+        """calibration_mode() routes ridge vs legacy via model_type / w_vina presence."""
+        from hybridock_pep.scoring.entropy import calibration_mode
+
+        assert calibration_mode({"alpha": 0.5, "beta": 0.2}) == "legacy"
+        assert calibration_mode({"model_type": "legacy", "alpha": 0.5, "beta": 0.2}) == "legacy"
+        assert calibration_mode({"model_type": "ridge", "w_vina": 1.0}) == "ridge"
+        assert calibration_mode({
+            "schema_version": 2, "w_vina": 0.2, "w_ad4": 0.0,
+            "w_contact": -1.2, "intercept": 0.7,
+        }) == "ridge"
+
+    def test_load_calibration_ridge_roundtrip(self, tmp_path: Path) -> None:
+        """write_calibration + load_calibration round-trips a ridge JSON."""
+        from hybridock_pep.scoring.entropy import load_calibration, write_calibration
+
+        out = tmp_path / "ridge.json"
+        write_calibration(
+            out,
+            schema_version=2, model_type="ridge",
+            w_vina=0.21, w_ad4=0.0, w_contact=-1.20, intercept=0.77,
+            n_complexes=6, pearson_r=0.95, loo_pearson_r=0.76,
+        )
+        cal = load_calibration(out)
+        assert cal["model_type"] == "ridge"
+        assert cal["w_vina"] == 0.21
+        assert cal["w_contact"] == -1.20
+
+    def test_load_calibration_ridge_rejects_out_of_range(self, tmp_path: Path) -> None:
+        """Ridge schema bound check fires on w_vina > 3.0."""
+        import json
+        from hybridock_pep.scoring.entropy import load_calibration
+
+        out = tmp_path / "bad_ridge.json"
+        out.write_text(json.dumps({
+            "schema_version": 2, "model_type": "ridge",
+            "w_vina": 5.0, "w_ad4": 0.0, "w_contact": -1.2, "intercept": 0.7,
+        }))
+        with pytest.raises(ValueError, match="w_vina"):
+            load_calibration(out)
+
+    def test_apply_hybrid_score_ridge_formula(self, tmp_path: Path) -> None:
+        """apply_hybrid_score_ridge implements ΔG = w_v*V + w_a*A + w_c*N + c exactly."""
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score_ridge
+
+        pose = ScoredPose(
+            pose_idx=0, pdb_path=tmp_path / "pose_0.pdb",
+            sequence="X" * 10, ca_coords=np.zeros((10, 3)),
+        )
+        pose.vina_score = -6.0
+        pose.ad4_score = -4.0
+        apply_hybrid_score_ridge(
+            pose, w_vina=0.2, w_ad4=0.5, w_contact=-1.2, intercept=0.5,
+            n_contact_residues=4,
+        )
+        # 0.2*(-6) + 0.5*(-4) + (-1.2)*4 + 0.5 = -1.2 - 2.0 - 4.8 + 0.5 = -7.5
+        assert abs(pose.hybrid_score - (-7.5)) < 1e-9
+
+    def test_apply_hybrid_score_ridge_skips_anomalous_ad4(self, tmp_path: Path) -> None:
+        """When is_ad4_anomaly=True, the AD4 term is dropped."""
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score_ridge
+
+        pose = ScoredPose(
+            pose_idx=0, pdb_path=tmp_path / "pose_0.pdb",
+            sequence="X" * 10, ca_coords=np.zeros((10, 3)),
+        )
+        pose.vina_score = -6.0
+        pose.ad4_score = +99.0
+        pose.is_ad4_anomaly = True
+        apply_hybrid_score_ridge(
+            pose, w_vina=1.0, w_ad4=1.0, w_contact=0.0, intercept=0.0,
+            n_contact_residues=0,
+        )
+        # AD4 term suppressed → hybrid = 1.0 * -6.0 = -6.0
+        assert abs(pose.hybrid_score - (-6.0)) < 1e-9
+
+    def test_apply_calibration_dispatches_correctly(self, tmp_path: Path) -> None:
+        """apply_calibration() routes to ridge vs legacy formula by schema."""
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_calibration
+
+        pose = ScoredPose(
+            pose_idx=0, pdb_path=tmp_path / "pose_0.pdb",
+            sequence="X" * 10, ca_coords=np.zeros((10, 3)),
+        )
+        pose.vina_score = -6.0
+        pose.ad4_score = -4.0
+        apply_calibration(
+            pose,
+            {"model_type": "ridge", "w_vina": 1.0, "w_ad4": 0.0,
+             "w_contact": -1.0, "intercept": 0.0},
+            n_residues=10, n_contact_residues=5,
+        )
+        # 1.0 * -6 + 0 * -4 + -1 * 5 + 0 = -11
+        assert abs(pose.hybrid_score - (-11.0)) < 1e-9
+
+    def test_fit_calibration_ridge_produces_valid_schema(self) -> None:
+        """fit_calibration_ridge returns a dict that load_calibration accepts."""
+        from hybridock_pep.scoring.entropy import fit_calibration_ridge
+
+        v = [-5.0, -6.0, -7.0, -4.0, -8.0, -6.5]
+        a = [-3.0, -4.0, -5.0, -2.0, -6.0, -4.5]
+        nc = [3, 5, 7, 2, 9, 6]
+        pkd = [4.5, 5.5, 6.5, 4.0, 8.0, 5.8]
+        result = fit_calibration_ridge(v, a, nc, pkd)
+        assert result["schema_version"] == 2
+        assert result["model_type"] == "ridge"
+        for k in ("w_vina", "w_ad4", "w_contact", "intercept"):
+            assert k in result, f"missing {k}"
+        # LOO must be computed with n=6
+        assert "loo_pearson_r" in result and "loo_rmse_kcal_mol" in result
+
+    def test_apply_hybrid_score_ridge_with_entropy_weights(self, tmp_path: Path) -> None:
+        """Schema-v2 ridge with optional w_s_ss_weighted plumbs through correctly."""
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score_ridge
+
+        pose = ScoredPose(
+            pose_idx=0, pdb_path=tmp_path / "pose_0.pdb",
+            sequence="X" * 10, ca_coords=np.zeros((10, 3)),
+        )
+        pose.vina_score = -6.0
+        pose.ad4_score = -4.0
+        pose.s_ss_weighted = 8.0
+        apply_hybrid_score_ridge(
+            pose,
+            w_vina=1.0, w_ad4=0.0, w_contact=0.0,
+            w_s_ss_weighted=-0.5,
+            intercept=0.0, n_contact_residues=0,
+        )
+        # 1.0 * -6.0 + (-0.5) * 8.0 = -10.0
+        assert abs(pose.hybrid_score - (-10.0)) < 1e-9
+
+    def test_apply_hybrid_score_ridge_entropy_missing_raises(self, tmp_path: Path) -> None:
+        """If w_s_ss_weighted is non-zero but pose.s_ss_weighted is None, RuntimeError."""
+        from hybridock_pep.models import ScoredPose
+        from hybridock_pep.scoring.entropy import apply_hybrid_score_ridge
+
+        pose = ScoredPose(
+            pose_idx=0, pdb_path=tmp_path / "pose_0.pdb",
+            sequence="X" * 10, ca_coords=np.zeros((10, 3)),
+        )
+        pose.vina_score = -6.0
+        # s_ss_weighted left as None
+        with pytest.raises(RuntimeError, match="s_ss_weighted"):
+            apply_hybrid_score_ridge(
+                pose, w_vina=1.0, w_ad4=0.0, w_contact=0.0,
+                w_s_ss_weighted=-0.5, intercept=0.0, n_contact_residues=0,
+            )
+
+    def test_ridge_calibration_with_entropy_validates(self, tmp_path: Path) -> None:
+        """load_calibration accepts w_s_* keys and applies range check."""
+        from hybridock_pep.scoring.entropy import load_calibration, write_calibration
+
+        out = tmp_path / "ridge_entropy.json"
+        write_calibration(
+            out,
+            schema_version=2, model_type="ridge",
+            w_vina=0.0, w_ad4=0.0, w_contact=0.0,
+            w_s_ss_weighted=-0.434, intercept=-3.95,
+        )
+        cal = load_calibration(out)
+        assert cal["w_s_ss_weighted"] == -0.434
+        assert cal["intercept"] == -3.95
+
+    # ----- per_residue_entropy module tests ------------------------------- #
+
+    def test_per_residue_entropy_tables(self) -> None:
+        """Doig-Sternberg side-chain and backbone tables match published values."""
+        from hybridock_pep.scoring.per_residue_entropy import s_sc, s_bb, ss_factor
+
+        assert s_sc("G") == 0.0 and s_sc("A") == 0.0 and s_sc("P") == 0.0
+        assert s_sc("K") == 2.5 and s_sc("R") == 2.8
+        assert s_bb("G") == 2.20 and s_bb("P") == 0.30
+        assert s_bb("L") == 1.00  # default
+        assert ss_factor("loop") == 1.0
+        assert ss_factor("helix") == 0.5
+        assert ss_factor("sheet") == 0.3
+
+    def test_dihedral_sign_convention(self) -> None:
+        """_dihedral matches IUPAC: a standard α-helical φ is ≈ -60°, not +60°."""
+        from hybridock_pep.scoring.per_residue_entropy import _dihedral
+
+        # Classic Praxeolitic test vectors (Wikipedia) — verified φ should be
+        # around -71° here (right-handed alpha helix territory).
+        p0 = np.array([24.969, 13.428, 30.692])  # C(i-1)
+        p1 = np.array([24.044, 12.661, 29.808])  # N(i)
+        p2 = np.array([22.785, 13.482, 29.543])  # CA(i)
+        p3 = np.array([21.951, 13.670, 30.793])  # C(i)
+        phi = _dihedral(p0, p1, p2, p3)
+        # The Wikipedia article reports -71° for these vectors under one
+        # numerical convention; my numpy implementation gives a value in the
+        # same α-helix neighbourhood within a few degrees.  The critical
+        # property is sign — without the b0 = -(p1-p0) fix this returns
+        # +60°-ish (mirror image), which would silently classify L-residues
+        # as their D-mirror.
+        assert -75.0 < phi < -60.0, f"expected φ in α-helix range, got {phi:.2f}"
+
+    def test_compute_entropy_sums_returns_all_fields(self, tmp_path: Path) -> None:
+        """compute_entropy_sums returns the expected dict structure."""
+        from hybridock_pep.scoring.per_residue_entropy import compute_entropy_sums
+
+        # Minimal 3-residue pose PDB (Gly-Lys-Pro) with random coords.
+        pdb = tmp_path / "pose.pdb"
+        pdb.write_text(
+            "ATOM      1  N   GLY A   1       0.000   0.000   0.000\n"
+            "ATOM      2  CA  GLY A   1       1.450   0.000   0.000\n"
+            "ATOM      3  C   GLY A   1       2.000   1.400   0.000\n"
+            "ATOM      4  N   LYS A   2       3.300   1.500   0.000\n"
+            "ATOM      5  CA  LYS A   2       4.000   2.700   0.000\n"
+            "ATOM      6  C   LYS A   2       5.500   2.500   0.000\n"
+            "ATOM      7  N   PRO A   3       6.100   3.700   0.000\n"
+            "ATOM      8  CA  PRO A   3       7.500   3.900   0.000\n"
+            "ATOM      9  C   PRO A   3       8.000   5.300   0.000\n"
+            "END\n"
+        )
+        receptor_coords = np.array([[10.0, 0.0, 0.0]])  # too far → no contacts
+        ent = compute_entropy_sums(pdb, "GKP", receptor_coords=receptor_coords)
+        for key in ("n_contact", "s_sc_sum", "s_bb_sum", "s_ss_weighted",
+                    "ss_loop_count", "ss_helix_count", "ss_sheet_count"):
+            assert key in ent, f"missing key {key}"
+
     def test_pkd_to_delta_g_conversion(self) -> None:
         """ΔG = -RT*ln(10)*pKd; with n_residues=0 and vina=ad4=ΔG, trivial fit."""
         import math
@@ -816,6 +1044,9 @@ class TestCalibration:
             output=output_path,
             verbose=False,
             gamma=0.2,
+            mode="legacy",
+            ridge_alpha=0.1,
+            positive_constraint=True,
         )
         mod.main(args)
 
@@ -861,6 +1092,9 @@ class TestCalibration:
             output=output_path,
             verbose=False,
             gamma=0.2,
+            mode="legacy",
+            ridge_alpha=0.1,
+            positive_constraint=True,
         )
         mod.main(args)
 

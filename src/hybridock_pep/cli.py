@@ -68,9 +68,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_dock.add_argument(
         "--scoring",
-        default="vina,ad4",
+        default="vina",
         metavar="BACKENDS",
-        help="Comma-separated scoring backends: vina, ad4 (default: vina,ad4).",
+        help=(
+            "Comma-separated scoring backends: vina, ad4 (default: vina). "
+            "AD4 was the historical default but is no longer used by the "
+            "production calibration (ridge fit gives w_ad4=0; AD4 carries no "
+            "signal independent of Vina + N_contact). Pass --scoring vina,ad4 "
+            "to run autogrid4 + AD4 scoring for telemetry or research."
+        ),
     )
     p_dock.add_argument(
         "--refine-topk",

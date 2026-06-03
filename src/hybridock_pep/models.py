@@ -44,7 +44,7 @@ class DockConfig(BaseModel):
     box_size: float
     n_samples: int = 100
     seed: int | None = None
-    scoring: set[Literal["vina", "ad4"]] = {"vina", "ad4"}
+    scoring: set[Literal["vina", "ad4"]] = {"vina"}
     output_dir: Path
     run_id: str = ""
     verbosity: int = 0
@@ -143,6 +143,15 @@ class ScoredPose(PoseRecord):
     is_clipped: bool = False
     n_contact_residues: int | None = None
     is_clashed: bool = False
+    # Per-residue + SS-weighted entropy sums (kcal/mol units; default None →
+    # computed lazily by driver.py Stage 2d-pre when the ridge calibration
+    # references them).  See scoring/per_residue_entropy.py.
+    s_sc_sum: float | None = None
+    s_bb_sum: float | None = None
+    s_ss_weighted: float | None = None
+    ss_helix_count: int | None = None
+    ss_sheet_count: int | None = None
+    ss_loop_count: int | None = None
 
 
 @dataclass

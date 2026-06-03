@@ -21,7 +21,13 @@ def _make_pose_record(idx: int, tmp_path: Path):
 
 
 def _make_config(tmp_path: Path):
-    """Build a minimal DockConfig with a real receptor PDB."""
+    """Build a minimal DockConfig with a real receptor PDB.
+
+    Explicitly enables both Vina AND AD4 so the AD4-path orchestration
+    tests continue to exercise generate_ad4_maps / score_ad4_batch.
+    Production default is ``scoring={"vina"}`` (AD4 dropped per
+    docs/calibration_notes.md — w_ad4=0 in the ridge fit).
+    """
     from hybridock_pep.models import DockConfig
     receptor = tmp_path / "receptor.pdb"
     receptor.write_text(
@@ -34,6 +40,7 @@ def _make_config(tmp_path: Path):
         box_size=20.0,
         output_dir=tmp_path,
         seed=42,
+        scoring={"vina", "ad4"},
     )
 
 
