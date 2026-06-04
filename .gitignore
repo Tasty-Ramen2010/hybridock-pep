@@ -157,7 +157,6 @@ scripts/run_v*.sh
 scripts/compare_rapidock_vs_finetuned.py
 scripts/confidence_pipeline_orchestrator.py
 scripts/encoder_audit.py
-scripts/eval_pose_diversity.py
 scripts/forensic_*.py
 scripts/generate_confidence_poses.py
 scripts/mega_benchmark_analysis.py
