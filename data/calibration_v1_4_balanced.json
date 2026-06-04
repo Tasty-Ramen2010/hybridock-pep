@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "model_type": "ridge",
+  "w_vina": 1.0,
+  "w_ad4": 0.0,
+  "w_contact": 0.0,
+  "w_s_sc": 0.0,
+  "w_s_bb": 0.0,
+  "w_s_ss_weighted": -0.3379827950505013,
+  "intercept": 1.5367016627739996,
+  "ridge_alpha": 0.1,
+  "positive_constraint": false,
+  "vina_pinned": true,
+  "pearson_r": 0.854235052402066,
+  "rmse_kcal_mol": 1.1063746560863386,
+  "loo_pearson_r": 0.30251523034621935,
+  "loo_rmse_kcal_mol": 2.408975698852627,
+  "n_complexes": 6,
+  "features_used": [
+    "vina_score (pinned w=1.0)",
+    "s_ss_weighted"
+  ],
+  "training_csv": "data/training_complexes.csv",
+  "scores_json": "data/training_scores_production_entropy.json",
+  "notes": "v1.4 balanced: w_vina pinned at 1.0 to make Vina the primary signal (physically motivated \u2014 Vina is already calibrated against PDBbind). Entropy contributes a smaller residual correction. Production calibration intended to replace v1.2 where w_vina was erroneously 0 due to the 6-complex training set's low signal."
+}
