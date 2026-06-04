@@ -215,10 +215,15 @@ def score_pose_file(pdb_path: str, receptor_pdb: str,
 
 def extract_features_for_dataset(json_path: str, label: str,
                                   out_pkl: Path, pyrosetta, sfxn,
-                                  force_rerun: bool = False) -> dict:
+                                  force_rerun: bool = False,
+                                  receptor_map: dict[str, str] | None = None) -> dict:
     """
     Extract physics features for all poses in a benchmark_results.json.
     Saves incrementally to out_pkl; restores progress on restart.
+
+    receptor_map: optional {complex_name: receptor_pdb_path}. Used when the JSON
+    does not carry receptor_pdb and there is no scoring/ crop on disk (e.g. the
+    n=100 gen_subset, whose receptors live in datasets/training_formatted_peppc/).
     """
     if out_pkl.exists() and not force_rerun:
         with open(out_pkl, "rb") as f:
@@ -238,7 +243,9 @@ def extract_features_for_dataset(json_path: str, label: str,
         for mkey, res in model_results.items():
             poses_dir = Path(res["poses_dir"])
             rmsds     = res.get("ref_rmsds", [])
-            rec_pdb   = res.get("receptor_pdb") or _find_receptor(poses_dir)
+            rec_pdb   = (res.get("receptor_pdb")
+                         or (receptor_map.get(cname) if receptor_map else None)
+                         or _find_receptor(poses_dir))
 
             if rec_pdb is None:
                 n_skip += len(rmsds); continue
@@ -302,12 +309,28 @@ def _find_receptor(poses_dir: Path) -> str | None:
     return None
 
 
+def _receptor_map_from_csv(csv_path: str) -> dict[str, str]:
+    """Build {complex_name: receptor_pdb} from a training CSV (name,receptor,...)."""
+    import csv as _csv
+    rmap: dict[str, str] = {}
+    with open(csv_path, newline="") as fh:
+        for row in _csv.DictReader(fh):
+            if row.get("name") and row.get("receptor"):
+                rmap[row["name"]] = row["receptor"]
+    return rmap
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bench",     action="store_true", default=True)
     ap.add_argument("--gen",       action="store_true")
     ap.add_argument("--out-dir",   default=str(OUT_DIR))
     ap.add_argument("--rerun",     action="store_true", help="Force re-extraction")
+    # Custom dataset (e.g. n=100 gen subset): supply JSON + receptor CSV + out path.
+    ap.add_argument("--json",      help="Custom benchmark_results.json to score")
+    ap.add_argument("--csv",       help="CSV mapping complex name → receptor PDB")
+    ap.add_argument("--out-pkl",   help="Output pkl for the custom dataset")
+    ap.add_argument("--label",     default="custom")
     args = ap.parse_args()
     out = Path(args.out_dir)
 
@@ -315,6 +338,18 @@ def main():
     pr, sfxn = init_pyrosetta()
     log.info("ref2015 ready. Extracting physics features (raw poses, NO relaxation).")
     log.info("Rationale: FastRelax compresses score range 6×, τ drops 0.174→0.139.")
+
+    # Custom dataset path takes priority and runs alone.
+    if args.json:
+        if not (args.csv and args.out_pkl):
+            ap.error("--json requires --csv (receptor map) and --out-pkl")
+        rmap = _receptor_map_from_csv(args.csv)
+        log.info("=== %s (custom) === receptor_map=%d entries", args.label, len(rmap))
+        extract_features_for_dataset(
+            args.json, args.label, Path(args.out_pkl),
+            pr, sfxn, force_rerun=args.rerun, receptor_map=rmap)
+        log.info("Custom extraction done → %s", args.out_pkl)
+        return
 
     if args.bench:
         log.info("=== bench300 ===")
