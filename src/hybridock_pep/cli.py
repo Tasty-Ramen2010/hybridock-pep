@@ -120,7 +120,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_dock.add_argument(
         "--calibration",
-        default="data/calibration.json",
+        default="data/calibration_v1_4_balanced.json",
         metavar="JSON",
         help="Path to calibration.json for entropy correction (default: data/calibration.json).",
     )
@@ -151,7 +151,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_cal.add_argument(
         "--output",
-        default="data/calibration.json",
+        default="data/calibration_v1_4_balanced.json",
         metavar="JSON",
         help="Output calibration.json path (default: data/calibration.json).",
     )
@@ -226,7 +226,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_bench.add_argument(
         "--calibration",
-        default="data/calibration.json",
+        default="data/calibration_v1_4_balanced.json",
         metavar="JSON",
         help="Path to calibration.json (default: data/calibration.json).",
     )
@@ -246,7 +246,7 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="Two or more integer seeds (e.g. --seeds 1 2 3).")
     p_rep.add_argument("--n-samples", type=int, default=100, metavar="N")
     p_rep.add_argument("--scoring", default="vina", metavar="BACKENDS")
-    p_rep.add_argument("--calibration", default="data/calibration.json",
+    p_rep.add_argument("--calibration", default="data/calibration_v1_4_balanced.json",
                        metavar="JSON")
     p_rep.add_argument("--output-dir", required=True, metavar="DIR",
                        help="Parent dir; seed_N/ subdirs are created per seed.")
@@ -282,7 +282,7 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="RNG seed (CUDA + bootstrap).")
     p_sel.add_argument("--scoring", default="vina", metavar="BACKENDS",
                        help="Scoring backends (default: vina). Same flag as dock.")
-    p_sel.add_argument("--calibration", default="data/calibration.json", metavar="JSON",
+    p_sel.add_argument("--calibration", default="data/calibration_v1_4_balanced.json", metavar="JSON",
                        help="Calibration JSON used on both sides.")
     p_sel.add_argument("--output-dir", required=True, metavar="DIR",
                        help="Parent dir; target/ and offtarget/ subdirs are created.")
