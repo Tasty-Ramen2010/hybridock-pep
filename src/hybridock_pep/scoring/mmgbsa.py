@@ -33,6 +33,44 @@ _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 # Platform selection
 # ---------------------------------------------------------------------------
 
+def _pdbfixer_addH(pdb_path: Path) -> Path:
+    """Run pdbfixer on a PDB to add missing terminal atoms + hydrogens.
+
+    Returns a path to a written file (a temp file when fixes were applied,
+    or the original path when pdbfixer produced no changes). Handles:
+
+      * Pocket-cropped receptors with truncated backbone at the crop
+        boundary (otherwise Modeller.addHydrogens chokes with "No template
+        found for residue X (ALA). Chain missing terminal capping group").
+      * Peptide poses written as heavy-atoms-only (RAPiDock / minimization
+        output) — pdbfixer adds NTermini/CTermini hydrogens that match
+        the AMBER ff14SB template set used downstream.
+    """
+    try:
+        from pdbfixer import PDBFixer  # type: ignore[import-untyped]
+        import openmm.app as app
+    except ImportError:
+        logger.warning(
+            "pdbfixer not available — MM-GBSA may fail on terminal residues"
+        )
+        return pdb_path
+
+    fixer = PDBFixer(filename=str(pdb_path))
+    # findMissingResidues finds INTERNAL gaps (chain breaks); we don't fill
+    # those because they would change connectivity. Clear it so addMissingAtoms
+    # only handles partially-resolved residues, not invented sequence.
+    fixer.findMissingResidues()
+    fixer.missingResidues = {}
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens(pH=7.4)
+
+    tmp = Path(tempfile.mkstemp(prefix="mmgbsa_fixed_", suffix=".pdb")[1])
+    with tmp.open("w") as fh:
+        app.PDBFile.writeFile(fixer.topology, fixer.positions, fh)
+    return tmp
+
+
 def _get_platform(force_cpu: bool):
     """Return (platform, properties) for CUDA → OpenCL → CPU in priority order.
 
@@ -179,20 +217,40 @@ def compute_mmgbsa_single(
     platform, props = _get_platform(force_cpu)
     ff = app.ForceField(*_FF_FILES)
 
-    # 1. Load receptor and peptide separately
-    receptor_obj = app.PDBFile(str(receptor_pdb))
-    peptide_obj = app.PDBFile(str(pose_pdb))
+    # 1. Load receptor and peptide separately, running each through pdbfixer
+    #    to add missing heavy atoms + terminal-aware hydrogens. Without this
+    #    step, Modeller.addHydrogens silently fails on:
+    #      * pocket-cropped receptors (residue at the crop boundary has a
+    #        truncated backbone — "missing 1 C atom, chain missing terminal
+    #        capping group"), and
+    #      * peptide poses (RAPiDock writes heavy-atoms-only PDBs — Modeller
+    #        sees the N-terminal residue and can't decide ALA vs NALA).
+    #    pdbfixer ships with the terminal residue templates and handles both.
+    receptor_pdb_capped = _pdbfixer_addH(receptor_pdb)
+    peptide_pdb_capped = _pdbfixer_addH(pose_pdb)
+    try:
+        receptor_obj = app.PDBFile(str(receptor_pdb_capped))
+        peptide_obj = app.PDBFile(str(peptide_pdb_capped))
+    finally:
+        # Clean up the temp files pdbfixer wrote.
+        for tmp in (receptor_pdb_capped, peptide_pdb_capped):
+            if tmp != receptor_pdb and tmp != pose_pdb:
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
     n_rec_chains = sum(1 for _ in receptor_obj.topology.chains())
 
     # 2. Combine into one topology via Modeller
     modeller = app.Modeller(receptor_obj.topology, receptor_obj.positions)
     modeller.add(peptide_obj.topology, peptide_obj.positions)
 
-    # 3. Add hydrogens using the force field's protonation model at pH 7.4
+    # 3. Modeller's addHydrogens is now a no-op (pdbfixer already added them)
+    #    but call it anyway so any chain-junction residues get standardized.
     try:
         modeller.addHydrogens(ff, pH=7.4)
     except Exception as exc:
-        logger.warning("MM-GBSA: addHydrogens failed (%s); proceeding without", exc)
+        logger.debug("MM-GBSA: post-fixer addHydrogens noop reported %s", exc)
 
     combined_topology = modeller.topology
     combined_positions = modeller.positions
