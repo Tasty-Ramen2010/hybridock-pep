@@ -31,6 +31,56 @@ from hybridock_pep.output.metadata import write_metadata_skeleton, finalize_meta
 logger = logging.getLogger(__name__)
 
 
+# Hard cap on auto-box edge. A 100 Å Vina grid at 0.375 Å spacing eats ~7 GB
+# per worker × N CPU workers — beyond this, Vina is OOM-killed on commodity
+# hardware. Poses requiring a bigger box are assumed to be off-pocket and are
+# filtered out instead of growing the grid (see _filter_offpocket_poses).
+_AUTO_BOX_MAX_AA: float = 100.0
+# Off-pocket Cα-centroid cutoff. RAPiDock occasionally drops poses on
+# adjacent receptor surfaces (especially on extended/groove binding sites or
+# tetrameric receptors); those poses have a meaningful Vina score against the
+# wrong patch of surface and pollute the cluster analysis.
+_OFFPOCKET_CENTROID_AA: float = 35.0
+
+
+def _filter_offpocket_poses(
+    config: DockConfig,
+    records: list[PoseRecord],
+    log: logging.Logger | None = None,
+) -> list[PoseRecord]:
+    """Drop poses whose Cα centroid is more than ``_OFFPOCKET_CENTROID_AA``
+    from ``config.site_coords``.
+
+    These poses sample receptor surfaces away from the user-specified site
+    (common on tetrameric / extended-groove receptors, and the root cause of
+    the PfLDH run-1 OOM where auto-box grew to 180 Å). Filtering them out
+    before grid construction keeps Vina's memory footprint bounded.
+    """
+    log = log or logger
+    if not records:
+        return records
+    site = np.array(config.site_coords)
+    keep, dropped = [], []
+    for r in records:
+        if r.ca_coords is None or len(r.ca_coords) == 0:
+            keep.append(r)
+            continue
+        centroid = np.asarray(r.ca_coords).mean(axis=0)
+        if np.linalg.norm(centroid - site) <= _OFFPOCKET_CENTROID_AA:
+            keep.append(r)
+        else:
+            dropped.append(r.pose_idx)
+    if dropped:
+        log.warning(
+            "Auto-box off-pocket filter: dropping %d/%d poses whose Cα centroid "
+            "is > %.0f Å from user site %s (pose indices: %s%s)",
+            len(dropped), len(records), _OFFPOCKET_CENTROID_AA,
+            tuple(round(float(x), 1) for x in site),
+            dropped[:10], "..." if len(dropped) > 10 else "",
+        )
+    return keep
+
+
 def _auto_expand_box_for_poses(
     config: DockConfig,
     records: list[PoseRecord],
@@ -101,6 +151,20 @@ def _auto_expand_box_for_poses(
 
     # Need a bigger box; round up to a tenth-of-Å for clean logs.
     new_edge = round((max_offset + safety_margin) * 2 + 0.5, 1)
+    if new_edge > _AUTO_BOX_MAX_AA:
+        # Refuse to grow beyond the OOM-safe cap; clip to it and warn loudly.
+        # Off-pocket poses should have been filtered upstream by
+        # _filter_offpocket_poses(); if we still need >100 Å the user's
+        # site_coords are probably wrong (try the pose-centroid centroid
+        # documented in docs/calibration_notes.md PfLDH section).
+        log.warning(
+            "Auto-box: needed %.1f Å but capping at %.1f Å (OOM safety). "
+            "Some poses will be clipped during Vina scoring. Likely cause: "
+            "site_coords mismatch — try setting --site to the pose-centroid "
+            "centroid instead.",
+            new_edge, _AUTO_BOX_MAX_AA,
+        )
+        new_edge = _AUTO_BOX_MAX_AA
     log.warning(
         "Auto-box: poses extend %.1f Å from site; user box %.1f Å too small. "
         "Expanding to %.1f Å (+safety %.1f Å). Set --box ≥ %.0f next time to silence.",
@@ -199,10 +263,21 @@ def run_dock(
                 shutil.copy2(record.pdb_path, dest)
         logger.debug("poses_scored/ written: %d files → %s", len(records), scored_dir)
 
-    # Stage 1.7: Auto-expand box_size if pose spread exceeds user box.
-    # The user's --box flag becomes a MINIMUM; we never silently clip poses.
-    # Triggered when any pose has a heavy atom > config.box_size / 2 from
-    # site_coords on any axis (which would clip during Vina grid scoring).
+    # Stage 1.7a: Drop off-pocket poses (Cα centroid > 35 Å from site_coords).
+    # These are RAPiDock noise on tetrameric / extended-surface receptors; if
+    # kept they force the grid to balloon (the PfLDH run-1 OOM at 180 Å came
+    # from this). Filtering them out keeps Vina's memory footprint bounded
+    # AND removes off-pocket scores that would pollute clustering.
+    n_before = len(records)
+    records = _filter_offpocket_poses(config, records)
+    if len(records) < n_before:
+        logger.info(
+            "Stage 1.7a: off-pocket filter kept %d/%d poses",
+            len(records), n_before,
+        )
+
+    # Stage 1.7b: Auto-expand box_size if pose spread exceeds user box.
+    # The user's --box flag becomes a MINIMUM; capped at 100 Å for OOM safety.
     config = _auto_expand_box_for_poses(config, records)
 
     # Stage 2a: Receptor prep (always required for Vina scoring)

@@ -152,14 +152,45 @@ def write_best_pose_pdb(
             f"best_pose_idx={best_pose_idx} not found in scored_poses "
             f"(available: {sorted(pose_by_idx)})"
         )
-    src = pose_by_idx[best_pose_idx].pdb_path
+    selected = pose_by_idx[best_pose_idx]
     dest = config.output_dir / "best_pose.pdb"
-
-    if not src.exists():
-        raise FileNotFoundError(f"Source pose PDB not found: {src}")
-
     dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dest)
+
+    # Prefer the Vina-optimized geometry when one exists. Vina's clash-relief
+    # `v.optimize()` is more aggressive than the OpenMM minimization (it can
+    # move atoms beyond the 0.5 Å displacement cap), so the PDBQT it writes is
+    # the geometry that produced the reported Vina score. Visualizing the
+    # original poses_minimized/ PDB shows the *pre*-Vina-optimize geometry,
+    # which can look clashed even when Vina settled to a clean negative score.
+    pdbqt_path = selected.pdbqt_path
+    if pdbqt_path is not None and pdbqt_path.exists():
+        # Convert PDBQT → PDB via openbabel (already required for the pipeline).
+        try:
+            import subprocess as _sp
+            _sp.run(
+                ["obabel", str(pdbqt_path), "-O", str(dest)],
+                check=True, capture_output=True, timeout=30,
+            )
+            logger.debug(
+                "best_pose.pdb written from Vina-optimized PDBQT %s",
+                pdbqt_path,
+            )
+        except (FileNotFoundError, _sp.CalledProcessError, _sp.TimeoutExpired) as exc:
+            logger.warning(
+                "PDBQT→PDB conversion failed (%s); falling back to "
+                "pre-optimize pose PDB. The output geometry will reflect "
+                "Stage 1.5 minimization only, not Vina clash relief.",
+                exc,
+            )
+            shutil.copy2(selected.pdb_path, dest)
+    else:
+        # Legacy path / no PDBQT available — copy the pose PDB as-is.
+        if not selected.pdb_path.exists():
+            raise FileNotFoundError(
+                f"Source pose PDB not found: {selected.pdb_path}"
+            )
+        shutil.copy2(selected.pdb_path, dest)
+    src = selected.pdb_path
     selected_pose = pose_by_idx[best_pose_idx]
     score_val = selected_pose.mmgbsa_dg if selected_pose.mmgbsa_dg is not None else selected_pose.hybrid_score
     logger.info(
