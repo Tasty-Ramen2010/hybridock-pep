@@ -75,7 +75,7 @@ MODEL_CKPTS: dict[str, Path] = {
     "v3c":        FT / "finetune_peppc_v3c_phase2" / "rapidock_finetuned_best.pt",
     "v4c":        FT / "finetune_peppc_v4c_phase2" / "rapidock_finetuned_best.pt",
     "v5c":        FT / "finetune_peppc_v5c_phase2" / "rapidock_finetuned_best.pt",
-    "v6":         REPO / "logs" / "v6_run" / "phase1" / "rapidock_finetuned_best.pt",
+    "v6":         REPO / "logs" / "v6_run" / "phase2" / "rapidock_finetuned_best.pt",
 }
 
 MODEL_ORDER = ["pretrained", "v1", "v2", "v3", "v3c", "v4c", "v5c", "v6"]
@@ -126,15 +126,27 @@ def _site_and_box(crystal_peptide_pdb: Path) -> tuple[tuple[float, float, float]
     """Derive (site_coords, box_size) from crystal peptide Cα centroid + extent.
 
     site_coords = centroid of crystal Cα atoms.
-    box_size = max per-axis span of Cα atoms + 10 Å (ensures the whole peptide
-               extent is covered, not just the center).  Minimum 20 Å.
+    box_size = length-aware: short peptides get a tighter box to concentrate
+               sampling. Long peptides keep the full span + 10 Å buffer.
+
+    Length classes (by residue count):
+      ≤ 8 residues  → max(span + 6,  14)  — tight box
+      ≤ 12 residues → max(span + 8,  16)  — medium
+      > 12 residues → max(span + 10, 20)  — original formula
     """
     ca = _ca_coords_from_pdb(crystal_peptide_pdb)
     if len(ca) == 0:
         raise ValueError(f"No CA atoms in crystal peptide: {crystal_peptide_pdb}")
     center = ca.mean(axis=0)
     spans = ca.max(axis=0) - ca.min(axis=0)
-    box_size = float(max(max(spans) + 10.0, 20.0))
+    span = float(max(spans))
+    n = len(ca)
+    if n <= 8:
+        box_size = float(max(span + 6.0, 14.0))
+    elif n <= 12:
+        box_size = float(max(span + 8.0, 16.0))
+    else:
+        box_size = float(max(span + 10.0, 20.0))
     return (float(center[0]), float(center[1]), float(center[2])), box_size
 
 
@@ -337,6 +349,7 @@ def compute_metrics(
     ref2015_scores: list[Optional[float]],
     n_topk: int = 5,
     hit_threshold: float = 2.0,
+    mmgbsa_scores: Optional[list[Optional[float]]] = None,
 ) -> dict:
     """Compute pose-quality and ranking metrics from per-pose RMSD + scores.
 
@@ -378,6 +391,17 @@ def compute_metrics(
         top1_rmsd = float(valid_rmsds[0])
         topk_rmsds = valid_rmsds[:n_topk]
 
+    # Optional MM-GBSA reranking: take ref2015 top-K poses, pick best by MM-GBSA
+    mmgbsa_top1_rmsd = float("nan")
+    if mmgbsa_scores is not None:
+        valid_mmgbsa = [mmgbsa_scores[i] for i in valid_idx]
+        has_mmgbsa = any(s is not None for s in valid_mmgbsa)
+        if has_mmgbsa:
+            mm_pairs = [(s if s is not None else float("inf"), r)
+                        for s, r in zip(valid_mmgbsa, valid_rmsds)]
+            mm_ranked = sorted(mm_pairs, key=lambda x: x[0])
+            mmgbsa_top1_rmsd = float(mm_ranked[0][1])
+
     hit_at1 = float(top1_rmsd <= hit_threshold)
     hit_atk = float(any(r <= hit_threshold for r in topk_rmsds))
 
@@ -411,6 +435,7 @@ def compute_metrics(
 
     return {
         "top1_rmsd": top1_rmsd,
+        "mmgbsa_top1_rmsd": mmgbsa_top1_rmsd,
         "hit_at1": hit_at1,
         f"hit_at{n_topk}": hit_atk,
         "best_rmsd": best_rmsd,
@@ -467,6 +492,7 @@ def eval_complex(
     rapidock_python: str,
     skip_ref2015: bool,
     tmp_dir: Path,
+    mmgbsa_topk: int = 0,
 ) -> dict:
     """Run inference + scoring + metrics for one complex × all models.
 
@@ -571,8 +597,29 @@ def eval_complex(
         else:
             ref2015_scores = [None] * len(poses)
 
+        # Stage 3.5: optional MM-GBSA reranking on ref2015 top-K poses
+        mmgbsa_scores: Optional[list[Optional[float]]] = None
+        if mmgbsa_topk > 0 and not skip_ref2015 and any(s is not None for s in ref2015_scores):
+            try:
+                from hybridock_pep.scoring.mmgbsa import compute_mmgbsa_single  # noqa: PLC0415
+                # rank by ref2015, score MM-GBSA on top-K, leave rest as None
+                ranked_idx = sorted(
+                    [i for i, s in enumerate(ref2015_scores) if s is not None],
+                    key=lambda i: ref2015_scores[i],  # type: ignore[index]
+                )[:mmgbsa_topk]
+                mmgbsa_scores = [None] * len(poses)
+                for i in ranked_idx:
+                    try:
+                        mmgbsa_scores[i] = compute_mmgbsa_single(poses[i], cropped_receptor)
+                    except Exception as exc:
+                        log.debug("[%s][%s] MM-GBSA failed pose %d: %s", cname, label, i, exc)
+                n_mm = sum(1 for s in mmgbsa_scores if s is not None)
+                log.info("[%s][%s] MM-GBSA: %d/%d topk poses scored", cname, label, n_mm, mmgbsa_topk)
+            except ImportError:
+                log.warning("hybridock_pep.scoring.mmgbsa not available — skipping MM-GBSA")
+
         # Stage 4: aggregate metrics
-        metrics = compute_metrics(rmsds, ref2015_scores, n_topk=5)
+        metrics = compute_metrics(rmsds, ref2015_scores, n_topk=5, mmgbsa_scores=mmgbsa_scores)
         metrics.update({
             "complex": cname,
             "model": label,
@@ -804,8 +851,8 @@ def _try_write_plots(agg: dict, out_dir: Path, hit_atk_key: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--n-samples",   type=int,   default=25,
-                    help="Poses per model per complex (default 25)")
+    ap.add_argument("--n-samples",   type=int,   default=100,
+                    help="Poses per model per complex (default 100)")
     ap.add_argument("--n-per-cell",  type=int,   default=5,
                     help="Complexes per (SS × length) cell (default 5 → 60 total)")
     ap.add_argument("--seed",        type=int,   default=42)
@@ -820,6 +867,9 @@ def main() -> None:
                     help="Cap total complexes evaluated (debugging)")
     ap.add_argument("--n-topk",      type=int,   default=5,
                     help="k for hit@k metric (default 5)")
+    ap.add_argument("--mmgbsa-topk", type=int,   default=0,
+                    help="Run MM-GBSA on ref2015 top-K poses and report reranked top-1 RMSD "
+                         "(0 = disabled; 5 recommended, adds ~2 min/complex)")
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -908,6 +958,7 @@ def main() -> None:
                 rapidock_python=rapidock_python,
                 skip_ref2015=args.skip_ref2015,
                 tmp_dir=tmp_dir,
+                mmgbsa_topk=args.mmgbsa_topk,
             )
             all_results[cname] = results
 

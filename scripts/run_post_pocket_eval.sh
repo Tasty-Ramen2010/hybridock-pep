@@ -24,14 +24,14 @@ echo "============================================================"
 echo "[post-pocket-eval] Starting 8-model benchmark"
 echo "  Dataset:   benchmark300.csv → 60 stratified complexes"
 echo "  Models:    pretrained + v1 + v2 + v3 + v3c + v4c + v5c + v6"
-echo "  n-samples: 25  seed: 42"
+echo "  n-samples: 100  seed: 42"
 echo "  Out dir:   $OUT"
 echo "  Started:   $(date)"
 echo "============================================================"
 
 conda run --no-capture-output -n score-env python3 -u \
     "$REPO/scripts/run_post_pocket_eval.py" \
-    --n-samples   25 \
+    --n-samples   100 \
     --n-per-cell  5 \
     --seed        42 \
     --out-dir     "$OUT"
