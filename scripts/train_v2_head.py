@@ -21,7 +21,7 @@ import logging
 import math
 import pickle
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
+
 from itertools import combinations
 from pathlib import Path
 
@@ -156,6 +156,7 @@ def train_head(
     epochs: int,
     seed: int,
 ) -> dict:
+    torch.set_num_threads(1)  # tiny tensors — thread overhead kills perf
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -246,14 +247,13 @@ def run_cv(ds: dict, label: str, in_dim: int, epochs: int, workers: int) -> pd.D
             })
 
     rows = []
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        futs = {pool.submit(_worker, s): s for s in specs}
-        for fut in as_completed(futs):
-            try:
-                rows.append(fut.result())
-            except Exception as e:
-                s = futs[fut]
-                log.error("FAILED %s fold=%d seed=%d: %s", label, s["fold"], s["seed"], e)
+    for i, s in enumerate(specs):
+        try:
+            rows.append(_worker(s))
+            if (i + 1) % 3 == 0:
+                log.info("  %s: %d / %d folds×seeds done", label, i + 1, len(specs))
+        except Exception as e:
+            log.error("FAILED %s fold=%d seed=%d: %s", label, s["fold"], s["seed"], e)
 
     df = pd.DataFrame(rows)
     log.info(
