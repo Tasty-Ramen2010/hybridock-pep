@@ -105,7 +105,11 @@ def load_encoder(device: str):
     params["confidence_mode"] = True
     model = ConfidenceModel(Namespace(**params))
     ckpt = torch.load(PRETRAINED, map_location="cpu")
-    model.load_state_dict(ckpt.get("model_state_dict", ckpt), strict=False)
+    # ckpt structure: {'epoch': int, 'model': OrderedDict, 'ema_weights': dict}
+    # Use ckpt['model'] directly; ckpt.get('model_state_dict', ckpt) falls back to the
+    # outer dict (epoch/model/ema keys) which matches nothing and leaves backbone random.
+    state = ckpt.get("model", ckpt.get("model_state_dict", ckpt))
+    model.load_state_dict(state, strict=False)
     # CRITICAL: eval mode freezes BN running stats — never call model.train()
     model.eval()
     for p in model.parameters():
@@ -176,7 +180,9 @@ def _inject_pose(bg, pos):
 
 @torch.no_grad()
 def extract_features(encoder, json_data: dict, base_graphs: dict,
-                     device: str, batch_size: int = 32, label: str = "") -> dict:
+                     device: str, batch_size: int = 16, label: str = "",
+                     partial_cache: Path | None = None,
+                     checkpoint_every: int = 100) -> dict:
     """Extract 96-dim encoder features for all poses.
 
     Returns:
@@ -193,12 +199,22 @@ def extract_features(encoder, json_data: dict, base_graphs: dict,
             for i, rmsd in enumerate(rmsds):
                 entries.append((cname, mkey, poses_dir, i, float(rmsd), n_graph))
 
-    feat_map = {}
-    n_ok = 0
+    # Resume from partial checkpoint if available.
+    feat_map: dict = {}
+    if partial_cache is not None and partial_cache.exists():
+        with open(partial_cache, "rb") as f:
+            feat_map = pickle.load(f)
+        log.info("  %s: resumed %d existing features from %s", label, len(feat_map), partial_cache)
+
+    n_ok = len(feat_map)
+    batch_idx = 0
     for b_start in range(0, len(entries), batch_size):
         batch = entries[b_start: b_start + batch_size]
         graphs, keys = [], []
         for cname, mkey, poses_dir, i, rmsd, n_graph in batch:
+            key = (cname, mkey, i)
+            if key in feat_map:
+                continue  # already extracted in a prior run
             pdb = poses_dir / f"pose_{i}.pdb"
             if not pdb.exists(): continue
             bg = base_graphs[cname]
@@ -214,12 +230,21 @@ def extract_features(encoder, json_data: dict, base_graphs: dict,
                 g = _inject_pose(bg, pos)
                 set_time(g, 0.0, 0.0, 0.0, 0.0, 1, device="cpu")
                 graphs.append(g)
-                keys.append((cname, mkey, i))
+                keys.append(key)
             except Exception:
                 continue
 
-        if not graphs: continue
-        gbatch = Batch.from_data_list(graphs).to(device)
+        if not graphs:
+            batch_idx += 1
+            continue
+        try:
+            gbatch = Batch.from_data_list(graphs).to(device)
+        except Exception:
+            log.warning("  %s: batch transfer failed at b_start=%d, skipping", label, b_start)
+            if device != "cpu":
+                torch.cuda.empty_cache()
+            batch_idx += 1
+            continue
 
         # Hook the first Linear of confidence_predictor to capture 96-dim input
         feats_captured = []
@@ -233,8 +258,17 @@ def extract_features(encoder, json_data: dict, base_graphs: dict,
             encoder(gbatch)
         except Exception:
             handle.remove()
+            del gbatch
+            if device != "cpu":
+                torch.cuda.empty_cache()
+            batch_idx += 1
             continue
         handle.remove()
+
+        # Free GPU batch immediately after forward pass.
+        del gbatch
+        if device != "cpu":
+            torch.cuda.empty_cache()
 
         if not feats_captured: continue
         feats = feats_captured[0].numpy()  # shape [batch, 96]
@@ -243,25 +277,38 @@ def extract_features(encoder, json_data: dict, base_graphs: dict,
                 feat_map[key] = feats[ki]
                 n_ok += 1
 
+        batch_idx += 1
         if b_start % (batch_size * 10) == 0:
             log.info("  %s: %d / %d poses extracted", label, n_ok, len(entries))
+
+        # Periodic intermediate save so crashes don't lose all progress.
+        if partial_cache is not None and batch_idx % checkpoint_every == 0:
+            with open(partial_cache, "wb") as f:
+                pickle.dump(feat_map, f)
+            log.info("  %s: checkpoint saved (%d poses) → %s", label, n_ok, partial_cache)
 
     log.info("%s: extracted %d / %d pose features", label, n_ok, len(entries))
     return feat_map
 
 
-def load_or_extract(encoder, json_data, csv_path, tmp_dir, device, cache_path, label):
+def load_or_extract(encoder, json_data, csv_path, tmp_dir, device, cache_path, label,
+                    batch_size: int = 16):
     if Path(cache_path).exists():
         log.info("Loading cached features: %s", cache_path)
         with open(cache_path, "rb") as f:
             return pickle.load(f)
+    partial_cache = Path(str(cache_path) + ".partial")
     log.info("Building base graphs for %s...", label)
     base_graphs = _build_base_graphs(json_data, csv_path, tmp_dir)
     log.info("Extracting features for %s...", label)
-    feat_map = extract_features(encoder, json_data, base_graphs, device, label=label)
+    feat_map = extract_features(encoder, json_data, base_graphs, device,
+                                batch_size=batch_size, label=label,
+                                partial_cache=partial_cache)
     with open(cache_path, "wb") as f:
         pickle.dump(feat_map, f)
     log.info("Saved feature cache: %s", cache_path)
+    if partial_cache.exists():
+        partial_cache.unlink()
     return feat_map
 
 
