@@ -854,10 +854,10 @@ def run_exp_e(bench_ds: dict, bench_val: list, device: str) -> list[dict]:
             for cname, pose_data in feats_captured.items():
                 if len(pose_data) < 2:
                     continue
-                feats_v = torch.tensor(np.array([p[0] for p in pose_data], dtype=np.float32))
+                feats_v = torch.tensor(np.array([p[0] for p in pose_data], dtype=np.float32)).to(device)
                 rmsds_v = np.array([p[1] for p in pose_data])
                 with torch.no_grad():
-                    scores_v = enc.confidence_predictor(feats_v).squeeze(-1).numpy()
+                    scores_v = enc.confidence_predictor(feats_v).squeeze(-1).cpu().numpy()
                 tau, _ = _sp.kendalltau(-scores_v, rmsds_v)
                 if not math.isnan(tau):
                     taus.append(tau)
@@ -975,6 +975,8 @@ def main() -> None:
     ap.add_argument("--device",   default="cuda")
     ap.add_argument("--skip-e",   action="store_true",
                     help="Skip encoder finetuning (Exp E)")
+    ap.add_argument("--only-e",   action="store_true",
+                    help="Skip A-F, load interim CSV, run only Exp E then merge")
     ap.add_argument("--workers",  type=int, default=8,
                     help="Parallel workers for head training")
     ap.add_argument("--epochs",   type=int, default=50)
@@ -1003,41 +1005,51 @@ def main() -> None:
              len(bench_all), len(bench_val))
     log.info("gen_ood:  %d complexes", len(gen_ds))
 
-    # ── build all specs ───────────────────────────────────────────────────────
-    all_specs: list[dict] = []
-    all_specs += build_exp_a_specs(bench_ds, bench_val)
-    all_specs += build_exp_b_specs(bench_ds, bench_val)
-    all_specs += build_exp_c_specs(bench_ds, bench_val, meta)
-    all_specs += build_exp_d_specs(bench_ds, gen_ds, bench_val)
-    all_specs += build_exp_f_specs(bench_ds, gen_ds, meta)
-
-    log.info("Total head-training jobs: %d", len(all_specs))
-
-    # ── run in parallel ───────────────────────────────────────────────────────
     rows: list[dict] = []
-    completed = 0
-    n_total   = len(all_specs)
 
-    # spawn avoids CUDA-context inheritance that breaks forked subprocesses
-    mp_ctx = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=args.workers, mp_context=mp_ctx) as pool:
-        futures = {pool.submit(_worker, spec): spec for spec in all_specs}
-        for fut in as_completed(futures):
-            try:
-                rows.append(fut.result())
-            except Exception as exc:
-                spec = futures[fut]
-                log.error("FAILED %s/%s seed=%s: %s",
-                          spec["exp"], spec["label"], spec["seed"], exc)
-            completed += 1
-            if completed % 20 == 0:
-                log.info("  Progress: %d / %d", completed, n_total)
+    if args.only_e:
+        # Load A-F results from previously saved interim CSV
+        interim_path = OUT / "all_results_interim.csv"
+        if interim_path.exists():
+            rows = pd.read_csv(interim_path).to_dict("records")
+            log.info("Loaded %d A-F rows from interim CSV", len(rows))
+        else:
+            log.warning("--only-e set but no interim CSV found; A-F results will be missing")
+    else:
+        # ── build all specs ───────────────────────────────────────────────────
+        all_specs: list[dict] = []
+        all_specs += build_exp_a_specs(bench_ds, bench_val)
+        all_specs += build_exp_b_specs(bench_ds, bench_val)
+        all_specs += build_exp_c_specs(bench_ds, bench_val, meta)
+        all_specs += build_exp_d_specs(bench_ds, gen_ds, bench_val)
+        all_specs += build_exp_f_specs(bench_ds, gen_ds, meta)
 
-    log.info("All head-training jobs done. %d results.", len(rows))
+        log.info("Total head-training jobs: %d", len(all_specs))
 
-    # Intermediate save — protect A–F results before GPU Exp E
-    pd.DataFrame(rows).to_csv(OUT / "all_results_interim.csv", index=False)
-    log.info("Interim results saved (%d rows)", len(rows))
+        # ── run in parallel ───────────────────────────────────────────────────
+        completed = 0
+        n_total   = len(all_specs)
+
+        # spawn avoids CUDA-context inheritance that breaks forked subprocesses
+        mp_ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=args.workers, mp_context=mp_ctx) as pool:
+            futures = {pool.submit(_worker, spec): spec for spec in all_specs}
+            for fut in as_completed(futures):
+                try:
+                    rows.append(fut.result())
+                except Exception as exc:
+                    spec = futures[fut]
+                    log.error("FAILED %s/%s seed=%s: %s",
+                              spec["exp"], spec["label"], spec["seed"], exc)
+                completed += 1
+                if completed % 20 == 0:
+                    log.info("  Progress: %d / %d", completed, n_total)
+
+        log.info("All head-training jobs done. %d results.", len(rows))
+
+        # Intermediate save — protect A–F results before GPU Exp E
+        pd.DataFrame(rows).to_csv(OUT / "all_results_interim.csv", index=False)
+        log.info("Interim results saved (%d rows)", len(rows))
 
     # ── Exp E (main process, GPU) ─────────────────────────────────────────────
     if not args.skip_e:
