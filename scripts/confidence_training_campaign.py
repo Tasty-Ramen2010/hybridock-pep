@@ -714,7 +714,8 @@ def run_exp_e(bench_ds: dict, bench_val: list, device: str) -> list[dict]:
         log.info("  %s: unfreezing %d cross_conv block(s)...", label, n_unfreeze)
         model = ConfidenceModel(_NS(**params))
         ckpt  = torch.load(PRETRAINED, map_location="cpu")
-        model.load_state_dict(ckpt.get("model_state_dict", ckpt), strict=False)
+        _ckpt_state = ckpt.get("model", ckpt.get("model_state_dict", ckpt))
+        model.load_state_dict(_ckpt_state, strict=False)
         model.eval()
 
         # Freeze all params
@@ -772,9 +773,25 @@ def run_exp_e(bench_ds: dict, bench_val: list, device: str) -> list[dict]:
                 if len(cx_data) < 2:
                     continue
                 n_cx = len(cx_data)
-                batch_g = Batch.from_data_list([g for g, _ in cx_data]).to(device)
                 try:
+                    batch_g = Batch.from_data_list([g for g, _ in cx_data]).to(device)
                     scores = model(batch_g)  # [n_poses]
+                    del batch_g
+                except RuntimeError as _oom:
+                    if "out of memory" not in str(_oom).lower():
+                        continue
+                    if device != "cpu":
+                        torch.cuda.empty_cache()
+                    # Fall back: score one pose at a time
+                    try:
+                        scores_list = []
+                        for g_i, _ in cx_data:
+                            g_dev = Batch.from_data_list([g_i]).to(device)
+                            scores_list.append(model(g_dev).squeeze(0))
+                            del g_dev
+                        scores = torch.stack(scores_list)
+                    except Exception:
+                        continue
                 except Exception:
                     continue
 
