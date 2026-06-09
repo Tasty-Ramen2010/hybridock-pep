@@ -17,11 +17,14 @@ from hybridock_pep.selectivity import (
 
 
 def _make_scored(idx: int, hybrid: float, tmp_path: Path) -> ScoredPose:
+    # Selectivity ΔΔG now ranks on vina_score (the cross-receptor signal), not the
+    # entropy-corrected hybrid which cancels in ΔΔG. Set both for the helper.
     return ScoredPose(
         pose_idx=idx,
         pdb_path=tmp_path / f"p{idx}.pdb",
         sequence="LIS",
         ca_coords=np.zeros((3, 3)),
+        vina_score=hybrid,
         hybrid_score=hybrid,
     )
 
@@ -41,11 +44,11 @@ class TestTopKDg:
         poses = [_make_scored(0, -5.0, tmp_path), _make_scored(1, -7.0, tmp_path)]
         assert _top_k_dg(poses, k=10) == [-7.0, -5.0]
 
-    def test_skips_poses_without_hybrid_score(self, tmp_path: Path) -> None:
+    def test_skips_poses_without_score(self, tmp_path: Path) -> None:
         poses = [
             _make_scored(0, -5.0, tmp_path),
             ScoredPose(pose_idx=1, pdb_path=tmp_path / "p1.pdb",
-                       sequence="LIS", ca_coords=np.zeros((3, 3))),  # no hybrid_score
+                       sequence="LIS", ca_coords=np.zeros((3, 3))),  # no vina_score
             _make_scored(2, -7.0, tmp_path),
         ]
         assert _top_k_dg(poses, k=5) == [-7.0, -5.0]
@@ -53,8 +56,16 @@ class TestTopKDg:
     def test_raises_when_no_scored_poses(self, tmp_path: Path) -> None:
         poses = [ScoredPose(pose_idx=0, pdb_path=tmp_path / "p.pdb",
                             sequence="LIS", ca_coords=np.zeros((3, 3)))]
-        with pytest.raises(ValueError, match="hybrid_score"):
+        with pytest.raises(ValueError, match="vina_score"):
             _top_k_dg(poses, k=1)
+
+    def test_selectivity_ignores_hybrid_uses_vina(self, tmp_path: Path) -> None:
+        # A pose with a great hybrid but poor vina must rank by vina for ΔΔG.
+        p = ScoredPose(pose_idx=0, pdb_path=tmp_path / "p.pdb", sequence="LIS",
+                       ca_coords=np.zeros((3, 3)), vina_score=-3.0, hybrid_score=-99.0)
+        q = ScoredPose(pose_idx=1, pdb_path=tmp_path / "q.pdb", sequence="LIS",
+                       ca_coords=np.zeros((3, 3)), vina_score=-8.0, hybrid_score=-1.0)
+        assert _top_k_dg([p, q], k=1) == [-8.0]  # ranked by vina, not hybrid
 
 
 class TestBootstrapDdg:

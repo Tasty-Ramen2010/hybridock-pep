@@ -55,10 +55,12 @@ class SelectivityResult:
     n_offtarget_poses: int
     bootstrap_n: int
     top_k: int
+    score_field: str = "vina_score"
 
     def to_json(self) -> dict[str, object]:
         return {
             "peptide": self.peptide,
+            "score_field": self.score_field,
             "target_dg_mean_kcal_mol": self.target_dg,
             "offtarget_dg_mean_kcal_mol": self.offtarget_dg,
             "ddg_kcal_mol": self.ddg,
@@ -78,17 +80,51 @@ class SelectivityResult:
         }
 
 
-def _top_k_dg(poses: list[ScoredPose], k: int) -> list[float]:
-    """Return ΔG_corrected for the top-K poses by (lowest) corrected ΔG.
+# Score field used to rank poses and form ΔΔG, in priority order for "auto".
+#
+# IMPORTANT — why NOT hybrid_score for selectivity:
+#   ΔΔG = ΔG_target − ΔG_offtarget is computed for ONE peptide against TWO
+#   receptors. The entropy / burial correction (α·N_contact or w·s_ss_weighted)
+#   is a property of the *peptide*, so it largely cancels in the difference and
+#   only injects noise from differing contact counts between the two runs. The
+#   signal that actually distinguishes the two targets is the intermolecular
+#   interaction energy: MM-GBSA ΔG_bind (best, when --refine-topk ran) or the
+#   raw Vina score. So selectivity defaults to MM-GBSA → Vina, never the
+#   entropy-corrected hybrid. Empirically (PfLDH vs hLDH, LISDAELEAIFEADC) the
+#   hybrid compresses |ΔΔG| ~4× vs Vina, washing out the discrimination.
+_SCORE_FIELDS = ("mmgbsa_dg", "vina_score", "hybrid_score")
+
+
+def _resolve_score_field(poses: list[ScoredPose], requested: str) -> str:
+    """Pick the score attribute for ΔΔG. 'auto' = first populated of MM-GBSA, Vina."""
+    if requested != "auto":
+        if requested not in _SCORE_FIELDS:
+            raise ValueError(f"score_field must be 'auto' or one of {_SCORE_FIELDS}; got {requested!r}")
+        return requested
+    for field in ("mmgbsa_dg", "vina_score"):
+        if any(getattr(p, field) is not None for p in poses):
+            return field
+    raise ValueError("no poses carry mmgbsa_dg or vina_score — cannot compute ΔΔG")
+
+
+def _top_k_dg(poses: list[ScoredPose], k: int, score_field: str = "vina_score") -> list[float]:
+    """Return the ΔG of the top-K poses ranked by (lowest) ``score_field``.
+
+    Args:
+        poses: Scored poses for one receptor.
+        k: Number of best poses to take.
+        score_field: Attribute to rank by and return — one of ``_SCORE_FIELDS``.
+            Selectivity should use ``mmgbsa_dg`` or ``vina_score``, NOT
+            ``hybrid_score`` (see module note above).
 
     Raises:
-        ValueError: If no poses have a corrected ΔG (calibration was skipped).
+        ValueError: If no poses carry the requested score.
     """
-    scored = [p for p in poses if p.hybrid_score is not None]
+    scored = [p for p in poses if getattr(p, score_field) is not None]
     if not scored:
-        raise ValueError("no poses with hybrid_score — was calibration applied?")
-    scored.sort(key=lambda p: p.hybrid_score)  # type: ignore[arg-type, return-value]
-    return [float(p.hybrid_score) for p in scored[: max(1, k)]]  # type: ignore[arg-type]
+        raise ValueError(f"no poses with {score_field} — was that scoring stage run?")
+    scored.sort(key=lambda p: getattr(p, score_field))
+    return [float(getattr(p, score_field)) for p in scored[: max(1, k)]]
 
 
 def _bootstrap_ddg(
@@ -118,6 +154,7 @@ def run_selectivity(
     seed: int | None = None,
     input_poses_target: Path | None = None,
     input_poses_offtarget: Path | None = None,
+    score_field: str = "auto",
 ) -> SelectivityResult:
     """Run the docking pipeline on target and off-target, compute ΔΔG.
 
@@ -159,8 +196,12 @@ def run_selectivity(
         calibration_path=calibration_path,
     )
 
-    t_dg = _top_k_dg(t_poses, top_k)
-    o_dg = _top_k_dg(o_poses, top_k)
+    # Resolve the scoring field once, using both pose sets so the same field is
+    # used on each side (a ΔΔG built from mismatched fields would be meaningless).
+    field = _resolve_score_field(t_poses + o_poses, score_field)
+    _log.info("Selectivity: ΔΔG scored on '%s' (entropy hybrid excluded — it cancels)", field)
+    t_dg = _top_k_dg(t_poses, top_k, field)
+    o_dg = _top_k_dg(o_poses, top_k, field)
 
     rng = np.random.default_rng(seed)
     ci_low, ci_high = _bootstrap_ddg(t_dg, o_dg, bootstrap_n, rng)
@@ -176,6 +217,7 @@ def run_selectivity(
         n_offtarget_poses=len(o_dg),
         bootstrap_n=bootstrap_n,
         top_k=top_k,
+        score_field=field,
     )
 
     # Persist result alongside the two output dirs.

@@ -120,9 +120,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_dock.add_argument(
         "--calibration",
-        default="data/calibration_v1_4_balanced.json",
+        default="data/calibration_v1_2_production_entropy.json",
         metavar="JSON",
-        help="Path to calibration.json for entropy correction (default: data/calibration.json).",
+        help="Path to calibration JSON for entropy correction "
+             "(default: data/calibration_v1_2_production_entropy.json; "
+             "v1.4 was reverted — LOO r=0.30 vs v1.2's 0.72, see "
+             "docs/scoring_overhaul_plan.md).",
     )
     p_dock.add_argument(
         "--no-minimize",
@@ -246,7 +249,8 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="Two or more integer seeds (e.g. --seeds 1 2 3).")
     p_rep.add_argument("--n-samples", type=int, default=100, metavar="N")
     p_rep.add_argument("--scoring", default="vina", metavar="BACKENDS")
-    p_rep.add_argument("--calibration", default="data/calibration_v1_4_balanced.json",
+    p_rep.add_argument("--calibration",
+                       default="data/calibration_v1_2_production_entropy.json",
                        metavar="JSON")
     p_rep.add_argument("--output-dir", required=True, metavar="DIR",
                        help="Parent dir; seed_N/ subdirs are created per seed.")
@@ -282,8 +286,9 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="RNG seed (CUDA + bootstrap).")
     p_sel.add_argument("--scoring", default="vina", metavar="BACKENDS",
                        help="Scoring backends (default: vina). Same flag as dock.")
-    p_sel.add_argument("--calibration", default="data/calibration_v1_4_balanced.json", metavar="JSON",
-                       help="Calibration JSON used on both sides.")
+    p_sel.add_argument("--calibration",
+                       default="data/calibration_v1_2_production_entropy.json", metavar="JSON",
+                       help="Calibration JSON used on both sides (default: v1.2; v1.4 reverted).")
     p_sel.add_argument("--output-dir", required=True, metavar="DIR",
                        help="Parent dir; target/ and offtarget/ subdirs are created.")
     p_sel.add_argument("--input-poses-target", default=None, metavar="DIR",
@@ -292,6 +297,11 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="Optional pre-generated off-target poses (skip Stage 1).")
     p_sel.add_argument("--no-minimize", action="store_true", default=False,
                        help="Disable OpenMM minimization on both sides.")
+    p_sel.add_argument("--score-field", default="auto",
+                       choices=["auto", "mmgbsa_dg", "vina_score", "hybrid_score"],
+                       help="Score used for ΔΔG. 'auto' = MM-GBSA if --refine-topk ran, "
+                            "else Vina. The entropy-corrected hybrid is a poor selectivity "
+                            "signal (it cancels in ΔΔG) and is only allowed if forced.")
 
     return parser
 
@@ -486,6 +496,7 @@ def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) 
         seed=args.seed,
         input_poses_target=Path(args.input_poses_target).resolve() if args.input_poses_target else None,
         input_poses_offtarget=Path(args.input_poses_offtarget).resolve() if args.input_poses_offtarget else None,
+        score_field=args.score_field,
     )
     logger.info(
         "Selectivity complete: ΔΔG=%+.2f kcal/mol  CI95=[%+.2f, %+.2f]  →  %s",
