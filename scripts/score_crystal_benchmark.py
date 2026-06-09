@@ -40,14 +40,18 @@ def main() -> None:
     ap.add_argument("--ie", action="store_true", help="Add Interaction-Entropy −TΔS.")
     ap.add_argument("--3traj", dest="three_traj", action="store_true", help="Three-trajectory MM-GBSA.")
     ap.add_argument("--eps", type=float, default=1.0, help="GB internal dielectric εin.")
+    ap.add_argument("--gpu", action="store_true",
+                    help="Use OpenMM CUDA platform (only when the GPU is free — never "
+                         "contend with a production dock). Default CPU.")
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "benchmark_crystal_scored.json")
     args = ap.parse_args()
+    use_cpu = not args.gpu
 
     rows = json.loads(MANIFEST.read_text())
     if args.limit:
         rows = rows[: args.limit]
     tag = f"εin={args.eps}{'+IE' if args.ie else ''}{'+3traj' if args.three_traj else ''}"
-    print(f"Scoring {len(rows)} crystal complexes | {tag} | CPU\n")
+    print(f"Scoring {len(rows)} crystal complexes | {tag} | {'GPU' if args.gpu else 'CPU'}\n")
 
     scored = []
     for i, r in enumerate(rows, 1):
@@ -56,14 +60,14 @@ def main() -> None:
         t0 = time.time()
         try:
             dh = compute_mmgbsa_single(
-                pose_pdb=peptide, receptor_pdb=pocket, force_cpu=True,
+                pose_pdb=peptide, receptor_pdb=pocket, force_cpu=use_cpu,
                 solute_dielectric=args.eps, three_traj=args.three_traj,
             )
             dg = dh
             ie = None
             if args.ie:
                 e_int = sample_interaction_energies(
-                    pose_pdb=peptide, receptor_pdb=pocket, force_cpu=True,
+                    pose_pdb=peptide, receptor_pdb=pocket, force_cpu=use_cpu,
                     solute_dielectric=args.eps,
                 )
                 ie = interaction_entropy(e_int)
