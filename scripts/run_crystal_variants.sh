@@ -22,4 +22,8 @@ run baseline                       # εin=1, single-traj, no entropy
 run 3traj      --3traj             # three-trajectory (unbound relaxation)
 run ie         --ie                # interaction entropy
 run ie3traj    --ie --3traj        # full SOTA-style config
-echo "ALL VARIANTS COMPLETE $(date '+%H:%M:%S')" | tee -a "$LOG"
+
+# Leakage-free per-family vs single-ridge verdict (independent of MM-GBSA; cheap).
+echo "==================== per-family eval $(date '+%H:%M:%S') ====================" | tee -a "$LOG"
+$PY scripts/eval_per_family.py >> "$LOG" 2>&1
+echo "ALL VARIANTS + PER-FAMILY EVAL COMPLETE $(date '+%H:%M:%S')" | tee -a "$LOG"
