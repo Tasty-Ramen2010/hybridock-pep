@@ -28,6 +28,19 @@ _MINIMIZE_MAXITER: int = 2000
 _TEMPERATURE_K: float = 300.0
 _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 
+# Internal (solute) dielectric for the GB calculation. OpenMM's default is 1.0.
+# The protein-peptide MM/PBSA(GBSA) literature finds εin ~1.4-2.0 best on large
+# curated sets (JCIM 2018, 10.1021/acs.jcim.8b00248), but our own screen on the
+# PepSet complexes (scripts/screen_dielectric.py, 2026-06) did NOT reproduce this:
+# εin=2/4 inverted the ΔG correlation sign; only εin=1 kept the physically
+# correct sign (+0.58 on n=4). That screen is inconclusive (n=4 after 2 crop
+# failures, and the speed-crop confounds the electrostatics εin scales), so we
+# keep the OpenMM default 1.0 until a larger structurally-resolved Kd set settles
+# it. See docs/scoring_overhaul_plan.md §5 decision log. The value is now a tunable
+# parameter (compute_mmgbsa_single(solute_dielectric=...)) so re-screening is cheap.
+_SOLUTE_DIELECTRIC: float = 1.0
+_SOLVENT_DIELECTRIC: float = 78.5
+
 
 # ---------------------------------------------------------------------------
 # Platform selection
@@ -127,6 +140,8 @@ def _context_energy_kcal(
     platform,
     platform_props: dict,
     minimize: bool = False,
+    solute_dielectric: float = _SOLUTE_DIELECTRIC,
+    solvent_dielectric: float = _SOLVENT_DIELECTRIC,
 ) -> tuple[float, object]:
     """Build an OpenMM Context, optionally minimize, return (energy_kcal, context).
 
@@ -139,6 +154,10 @@ def _context_energy_kcal(
         platform: openmm.Platform to use.
         platform_props: Platform-specific properties dict.
         minimize: If True, run LocalEnergyMinimizer before reading energy.
+        solute_dielectric: GB internal (solute) dielectric εin. Default
+            ``_SOLUTE_DIELECTRIC``. Must match across complex/receptor/peptide
+            energies in a single ΔG calculation.
+        solvent_dielectric: GB external (solvent) dielectric. Default 78.5.
 
     Returns:
         Tuple of (potential_energy_kcal, context).
@@ -151,6 +170,8 @@ def _context_energy_kcal(
         topology,
         nonbondedMethod=app.NoCutoff,
         constraints=app.HBonds,
+        soluteDielectric=solute_dielectric,
+        solventDielectric=solvent_dielectric,
     )
     integrator = _make_integrator()
 
@@ -183,6 +204,8 @@ def compute_mmgbsa_single(
     pose_pdb: Path,
     receptor_pdb: Path,
     force_cpu: bool = False,
+    solute_dielectric: float = _SOLUTE_DIELECTRIC,
+    solvent_dielectric: float = _SOLVENT_DIELECTRIC,
 ) -> float:
     """Compute MM-GBSA ΔG_bind for a single docked pose.
 
@@ -257,7 +280,8 @@ def compute_mmgbsa_single(
 
     # 4. Minimize complex and capture energy + minimized positions
     e_complex, ctx_complex = _context_energy_kcal(
-        combined_topology, combined_positions, ff, platform, props, minimize=True
+        combined_topology, combined_positions, ff, platform, props, minimize=True,
+        solute_dielectric=solute_dielectric, solvent_dielectric=solvent_dielectric,
     )
     min_positions = ctx_complex.getState(getPositions=True).getPositions()
 
@@ -269,7 +293,8 @@ def compute_mmgbsa_single(
     if peptide_chains:
         mod_rec.delete(peptide_chains)
     e_receptor, _ = _context_energy_kcal(
-        mod_rec.topology, mod_rec.positions, ff, platform, props, minimize=False
+        mod_rec.topology, mod_rec.positions, ff, platform, props, minimize=False,
+        solute_dielectric=solute_dielectric, solvent_dielectric=solvent_dielectric,
     )
 
     # 6. Peptide-only energy at minimized geometry
@@ -280,7 +305,8 @@ def compute_mmgbsa_single(
     if receptor_chains:
         mod_pep.delete(receptor_chains)
     e_peptide, _ = _context_energy_kcal(
-        mod_pep.topology, mod_pep.positions, ff, platform, props, minimize=False
+        mod_pep.topology, mod_pep.positions, ff, platform, props, minimize=False,
+        solute_dielectric=solute_dielectric, solvent_dielectric=solvent_dielectric,
     )
 
     delta_g = e_complex - e_receptor - e_peptide
