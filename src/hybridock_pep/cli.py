@@ -100,6 +100,23 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_dock.add_argument(
+        "--mmgbsa-ie", action="store_true", default=False,
+        help="Add the signed Interaction-Entropy −TΔS term to MM-GBSA ΔG (short "
+             "trajectory per pose). Targets the conformational entropy that "
+             "dominates flexible-peptide binding. Requires --refine-topk.",
+    )
+    p_dock.add_argument(
+        "--mmgbsa-3traj", action="store_true", default=False,
+        help="Three-trajectory MM-GBSA: relax the unbound peptide/receptor "
+             "separately instead of reading them from the bound geometry "
+             "(removes the disorder bias for floppy peptides). Requires --refine-topk.",
+    )
+    p_dock.add_argument(
+        "--mmgbsa-dielectric", type=float, default=1.0, metavar="EPS",
+        help="GB internal dielectric εin for MM-GBSA (default 1.0; the PepSet "
+             "screen did not support raising it — see docs/scoring_overhaul_plan.md).",
+    )
+    p_dock.add_argument(
         "--output-dir",
         required=True,
         metavar="DIR",
@@ -340,6 +357,9 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             minimize_poses=not args.no_minimize,
             refine_topk=args.refine_topk,
             mmgbsa_cpu_only=args.mmgbsa_cpu_only,
+            mmgbsa_include_ie=args.mmgbsa_ie,
+            mmgbsa_3traj=args.mmgbsa_3traj,
+            mmgbsa_solute_dielectric=args.mmgbsa_dielectric,
         )
     except ValidationError as exc:
         parser.error(str(exc))
