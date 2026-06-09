@@ -123,6 +123,7 @@ def train_head(head: nn.Module, train_pairs: list, val_pairs: list,
         return {"train_acc": nan, "val_acc": nan, "best_val_acc": nan,
                 "best_epoch": -1, "overfit_gap": nan}
 
+    torch.set_num_threads(1)  # tiny tensors — avoid 72-thread BLAS overhead
     torch.manual_seed(seed)
     # Re-init head weights deterministically
     def _reset(m: nn.Module) -> None:
