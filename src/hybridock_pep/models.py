@@ -51,6 +51,11 @@ class DockConfig(BaseModel):
     minimize_poses: bool = True
     refine_topk: int | None = None
     mmgbsa_cpu_only: bool = False
+    # MM-GBSA refinement options (overhaul steps 3-4; opt-in, off by default so
+    # the validated single-trajectory path is unchanged unless requested).
+    mmgbsa_include_ie: bool = False   # add Interaction-Entropy −TΔS to ΔG_bind
+    mmgbsa_3traj: bool = False        # 3-trajectory (relax unbound peptide+receptor)
+    mmgbsa_solute_dielectric: float = 1.0  # GB εin; screen kept 1.0 (see mmgbsa.py)
 
     @field_validator("peptide_sequence")
     @classmethod

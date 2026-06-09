@@ -206,6 +206,7 @@ def compute_mmgbsa_single(
     force_cpu: bool = False,
     solute_dielectric: float = _SOLUTE_DIELECTRIC,
     solvent_dielectric: float = _SOLVENT_DIELECTRIC,
+    three_traj: bool = False,
 ) -> float:
     """Compute MM-GBSA ΔG_bind for a single docked pose.
 
@@ -292,8 +293,11 @@ def compute_mmgbsa_single(
     peptide_chains = all_chains[n_rec_chains:]
     if peptide_chains:
         mod_rec.delete(peptide_chains)
+    # 1-traj: read receptor energy at the bound geometry (components share the
+    # complex's conformation). 3-traj: relax the receptor on its own, capturing
+    # the conformational reorganization energy on dissociation.
     e_receptor, _ = _context_energy_kcal(
-        mod_rec.topology, mod_rec.positions, ff, platform, props, minimize=False,
+        mod_rec.topology, mod_rec.positions, ff, platform, props, minimize=three_traj,
         solute_dielectric=solute_dielectric, solvent_dielectric=solvent_dielectric,
     )
 
@@ -304,8 +308,11 @@ def compute_mmgbsa_single(
     receptor_chains = all_chains_pep[:n_rec_chains]
     if receptor_chains:
         mod_pep.delete(receptor_chains)
+    # 3-traj matters most here: a free linear peptide is disordered, so reading
+    # its energy from the bound (ordered) geometry over-stabilizes binding. The
+    # extra minimization recovers the peptide's relaxed unbound energy.
     e_peptide, _ = _context_energy_kcal(
-        mod_pep.topology, mod_pep.positions, ff, platform, props, minimize=False,
+        mod_pep.topology, mod_pep.positions, ff, platform, props, minimize=three_traj,
         solute_dielectric=solute_dielectric, solvent_dielectric=solvent_dielectric,
     )
 
@@ -406,24 +413,66 @@ def refine_topk_poses(
     )
 
     representatives = _select_topk_representatives(scored_poses, cluster_result, k)
-    logger.info("MM-GBSA: selected %d representatives from %d clusters", len(representatives), k)
+
+    # Step-2 pose gating: don't spend MM-GBSA on poses that diffused into the
+    # receptor (is_clashed) — their bound geometry is unphysical and the ΔG is
+    # garbage. Keep them only if gating would leave nothing to score.
+    gated = [p for p in representatives if not p.is_clashed]
+    if not gated:
+        logger.warning("MM-GBSA: all %d reps are clashed; scoring them anyway", len(representatives))
+        gated = representatives
+    elif len(gated) < len(representatives):
+        logger.info("MM-GBSA gating: dropped %d clashed reps, %d remain",
+                    len(representatives) - len(gated), len(gated))
+
+    logger.info(
+        "MM-GBSA: %d representatives (mode=%s%s, εin=%.1f)",
+        len(gated),
+        "3-traj" if config.mmgbsa_3traj else "1-traj",
+        "+IE" if config.mmgbsa_include_ie else "",
+        config.mmgbsa_solute_dielectric,
+    )
 
     n_ok = 0
-    for pose in representatives:
+    for pose in gated:
         try:
             dg = compute_mmgbsa_single(
                 pose_pdb=pose.pdb_path.resolve(),
                 receptor_pdb=receptor_pdb,
                 force_cpu=config.mmgbsa_cpu_only,
+                solute_dielectric=config.mmgbsa_solute_dielectric,
+                three_traj=config.mmgbsa_3traj,
             )
+            # Step-3: add the signed Interaction-Entropy −TΔS (favours rigid
+            # interfaces, penalises floppy ones). Only when requested, since it
+            # needs a short trajectory per pose.
+            if config.mmgbsa_include_ie:
+                from hybridock_pep.scoring.interaction_entropy import (  # noqa: PLC0415
+                    interaction_entropy, sample_interaction_energies,
+                )
+                e_int = sample_interaction_energies(
+                    pose_pdb=pose.pdb_path.resolve(),
+                    receptor_pdb=receptor_pdb,
+                    force_cpu=config.mmgbsa_cpu_only,
+                    solute_dielectric=config.mmgbsa_solute_dielectric,
+                )
+                minus_tds = interaction_entropy(e_int)
+                dg = dg + minus_tds
+                logger.info("MM-GBSA pose %d: ΔH≈%.2f −TΔS_IE=%.2f → ΔG=%.2f",
+                            pose.pose_idx, dg - minus_tds, minus_tds, dg)
             pose.mmgbsa_dg = dg
             n_ok += 1
-            logger.info(
-                "MM-GBSA pose %d: ΔG = %.2f kcal/mol", pose.pose_idx, dg
-            )
+            logger.info("MM-GBSA pose %d: ΔG = %.2f kcal/mol", pose.pose_idx, dg)
         except Exception as exc:
-            logger.warning(
-                "MM-GBSA failed for pose %d (%s); skipping", pose.pose_idx, exc
-            )
+            logger.warning("MM-GBSA failed for pose %d (%s); skipping", pose.pose_idx, exc)
 
-    logger.info("Stage 3.5 complete: %d/%d MM-GBSA calculations succeeded", n_ok, len(representatives))
+    # Step-2 two-step workflow: surface the MM-GBSA (affinity) re-ranking of the
+    # refined poses. The diffusion/Vina rank chose the binding *mode*; MM-GBSA
+    # ΔG re-orders within the refined set. Downstream output ranks by mmgbsa_dg
+    # when present, so we just log the re-rank here for traceability.
+    refined = sorted((p for p in gated if p.mmgbsa_dg is not None), key=lambda p: p.mmgbsa_dg)
+    if refined:
+        order = ", ".join(f"#{p.pose_idx}={p.mmgbsa_dg:.1f}" for p in refined[:5])
+        logger.info("MM-GBSA affinity re-rank (best first): %s", order)
+
+    logger.info("Stage 3.5 complete: %d/%d MM-GBSA calculations succeeded", n_ok, len(gated))
