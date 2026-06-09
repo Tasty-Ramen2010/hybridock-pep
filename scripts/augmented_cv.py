@@ -113,14 +113,26 @@ def eval_tau(head, pool, complexes, lo, hi):
 
 
 def main():
-    bench = load_pool(BENCH_ENC, BENCH_PHYS, BENCH_JSON)
-    has_gen = GEN_ENC.exists() and GEN_PHYS.exists() and GEN_JSON.exists()
-    gen = load_pool(GEN_ENC, GEN_PHYS, GEN_JSON) if has_gen else {}
-    log.info("bench complexes=%d  gen_n100 complexes=%d  (gen ready=%s)",
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bench-enc",  default=str(BENCH_ENC))
+    ap.add_argument("--bench-phys", default=str(BENCH_PHYS))
+    ap.add_argument("--gen-enc",    default=str(GEN_ENC))
+    ap.add_argument("--gen-phys",   default=str(GEN_PHYS))
+    ap.add_argument("--gen-json",   default=str(GEN_JSON))
+    a = ap.parse_args()
+    from pathlib import Path as _P
+    benc, bphys = _P(a.bench_enc), _P(a.bench_phys)
+    genc, gphys, gjson = _P(a.gen_enc), _P(a.gen_phys), _P(a.gen_json)
+
+    bench = load_pool(benc, bphys, BENCH_JSON)
+    has_gen = genc.exists() and gphys.exists() and gjson.exists()
+    gen = load_pool(genc, gphys, gjson) if has_gen else {}
+    log.info("bench complexes=%d  gen complexes=%d  (gen ready=%s)",
              len(bench), len(gen), has_gen)
     if not has_gen:
-        log.warning("gen_n100 features not found yet — run after generation+extraction.")
-        log.warning("  need: %s, %s, %s", GEN_ENC, GEN_PHYS, GEN_JSON)
+        log.warning("gen features not found yet — run after generation+extraction.")
+        log.warning("  need: %s, %s, %s", genc, gphys, gjson)
         return
 
     bcx = sorted(bench)
