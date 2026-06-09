@@ -48,6 +48,23 @@ findings.
 - Absolute ΔG must be reported only as calibrated/relative to a known binder,
   with the ceiling stated — as `docs/scoring_accuracy_analysis.md` already does.
 
+## Interaction Entropy (IE) — tested, rejected on two grounds
+
+The one variant with a non-size-additive mechanism, so it got a direct test
+(GPU was free). Two independent reasons it is not pursued:
+
+1. **Impractical.** IE needs a per-pose trajectory (≈50 ps) plus ~200 component-
+   energy context rebuilds. A 14-complex CPU probe did not finish a *single*
+   complex in 6 min. In this WSL2 env OpenMM's CUDA context for the real GBn2
+   protein system falls back to CPU (a trivial CUDA context succeeds; the GBn2
+   system does not), so the GPU gives no speedup. At ~100 poses/production run
+   this is non-viable.
+2. **Same dead axis.** −TΔS_IE ∝ interface interaction-energy variance ∝ interface
+   size, so it cannot break the size confound that caps every other feature.
+
+MM-GBSA + IE / 3-traj are therefore not added to the production path. The
+opt-in flags (`--mmgbsa-ie`, `--mmgbsa-3traj`) remain for research only.
+
 ## Scripts (reproducible)
 - `scripts/build_crystal_benchmark.py` → the 65-complex crystal set.
 - `scripts/analyze_crystal_benchmark.py` → size-confound controls on MM-GBSA.
