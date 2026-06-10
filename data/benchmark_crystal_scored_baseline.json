@@ -1,0 +1,578 @@
+[
+  {
+    "pdb": "1NRL",
+    "pkd": 6.0,
+    "dg_exp": -8.1798,
+    "peptide_len": 15,
+    "mmgbsa_dh": -72.62056847470478,
+    "ie": null,
+    "mmgbsa_dg": -72.62056847470478
+  },
+  {
+    "pdb": "1Q8W",
+    "pkd": 5.796,
+    "dg_exp": -7.9016868,
+    "peptide_len": 20,
+    "mmgbsa_dh": -89.33540101347944,
+    "ie": null,
+    "mmgbsa_dg": -89.33540101347944
+  },
+  {
+    "pdb": "1T5Z",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 11,
+    "mmgbsa_dh": -52.355065146893025,
+    "ie": null,
+    "mmgbsa_dg": -52.355065146893025
+  },
+  {
+    "pdb": "1T63",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 14,
+    "mmgbsa_dh": -64.92883613134859,
+    "ie": null,
+    "mmgbsa_dg": -64.92883613134859
+  },
+  {
+    "pdb": "1T76",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 9,
+    "mmgbsa_dh": -46.01427855287807,
+    "ie": null,
+    "mmgbsa_dg": -46.01427855287807
+  },
+  {
+    "pdb": "1T7M",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 12,
+    "mmgbsa_dh": -63.269855584826814,
+    "ie": null,
+    "mmgbsa_dg": -63.269855584826814
+  },
+  {
+    "pdb": "1T7R",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 10,
+    "mmgbsa_dh": -58.57609492378367,
+    "ie": null,
+    "mmgbsa_dg": -58.57609492378367
+  },
+  {
+    "pdb": "1X7J",
+    "pkd": 7.62,
+    "dg_exp": -10.388346,
+    "peptide_len": 10,
+    "mmgbsa_dh": -52.936212714061526,
+    "ie": null,
+    "mmgbsa_dg": -52.936212714061526
+  },
+  {
+    "pdb": "1YDS",
+    "pkd": 5.921,
+    "dg_exp": -8.0720993,
+    "peptide_len": 20,
+    "mmgbsa_dh": -106.92544890974887,
+    "ie": null,
+    "mmgbsa_dg": -106.92544890974887
+  },
+  {
+    "pdb": "1YDT",
+    "pkd": 7.638,
+    "dg_exp": -10.4128854,
+    "peptide_len": 20,
+    "mmgbsa_dh": -103.76327318220888,
+    "ie": null,
+    "mmgbsa_dg": -103.76327318220888
+  },
+  {
+    "pdb": "1ZGY",
+    "pkd": 5.481,
+    "dg_exp": -7.472247299999999,
+    "peptide_len": 12,
+    "mmgbsa_dh": -71.09511546233608,
+    "ie": null,
+    "mmgbsa_dg": -71.09511546233608
+  },
+  {
+    "pdb": "2GNI",
+    "pkd": 5.796,
+    "dg_exp": -7.9016868,
+    "peptide_len": 20,
+    "mmgbsa_dh": -112.51434740385116,
+    "ie": null,
+    "mmgbsa_dg": -112.51434740385116
+  },
+  {
+    "pdb": "2Q7I",
+    "pkd": 9.398,
+    "dg_exp": -12.8122934,
+    "peptide_len": 10,
+    "mmgbsa_dh": -52.91021744876713,
+    "ie": null,
+    "mmgbsa_dg": -52.91021744876713
+  },
+  {
+    "pdb": "2Q7J",
+    "pkd": 9.398,
+    "dg_exp": -12.8122934,
+    "peptide_len": 13,
+    "mmgbsa_dh": -54.97014313909165,
+    "ie": null,
+    "mmgbsa_dg": -54.97014313909165
+  },
+  {
+    "pdb": "2Q7K",
+    "pkd": 9.398,
+    "dg_exp": -12.8122934,
+    "peptide_len": 10,
+    "mmgbsa_dh": -57.619752571408185,
+    "ie": null,
+    "mmgbsa_dg": -57.619752571408185
+  },
+  {
+    "pdb": "2QPY",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 10,
+    "mmgbsa_dh": -53.158432902363984,
+    "ie": null,
+    "mmgbsa_dg": -53.158432902363984
+  },
+  {
+    "pdb": "3AMA",
+    "pkd": 5.0,
+    "dg_exp": -6.8165,
+    "peptide_len": 20,
+    "mmgbsa_dh": -113.040349707009,
+    "ie": null,
+    "mmgbsa_dg": -113.040349707009
+  },
+  {
+    "pdb": "3FUR",
+    "pkd": 8.0,
+    "dg_exp": -10.9064,
+    "peptide_len": 12,
+    "mmgbsa_dh": -57.61128465066912,
+    "ie": null,
+    "mmgbsa_dg": -57.61128465066912
+  },
+  {
+    "pdb": "3HQR",
+    "pkd": 5.469,
+    "dg_exp": -7.4558877,
+    "peptide_len": 17,
+    "mmgbsa_dh": -152.01282330358083,
+    "ie": null,
+    "mmgbsa_dg": -152.01282330358083
+  },
+  {
+    "pdb": "3IPQ",
+    "pkd": 5.157,
+    "dg_exp": -7.0305381,
+    "peptide_len": 15,
+    "mmgbsa_dh": -86.05314443256316,
+    "ie": null,
+    "mmgbsa_dg": -86.05314443256316
+  },
+  {
+    "pdb": "3KMR",
+    "pkd": 5.854,
+    "dg_exp": -7.9807581999999995,
+    "peptide_len": 10,
+    "mmgbsa_dh": -51.81350627535164,
+    "ie": null,
+    "mmgbsa_dg": -51.81350627535164
+  },
+  {
+    "pdb": "3L3X",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 12,
+    "mmgbsa_dh": -59.06473984935144,
+    "ie": null,
+    "mmgbsa_dg": -59.06473984935144
+  },
+  {
+    "pdb": "3L3Z",
+    "pkd": 9.602,
+    "dg_exp": -13.0904066,
+    "peptide_len": 12,
+    "mmgbsa_dh": -71.29510011919331,
+    "ie": null,
+    "mmgbsa_dg": -71.29510011919331
+  },
+  {
+    "pdb": "3OAP",
+    "pkd": 6.62,
+    "dg_exp": -9.025046,
+    "peptide_len": 11,
+    "mmgbsa_dh": -63.91842767553669,
+    "ie": null,
+    "mmgbsa_dg": -63.91842767553669
+  },
+  {
+    "pdb": "3VQH",
+    "pkd": 7.638,
+    "dg_exp": -10.4128854,
+    "peptide_len": 20,
+    "mmgbsa_dh": -116.97786882841865,
+    "ie": null,
+    "mmgbsa_dg": -116.97786882841865
+  },
+  {
+    "pdb": "4C36",
+    "pkd": 6.42,
+    "dg_exp": -8.752386,
+    "peptide_len": 20,
+    "mmgbsa_dh": -111.6150681992965,
+    "ie": null,
+    "mmgbsa_dg": -111.6150681992965
+  },
+  {
+    "pdb": "4K4J",
+    "pkd": 7.538,
+    "dg_exp": -10.2765554,
+    "peptide_len": 11,
+    "mmgbsa_dh": -66.40921129824858,
+    "ie": null,
+    "mmgbsa_dg": -66.40921129824858
+  },
+  {
+    "pdb": "4K6I",
+    "pkd": 7.745,
+    "dg_exp": -10.5587585,
+    "peptide_len": 11,
+    "mmgbsa_dh": -61.365173824946055,
+    "ie": null,
+    "mmgbsa_dg": -61.365173824946055
+  },
+  {
+    "pdb": "4LSJ",
+    "pkd": 9.572,
+    "dg_exp": -13.049507599999998,
+    "peptide_len": 10,
+    "mmgbsa_dh": -64.78044576489151,
+    "ie": null,
+    "mmgbsa_dg": -64.78044576489151
+  },
+  {
+    "pdb": "4OH5",
+    "pkd": 7.569,
+    "dg_exp": -10.3188177,
+    "peptide_len": 9,
+    "mmgbsa_dh": -56.12978466046502,
+    "ie": null,
+    "mmgbsa_dg": -56.12978466046502
+  },
+  {
+    "pdb": "4OHA",
+    "pkd": 7.367,
+    "dg_exp": -10.0434311,
+    "peptide_len": 9,
+    "mmgbsa_dh": -50.00624012177707,
+    "ie": null,
+    "mmgbsa_dg": -50.00624012177707
+  },
+  {
+    "pdb": "4OK1",
+    "pkd": 6.932,
+    "dg_exp": -9.4503956,
+    "peptide_len": 9,
+    "mmgbsa_dh": -55.95162482554633,
+    "ie": null,
+    "mmgbsa_dg": -55.95162482554633
+  },
+  {
+    "pdb": "4OKT",
+    "pkd": 7.398,
+    "dg_exp": -10.085693399999998,
+    "peptide_len": 11,
+    "mmgbsa_dh": -58.34451448568643,
+    "ie": null,
+    "mmgbsa_dg": -58.34451448568643
+  },
+  {
+    "pdb": "4POH",
+    "pkd": 5.633,
+    "dg_exp": -7.6794689,
+    "peptide_len": 11,
+    "mmgbsa_dh": -63.35578303523823,
+    "ie": null,
+    "mmgbsa_dg": -63.35578303523823
+  },
+  {
+    "pdb": "4POJ",
+    "pkd": 5.73,
+    "dg_exp": -7.8117090000000005,
+    "peptide_len": 11,
+    "mmgbsa_dh": -63.71449651827379,
+    "ie": null,
+    "mmgbsa_dg": -63.71449651827379
+  },
+  {
+    "pdb": "4PP3",
+    "pkd": 7.824,
+    "dg_exp": -10.6664592,
+    "peptide_len": 11,
+    "mmgbsa_dh": -64.82574929728605,
+    "ie": null,
+    "mmgbsa_dg": -64.82574929728605
+  },
+  {
+    "pdb": "4RMD",
+    "pkd": 7.456,
+    "dg_exp": -10.1647648,
+    "peptide_len": 11,
+    "mmgbsa_dh": -67.36683511452361,
+    "ie": null,
+    "mmgbsa_dg": -67.36683511452361
+  },
+  {
+    "pdb": "4UDD",
+    "pkd": 9.509,
+    "dg_exp": -12.9636197,
+    "peptide_len": 13,
+    "mmgbsa_dh": -62.19306130818984,
+    "ie": null,
+    "mmgbsa_dg": -62.19306130818984
+  },
+  {
+    "pdb": "5CJ6",
+    "pkd": 8.699,
+    "dg_exp": -11.8593467,
+    "peptide_len": 10,
+    "mmgbsa_dh": -64.76530225000818,
+    "ie": null,
+    "mmgbsa_dg": -64.76530225000818
+  },
+  {
+    "pdb": "5EI3",
+    "pkd": 4.248,
+    "dg_exp": -5.7912984000000005,
+    "peptide_len": 14,
+    "mmgbsa_dh": -93.08223405723504,
+    "ie": null,
+    "mmgbsa_dg": -93.08223405723504
+  },
+  {
+    "pdb": "5L11",
+    "pkd": 6.427,
+    "dg_exp": -8.7619291,
+    "peptide_len": 11,
+    "mmgbsa_dh": -55.35161111389721,
+    "ie": null,
+    "mmgbsa_dg": -55.35161111389721
+  },
+  {
+    "pdb": "5LCP",
+    "pkd": 6.337,
+    "dg_exp": -8.6392321,
+    "peptide_len": 20,
+    "mmgbsa_dh": -91.70003869667994,
+    "ie": null,
+    "mmgbsa_dg": -91.70003869667994
+  },
+  {
+    "pdb": "5NI5",
+    "pkd": 7.398,
+    "dg_exp": -10.085693399999998,
+    "peptide_len": 12,
+    "mmgbsa_dh": -53.332249735746814,
+    "ie": null,
+    "mmgbsa_dg": -53.332249735746814
+  },
+  {
+    "pdb": "5NW8",
+    "pkd": 5.796,
+    "dg_exp": -7.9016868,
+    "peptide_len": 18,
+    "mmgbsa_dh": -83.20347669458067,
+    "ie": null,
+    "mmgbsa_dg": -83.20347669458067
+  },
+  {
+    "pdb": "5O0E",
+    "pkd": 6.337,
+    "dg_exp": -8.6392321,
+    "peptide_len": 18,
+    "mmgbsa_dh": -87.35746953061471,
+    "ie": null,
+    "mmgbsa_dg": -87.35746953061471
+  },
+  {
+    "pdb": "5UNJ",
+    "pkd": 6.427,
+    "dg_exp": -8.7619291,
+    "peptide_len": 9,
+    "mmgbsa_dh": -70.49831515787463,
+    "ie": null,
+    "mmgbsa_dg": -70.49831515787463
+  },
+  {
+    "pdb": "5YCP",
+    "pkd": 5.481,
+    "dg_exp": -7.472247299999999,
+    "peptide_len": 11,
+    "mmgbsa_dh": -12.985420345248968,
+    "ie": null,
+    "mmgbsa_dg": -12.985420345248968
+  },
+  {
+    "pdb": "6D94",
+    "pkd": 10.304,
+    "dg_exp": -14.0474432,
+    "peptide_len": 15,
+    "mmgbsa_dh": -73.7997506838301,
+    "ie": null,
+    "mmgbsa_dg": -73.7997506838301
+  },
+  {
+    "pdb": "6ERW",
+    "pkd": 6.337,
+    "dg_exp": -8.6392321,
+    "peptide_len": 18,
+    "mmgbsa_dh": -94.2475359545324,
+    "ie": null,
+    "mmgbsa_dg": -94.2475359545324
+  },
+  {
+    "pdb": "6GEV",
+    "pkd": 8.699,
+    "dg_exp": -11.8593467,
+    "peptide_len": 10,
+    "mmgbsa_dh": -54.78659528973043,
+    "ie": null,
+    "mmgbsa_dg": -54.78659528973043
+  },
+  {
+    "pdb": "6GG8",
+    "pkd": 9.1,
+    "dg_exp": -12.40603,
+    "peptide_len": 10,
+    "mmgbsa_dh": -65.10856954052036,
+    "ie": null,
+    "mmgbsa_dg": -65.10856954052036
+  },
+  {
+    "pdb": "6GGG",
+    "pkd": 9.2,
+    "dg_exp": -12.542359999999999,
+    "peptide_len": 12,
+    "mmgbsa_dh": -59.79053476109243,
+    "ie": null,
+    "mmgbsa_dg": -59.79053476109243
+  },
+  {
+    "pdb": "6I2A",
+    "pkd": 5.796,
+    "dg_exp": -7.9016868,
+    "peptide_len": 18,
+    "mmgbsa_dh": -87.2614719820757,
+    "ie": null,
+    "mmgbsa_dg": -87.2614719820757
+  },
+  {
+    "pdb": "6I2C",
+    "pkd": 5.796,
+    "dg_exp": -7.9016868,
+    "peptide_len": 18,
+    "mmgbsa_dh": -89.9398366983313,
+    "ie": null,
+    "mmgbsa_dg": -89.9398366983313
+  },
+  {
+    "pdb": "6LB5",
+    "pkd": 5.886,
+    "dg_exp": -8.0243838,
+    "peptide_len": 11,
+    "mmgbsa_dh": -60.35383077211486,
+    "ie": null,
+    "mmgbsa_dg": -60.35383077211486
+  },
+  {
+    "pdb": "6ONJ",
+    "pkd": 7.319,
+    "dg_exp": -9.9779927,
+    "peptide_len": 14,
+    "mmgbsa_dh": -67.444039873939,
+    "ie": null,
+    "mmgbsa_dg": -67.444039873939
+  },
+  {
+    "pdb": "6T1V",
+    "pkd": 9.0,
+    "dg_exp": -12.2697,
+    "peptide_len": 10,
+    "mmgbsa_dh": -71.257825871015,
+    "ie": null,
+    "mmgbsa_dg": -71.257825871015
+  },
+  {
+    "pdb": "6VIF",
+    "pkd": 7.42,
+    "dg_exp": -10.115686,
+    "peptide_len": 11,
+    "mmgbsa_dh": -52.68240740493479,
+    "ie": null,
+    "mmgbsa_dg": -52.68240740493479
+  },
+  {
+    "pdb": "6YNA",
+    "pkd": 6.337,
+    "dg_exp": -8.6392321,
+    "peptide_len": 13,
+    "mmgbsa_dh": -93.98880680587149,
+    "ie": null,
+    "mmgbsa_dg": -93.98880680587149
+  },
+  {
+    "pdb": "6YW4",
+    "pkd": 5.523,
+    "dg_exp": -7.529505899999999,
+    "peptide_len": 12,
+    "mmgbsa_dh": -87.71754815615782,
+    "ie": null,
+    "mmgbsa_dg": -87.71754815615782
+  },
+  {
+    "pdb": "7APO",
+    "pkd": 5.866,
+    "dg_exp": -7.997117799999999,
+    "peptide_len": 26,
+    "mmgbsa_dh": -70.99409248467612,
+    "ie": null,
+    "mmgbsa_dg": -70.99409248467612
+  },
+  {
+    "pdb": "7BQ3",
+    "pkd": 7.495,
+    "dg_exp": -10.2179335,
+    "peptide_len": 11,
+    "mmgbsa_dh": -69.08073358726097,
+    "ie": null,
+    "mmgbsa_dg": -69.08073358726097
+  },
+  {
+    "pdb": "7KCO",
+    "pkd": 8.377,
+    "dg_exp": -11.4203641,
+    "peptide_len": 13,
+    "mmgbsa_dh": -70.21278183708387,
+    "ie": null,
+    "mmgbsa_dg": -70.21278183708387
+  },
+  {
+    "pdb": "7PDQ",
+    "pkd": 8.523,
+    "dg_exp": -11.619405899999999,
+    "peptide_len": 12,
+    "mmgbsa_dh": -69.99773717128028,
+    "ie": null,
+    "mmgbsa_dg": -69.99773717128028
+  }
+]
