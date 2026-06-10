@@ -82,3 +82,46 @@ physics demands. Sign-stable, leakage-free, cross-dataset validated.
 - `e11_why_length_flips.py` — buried/tail hypothesis (rejected; n_contact also flips)
 - `e12_simpson_decomposition.py` — within-vs-between → Simpson, per-protein baseline
 - `e13_universal_scoring.py` — sign-stable features + cross-dataset transfer + formula
+
+---
+
+## Enrichment (e14/e15): pushing the universal ΔΔG correlation
+
+Computed 12 geometric interface descriptors on both datasets; gated by within-group
+sign-stability across BOTH, then forward-selected on cross-dataset transfer.
+
+**Sign-stability (within-protein standardized slope, crystal / PEPBI):**
+sign-stable (9): n_contact, hb_count, hb_density, hb_sc, salt_bridge, sb_density,
+elec_compl, aromatic_cc, min_gap_mean, (+bsa, bsa_hphobic weakly).
+**FLIP (not universal): hydrophobic_cc, contact_pairs, pack_density** — the
+packing/size-like features, consistent with the Simpson size-confound.
+
+**Result (cross-dataset transfer = fit on one, predict other's within-protein ΔΔG):**
+
+| model | crystal→PEPBI | PEPBI→crystal | pooled within r | notes |
+|---|---|---|---|---|
+| hb_density + n_contact (prior) | 0.378 | 0.121 | 0.345 | baseline |
+| **hb_count + aromatic_cc** | **0.453** | 0.156 | 0.397 | clean signs, pre-specified |
+| + bsa | 0.488 | 0.166 | 0.427 | bsa enters as collinear size-correction |
+| + hb_density (4-feat) | 0.526 | 0.168 | 0.466 | collinear; coeffs not interpretable |
+| + salt_bridge / elec | 0.27 / 0.23 | — | — | OVERFIT (crashes transfer) |
+
+**Honest headline:** universal within-protein ΔΔG from **interface H-bond count +
+aromatic contacts** transfers crystal→PEPBI at **r ≈ 0.45** (0.49 with a burial
+correction). Up from 0.345.
+
+**Caveats kept front-and-center:**
+1. The reverse direction (PEPBI→crystal) is only ~0.16 — crystal-65's within-group
+   signal is sparse (few replicates/family) to train or test on. Validated mainly
+   in the crystal→PEPBI direction.
+2. Beyond ~3 features the model OVERFITS (20–31 groups); salt_bridge/elec crash
+   transfer. Discipline: stop at H-bond + aromatic (+ optional burial).
+3. This is RELATIVE within-protein ΔΔG, r≈0.45 — not absolute cross-protein ΔG
+   (still walled by the per-protein baseline).
+4. Forward-selection adds mild optimism; the pre-specified physical 2-feature model
+   (H-bond + aromatic) avoids it and is the number to quote.
+
+**Verdict:** real, sign-stable, cross-dataset-validated within-target ΔΔG signal at
+r≈0.45 — strongest honest peptide affinity result in this project (vs pose-ranking
+τ≈0.18). Not production-wired yet (modest r + crystal-side data sparsity); next step
+is more independent families (Complex.zip = 18k structures to mine for Kd labels).
