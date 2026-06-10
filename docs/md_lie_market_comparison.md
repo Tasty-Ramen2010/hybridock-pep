@@ -90,3 +90,35 @@ Leave-one-FAMILY-out CV on 61 complexes (60ps ⟨E_int⟩):
 mean |Δ dg_pred| = **6.7 kcal/mol** (some ±12) — larger than the whole ΔG range.
 60ps absolute energy is sampling-noise-dominated; ≥1ns needed for absolute, and
 even then walled cross-family. 60ps is adequate only for *relative* ranking.
+
+---
+
+## E10 — LENGTH is a per-dataset confound (the root cause of non-replication)
+
+User hypothesis: "length is the issue; worse scores correlate with length unless
+a really good binder gives a really good score." Tested:
+
+**TEST A — sign consistency of corr(length, ΔG):**
+- crystal-65: **+0.43** (longer binds weaker)
+- PEPBI:      **−0.24** (longer binds stronger)
+- The SIGN FLIPS across datasets. Length is not a real signal and not a fixable
+  bias — its *direction* is a per-dataset accident. Any model riding length (most
+  cheap scorers, since every feature ~ size) will FLIP SIGN on new data. This is
+  the mechanism behind every non-replication observed: H-bond count +0.47→−0.41,
+  NIS −0.54→−0.21. A fixed "+0.7·N_res" penalty cannot be universal because the
+  correct length coefficient has a different SIGN on different datasets.
+
+**TEST B — "good binders break through": FALSIFIED (backwards).** Score→ΔG is
+weaker among strong binders than weak ones (⟨E_int⟩ strong −0.13 / weak −0.41;
+nis_p strong −0.29 / weak −0.43). Scoring functions SATURATE — once binding is
+good the score caps out. The score is a bad-binder detector, not a strong-binder
+confirmer.
+
+**TEST B2 — within a fixed length bin (size-controlled, one dataset), nis_p holds
+(−0.36 / −0.68 / −0.41).** Real signal exists size-controlled within a dataset =
+the within-target regime.
+
+**Capstone conclusion:** blind absolute peptide ΔG is unsolvable by cheap methods
+because the dominant axis (length/size) has no consistent cross-dataset direction.
+This is an identifiability wall, not a missing feature. Use relative/within-target
+ΔΔG (size cancels, direction irrelevant) — the only regime that survives.
