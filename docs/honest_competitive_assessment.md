@@ -99,3 +99,38 @@ literature ITC/SPR curation (the PEPBI-style effort) — a data project, not a p
    confound that breaks naive peptide scoring; we deliver rigorous within-target
    relative ranking + selectivity, not an over-claimed absolute kcal/mol." That is
    defensible and true; a headline absolute-ΔG claim is not.
+
+---
+
+## 7. HARSHEST-CRITIC CORRECTION (e16) — the within-target r≈0.45 is a mirage
+
+Before building a per-target ranker, leave-one-binding-group-out CV on PEPBI +
+per-group breakdown:
+
+| hb_count+aromatic (leave-group-out) | value |
+|---|---|
+| pooled held-out within-group r | +0.437 |
+| **median per-group Spearman (n>=4 groups)** | **+0.05** |
+| **fraction of groups ranked correct direction** | **50% (coin flip)** |
+| per-group spread p10→p90 | −0.68 → +0.85 |
+
+Per target: TtSlyD (n127) +0.55, SH3 (n35) +0.41, α-adaptin (n27) +0.40 work; PTPA
+−0.26, SGT2 −1.00, SOCS −0.87 are backwards. **The pooled r=0.44 is n-weighted and
+dominated by 2–3 large binding groups (TtSlyD alone = 40% of pairs).** Per arbitrary
+target, the universal geometric ΔΔG ranker is ~chance on direction.
+
+**Conclusion:** the universal within-target ΔΔG signal is NOT a reliable zero-shot
+per-target tool. It works where binding is H-bond/aromatic-driven, fails otherwise,
+and we cannot predict which a priori. (Partly confounded: failing groups are the
+small ones, n=9–12, where narrow ΔG range + ITC noise inflate the coin-flip — so it
+is partly measurement noise, not pure model failure. But per-target reliability is
+UNPROVEN.) This matches the prior "oracle τ=0.97 but right-feature-is-target-specific"
+finding: universal slopes cannot know which features matter for a given protein.
+
+**Revised recommendation:** do NOT ship a universal per-target ΔΔG ranker with an
+r≈0.45 claim. Honest deliverables remain: (1) pose ranking (τ≈0.18, validated),
+(2) ΔΔG SELECTIVITY (target vs off-target — the size/baseline confound cancels in the
+difference, and you compare the SAME peptide so per-target-feature-relevance is fixed),
+(3) MD-LIE cascade for top-K accuracy. Per-target affinity ranking from instant
+geometry is not reliable enough to claim. The science (mechanism, sign-stable features,
+why it's walled) stands and is the honest contribution.
