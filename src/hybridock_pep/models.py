@@ -142,6 +142,11 @@ class ScoredPose(PoseRecord):
     entropy_correction: float | None = None
     hybrid_score: float | None = None
     mmgbsa_dg: float | None = None
+    # BSA-fit pose ranker (replaces ref2015): lower = tighter/cleaner fit.
+    # bsa = interface buried surface area (Å²); n_clash = overlapping peptide atoms.
+    bsa_fit_score: float | None = None
+    bsa: float | None = None
+    n_clash: float | None = None
     cluster_id: int | None = None
     pdbqt_path: Path | None = None
     is_ad4_anomaly: bool = False
