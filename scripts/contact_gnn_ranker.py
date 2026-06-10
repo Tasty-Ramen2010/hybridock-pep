@@ -301,11 +301,46 @@ def build_model(in_dim: int):
     return GNN(in_dim)
 
 
-# ── train / eval one fold ─────────────────────────────────────────────────────
+# ── loss config ───────────────────────────────────────────────────────────────
+# LOSS determines training objective AND how predictions map to a ranking score.
+#   huber  : regress RMSD            → score = -pred (lower predicted RMSD better)
+#   whuber : RMSD-weighted Huber     → score = -pred  (weight=exp(-rmsd/2),
+#            near-native poses dominate the gradient → targets top-k / Hit@2Å)
+#   bce    : near-native (<=2Å) BCE  → score = +pred (higher logit = near-native)
+#            pos_weight handles the 3.7% positive imbalance
+LOSS = "huber"          # set by --loss in main()
+NEAR_NATIVE = 2.0       # Å threshold for bce target
+
+
+def _compute_loss(pred, y):
+    import torch
+    import torch.nn.functional as F
+    if LOSS == "huber":
+        return F.huber_loss(pred, y, delta=2.0)
+    if LOSS == "whuber":
+        w = torch.exp(-y / 2.0)                       # near-native poses weighted up
+        per = F.huber_loss(pred, y, delta=2.0, reduction="none")
+        return (w * per).sum() / (w.sum() + 1e-9)
+    if LOSS == "bce":
+        target = (y <= NEAR_NATIVE).float()
+        frac = target.mean().clamp(1e-3, 1 - 1e-3)
+        pos_weight = (1 - frac) / frac                # up-weight rare positives
+        return F.binary_cross_entropy_with_logits(pred, target, pos_weight=pos_weight)
+    raise ValueError(LOSS)
+
+
+def _pred_to_score(preds: np.ndarray) -> np.ndarray:
+    """Map model output to a ranking score where HIGHER = better pose."""
+    if LOSS in ("huber", "whuber"):
+        return -preds                                 # predicted RMSD; lower better
+    return preds                                      # bce logit; higher better
+
+
+# ── train / eval one fold (GPU pre-batched, no DataLoader collation) ──────────
 
 def train_eval(pool, tr_cxs, val_cxs, graphs, seed):
     import torch
-    from torch_geometric.loader import DataLoader
+    from torch_geometric.data import Batch
     torch.set_num_threads(8)
     torch.manual_seed(seed); np.random.seed(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -314,33 +349,44 @@ def train_eval(pool, tr_cxs, val_cxs, graphs, seed):
     model = build_model(in_dim).to(dev)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
 
+    # Pre-batch the whole train set onto GPU ONCE (avoids per-epoch CPU collation,
+    # which was the bottleneck for 1280-dim ESM features).
     train_graphs = [g for c in tr_cxs for g in graphs[c]]
-    loader = DataLoader(train_graphs, batch_size=256, shuffle=True)
+    rng_local = np.random.RandomState(seed)
+    N = len(train_graphs)
+    big = Batch.from_data_list(train_graphs).to(dev)
+    y_all = big.y
+
+    # mini-batch by slicing pre-built per-graph batches is awkward on a merged
+    # Batch; instead chunk the graph list into fixed GPU-resident sub-batches.
+    CHUNK = 512
+    chunks = []
+    order0 = list(range(N))
+    for s in range(0, N, CHUNK):
+        sub = [train_graphs[i] for i in order0[s:s + CHUNK]]
+        chunks.append(Batch.from_data_list(sub).to(dev))
 
     model.train()
     for ep in range(EPOCHS):
         tot = 0.0
-        for batch in loader:
-            batch = batch.to(dev)
-            pred = model(batch)
-            loss = torch.nn.functional.huber_loss(pred, batch.y, delta=2.0)
+        perm = rng_local.permutation(len(chunks))
+        for ci in perm:
+            b = chunks[ci]
+            pred = model(b)
+            loss = _compute_loss(pred, b.y)
             opt.zero_grad(); loss.backward(); opt.step()
             tot += loss.item()
         if (ep + 1) % 20 == 0:
-            print(f"    ep{ep+1}/{EPOCHS} huber={tot/len(loader):.4f}", flush=True)
+            print(f"    ep{ep+1}/{EPOCHS} {LOSS}={tot/len(chunks):.4f}", flush=True)
 
-    # eval per complex
+    # eval per complex (each complex = one GPU batch)
     model.eval()
     res = {}
     with torch.no_grad():
         for c in val_cxs:
             gl = graphs[c]
-            loader_v = DataLoader(gl, batch_size=256, shuffle=False)
-            preds = []
-            for batch in loader_v:
-                batch = batch.to(dev)
-                preds.append(model(batch).cpu().numpy())
-            preds = np.concatenate(preds)            # predicted RMSD per pose
+            b = Batch.from_data_list(gl).to(dev)
+            preds = model(b).cpu().numpy()
             rmsd  = np.array([g.y.item() for g in gl])
             res[c] = (preds, rmsd, [p["pi"] for p in pool[c]["poses"]])
     return res
@@ -372,7 +418,7 @@ def learning_curve(pool, graphs):
             taus = []
             for c in test_cxs:
                 preds, rmsd, _ = res[c]
-                t, _ = sp.kendalltau(-preds, -rmsd)
+                t, _ = sp.kendalltau(_pred_to_score(preds), -rmsd)
                 if not math.isnan(t):
                     taus.append(t)
             seed_taus.append(float(np.mean(taus)))
@@ -396,11 +442,16 @@ def learning_curve(pool, graphs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--node-feat", choices=["onehot", "esm"], default="onehot")
+    ap.add_argument("--loss", choices=["huber", "whuber", "bce"], default="huber",
+                    help="training objective: huber (full-list), whuber "
+                         "(near-native-weighted), bce (near-native classify)")
     ap.add_argument("--learning-curve", action="store_true",
                     help="run learning curve instead of full CV")
     a = ap.parse_args()
 
-    print(f"Node features: {a.node_feat}", flush=True)
+    global LOSS
+    LOSS = a.loss
+    print(f"Node features: {a.node_feat}   Loss: {LOSS}", flush=True)
     pool = build_pool(a.node_feat)
     if len(pool) < 5:
         print("ERROR: pool too small."); sys.exit(1)
@@ -438,12 +489,11 @@ def main():
 
         seed_taus = []
         for c in val_cxs:
-            preds = np.mean(seed_pred[c], axis=0)      # avg predicted RMSD over seeds
+            preds = np.mean(seed_pred[c], axis=0)      # avg model output over seeds
             gl = graphs[c]
             rmsd = np.array([g.y.item() for g in gl])
             pis  = [p["pi"] for p in pool[c]["poses"]]
-            # score = -pred (lower predicted RMSD = better)
-            score = -preds
+            score = _pred_to_score(preds)              # higher = better pose
             t, _ = sp.kendalltau(score, -rmsd)
             tau = float(t) if not math.isnan(t) else 0.0
             seed_taus.append(tau)
@@ -478,7 +528,7 @@ def main():
         v = np.array([cx_results[c][f"top{tk}"] for c in cx_results])
         print(f"  {'top-'+str(tk):<14} {v.mean():>8.2f}Å {100*np.mean(v<=2):>10.1f}% {orc.mean():>7.2f}Å")
 
-    out_path = OUT / f"contact_gnn_{a.node_feat}_cv.json"
+    out_path = OUT / f"contact_gnn_{a.node_feat}_{a.loss}_cv.json"
     out_path.write_text(json.dumps(
         {c: cx_results[c] for c in cx_results} |
         {"_meta": {"node_feat": a.node_feat, "n": N, "tau_mean": float(taus.mean()),
