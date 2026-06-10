@@ -147,6 +147,11 @@ class ScoredPose(PoseRecord):
     bsa_fit_score: float | None = None
     bsa: float | None = None
     n_clash: float | None = None
+    # NIS composition (within-target RELATIVE affinity only; see scoring/nis.py).
+    # nis_score = nis_charged_frac - nis_polar_frac; lower = stronger predicted binding.
+    nis_polar_frac: float | None = None
+    nis_charged_frac: float | None = None
+    nis_score: float | None = None
     cluster_id: int | None = None
     pdbqt_path: Path | None = None
     is_ad4_anomaly: bool = False
