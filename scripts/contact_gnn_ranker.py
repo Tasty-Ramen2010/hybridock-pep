@@ -306,6 +306,7 @@ def build_model(in_dim: int):
 def train_eval(pool, tr_cxs, val_cxs, graphs, seed):
     import torch
     from torch_geometric.loader import DataLoader
+    torch.set_num_threads(8)
     torch.manual_seed(seed); np.random.seed(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
 
