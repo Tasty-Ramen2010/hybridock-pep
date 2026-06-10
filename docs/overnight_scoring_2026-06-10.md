@@ -124,10 +124,55 @@ proven at scale. Either outcome is publishable.
 **Unchanged:** within-target NIS (variant ranking vs one receptor, r≈0.4) ships
 as already committed — none of tonight's cross-family uncertainty affects it.
 
+## 3b. PEPBI dataset — independent replication (added after Ram pointed at the Dryad zip)
+
+The zip is the **PEPBI database** (Dryad doi:10.5061/dryad.wstqjq2wk): 329 protein–
+peptide complexes with **ITC thermodynamics (ΔG, KD, and ΔH + TΔS separately)**,
+clean predicted structures (A=protein/B=peptide), and Rosetta Interface Analyzer
+features. ~31 binding groups = independent families. This is the clean,
+independent dataset last night's degenerate extraction couldn't provide.
+
+### Ram's enthalpy/entropy thesis — tested against MEASURED ΔH and TΔS
+With experimental decomposition in hand: structural features predict **ΔG
+(−0.41) better than they predict ΔH (−0.18) or TΔS (−0.08) separately**. This is
+enthalpy–entropy **compensation** — the raw components are individually noisier
+than their (canceling) sum, so decomposing *hurts*. The thesis is physically
+reasonable but the data says predict the net, not the parts. Clean negative.
+
+### The decisive cross-DATASET replication test — nothing survives
+Two features looked significant on PEPBI's 31 groups (family-mean, length-resid,
+permutation-tested): **hbonds_int r=−0.41 p=0.026**, per_residue_energy_int
+−0.41 p=0.047, dSASA_polar −0.36 p=0.048. So I asked the real question: do they
+replicate on the independent crystal-65 set?
+
+| feature | crystal-65 | PEPBI | verdict |
+|---|---|---|---|
+| NIS (nis_p_frac) | −0.54 (p≈0.06, 14 fam) | **−0.21 (p=0.33, 27 fam)** | does NOT replicate |
+| interface H-bond count | **+0.47 (p=0.03)** | **−0.41 (p=0.026)** | **SIGN FLIPS** |
+
+`hbonds_int` is a count (0–54) on both, so the flip is real: more H-bonds →
+*weaker* binding on crystal-65 (it's the backwards size proxy — bigger peptides
+bind weaker in that sample), but → *stronger* on PEPBI's mutational variants.
+Same name, opposite confound.
+
+### The sharpened, stronger conclusion
+**Single-dataset significance is illusory.** Every feature reaching p<0.05 on one
+dataset either fails to replicate (NIS) or flips sign (H-bonds) on the other. The
+real bar is **cross-dataset, sign-stable replication**, and across two independent
+datasets (crystal-65 + PEPBI, ~50 independent families total) **nothing clears
+it.** This is a stronger, more defensible negative result than last night's — and
+it is genuinely publishable: it shows *why* cheap peptide-ΔG papers that report a
+single-set 0.5 don't generalize. The within-target (variant-ranking) regime
+remains the only place these features carry usable signal.
+
 ## 4. Files
 - `scripts/e3_physical_entropy.py` — entropy features + one-per-family
 - `scripts/e3b_length_resid_cross_family.py` — length-resid cross-family
 - `scripts/e3c_family_mean.py` — gold-standard family-mean correlation
 - `scripts/e3d_nis_killtests.py` — permutation / threshold / length-leak
 - `scripts/e3f_expand_families.py` — family expansion (extraction caveat noted)
-- (E4 SS + E3g disentangle were inline probes; findings captured here)
+- `scripts/e7_pepbi_replication.py` — NIS on PEPBI clean structures (does not replicate)
+- `scripts/e8_hbond_crossdataset.py` — H-bond count crystal-65 vs PEPBI (sign flips)
+- (E4 SS, E3g disentangle, PEPBI ΔH/TΔS decomposition + RIA-feature significance
+  were inline probes; findings captured in §3b)
+- PEPBI source: `doi_10_5061_dryad_wstqjq2wk__v20250617.zip` (329 ITC complexes)
