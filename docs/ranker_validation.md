@@ -70,3 +70,30 @@ Conclusion: the encoder is the **only** signal that genuinely adds to ref2015,
 and even it is modest (+0.035) and carries a leakage caveat to verify.
 Reproduce with `scripts/foldx_ranker_v2.py` (physics) + the LOO block in this
 session's notes.
+
+## BSA+clash pose ranker — replaces ref2015 (2026-06-09)
+
+New `scoring/bsa_fit.py` ranks poses by buried surface area − clash penalty
+(z-normalised within the pose set). 3-way comparison at **N=100, n=55 complexes**
+(top-1 selected pose RMSD vs interface-RMSD labels; scripts/three_way_rerank.py):
+
+| ranker | mean RMSD | ±sem | <4Å (CAPRI) | <2Å | best-of-top5 |
+|---|---|---|---|---|---|
+| OG RAPiDock (diffusion order) | 4.57 Å | 0.32 | 53% | 5% | 3.53 Å |
+| ref2015 rerank | 4.62 Å | 0.36 | 58% | 9% | 3.37 Å |
+| **BSA+clash rerank** | **4.36 Å** | 0.29 | 53% | 7% | 3.37 Å |
+| oracle (ceiling) | 2.50 Å | | | | |
+
+**Honest verdict:** BSA+clash and ref2015 are **statistically equivalent**
+(differences ~0.2 Å / ~5%, within sem; head-to-head BSA wins 27/55 = coin flip).
+BSA+clash has the best mean + lowest variance (avoids ref2015's catastrophic
+mis-picks); ref2015 has the best success rate. Both rerankers tie on best-of-top5
+and beat raw diffusion order there. The earlier n=18 "BSA clearly wins" was partly
+small-sample optimism — corrected here at scale.
+
+**Why it ships anyway:** equivalent accuracy at ~1000× lower cost (Biopython
+Shrake-Rupley SASA, milliseconds, vs PyRosetta ref2015 seconds), no PyRosetta
+dependency, doubles as the affinity signal, and is thermodynamically grounded
+(tightest valid fit = native; corr(BSA,RMSD)=−0.10). Wired as the ranking key for
+ranked_poses.csv + best_pose; affinity (Vina/hybrid) untouched. E2E verified on
+real 100-pose sets.
