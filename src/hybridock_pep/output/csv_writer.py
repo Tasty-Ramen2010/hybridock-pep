@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 FIELDNAMES: list[str] = [
     "rank",
+    "bsa_fit_score",
+    "bsa",
+    "n_clash",
     "hybrid_score",
     "vina_score",
     "ad4_score",
@@ -28,6 +31,18 @@ FIELDNAMES: list[str] = [
     "is_clipped",
     "is_clashed",
 ]
+
+
+def _rank_key(pose: ScoredPose) -> float:
+    """Pose ranking key (ascending = best first).
+
+    BSA-fit (buried surface + clash penalty) is the pose ranker that replaced
+    ref2015. Falls back to hybrid_score when BSA-fit is unavailable (e.g. <2
+    valid poses to z-normalise, or SASA failure) so ranking never crashes.
+    """
+    if pose.bsa_fit_score is not None:
+        return pose.bsa_fit_score
+    return pose.hybrid_score if pose.hybrid_score is not None else float("inf")
 
 
 def _write_csv_atomic(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
@@ -64,10 +79,7 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
     Returns:
         Absolute path to the written ranked_poses.csv.
     """
-    sorted_poses = sorted(
-        scored_poses,
-        key=lambda p: (p.hybrid_score if p.hybrid_score is not None else float("inf")),
-    )
+    sorted_poses = sorted(scored_poses, key=_rank_key)
 
     rows: list[dict[str, Any]] = []
     for rank, pose in enumerate(sorted_poses, start=1):
@@ -75,6 +87,11 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
         rows.append(
             {
                 "rank": rank,
+                "bsa_fit_score": (
+                    f"{pose.bsa_fit_score:.4f}" if pose.bsa_fit_score is not None else ""
+                ),
+                "bsa": f"{pose.bsa:.1f}" if pose.bsa is not None else "",
+                "n_clash": f"{pose.n_clash:.0f}" if pose.n_clash is not None else "",
                 "hybrid_score": f"{hs:.4f}",
                 "vina_score": f"{pose.vina_score:.4f}" if pose.vina_score is not None else "",
                 "ad4_score": f"{pose.ad4_score:.4f}" if pose.ad4_score is not None else "",
@@ -130,9 +147,19 @@ def write_best_pose_pdb(
     if not cluster_result.per_cluster_stats:
         raise ValueError("cluster_result.per_cluster_stats is empty — cannot select best pose")
 
-    # Prefer MM-GBSA winner if any poses were refined; fall back to best cluster centroid.
+    # Pose ranker = BSA-fit (replaced ref2015): best_pose is the tightest valid
+    # fit. Fall back to MM-GBSA winner, then best cluster centroid, when BSA-fit
+    # is unavailable.
+    bsa_poses = [p for p in scored_poses if p.bsa_fit_score is not None]
     mmgbsa_poses = [p for p in scored_poses if p.mmgbsa_dg is not None]
-    if mmgbsa_poses:
+    if bsa_poses:
+        best = min(bsa_poses, key=lambda p: p.bsa_fit_score)  # type: ignore[arg-type]
+        best_pose_idx = best.pose_idx
+        logger.info(
+            "Best pose selected by BSA-fit: pose %d (fit=%.3f, BSA=%.0f Å², clash=%.0f)",
+            best_pose_idx, best.bsa_fit_score, best.bsa or float("nan"), best.n_clash or 0,
+        )
+    elif mmgbsa_poses:
         best_mmgbsa = min(mmgbsa_poses, key=lambda p: p.mmgbsa_dg)  # type: ignore[arg-type]
         best_pose_idx = best_mmgbsa.pose_idx
         logger.info(

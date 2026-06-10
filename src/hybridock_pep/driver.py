@@ -371,6 +371,12 @@ def run_dock(
         sum(1 for p in scored_poses if p.is_clashed),
     )
 
+    # Stage 2d-bsa: BSA-fit pose ranker (replaces ref2015). Buried surface area +
+    # clash penalty → which pose is the tightest valid fit. Independent of the
+    # Vina/hybrid affinity number; used only to ORDER poses and pick best_pose.
+    from hybridock_pep.scoring.bsa_fit import compute_bsa_fit_scores  # noqa: PLC0415
+    compute_bsa_fit_scores(scored_poses, config.receptor_path.resolve())
+
     # Load calibration once; both the entropy-sum gate below and the
     # hybrid-score stage further down consume the same dict.
     calibration = load_calibration(calibration_path.resolve())
