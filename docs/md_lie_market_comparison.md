@@ -122,3 +122,33 @@ the within-target regime.
 because the dominant axis (length/size) has no consistent cross-dataset direction.
 This is an identifiability wall, not a missing feature. Use relative/within-target
 ΔΔG (size cancels, direction irrelevant) — the only regime that survives.
+
+---
+
+## E17 — does 250ps MD-LIE beat instant geometry within-target? NO.
+
+Tested MD-LIE (single-traj MM-GBSA+IE, 250ps, ~60s/variant, GPU) within PEPBI binding
+groups vs the free instant geometry score (hb_count+aromatic), on the same variants.
+
+| group | ΔG range | geometry ρ | MD-LIE ρ (250ps) |
+|---|---|---|---|
+| TtSlyD (wide) | ~5 kcal/mol | +0.55 | +0.47 |
+| SH3 (wide) | wide | +0.41 | +0.38 (⟨E_int⟩ +0.50) |
+| PTPA (narrow 0.3k) | unrankable | −0.26 | +0.37 |
+| SOCS (narrow 0.8k) | unrankable | −0.87 | −0.29 |
+| SGT2 (narrow) | unrankable | −1.00 | −0.49 |
+
+**Findings:**
+1. On resolvable (wide-range) groups, MD-LIE ≈ instant geometry (~0.4–0.5) — it does
+   NOT beat it. 60s of GPU MD/variant buys nothing over the free geometric score.
+2. Narrow-range groups (<1 kcal/mol spread) are unrankable by EITHER method (ITC noise).
+3. The interaction-entropy term is INCONSISTENT (helped TtSlyD/narrow groups, hurt
+   SH3) — adds variance, not signal. Drop it.
+4. Mechanism: MD-LIE's ensemble physics can't help when the bottleneck is predicted-
+   structure quality + ΔG dynamic range + the within-target ceiling, not energy
+   precision. To beat geometry you'd need explicit water + configurational entropy =
+   reinventing FEP (catastrophic-cancellation argument, §honest_competitive).
+
+**Verdict:** the geometry→MD-LIE cascade is NOT justified by accuracy. Within-target
+ranking caps ~0.4–0.5 on resolvable targets by either method; the honest jump for more
+accuracy is alchemical FEP (computes the difference directly), not endpoint LIE.
