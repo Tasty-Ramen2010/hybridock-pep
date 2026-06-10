@@ -37,6 +37,25 @@ test of whether your tightness-finder works. Confirmed: corr(BSA, RMSD) = −0.1
 (tighter → lower RMSD → more native). You are not choosing between "tight" and
 "native"; finding one finds the other.
 
+### ⚠️ BSA is DEAD for affinity but ALIVE for ranking — do not conflate
+
+This trips people up constantly, so be explicit. The "BSA flips to −0.50,
+cross-family r≈0.07" verdict (and the whole size-confound section §5) is about
+**absolute affinity** (comparing *different* peptides). It does **not** apply to
+**pose ranking**, and here is the physical reason:
+
+| job | what you compare | size confound? | BSA verdict |
+|---|---|---|---|
+| Affinity (cross-peptide Kd) | different peptides (different sizes) | **YES** — big peptide buries more → BSA tracks size, not binding | **dead** (r≈0.07 cross-family) |
+| Pose ranking (within-complex) | poses of the **same** peptide vs the **same** receptor | **NO** — every pose has identical peptide/identical size | **alive** (τ≈0.18, ships) |
+
+The exact mechanism that kills BSA for affinity (peptide size varying across
+complexes) is **structurally absent** when ranking poses within one complex —
+there is only one peptide, so there is no size to confound. BSA-fit just measures
+"which pose of this one peptide is the best-buried, cleanest fit." That is legit
+and confound-free. **`scoring/bsa_fit.py` (BSA − clash) ships as the production
+pose ranker and is correct; nothing in the affinity audit touches it.**
+
 ---
 
 ## 2. The affinity ceiling (why absolute Kd is walled)
