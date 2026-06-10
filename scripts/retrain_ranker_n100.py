@@ -168,6 +168,7 @@ class Head:  # defined lazily in _train to avoid import at module load
 
 def _train(pool, cxs, seed, epochs=EPOCHS):
     import torch, torch.nn as nn, torch.nn.functional as F
+    torch.set_num_threads(4)
 
     class _Head(nn.Module):
         def __init__(self, d=ENC_DIM):
@@ -177,14 +178,21 @@ def _train(pool, cxs, seed, epochs=EPOCHS):
                 nn.Dropout(0.2), nn.Linear(64, 1))
         def forward(self, x): return self.net(x)
 
+    # subsample pairs per complex to cap at MAX_PAIRS_PER_CX for speed
+    MAX_PAIRS_PER_CX = 1000
+    rng_pairs = np.random.RandomState(seed)
     pairs = []
     for c in cxs:
         rows = pool[c]
         E  = _per_cx_z(np.array([r["enc"]  for r in rows]))
         rr = np.array([r["rmsd"] for r in rows])
-        for i, j in combinations(range(len(rr)), 2):
-            if abs(rr[i]-rr[j]) > 1e-6:
-                pairs.append((E[i], E[j], 1.0 if rr[i]<rr[j] else 0.0))
+        all_pairs = [(i, j) for i, j in combinations(range(len(rr)), 2)
+                     if abs(rr[i]-rr[j]) > 1e-6]
+        if len(all_pairs) > MAX_PAIRS_PER_CX:
+            idxs = rng_pairs.choice(len(all_pairs), MAX_PAIRS_PER_CX, replace=False)
+            all_pairs = [all_pairs[k] for k in idxs]
+        for i, j in all_pairs:
+            pairs.append((E[i], E[j], 1.0 if rr[i]<rr[j] else 0.0))
     torch.manual_seed(seed)
     h = _Head()
     opt = torch.optim.Adam(h.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -192,7 +200,8 @@ def _train(pool, cxs, seed, epochs=EPOCHS):
     fj = torch.tensor(np.stack([p[1] for p in pairs]), dtype=torch.float32)
     lb = torch.tensor([p[2] for p in pairs], dtype=torch.float32)
     n  = len(pairs)
-    for _ in range(epochs):
+    t0 = time.time()
+    for ep in range(epochs):
         h.train()
         perm = torch.randperm(n)
         for b in range(0, n, 512):
@@ -201,6 +210,9 @@ def _train(pool, cxs, seed, epochs=EPOCHS):
                 (h(fi[idx]).squeeze(-1) - h(fj[idx]).squeeze(-1))
                 * (lb[idx]*2-1)).mean()
             opt.zero_grad(); loss.backward(); opt.step()
+        if (ep+1) % 10 == 0:
+            print(f"    ep{ep+1}/{epochs}  loss={loss.item():.4f}  "
+                  f"{(time.time()-t0):.1f}s", flush=True)
     return h.eval()
 
 
