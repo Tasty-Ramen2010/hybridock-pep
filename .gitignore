@@ -176,3 +176,6 @@ hybridock-pep/
 # RAPiDock-Reloaded/ = local working clone; canonical copy is at third_party/RAPiDock/
 RAPiDock-Reloaded/
 
+
+# PEPBI Dryad dataset (51MB, external)
+doi_10_5061_dryad_wstqjq2wk__v20250617.zip
