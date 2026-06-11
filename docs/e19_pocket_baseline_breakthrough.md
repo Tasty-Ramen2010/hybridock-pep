@@ -300,3 +300,30 @@ poses cannot exceed it; the bottleneck is features+training-data, not pose sourc
 implication: we are NOT a general cross-target affinity predictor. Honest tool scope = within-
 target / within-distribution RANKING and selectivity (ΔΔG), with explicit OOD flagging; cite
 PPI-Affinity for general absolute affinity.
+
+## E31 — WHY features flipped, and the FIX (Ram: physics is universal, encoding was wrong)
+
+Confirmed: the sign-flips were a SIZE/Simpson confound in our EXTENSIVE encodings, NOT the
+physics. Recomputed INTENSIVE + desolvation-aware features on crystal-65 + the-98:
+
+| feature | crystal-65 | the-98 | sign-consistent? |
+|---|---|---|---|
+| mj_per_contact (avg, NOT sum) | +0.295 | +0.206 | YES — vs mj_contact (sum) flipped −0.47/+0.32 |
+| f_hyd_iface (hydrophobic FRACTION) | −0.422 | −0.247 | YES (strongest single) |
+| frac_pol_satisfied (desolv-aware H-bond) | +0.190 | +0.150 | YES — vs hb_count flipped +0.31/−0.13 |
+| bsa_hyd | −0.281 | −0.312 | YES |
+
+Mechanism: extensive features (hb_count, sasa_sb, mj_contact-sum, arom_cc, poc_n) secretly encode
+INTERFACE SIZE. Within a narrow set size~affinity; across diverse targets it does not → sign flips.
+Hydrophobic burial is the exception (extensive quantity IS the physics, ~const/Å²). For polar/
+electrostatic terms the physics is NET energy after desolvation, not the raw count → flips.
+
+FIX = intensive encoding: mj_PER_CONTACT (composition quality), f_hyd_iface (hydrophobic
+fraction), frac_pol_satisfied (satisfied-H-bond fraction = desolvation-aware). These do NOT flip.
+
+Generalization (pooled 163 LOO): bsa_hyd 0.370 | f_hyd_iface 0.412 | universal-intensive-4 0.421.
+The properly-encoded multivariate set BEATS single-feature on adequate data (0.421>0.370) — so
+"one signal carrying everything" was an artifact of covariance-overfitting on 65 points, not a law.
+Old extensive-11 transfer was −0.14; new intensive set generalizes. Full resolution: intensive
+encoding + more diverse data (harvest in progress) = the path. f_hyd_iface is the new best single
+universal feature. scripts/e31_intensive_features.py; /tmp/e31_intensive.json.
