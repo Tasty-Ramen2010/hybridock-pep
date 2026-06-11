@@ -597,3 +597,33 @@ bound-state MD, GPU-gated) and ML trained on many charged examples (PPI-Affinity
 
 **One shippable win:** `strength_bur` is universal and non-flipping — a more robust companion to
 the size-confounded `mj_contact` for cross-dataset transfer. Small but safe.
+
+## E47/E48 — partial ensemble from RAPiDock N=100 poses: the cheap-ensemble door is CLOSED
+
+Ram's thread: FEP/LIE win by ensemble averaging; we already have N=100 diffusion poses — can we
+Boltzmann-average them for a free partial ensemble? Then his two corrections: (1) the poses are
+spread (6Å median CA-RMSD, frac>5Å = 40-95%) so naive averaging eats misdocks; (2) filter by
+RMSD-to-best-pose to keep only the same-mode neighbourhood. (scripts/e47_pose_ensemble.py,
+e48_rmsd_filtered_ensemble.py; per-pose cache /tmp/e48_perpose.json.)
+
+**Frame check passed:** pep-rec contact 0.2-0.7Å, centroid spread 0.8-1.2Å — poses share the
+receptor frame, sit in the pocket (some clashes = known diffusion artifact). Coordinates correct.
+
+**e47 naive (all 100):** rank-1 pose_0 r=+0.721 >> naive g_ens=+0.530 >> e_min=+0.329. Two findings:
+(a) naive ensemble HURTS (averages in 6Å misdocks, Ram's concern confirmed); (b) our geometry energy
+is a POOR re-ranker — its argmin (e_min 0.33) is far worse than the diffusion model's pose_0 (0.72).
+The CLAUDE.md §9 flag / ranker ceiling, re-confirmed.
+
+**e48 RMSD-filter around pose_0 (the correct fix):** filter VALIDATED — rescues naive 0.53->0.73 ≈
+rank-1. BUT ensembling adds NOTHING over pose_0 (g_ens ≤ rank-1 at every τ), and N_eff (bound
+entropy) HURTS (r1+Neff 0.68-0.70 < 0.721). Root cause: at tight τ=1.5-2Å only ~1-1.6 poses survive
+— RAPiDock gives the good pose then jumps to 3Å+ different conformations. The poses are DOCKING
+SAMPLES, not a Boltzmann cloud; N_eff measures docking UNCERTAINTY, not thermodynamic entropy.
+
+**Verdict:** cheap-ensemble-from-existing-poses is a DEAD END. Bound configurational entropy is
+small-to-unreadable from diffusion poses; can't separate it from docking noise. Wiggle-relax around
+pose_0 would chase the same small slice (don't build it). Equivariant/Boltzmann-generator samplers
+target the same slice — not worth the machinery, and RAPiDock (an e3nn equivariant model) GENERATED
+these poses, proving the limit is energetics/sampling not symmetry. Ship rank-1; the only ensemble
+that moves the floor is real MD (LIE), the GPU-gated compute door. Ram's filter instincts were
+correct engineering — they led cleanly to the floor, not past it.
