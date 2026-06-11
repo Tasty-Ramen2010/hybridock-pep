@@ -429,3 +429,28 @@ Ram's "physics never lies / missing term" thesis CONFIRMED: free-state conformat
 the term a static bound pose cannot see, and measuring it properly (cheap free-peptide MD, 8s GPU,
 NOT full MM-GBSA) bridges part of the gap. Cost: 8s/peptide GPU MD of the FREE peptide only.
 Next: add to production as an optional GPU feature; combine with curated data. scripts/e40_md_freestate.py.
+
+## E41 — gap analysis WITH entropy: the remaining gap is ELECTROSTATICS
+
+Complete-decomposition test: adding single-pose MM-GBSA enthalpy/desolv (dG_1pose) does NOT help
+even with entropy (0.488 -> 0.480) — size-confounded, redundant-but-noisier than intensive geometry.
+Current ceiling = geometry-intensive(4) + free-entropy = 0.488 pooled.
+
+DIVERSE-98-ONLY (honest cross-target, n=93): geometry 0.244 -> +free-entropy 0.306. Real gain but
+still < Rosetta ~0.42 < PPI-Affinity 0.554 on the hard set.
+
+WHERE WE STILL MISS (residual error drivers WITH entropy):
+  corr(|err|, charged_frac) = +0.266  <- BIGGEST: we have NO electrostatics term
+  corr(|err|, entropy_resid)= +0.141  (bound-state entropy we approximate as fully-frozen)
+  corr(|err|, length)       = +0.140
+  by SS: SHEET r=+0.462 (GOOD now) | HELIX r=-0.491 (BACKWARDS — amphipathic charged faces)
+THE GAP = ELECTROSTATICS. Charged peptides + helices (charged faces) are mis-modeled because we
+compute no screened Coulomb + charge desolvation. Earlier attempts failed for known reasons:
+g_elec (Coulomb alone) flipped — missed charge desolvation; net-charge-product too crude. The
+RIGHT term = per-salt-bridge NET energy (Coulomb attraction − charge desolvation, distance/burial
+screened), which is the electrostatic analog of how hydrophobic burial works (paired favorable+
+desolvation). This is the next missing physics term after entropy. Bound-state entropy (S_bound,
+needs bound-complex MD) is the secondary gap.
+
+PROGRESSION: geometry counts 0.23 -> intensive encoding (no flip) -> +free entropy 0.31 diverse /
+0.49 pooled -> [next: electrostatics -> target ~0.42-0.55].
