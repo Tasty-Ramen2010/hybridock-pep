@@ -42,9 +42,21 @@ _APOLAR = {"ALA", "VAL", "LEU", "ILE", "MET", "PHE", "PRO", "GLY"}
 _AROM = {"PHE", "TYR", "TRP", "HIS"}
 _HPHOBIC_AA = set("AVLIMFWC")
 
+# Experimental per-residue interface binding strength: mean ΔΔG of an X->Ala mutation over
+# ~7000 SKEMPI 2.0 interface mutations (kcal/mol, >0 = X is a hotspot). Recovers the Bogan-Thorn
+# ranking blind (W>F>Y>L>I top, Ser bottom). Used as a burial-weighted intensive term that, unlike
+# the size-confounded statistical mj_contact, is sign-consistent across datasets (docs E46:
+# strength_bur −0.283 crystal-65 / −0.124 the-98). Residues absent here (A, C) are skipped, matching
+# the validated feature. data/skempi_v2.csv (gitignored); scripts/e46_skempi_strength.py.
+_SKEMPI_STRENGTH = {
+    "W": 2.1636, "F": 1.5713, "Y": 1.5614, "L": 1.2342, "I": 1.1869, "K": 1.1405,
+    "D": 1.1343, "R": 1.1273, "H": 1.0038, "G": 0.8263, "M": 0.8222, "E": 0.7864,
+    "T": 0.7855, "N": 0.6634, "P": 0.6418, "V": 0.6291, "Q": 0.5074, "S": 0.2600,
+}
+
 GEOMETRY_FEATURE_KEYS = [
     "poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis",
-    "bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count", "mj_contact",
+    "bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count", "mj_contact", "strength_bur",
 ]
 
 
@@ -111,6 +123,7 @@ def _interface_features(peptide_pdb: Path, cx_path: Path, pep_chain: str) -> dic
     n = min(len(pep_res), len(pf))
     bsa_hyd = sasa_hb = sasa_sb = 0.0
     hb_count = arom_cc = 0
+    s_wsum = s_wnorm = 0.0  # burial-weighted experimental strength accumulators
     for i in range(n):
         rc = pep_res[i]
         rn = rc.resname.upper()
@@ -118,6 +131,10 @@ def _interface_features(peptide_pdb: Path, cx_path: Path, pep_chain: str) -> dic
         rfree = free.get((pf[i].get_parent().id, pf[i].id), 0.0)
         rbound = cpx.get((rc.get_parent().id, rc.id), 0.0)
         dsasa = max(0.0, rfree - rbound)
+        if aa in _SKEMPI_STRENGTH:  # accumulate over ALL residues, weighted by buried fraction
+            bur = dsasa / (rfree + 1e-6)
+            s_wsum += bur * _SKEMPI_STRENGTH[aa]
+            s_wnorm += bur
         if dsasa < 1.0:
             continue
         if aa in _HPHOBIC_AA:
@@ -145,7 +162,8 @@ def _interface_features(peptide_pdb: Path, cx_path: Path, pep_chain: str) -> dic
         if has_arom:
             arom_cc += 1
     return dict(bsa_hyd=bsa_hyd / 100, sasa_hb=sasa_hb / 100, sasa_sb=sasa_sb / 100,
-                arom_cc=float(arom_cc), hb_count=float(hb_count))
+                arom_cc=float(arom_cc), hb_count=float(hb_count),
+                strength_bur=float(s_wsum / (s_wnorm + 1e-6)))
 
 
 def _mj_contact(cx_path: Path, pep_chain: str, contact_cut: float = 6.5) -> float:

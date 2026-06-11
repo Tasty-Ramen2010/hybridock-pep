@@ -30,7 +30,9 @@ import numpy as np
 POCKET_FEATURES = ["poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis"]
 INTERFACE_FEATURES = ["bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count"]
 # mj_contact = Σ Miyazawa-Jernigan per-contact energy (hotspot residue signal, docs E24).
-CONTACT_FEATURES = ["mj_contact"]
+# strength_bur = burial-weighted EXPERIMENTAL interface strength from SKEMPI 2.0 (docs E46);
+# sign-consistent across datasets where the statistical mj_contact flips (size-confound).
+CONTACT_FEATURES = ["mj_contact", "strength_bur"]
 GEOMETRY_FEATURES = POCKET_FEATURES + INTERFACE_FEATURES + CONTACT_FEATURES
 
 
