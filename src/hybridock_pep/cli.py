@@ -172,6 +172,17 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="JSON",
         help="Override the ensemble calibration JSON (default: data/ensemble_calibration.json).",
     )
+    p_dock.add_argument(
+        "--free-entropy",
+        action="store_true",
+        default=False,
+        help=(
+            "Add the free-state conformational entropy feature to the ensemble (scoring/"
+            "free_entropy.py): ~8 s/pose GPU free-peptide MD measuring how much entropy the "
+            "peptide loses on binding. Validated to lift cross-target r (docs E40). Requires "
+            "--ensemble and a calibration that includes s_free_bur."
+        ),
+    )
 
     # calibrate subparser
     p_cal = sub.add_parser("calibrate", help="Calibrate entropy correction coefficient alpha.")
@@ -383,6 +394,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                 Path(args.ensemble_calibration).resolve()
                 if args.ensemble_calibration else None
             ),
+            compute_free_entropy=args.free_entropy,
         )
     except ValidationError as exc:
         parser.error(str(exc))

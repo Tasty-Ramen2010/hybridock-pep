@@ -192,6 +192,9 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
         return
     cal = EnsembleCalibration.load(cal_path)
     receptor = config.receptor_path.resolve()
+    want_entropy = config.compute_free_entropy and "s_free_bur" in cal.feature_names
+    if config.compute_free_entropy and not want_entropy:
+        logger.info("Free-entropy requested but calibration lacks s_free_bur — skipping MD.")
     n_ok = 0
     for pose in scored_poses:
         if pose.vina_score is None:
@@ -200,12 +203,22 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
             feats = compute_geometry_features(pose.pdb_path, receptor)
             if feats is None:
                 continue
+            if want_entropy:
+                from hybridock_pep.scoring.free_entropy import (  # noqa: PLC0415
+                    compute_free_state_entropy, s_free_buried,
+                )
+                ent = compute_free_state_entropy(pose.pdb_path)
+                feats["s_free_bur"] = (
+                    s_free_buried(ent["s_free"], feats.get("f_hyd_iface", 0.5))
+                    if ent else 0.0
+                )
             pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
             n_ok += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning("Pose %d: ensemble ΔG failed (%s)", pose.pose_idx, exc)
-    logger.info("Stage 3.6: geometry+Vina ensemble ΔG on %d/%d poses (calibration %s)",
-                n_ok, len(scored_poses), cal_path.name)
+    logger.info("Stage 3.6: geometry+Vina ensemble ΔG on %d/%d poses (calibration %s%s)",
+                n_ok, len(scored_poses), cal_path.name,
+                ", +free-entropy" if want_entropy else "")
 
 
 def run_dock(

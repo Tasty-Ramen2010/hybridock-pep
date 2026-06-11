@@ -53,6 +53,9 @@ class DockConfig(BaseModel):
     # Geometry+Vina ensemble ΔG (scoring/ensemble.py). Off by default; opt-in via --ensemble.
     compute_ensemble: bool = False
     ensemble_calibration: Path | None = None
+    # Free-state conformational entropy feature (scoring/free_entropy.py). Opt-in via
+    # --free-entropy; runs ~8s/pose GPU free-peptide MD. Validated to lift cross-target r (docs E40).
+    compute_free_entropy: bool = False
     mmgbsa_cpu_only: bool = False
     # MM-GBSA refinement options (overhaul steps 3-4; opt-in, off by default so
     # the validated single-trajectory path is unchanged unless requested).
