@@ -167,3 +167,43 @@ signal is most useful.
 
 **SHIP recipe:** linear geometry (pocket+interface) + Vina, 50/50 z-ensemble = 0.62 oracle /
 ~0.49 real-pose (top5). Don't add ESM/helix/MD-entropy — all overfit or redundant on 65 pts.
+
+## E23 — MM-GBSA on the hotspot failures + v1.1 commit (Ram's request)
+
+**MM-GBSA recovery test (existing data/benchmark_crystal_scored_ie3traj.json, n=12):**
+- Overall: Pearson +0.542, Spearman +0.603 (CORRECT direction; separates strong mean
+  mmgbsa −25 from weak +18). On the hard strong-binder subset where geometry COLLAPSES
+  (LOO r=0.02), MM-GBSA carries signal (0.54) — the cascade justification.
+- On the SPECIFIC hotspot failures: PARTIAL. Recovers 1T7R (−19.4 ✓, geometry had −9.5)
+  but still misses 1T76 (+12.4 ✗) and false-positives weak 1NRL (−28.2). Single-trajectory
+  MM-GBSA is high-variance (1T63 −48.6 vs 1T76 +12.4 for identical exp −13.1).
+- Verdict: legit `--refine-topk` second stage for hotspot cases geometry can't see, NOT a
+  clean fix. Cheap geometry+Vina ensemble to rank → MM-GBSA on top-K to resolve hotspots.
+
+**Committed v1.1 (129e67a9):** src/hybridock_pep/scoring/ensemble.py + 5 tests +
+data/ensemble_calibration.json + e19/e21/e22 repro scripts + docs. All 23 unit-test files
+pass individually (~430 tests; the full-suite "hang" was background-job CPU contention, not
+a broken test).
+
+## E24/E25 — per-contact ENERGY (Ram's hotspot idea) + v1.2 driver wiring
+
+**Per-contact chemistry HELPS (Miyazawa-Jernigan contact potential, scripts/e24):**
+Σ MJ residue-residue contact energy over peptide-receptor contacts captures the per-contact
+ENERGY a contact COUNT misses (Trp-Trp ≫ Ala-Ala). All LOO, kcal/mol RMSE:
+  - geometry 0.576 / RMSE 1.78  →  geometry+MJ 0.615 / 1.71  (oracle)
+  - geometry+MJ + Vina ensemble: 0.642 / 1.64  (oracle — exceeds lit PPI-Affinity 0.62)
+  - real rank-1 poses: geometry 0.486 → geometry+MJ 0.532
+  - recovers 1T76 (the case MM-GBSA missed): err +2.4 → +0.5 kcal/mol
+SASA variants Ram suggested (buried/total-surface, buried/n-residues): redundant with
+existing size features, no gain.
+
+**v1.2 WIRED into driver/CLI:** new src modules scoring/mj_potential.py + scoring/
+geometry_features.py (compute_geometry_features: pocket+interface+MJ from a pose PDB +
+receptor PDB, ~150 ms/pose, no GPU). ScoredPose.ensemble_dg field; DockConfig.compute_ensemble;
+driver Stage 3.6 _apply_ensemble_dg; CLI --ensemble / --ensemble-calibration; ranked_poses.csv
+ensemble_dg column. Calibration refit WITH mj_contact (11 geo features) on real rank-1 poses →
+data/ensemble_calibration.json. Tests: tests/test_geometry_features.py (5) + test_ensemble.py (5).
+
+**ESM per-contact (Ram's specific idea — ESM models two touching residues):** per-residue
+ESM-2 embeddings of peptide + pocket; contact features = Σ over contacts of <emb_i,emb_j>.
+Tested vs MJ — see scripts/e25 (result pending full extraction).

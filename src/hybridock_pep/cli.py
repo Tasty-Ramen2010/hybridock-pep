@@ -154,6 +154,24 @@ def _build_parser() -> argparse.ArgumentParser:
             "Has no effect when --input-poses is set (pre-generated poses are not minimized)."
         ),
     )
+    p_dock.add_argument(
+        "--ensemble",
+        action="store_true",
+        default=False,
+        help=(
+            "Compute the geometry+Vina ensemble ΔG (kcal/mol) per pose: pocket+interface+MJ "
+            "per-contact-energy linear model z-blended with Vina (scoring/ensemble.py). "
+            "Validated to beat Vina-alone on real RAPiDock poses (docs E22/E24). "
+            "Writes the ensemble_dg column to ranked_poses.csv."
+        ),
+    )
+    p_dock.add_argument(
+        "--ensemble-calibration",
+        type=Path,
+        default=None,
+        metavar="JSON",
+        help="Override the ensemble calibration JSON (default: data/ensemble_calibration.json).",
+    )
 
     # calibrate subparser
     p_cal = sub.add_parser("calibrate", help="Calibrate entropy correction coefficient alpha.")
@@ -360,6 +378,11 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             mmgbsa_include_ie=args.mmgbsa_ie,
             mmgbsa_3traj=args.mmgbsa_3traj,
             mmgbsa_solute_dielectric=args.mmgbsa_dielectric,
+            compute_ensemble=args.ensemble,
+            ensemble_calibration=(
+                Path(args.ensemble_calibration).resolve()
+                if args.ensemble_calibration else None
+            ),
         )
     except ValidationError as exc:
         parser.error(str(exc))
