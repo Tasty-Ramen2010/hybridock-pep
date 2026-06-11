@@ -569,3 +569,31 @@ ligand Kd) → transfer universal atom-pair physics to peptides. Legitimate: wou
 This is the RF-Score/NNScore/Boltz route. Caveat: protein-ligand interfaces differ (small molecule vs
 flexible backbone); the pairwise enthalpy transfers, peptide conformational entropy does NOT. Realistic
 gain on the hotspot/enthalpy axis; entropy still needs sampling. THE concrete next experiment to test.
+
+## E46 — Experimental strength dictionary (SKEMPI 2.0): the residue-strength lever is saturated by MJ
+
+Ram's idea: a real "strength dictionary" — high for Trp/Phe/Leu, low for weak residues — from
+EXPERIMENT not hand-tuning. Built from SKEMPI 2.0 (~7000 interface point mutations): for an
+alanine scan X->A, ΔΔG(X->A)=RT·ln(Kd_mut/Kd_wt) = the experimental binding contribution of X.
+(scripts/e46_skempi_strength.py; data/skempi_v2.csv, gitignored >1MB.)
+
+**The dictionary is physically perfect:** W 2.16 > F 1.57 ≈ Y 1.56 > L 1.23 ≈ I 1.19 at the top,
+charged K/D/R ~1.13 mid, S 0.26 lowest. The Bogan-Thorn hot-spot ranking recovered blind from
+7000 mutations — Ram's Trp/Phe/Leu intuition experimentally confirmed.
+
+**But it does NOT add:** burial-weighted intensive `strength_bur` is UNIVERSAL (−0.283/−0.124,
+sign-consistent) — notably MORE robust than our shipped `mj_contact`, which FLIPS (−0.471 cr /
++0.317 on the-98, size-confounded). Yet pooled LOO geometry+MJ 0.411 -> 0.419 (+0.008, noise).
+Root cause: **MJ already saturates the hotspot/strength axis.** The experimental dictionary
+re-encodes the same per-residue favorability we capture statistically.
+
+**Decision — reversed the PDBbind atom-pair build.** The cheap proxy de-risked the expensive
+build NEGATIVE: a finer-grained data-derived potential is the SAME lever that just added +0.008.
+It would re-learn the saturated hotspot/enthalpy axis and CANNOT touch the two real ceilings:
+(1) charged-desolvation floor (r~0.07 for everyone incl real MM-GBSA — needs ensemble sampling),
+(2) range compression (variance limit). A static atom-pair term dies on both. Not worth days for
+~0.01. **The strength lever is exhausted; the only real levers left are ensemble sampling (LIE on
+bound-state MD, GPU-gated) and ML trained on many charged examples (PPI-Affinity route).**
+
+**One shippable win:** `strength_bur` is universal and non-flipping — a more robust companion to
+the size-confounded `mj_contact` for cross-dataset transfer. Small but safe.
