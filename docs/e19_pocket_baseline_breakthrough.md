@@ -406,3 +406,26 @@ population statistic, not THIS peptide's actual free-state disorder.
 
 E40 (real MD free entropy, GPU): runs 60ps free-peptide MD, S_free = actual dihedral-histogram
 conformational entropy. Tests whether the REAL term (vs proxy) bridges generalization. [running]
+
+## E40 RESULT — REAL MD free-state entropy BRIDGES the gap (permutation-validated)
+
+The actual MD free-state conformational entropy (60ps free-peptide MD, dihedral-histogram S_free)
+succeeds where the sequence proxy (e39) failed. Sign-consistent + physically correct:
+  s_free (mean free dihedral entropy): +0.149/+0.301 UNIVERSAL — floppy peptides bind WEAKER ✓
+  s_free_bur (s_free × buried fraction): −0.417/−0.122 UNIVERSAL
+
+GENUINE GENERALIZATION GAIN (pooled 163-complex LOO, same n=158, kcal/mol):
+  universal intensive (4):       r=0.409  RMSE 1.97
+  + s_free:                      r=0.464  RMSE 1.91
+  + s_free_bur:                  r=0.488  RMSE 1.88   <- +0.079 over baseline
+Permutation test (100×): shuffled s_free_bur → mean 0.404, 95th pct 0.425; REAL 0.488 is ABOVE
+the 95th pct = statistically real, not an artifact. Cross-dataset transfer also improved
+(98->cr +0.232 -> +0.356 with s_free_bur).
+
+This is the FIRST feature to meaningfully lift pooled/diverse generalization. It validates the
+whole physics arc: counts flip (miss desolvation) -> desolvation flips (miss entropy) -> entropy
+is the missing universal term -> sequence proxy too crude -> REAL MD free entropy = +0.08 gain.
+Ram's "physics never lies / missing term" thesis CONFIRMED: free-state conformational entropy is
+the term a static bound pose cannot see, and measuring it properly (cheap free-peptide MD, 8s GPU,
+NOT full MM-GBSA) bridges part of the gap. Cost: 8s/peptide GPU MD of the FREE peptide only.
+Next: add to production as an optional GPU feature; combine with curated data. scripts/e40_md_freestate.py.
