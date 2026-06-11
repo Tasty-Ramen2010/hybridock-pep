@@ -454,3 +454,32 @@ needs bound-complex MD) is the secondary gap.
 
 PROGRESSION: geometry counts 0.23 -> intensive encoding (no flip) -> +free entropy 0.31 diverse /
 0.49 pooled -> [next: electrostatics -> target ~0.42-0.55].
+
+## E42 — net salt-bridge electrostatics: physics VALIDATED, but charged affinity is pose-limited
+
+Built the proper net salt-bridge term (per charged group: screened Coulomb + Born-like charge
+desolvation, with buried-unsatisfied-charge detection). The "net not count" physics is CONFIRMED:
+  e_sb_net (NET electrostatic):   +0.279/+0.158  UNIVERSAL ✓
+  e_desolv (charge desolvation):  +0.346/+0.131  UNIVERSAL ✓
+  e_coul   (bare Coulomb):        −0.394/+0.051  FLIPS (missing desolvation, as predicted)
+  n_salt_bridge (COUNT):          +0.428/−0.145  FLIPS (counts flip, as predicted)
+The net term is sign-consistent where the count/bare-Coulomb flip — the hydrophobic-effect
+principle (paired interaction+desolvation) extends to electrostatics.
+
+BUT it does NOT bridge the gap. Pooled geometry+entropy 0.488 -> +electrostatics 0.482 (no gain).
+The deeper diagnosis: ALL signal collapses on CHARGED complexes (charged-heavy half r=0.066 vs
+low-charge half 0.679), and electrostatics does NOT fix them. CRITICAL CONTROL: even REAL GB
+continuum electrostatics (MM-GBSA g_solv) fails the charged half (0.066 -> 0.064). So it is NOT a
+proxy-quality problem — charged-complex affinity is fundamentally UNCAPTURABLE from a single static
+pose: (1) salt bridges are exquisitely pose-sensitive (present@3.5Å vs absent@5Å = huge ΔE, our
+poses aren't that accurate), (2) net = tiny difference of huge opposing terms, (3) needs ensemble
+averaging (rotamer/water-mediated). Electrostatics did help helices partially (−0.49 -> −0.27).
+
+THE COMPLETE MAP (why some physics is cheap and some isn't):
+  CHEAP & universal (one-sided OR directly measurable): hydrophobic burial (entropy-driven, no
+    canceling penalty), free-state conformational entropy (measured from free MD), MJ composition.
+  EXPENSIVE/irreducible (small NET of large opposing terms, pose-sensitive, ensemble-needed):
+    polar desolvation, electrostatics/salt bridges, bound-state entropy.
+Charged-complex affinity (r~0.07 for everyone, the floor that caps Rosetta at 0.42 cross-target)
+is the irreducible hard part — needs FEP/ensemble sampling or ML trained on many charged examples
+(PPI-Affinity's route), NOT a cheap static term. This closes the physics arc honestly.
