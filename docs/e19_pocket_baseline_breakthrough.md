@@ -536,3 +536,36 @@ We're at 0.49 pooled (geometry+MJ+free-entropy, wired). FlexPepDock-physics cros
 (in-distribution-limited). Reaching Boltz-2's 0.62 needs the NON-cheap routes: co-evolution/MSA
 (Boltz/AlphaFold — a non-size, non-static information source) or FEP/ensemble sampling. There is no
 cheap static term left to add. Investigation scientifically complete.
+
+## E45 — failure autopsy: RANGE COMPRESSION (under-strong/over-weak), two physical axes
+
+Signed-residual analysis (pooled cr+98, n=163). Ours r=0.411, Rosetta(per-term,98 no-relax) r=0.081;
+residual corr us-vs-Rosetta only +0.14 (DIFFERENT failures, not shared).
+
+THE HEADLINE: corr(signed_residual, ΔG) = −0.832 = RANGE COMPRESSION. We predict everything toward
+the mean: STRONG binders UNDER-predicted (1T7R SSRFESLFAG exp−13.1→−9.3; 6D94 exp−14→−9.5; 1T7M),
+WEAK binders OVER-predicted (2FF4 SLEVEAD −5.1→−10.5; 3JZH DFTD −4.6→−8.5). Classic signature of a
+variance-limited model (explains ~17% on diverse data).
+
+TWO PHYSICAL FAILURE AXES:
+  1. OVER-predict CHARGED weak binders (2FF4/1OSV/3C3R/3JZH chg 0.38−0.50): big charged interfaces
+     that bind WEAKLY (desolvation kills them) — we count contacts, miss charge desolvation.
+  2. UNDER-predict HYDROPHOBIC HOTSPOT strong binders (1T7R F/L/F, 6D94 M/L/M/L/L): small peptides
+     punching above size via killer aromatic/hydrophobic residues — we miss per-residue energy heterogeneity.
+Secondary: structure quality — only 5/163 broken (fa_rep>5000, 1G1E=250k clash); filtering -> 0.44 (minor).
+Term-flexibility (tails) mildly enriched in shared failures (0.50 vs 0.39).
+
+WHY FEP/LIE SUCCEED where static scoring fails: ENSEMBLE SAMPLING. FEP computes the true ΔG by
+alchemical morphing + MD sampling both states; LIE averages ⟨ΔE_vdw⟩,⟨ΔE_elec⟩ over MD ensembles.
+They capture charge desolvation + hotspot energetics correctly because they AVERAGE over conformations
++ solvent — the small-net-of-large-numbers (electrostatics) and per-residue heterogeneity emerge from
+the ensemble. Static-pose scoring fundamentally cannot. Ram's conviction is RIGHT: real physics doesn't
+fail — but the universal-making part is the ENSEMBLE AVERAGE (the expensive load-bearing piece). Our
+free-state entropy feature is one cheap sample of this (free peptide only); FEP/LIE sample everything.
+
+PROTEIN-LIGAND TRANSFER IDEA (Ram): train a pairwise INTERACTION potential on PDBbind (~20k protein-
+ligand Kd) → transfer universal atom-pair physics to peptides. Legitimate: would help the HOTSPOT axis
+(learned atom-pair energies capture Trp-pocket >> Ala-pocket) and charge (if enough charged examples).
+This is the RF-Score/NNScore/Boltz route. Caveat: protein-ligand interfaces differ (small molecule vs
+flexible backbone); the pairwise enthalpy transfers, peptide conformational entropy does NOT. Realistic
+gain on the hotspot/enthalpy axis; entropy still needs sampling. THE concrete next experiment to test.
