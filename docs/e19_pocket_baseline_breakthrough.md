@@ -394,3 +394,15 @@ one physical term fundamentally invisible to a static bound pose. A learned diso
 predictor (or ESM) estimating sequence rigidity is the physically-justified ML addition. This is
 the missing term, and it's a free-state property → only sequence/sampling can give it.
 scripts/e38_length_physics.py.
+
+## E39/E40 — free-state entropy feature: real signal, too weak to bridge (so far)
+
+E39 (cheap sequence proxy): two entropy features are UNIVERSAL + physically correct:
+  flex_mean (sequence flexibility) +0.213/+0.173 — flexible peptides bind WEAKER (pay entropy) ✓
+  sc_ent_bur (side-chain entropy × burial) −0.324/−0.222 (partly a big-residue/contact proxy)
+BUT adding them does NOT improve generalization (baseline transfer +0.24/+0.37 -> +0.24/+0.36).
+The free-state entropy signal is REAL but the sequence-average proxy is too crude — it's a
+population statistic, not THIS peptide's actual free-state disorder.
+
+E40 (real MD free entropy, GPU): runs 60ps free-peptide MD, S_free = actual dihedral-histogram
+conformational entropy. Tests whether the REAL term (vs proxy) bridges generalization. [running]
