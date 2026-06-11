@@ -327,3 +327,29 @@ The properly-encoded multivariate set BEATS single-feature on adequate data (0.4
 Old extensive-11 transfer was −0.14; new intensive set generalizes. Full resolution: intensive
 encoding + more diverse data (harvest in progress) = the path. f_hyd_iface is the new best single
 universal feature. scripts/e31_intensive_features.py; /tmp/e31_intensive.json.
+
+## E33 — single-pose GB desolvation (Ram's cheap-physics idea): WHY it still flips
+
+Computed proper GB solvation free energy on ONE static minimized pose (no MD): G_solv =
+E(ε=78.5) − E(ε=1). Physically correct on crystal-65: desolvation +0.291 (penalty opposes
+binding), gas interaction −0.317, single-pose ΔG −0.333. BUT all three SIGN-FLIP on the 98:
+  g_solv_bind +0.291/−0.128 | dE_gas −0.317/+0.149 | dG_1pose −0.333/+0.265.
+
+WHY (the load-bearing insight): single-pose dG_1pose correlates with interface SIZE at −0.755
+(crystal-65) and −0.810 (the-98). It IS a size proxy. ΔG = ΔH − TΔS; BOTH halves scale with
+interface size (extensive) and COMPENSATE (enthalpy-entropy compensation). Single-pose MM-GBSA
+gives ΔH only (interaction+desolvation) → size-confounded → flips. **The entropy −TΔS is the
+size-COMPENSATING term that makes the net universal — and it is exactly the EXPENSIVE part
+(needs MD sampling / normal modes).** So you CANNOT cheaply extract a universal polar signal:
+the desolvation/enthalpy alone is size-confounded; the part that fixes it (entropy) is why
+MM-GBSA is expensive. Hydrophobic burial uniquely generalizes because the hydrophobic effect is
+ENTROPY-driven (releasing ordered water) — bsa_hyd implicitly carries that entropic term.
+
+Caveat: crystal-65 uses CROPPED pockets, the 98 FULL receptors — a secondary GB prep confound;
+but the −0.76/−0.81 size correlation on BOTH supports size/entropy as the primary cause.
+
+CONCLUSION of the physics arc: cheap counts flip (miss desolvation); +desolvation still flips
+(miss entropy); entropy is irreducibly expensive. Two real jumps remain — (1) FULL MM-GBSA with
+entropy (3-traj captures peptide reorganization; proper physics, expensive), (2) ML + diverse
+DATA (PPI-Affinity learns the net ΔH−TΔS implicitly). Cheap universal signal = hydrophobic
+burial + intensive features (~0.4). scripts/e33_desolvation.py; /tmp/e33_{cr,b98}.json.
