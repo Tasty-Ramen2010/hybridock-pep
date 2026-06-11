@@ -223,3 +223,34 @@ vs PPI-Affinity published r=0.62 MAE 1.8 — we MATCH on r, BEAT on MAE, locally
 65 calibration complexes vs their thousands. SVM (their model class) on OUR 65 features = 0.528
 < our linear 0.615: SVM needs their data volume, the method isn't the edge — the data is.
 Caveat: oracle poses + our 65 (not their benchmark); fair ballpark, not strict head-to-head.
+
+## E26 — pose-quality audit (Ram: "are we scoring only good poses?")
+
+**NO — we score MEDIOCRE poses, and pose quality does NOT drive affinity accuracy.**
+RMSE/r are 1 prediction PER COMPLEX (65), not per pose; the pose strategy only picks WHICH
+pose feeds the features. What we actually scored:
+  - rank1 (pose_0, deployment default): median 3.4Å RMSD, only 9% <2Å, 35% >4Å
+  - RAPiDock MIS-RANKS: best-of-100 exists (median 1.6Å, 68% <2Å) but is buried below rank1.
+geometry+MJ LOO by pose choice (kcal/mol):
+  - rank1     r=0.564 RMSE 1.80
+  - top5_mean r=0.496 RMSE 1.91
+  - bestrmsd (oracle pose selection, median 1.6Å) r=0.467 RMSE 1.96  ← NOT better!
+corr(|prediction error|, rank1 pose RMSD) = −0.05 ≈ 0.
+
+Implications: (1) we are NOT cherry-picking good poses — the real-pose numbers use median
+3.4Å rank1, so they are pessimistic, not inflated. (2) Our pocket+interface+MJ features are
+POSE-ROBUST: they read the binding site + approximate placement, so a 3.4Å pose scores about
+as well as a 1.6Å pose. Better pose RANKING is headroom for pose-RMSD, NOT for affinity.
+
+## n=500 / 57-complex set — NO affinity labels (cannot compute r/RMSE)
+
+The 57-complex N=500 set (data/gen_n500_57.csv, logs/gen_n500/) is PepPC STRUCTURE complexes
+for pose-ranking work — no experimental Kd/ΔG. Zero overlap with the labeled crystal-65.
+Affinity r/RMSE is impossible without ground-truth binding energy.
+
+BIAS (the important part): the 57 are DELIBERATELY BALANCED (SHEET 19 / HELIX 20 / UNUSUAL 18;
+length buckets 15/13/14/15; 19% >20mers). It is our crystal-65 Kd set that is BIASED — median
+12-mer, 2% >20mers, almost all helix/loop, ~zero β-sheet peptides. So the ensemble's 0.642 is
+validated ONLY on short helical/loop peptides; we have NO affinity validation for β-sheet or
+long (>20) peptides. The 57-set cannot fill that gap (no labels). Closing it needs Kd-labeled
+sheet/long complexes — a data acquisition task.
