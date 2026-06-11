@@ -483,3 +483,29 @@ THE COMPLETE MAP (why some physics is cheap and some isn't):
 Charged-complex affinity (r~0.07 for everyone, the floor that caps Rosetta at 0.42 cross-target)
 is the irreducible hard part — needs FEP/ensemble sampling or ML trained on many charged examples
 (PPI-Affinity's route), NOT a cheap static term. This closes the physics arc honestly.
+
+## E43 — dissecting FlexPepDock: what truly drives its gears (PyRosetta per-term)
+
+Decomposed ref2015 INTERFACE energy per ScoreType on crystal poses (relaxed, cropped pocket).
+Per-term corr with ΔG (crystal-65, n=65):
+  hbond_lr_bb  −0.518   long-range backbone H-bonds (orientation-dependent)  <- STRONGEST
+  fa_atr       −0.499   van der Waals attraction (shape complementarity/packing)
+  fa_sol       +0.434   Lazaridis-Karplus desolvation
+  hbond_sc     −0.433   side-chain H-bonds (geometry-weighted)
+  fa_elec      −0.342   Coulomb electrostatics
+  hbond_bb_sc  −0.282
+  lk_ball_wtd  +0.115
+  fa_dun/ref   ~0       (intramolecular — CANCEL in binding ΔE; help STABILITY not affinity)
+H-bonds ALONE: LOO 0.505 ≈ all 11 terms 0.498. FlexPepDock's engine = ORIENTATION-DEPENDENT
+H-BONDS + vdW PACKING + Lazaridis-Karplus desolvation. The H-bond term being GEOMETRY-WEIGHTED
+(angle/distance) is the key — our hb_count FLIPPED (+0.31/−0.13); their hbond_lr_bb is the
+strongest single term. We COUNT, they WEIGHT BY GEOMETRY.
+
+Do Rosetta terms ADD to our geometry+MJ on crystal-65 (0.615 baseline)?
+  + orientation H-bonds  0.638  (+0.023) ✓
+  + fa_atr (vdW)         0.644  (+0.029) ✓ best
+  + fa_elec + fa_sol     0.592  (HURTS) ✗  <- electrostatics is NOT the lever
+The gap-closer is geometry-weighted H-bond ENERGY + vdW packing, NOT electrostatics. On crystal
+poses fa_elec carries signal (−0.34) but is redundant with our burial/contact features; adding it
+hurts. Answers Ram's electrostatics question: we DO use crystal poses; electrostatics IS computable
+there but is not where the gain is. [98 universality test queued — does H-bond/vdW lever generalize?]
