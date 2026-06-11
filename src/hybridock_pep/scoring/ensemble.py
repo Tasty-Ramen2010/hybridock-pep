@@ -29,7 +29,9 @@ import numpy as np
 # Feature order is part of the calibration contract — do not reorder without refitting.
 POCKET_FEATURES = ["poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis"]
 INTERFACE_FEATURES = ["bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count"]
-GEOMETRY_FEATURES = POCKET_FEATURES + INTERFACE_FEATURES
+# mj_contact = Σ Miyazawa-Jernigan per-contact energy (hotspot residue signal, docs E24).
+CONTACT_FEATURES = ["mj_contact"]
+GEOMETRY_FEATURES = POCKET_FEATURES + INTERFACE_FEATURES + CONTACT_FEATURES
 
 
 @dataclass(frozen=True)

@@ -24,6 +24,7 @@ FIELDNAMES: list[str] = [
     "entropy_correction",
     "delta_g",
     "mmgbsa_dg",
+    "ensemble_dg",
     "cluster_id",
     "pose_filename",
     "n_contact_residues",
@@ -103,6 +104,9 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
                 "delta_g": f"{hs:.4f}",  # D-04: same value as hybrid_score
                 "mmgbsa_dg": (
                     f"{pose.mmgbsa_dg:.4f}" if pose.mmgbsa_dg is not None else ""
+                ),
+                "ensemble_dg": (
+                    f"{pose.ensemble_dg:.4f}" if pose.ensemble_dg is not None else ""
                 ),
                 "cluster_id": pose.cluster_id if pose.cluster_id is not None else "",
                 "pose_filename": pose.pdb_path.name,

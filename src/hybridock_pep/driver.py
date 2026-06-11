@@ -173,6 +173,41 @@ def _auto_expand_box_for_poses(
     return config.model_copy(update={"box_size": float(new_edge)})
 
 
+def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> None:
+    """Populate pose.ensemble_dg with the geometry+Vina ensemble ΔG (kcal/mol).
+
+    Computes pocket+interface+MJ per-contact-energy features per pose and z-blends the
+    geometry linear model with the pose's Vina score using a saved EnsembleCalibration.
+    Poses without a Vina score or a usable interface are left as None. Failures are logged,
+    never raised — the ensemble is an additive annotation, not a hard pipeline dependency.
+    """
+    from hybridock_pep.scoring.ensemble import EnsembleCalibration, score as ensemble_score
+    from hybridock_pep.scoring.geometry_features import compute_geometry_features
+
+    cal_path = config.ensemble_calibration or (
+        Path(__file__).resolve().parents[2] / "data" / "ensemble_calibration.json"
+    )
+    if not cal_path.exists():
+        logger.warning("Ensemble: calibration not found at %s — skipping", cal_path)
+        return
+    cal = EnsembleCalibration.load(cal_path)
+    receptor = config.receptor_path.resolve()
+    n_ok = 0
+    for pose in scored_poses:
+        if pose.vina_score is None:
+            continue
+        try:
+            feats = compute_geometry_features(pose.pdb_path, receptor)
+            if feats is None:
+                continue
+            pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
+            n_ok += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Pose %d: ensemble ΔG failed (%s)", pose.pose_idx, exc)
+    logger.info("Stage 3.6: geometry+Vina ensemble ΔG on %d/%d poses (calibration %s)",
+                n_ok, len(scored_poses), cal_path.name)
+
+
 def run_dock(
     config: DockConfig,
     input_poses_dir: Path | None,
@@ -584,6 +619,12 @@ def run_dock(
         refine_topk_poses(scored_poses, cluster_result, config)
         n_refined = sum(1 for p in scored_poses if p.mmgbsa_dg is not None)
         logger.info("Stage 3.5 complete: %d poses have MM-GBSA ΔG", n_refined)
+
+    # Stage 3.6: Geometry+Vina ensemble ΔG (opt-in via --ensemble). Pocket+interface+MJ
+    # per-contact-energy linear model z-blended with Vina (scoring/ensemble.py). Validated
+    # to clear the guess-the-mean baseline and beat Vina-alone on real poses (docs E22/E24).
+    if config.compute_ensemble:
+        _apply_ensemble_dg(scored_poses, config)
 
     # Finalize metadata AFTER scoring
     finalize_metadata(metadata_path, poses_generated=len(records))

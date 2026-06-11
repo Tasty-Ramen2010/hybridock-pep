@@ -50,6 +50,9 @@ class DockConfig(BaseModel):
     verbosity: int = 0
     minimize_poses: bool = True
     refine_topk: int | None = None
+    # Geometry+Vina ensemble ΔG (scoring/ensemble.py). Off by default; opt-in via --ensemble.
+    compute_ensemble: bool = False
+    ensemble_calibration: Path | None = None
     mmgbsa_cpu_only: bool = False
     # MM-GBSA refinement options (overhaul steps 3-4; opt-in, off by default so
     # the validated single-trajectory path is unchanged unless requested).
@@ -142,6 +145,9 @@ class ScoredPose(PoseRecord):
     entropy_correction: float | None = None
     hybrid_score: float | None = None
     mmgbsa_dg: float | None = None
+    # Geometry+Vina ensemble ΔG (kcal/mol; scoring/ensemble.py). Pocket+interface+MJ
+    # per-contact-energy linear model z-blended with Vina. Populated when --ensemble is set.
+    ensemble_dg: float | None = None
     # BSA-fit pose ranker (replaces ref2015): lower = tighter/cleaner fit.
     # bsa = interface buried surface area (Å²); n_clash = overlapping peptide atoms.
     bsa_fit_score: float | None = None
