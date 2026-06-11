@@ -272,3 +272,31 @@ of the 57 are sheet/long with feature COMBINATIONS unseen in training. Linear mo
 to garbage. Same wall as everywhere: works WITHIN calibration distribution (LOO 0.642), does NOT
 generalize OUT. SHIP CAVEAT: trust ΔG/ranking only for peptides like crystal-65 (short helical/
 loop); flag or refuse OOD (sheet/long/low-burial). Cannot fix without Kd-labeled sheet/long data.
+
+## E28 — INDEPENDENT balanced benchmark (PPI-Affinity SI 100-complex): the verdict
+
+Built the balanced labeled set Ram asked for: 98/100 complexes from the PPI-Affinity SI
+(real RCSB structures + experimental ΔG, diverse SS/length, ΔG range −12.6..−4.6 kcal/mol),
+scored on NATIVE poses. data/ppep100_benchmark.csv; scripts/e28_ppep_benchmark.py + e28_eval.py.
+
+| method (same 98 complexes, native poses) | r | RMSE kcal/mol |
+|---|---|---|
+| **PPI-Affinity** | **0.554** | 1.48 |
+| RF-Score | 0.23 | 2.26 |
+| PRODIGY | 0.13 | 2.43 |
+| **ours geometry+MJ (in-dist LOO)** | **0.228** | 1.76 |
+| ours, crystal-65 → 98 TRANSFER | **−0.14** | 4.64 |
+| guess-the-mean | — | 1.72 |
+
+**The honest verdict:** on an INDEPENDENT diverse benchmark our scorer captures almost no
+signal (r=0.228, barely above mean-prediction; MAE 1.38 is deceptive — narrow ΔG range).
+PPI-Affinity is ~2.4× better. Our crystal-65 0.642 was IN-DISTRIBUTION on a narrow biased set
+and does NOT transfer (−0.14). Model-class diagnostic: ridge/SVR/GBM all ~0.20-0.25 → it is a
+FEATURE limitation, not a model one. PPI-Affinity wins via richer descriptors (ProtDCal) +
+thousands of training complexes — the data/feature gap we cannot close without that data.
+
+RAPiDock-pose calibration is moot here: NATIVE poses already cap at 0.228, so noisier RAPiDock
+poses cannot exceed it; the bottleneck is features+training-data, not pose source. Strategic
+implication: we are NOT a general cross-target affinity predictor. Honest tool scope = within-
+target / within-distribution RANKING and selectivity (ΔΔG), with explicit OOD flagging; cite
+PPI-Affinity for general absolute affinity.
