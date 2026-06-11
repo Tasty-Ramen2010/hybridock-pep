@@ -509,3 +509,30 @@ The gap-closer is geometry-weighted H-bond ENERGY + vdW packing, NOT electrostat
 poses fa_elec carries signal (−0.34) but is redundant with our burial/contact features; adding it
 hurts. Answers Ram's electrostatics question: we DO use crystal poses; electrostatics IS computable
 there but is not where the gain is. [98 universality test queued — does H-bond/vdW lever generalize?]
+
+## E44 — FlexPepDock has NO magic cross-target term; geom-weighted H-bond confirms the wall
+
+CRITICAL: crystal-65 no-relax ≈ relaxed (hbond −0.44 vs −0.52) → relaxation is NOT FlexPepDock's
+secret. So the 98 collapse is REAL: Rosetta's per-term energies DON'T generalize. cr vs 98:
+  hbond_lr_bb −0.518 / −0.032 | fa_elec −0.342 / +0.065 | fa_sol +0.434 / +0.017 | hbond_sc −0.433/+0.101
+Rosetta's terms are EXTENSIVE (scale with interface size) → size-confounded → collapse on diverse
+data, EXACTLY like our old extensive features. FlexPepDock's 0.59 is WITHIN-target (size cancels);
+cross-target it's trapped by the same wall. Our INTENSIVE features generalize BETTER than its raw terms.
+
+Built the synthesis (FlexPepDock geometry-weighting + our intensive aggregation): per-H-bond
+geometric quality (distance-Gaussian × linearity), aggregated INTENSIVELY. Result confirms the law:
+  hb_qual_sum (EXTENSIVE):  +0.505 / −0.122  FLIPS (like Rosetta hbond)
+  hb_qual_perL (intensive): +0.434 / +0.110  universal but WEAK
+  hb_qual_mean (intensive): −0.126 / −0.101  universal but WEAK
+Adds only +0.01 to geometry+MJ (0.411->0.421) — redundant with frac_pol_satisfied.
+
+THE COMPLETE MAP IS NOW EXHAUSTIVE. Every cheap static-pose physics term mapped:
+  Universal but WEAK (~0.1-0.3 each): hydrophobic burial, free-state entropy (the one real lever,
+    +0.08), MJ composition, intensive geom-weighted H-bonds, intensive net electrostatics.
+  EXTENSIVE/flipping: counts, sums, Rosetta's raw per-term energies.
+  Pose-limited/uncapturable: salt bridges, polar desolvation, bound-state entropy.
+Cheap static-pose physics CEILING on diverse cross-target peptide ΔG ≈ 0.5 pooled / 0.31 diverse-only.
+We're at 0.49 pooled (geometry+MJ+free-entropy, wired). FlexPepDock-physics cross-target also ~0.1-0.42
+(in-distribution-limited). Reaching Boltz-2's 0.62 needs the NON-cheap routes: co-evolution/MSA
+(Boltz/AlphaFold — a non-size, non-static information source) or FEP/ensemble sampling. There is no
+cheap static term left to add. Investigation scientifically complete.
