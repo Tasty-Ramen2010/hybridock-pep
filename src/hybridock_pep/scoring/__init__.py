@@ -13,6 +13,11 @@ from hybridock_pep.scoring.entropy import (
     apply_hybrid_score,
     fit_calibration,
 )
+from hybridock_pep.scoring.ensemble import (
+    EnsembleCalibration,
+    fit_ensemble_calibration,
+    score as ensemble_score,
+)
 
 __all__ = [
     "check_grid_boundary",
@@ -22,4 +27,7 @@ __all__ = [
     "write_calibration",
     "apply_hybrid_score",
     "fit_calibration",
+    "EnsembleCalibration",
+    "fit_ensemble_calibration",
+    "ensemble_score",
 ]
