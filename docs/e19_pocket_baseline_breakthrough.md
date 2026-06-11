@@ -365,3 +365,32 @@ peptide-Kd (163 clean -> 0.421); bulk dilutes. Encoding fix confirmed: train cr+
 independent 98 = +0.194 (vs old extensive -0.14) — universal intensive features generalize even
 with noisy training. Lever = clean curated data (PpISDS-350, PDBbind peptide subset — gated), not
 volume. scripts/e35_expanded_corpus.py.
+
+## E38 — length-modulation hypothesis (Ram): right diagnosis, inverted fix
+
+Length corr with ΔG = +0.43 (crystal-65) vs −0.40 (the-98): IT FLIPS. Length is a CONFOUND,
+not a law. Tested length-modulated weights + entropy penalty (transfer cr<->98):
+  universal intensive (4) [baseline]:  +0.241 / +0.366   <- BEST
+  + entropy penalty (L):                -0.191 / -0.136   <- length term DESTROYS transfer
+  + logL:                               -0.181 / +0.002
+  length-modulated (x·logL):            -0.175 / -0.064
+  per-residue (x/L):                    +0.199 / +0.203   <- sign-stable but weak
+Adding ANY length term flips the sign on the other dataset (because length itself flips).
+The generalizing model is the length-INDEPENDENT intensive one. Ram's diagnosis (fixed weights
+wrong, length modulates everything) is CORRECT; the fix is the opposite of adding length-
+dependence — it's REMOVING length, because no universal length-coefficient exists.
+
+WHY (the real missing physics): the true length-dependent term is CONFORMATIONAL ENTROPY —
+freezing a flexible peptide costs ~T·ΔS per ordered residue. But this depends on the FREE
+peptide's disorder, which (a) is NOT visible in the bound static pose, (b) is NOT a universal
+function of L (crystal-65 peptides are pre-ordered helices→low entropy cost→longer binds tighter;
+the-98 spans ordered→disordered→entropy varies→longer disordered binds weaker), (c) is a
+SEQUENCE/free-state property. Sequence-entropy proxy on crystal-65 didn't help (0.357→0.268)
+because crystal-65 is pre-ordered; needs the diverse set + a real disorder estimate.
+
+CONCLUSION — where ML LEGITIMATELY helps: NOT re-modeling our geometry (capped — all model
+classes ~0.42 pooled), but supplying the FREE-STATE CONFORMATIONAL ENTROPY from SEQUENCE — the
+one physical term fundamentally invisible to a static bound pose. A learned disorder/flexibility
+predictor (or ESM) estimating sequence rigidity is the physically-justified ML addition. This is
+the missing term, and it's a free-state property → only sequence/sampling can give it.
+scripts/e38_length_physics.py.
