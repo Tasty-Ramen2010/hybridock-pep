@@ -353,3 +353,15 @@ CONCLUSION of the physics arc: cheap counts flip (miss desolvation); +desolvatio
 entropy (3-traj captures peptide reorganization; proper physics, expensive), (2) ML + diverse
 DATA (PPI-Affinity learns the net ΔH−TΔS implicitly). Cheap universal signal = hydrophobic
 burial + intensive features (~0.4). scripts/e33_desolvation.py; /tmp/e33_{cr,b98}.json.
+
+## E35 — data route: clean data helps, bulk noise hurts (more≠better)
+
+Harvested 406 "peptides" from PPB-Affinity + recomputed universal intensive features. Trajectory:
+crystal-65(65) 0.357 -> +clean PPI-Aff-98 (163) 0.421 -> +406 PPB (570) 0.227 (DROPPED).
+Cause: the 406 are NOISE — feature(f_hyd_iface)↔ΔG corr = +0.004. PPB-Affinity is a
+protein-PROTEIN source (SKEMPI/PDBbind/SAbDab); its short chains carry protein-protein interface
+ΔG that doesn't match the single chain-pair we score. The data ROUTE works but needs CLEAN CURATED
+peptide-Kd (163 clean -> 0.421); bulk dilutes. Encoding fix confirmed: train cr+harvest -> predict
+independent 98 = +0.194 (vs old extensive -0.14) — universal intensive features generalize even
+with noisy training. Lever = clean curated data (PpISDS-350, PDBbind peptide subset — gated), not
+volume. scripts/e35_expanded_corpus.py.
