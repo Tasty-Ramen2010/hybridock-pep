@@ -207,3 +207,19 @@ data/ensemble_calibration.json. Tests: tests/test_geometry_features.py (5) + tes
 **ESM per-contact (Ram's specific idea — ESM models two touching residues):** per-residue
 ESM-2 embeddings of peptide + pocket; contact features = Σ over contacts of <emb_i,emb_j>.
 Tested vs MJ — see scripts/e25 (result pending full extraction).
+
+## E25 result — ESM per-contact: NO (physics MJ wins), PPI-Affinity comparison
+
+**ESM per-contact (n=62):** geometry 0.565 → +esm_dot 0.513 / +esm_cos 0.513 / +esm_cos_max
+0.517 — ALL HURT (raw corr −0.08 to −0.21). vs +MJ 0.601 (raw −0.46). ESM embedding
+dot/cosine measures residue SIMILARITY, not interaction FAVORABILITY (two like-charges are
+similar but unfavorable → washes out). Per-contact ENERGY is the right idea; MJ is the right
+tool, not naive ESM similarity. A trained ESM interaction head would overfit 65. ESM per-contact
+NOT pursued; MJ shipped in v1.2.
+
+**PPI-Affinity comparison (server protdcal.zmb.uni-due.de UNREACHABLE — web-only, cannot run
+our cases):** our geometry+MJ+Vina ensemble (oracle crystal-65 LOO) r=0.642 RMSE 1.64 MAE 1.38
+vs PPI-Affinity published r=0.62 MAE 1.8 — we MATCH on r, BEAT on MAE, locally/instantly with
+65 calibration complexes vs their thousands. SVM (their model class) on OUR 65 features = 0.528
+< our linear 0.615: SVM needs their data volume, the method isn't the edge — the data is.
+Caveat: oracle poses + our 65 (not their benchmark); fair ballpark, not strict head-to-head.
