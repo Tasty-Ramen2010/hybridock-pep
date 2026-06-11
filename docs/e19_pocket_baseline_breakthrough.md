@@ -254,3 +254,21 @@ length buckets 15/13/14/15; 19% >20mers). It is our crystal-65 Kd set that is BI
 validated ONLY on short helical/loop peptides; we have NO affinity validation for β-sheet or
 long (>20) peptides. The 57-set cannot fill that gap (no labels). Closing it needs Kd-labeled
 sheet/long complexes — a data acquisition task.
+
+## E27 — ranking the 57 diverse complexes: MODEL INVERTS on out-of-distribution (flag-and-stop)
+
+Ranked the 57 PepPC complexes by predicted ΔG (geometry+MJ fit on crystal-65, applied to
+their crystal poses). NO Kd to validate. Result: the ranking is PHYSICALLY INVERTED and NOT
+trustworthy:
+  - predicted STRONGEST 10: mean hydrophobic burial 1.8, MJ -167
+  - predicted WEAKEST 10:   mean hydrophobic burial 4.4, MJ -382
+  i.e. the peptides with the BIGGEST, most-favorable interfaces are predicted WEAKEST (backwards).
+  - #1 "strongest" 6GQN_C predicted -25 kcal/mol with burial 0.0 / MJ -10 (no interface) — absurd.
+  - #57 "weakest" 6GVL_B (MJ -726, biggest interface) predicted -2.3.
+  - even in-distribution helices: corr(predΔG, burial)=+0.41 (WRONG sign).
+
+Root cause: crystal-65 calibration is a narrow biased slice (short helix/loop, ~0 sheets); 47%
+of the 57 are sheet/long with feature COMBINATIONS unseen in training. Linear model extrapolates
+to garbage. Same wall as everywhere: works WITHIN calibration distribution (LOO 0.642), does NOT
+generalize OUT. SHIP CAVEAT: trust ΔG/ranking only for peptides like crystal-65 (short helical/
+loop); flag or refuse OOD (sheet/long/low-burial). Cannot fix without Kd-labeled sheet/long data.
