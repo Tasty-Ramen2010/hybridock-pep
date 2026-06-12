@@ -1116,3 +1116,29 @@ here — charge-awareness is a PRECISION tool for the rare buried-His/ambiguous 
 pKa 7.7), NOT a broad accuracy lever. Did NOT wire a half-integration into MM-GBSA (feeding PROPKA
 charges into ff14SB needs variant-name plumbing; flag without it = theater). Module shipped + validated;
 full FF charge-substitution is the documented next step IF a complex shows a pH-7-crossing titratable.
+
+## E72 — electrostatic decomposition VERDICT: floor does NOT crack single-point (Jun 12)
+
+Force-group decomposition (vdw / coulomb / GB-desolvation via zero-charge trick), minimized poses,
+the-98 n=86 (35 charged |Q|>=2). Spearman vs ΔG:
+  component   ALL     charged   low-Q
+  vdw        +0.295   +0.498    +0.149   <== SEPARATES charged
+  coul       +0.036   −0.106    +0.222
+  gbpol      −0.040   +0.097    −0.190
+  net_elec   −0.065   −0.115    −0.012   FLAT
+
+VERDICT: net_elec (Coulomb+desolvation) is FLAT on charged (−0.115). The early −0.62 at n=8 was a
+SMALL-N MIRAGE (confirmed — same trap as e53/pilot-0.71). Single-point electrostatics does NOT crack the
+floor. Mechanism proven rigorously: Coulomb attraction (−177) is ~cancelled by desolvation penalty (+209)
+= a wash carrying no ranking signal. The charged floor was never a missing computable static term — we
+computed it exactly and it's flat.
+
+KEY SURPRISE: vdw separates charged binders at +0.498 — charged strong binders bind via SHAPE/PACKING
+complementarity, NOT their charges (salt bridges ≈ desolvation-neutral). We already capture packing via
+BSA/MJ. So the lever for charged complexes is the SAME packing signal, not a new electrostatic term.
+
+MD-AVERAGED PLAN (honest expectation): MD-averaged IMPLICIT (GBn2) electrostatics samples sidechain
+rotamers but STILL uses implicit solvent — it cannot add the actual missing physics (explicit
+water-mediated bridges, ion atmosphere). So MD-averaged implicit is likely ALSO flat. The real fix is
+EXPLICIT-solvent LIE/FEP (expensive tier) OR — pragmatically — lean on vdW/packing (+0.50, already have
+it). Dataset persisted: data/electrostatic_decomp_dataset.jsonl (86 rows, tracked, ML-ready).
