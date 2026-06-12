@@ -729,3 +729,25 @@ E51 SKEMPI single-point MM-GBSA ΔΔG (n=600, 5 complexes): per-complex Spearman
 charged floor (0.07) = floor partially cancels, BUT single-point is too noisy = NOT LIE-level (lit
 single-pt MM-GBSA 0.3-0.5, flex-ddG 0.55). High complex-to-complex variance (−0.10..+0.30) is the
 noise signature. E52 (MD-averaged = true LIE) running to test if ensemble denoising reaches LIE-level.
+
+## E52/E53 — ensemble selectivity NOT LIE-level; structure-mined KBP flips like MJ (Simpson again)
+
+E52 ensemble (MD-averaged, true-LIE) ΔΔG vs single-point (n=144): per-complex 1PPF ENS+0.42/single+0.48,
+1CHO +0.08/−0.10, 1AO7(pep-MHC) +0.21/+0.43; pooled ENS+0.23/single+0.12. MD-averaging did NOT lift
+ΔΔG over single-point — our thermal-MD ensemble != flex-ddG backbone(backrub) ensemble. VERDICT:
+selectivity ΔΔG ~0.2-0.45 complex-dependent (best 1PPF 0.45), BEATS absolute floor (0.07 -> floor
+partially cancels) but NOT consistently LIE-level (0.55). To reach LIE: needs backbone-ensemble
+(flex-ddG), not thermal MD.
+
+E53 knowledge-based potential mined from 3619 peppc interfaces (Ram's 400-AA-pair/terminal/charged
+ideas). Learned correct physics (salt bridges R-E/D-K enriched +0.8, like-charges avoided −1.0). BUT
+the "strong" pooled charged −0.46 was an ARTIFACT: (1) LEAKAGE — all 63 crystal-65 PDBs are in the
+mined peppc set; (2) SIGN-FLIP — per-dataset kbp_all charged +0.115 cr / −0.381 the-98 (Simpson again).
+Terminal-debiasing also flips (+0.173/−0.222). VERDICT: structure-mined contact propensity does NOT
+bridge the charged gap — it's a STATIC PAIRWISE feature, flips across distributions like MJ. More
+structures = better propensity table, but propensity is the wrong feature TYPE for the floor. Data
+quantity isn't the bottleneck for flip-prone features; the feature type is.
+
+LASTING: only INTENSIVE features transfer; the data door (real Kd: M2 +0.13 charged, ATLAS 694 TCR-pMHC
+next) helps ONLY them. Selectivity cancels the floor (real) but caps ~0.3-0.45 cheaply. PDBbind
+protein-ligand transfer (registration-blocked) + flex-ddG backbone ensembles = the real (heavier) levers.
