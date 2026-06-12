@@ -129,8 +129,11 @@ class TestMDM2P53Integration:
         assert csv_path.exists(), "ranked_poses.csv must be created by Stage 4"
 
         rows = list(csv.DictReader(csv_path.open()))
-        assert 1 <= len(rows) <= 10, (
-            f"ranked_poses.csv should have 1–10 rows; got {len(rows)}"
+        # ranked_poses.csv lists ALL scored poses (write_ranked_csv docstring), not just
+        # cluster centroids; the mdm2_p53 fixture ships 25 poses (n_samples=25), so up to
+        # 25 rows are expected (fewer only if some pose failed to parse/score).
+        assert 1 <= len(rows) <= 25, (
+            f"ranked_poses.csv should have 1–25 rows (all scored poses); got {len(rows)}"
         )
 
         required_cols = {
