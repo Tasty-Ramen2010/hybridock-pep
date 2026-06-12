@@ -627,3 +627,28 @@ target the same slice — not worth the machinery, and RAPiDock (an e3nn equivar
 these poses, proving the limit is energetics/sampling not symmetry. Ship rank-1; the only ensemble
 that moves the floor is real MD (LIE), the GPU-gated compute door. Ram's filter instincts were
 correct engineering — they led cleanly to the floor, not past it.
+
+## E49/E50 — ensemble MM-GBSA & complete-LIE: ensemble RANK helps charged, free-leg dead
+
+Ram: "ensemble is all we need" — test ensemble-averaged MM-GBSA (e49) then complete the LIE with the
+free-peptide leg (e50). OpenMM ff14SB+GBn2, GPU (PfLDH dock done). scripts/e49_ensemble_mmgbsa.py,
+e50_lie_complete.py; caches /tmp/e49_ens_mmgbsa.json, /tmp/e50_lie.json.
+
+**METRIC LESSON:** MD produces repulsive-non-binder outliers (5EI3 <E_int>=+518); Pearson collapses
+(n=65 <E_int> Pearson=0.000) — a metric artifact. SPEARMAN (rank, outlier-robust) is the honest
+metric AND what matters for ranking/selectivity. All conclusions below are Spearman.
+
+**FINAL (n=63):**            all      charged(cf>=.3)
+  single-pose MMGBSA       -0.176     +0.230
+  ensemble <E_int>         -0.043     +0.352   (best charged)
+  complete-LIE 3traj       -0.085     -0.148   (HURT)
+  <E_int>/L intensive      +0.226     +0.298   (best balance; size-confound fixed by /L)
+
+**Verdict:** (1) ensemble RANK helps charged (+0.230->+0.352) — Ram's ensemble idea has real merit by
+rank (the Pearson "collapse" was the outlier). (2) Complete-LIE HURT (charged -0.148): the free-peptide
+leg as computed (18ps MD from bound pose, implicit solvent) adds noise not desolvation signal; the
+free-state compute door is closed at this MD budget. (3) Intensive /L removes the size confound (all
+-0.04->+0.23). Floor NOT broken (+0.35 charged still weak) but ensemble-<E_int>/L is the keepable
+robust physics baseline for the ML residual model. ROBUSTNESS win kept: ensemble rescues single-pose
+clash blowups (3FUR single=+5.6e9 -> ensemble sane). Residual driver for ML: net_charge (over-
+stabilizes +peptides). Next: M1 ML residual model on this baseline (docs/ml_residual_model_scoping.md).
