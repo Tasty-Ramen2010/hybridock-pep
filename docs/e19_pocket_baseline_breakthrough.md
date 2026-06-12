@@ -823,3 +823,41 @@ Hybrid ref2015+mmgbsa+Δphys = +0.406 (beats FlexPepDock +0.198) — but carried
 - Even perfect backrub buys ~+0.15 over the sequence model on mutations the prior already handles; for
   receptor-selectivity it's the only path but unproven for peptide-receptor pairs.
 - ATLAS TCR-pMHC real-Kd expansion: NOT run (out of context). Still the legitimate next data-door lever.
+
+## E59 — absolute-scoring residual autopsy on the-98 (Jun 12)
+
+Predictor: MM-GBSA single-point, global OLS calib. Pearson +0.247, Spearman +0.273, RMSE 1.68, MAE 1.35.
+47% within 1 kcal/mol, 75% within 2.
+
+### THE DISEASE = dynamic-range compression (regression to the mean)
+pred std 0.43 vs exp std 1.73 -> predictions span only **25% of the real ΔG spread (75% compressed)**.
+Everything piles near the mean −7.4 (pred range [−9.9,−7.4] vs exp [−12.6,−4.6]). The low correlation
+IS this compression. A global slope/gain cannot change Pearson — only the spread — so it can't fix it.
+
+### Over/under by factor (err=pred−exp; +ve=under-predicts affinity) — all track ONE axis
+| factor | meanErr | reading |
+|---|---|---|
+| **strength HI (strong)** | **+1.35** | UNDER-predict strong binders |
+| **strength LO (weak)** | **−1.32** | OVER-predict weak binders |
+| hydrophobic HI | +0.45 | under (hydrophobic=strong) |
+| length HI | +0.30 | under (long=strong) |
+| helix | +0.62 | under |
+| charged_frac / |net charge| | ±0.0–0.18 | balanced — charge NOT a bias axis |
+Strong/weak ±1.3 dwarfs everything; every secondary factor is the strength axis in disguise.
+
+### Residual ~ feature (does the offset c_i track a factor?)
+Best single: hyd_frac Spearman −0.319 — BUT corr(hyd_frac, exp strength)=−0.28 -> hydrophobic peptides
+ARE the strong binders we under-predict (same axis, not an independent term). All others |Spearman|<0.24.
+Charge features ~0.
+
+### DECISIVE TEST (Ram's ask: is the per-complex offset learnable, linear or nonlinear?)
+- ridge (linear, all feats) leave-one-out **R² = −0.05** (negative)
+- GBT (nonlinear) leave-one-out **R² = −0.14** (negative)
+Both NEGATIVE -> the per-complex offset does NOT generalize from peptide features. The one in-sample
+trend (hydrophobicity) is the strength axis itself. A feature-based correction term OVERFITS.
+
+### VERDICT
+The error is NOT a missing additive physics TERM (those appear as learnable systematic offsets) and
+NOT fixable by a feature-correlated constant. It is a GAIN/DISCRIMINATION deficit — the interaction
+energy can't spread strong from weak. Same floor, now precisely named: dynamic-range compression, not
+bias. Confirms charged error is noise not bias. No linear/nonlinear feature recovers it (LOO R²<0).
