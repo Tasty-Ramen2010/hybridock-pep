@@ -200,6 +200,40 @@ def _context_energy_kcal(
     return float(e_kj) * _KJ_TO_KCAL, ctx
 
 
+# Conformational-entropy penalty coefficient (kcal/mol per unit Cα radius-of-gyration-per-residue).
+# Single-snapshot MM-GBSA omits −TΔS_conf, so it over-rates EXTENDED peptides (which pay an ordering
+# cost it cannot see). The MM-GBSA residual vs experiment tracks rg_per_L consistently across datasets
+# (corr +0.34 crystal-65 / +0.39 the-98, +0.49 pooled; docs E64). Adding α·rg_per_L un-flips MM-GBSA's
+# cross-family sign and lifts pooled Pearson 0.05→0.48. α calibrated on pooled crystal-65 + the-98
+# (n=156). NOT applied by default (entropy_penalty=False) until re-benchmarked per CLAUDE.md §7.
+_CONF_PENALTY_ALPHA = 5.4
+
+
+def conformational_entropy_penalty(peptide_pdb: Path, alpha: float = _CONF_PENALTY_ALPHA) -> float:
+    """Cheap conformational-entropy penalty MM-GBSA omits: +α·(Cα radius of gyration per residue).
+
+    Extended peptides (high rg_per_L) lose more conformational freedom on binding, a −TΔS_conf cost
+    a single-snapshot enthalpy+solvation estimate cannot capture. Positive return = weaker binding.
+
+    Args:
+        peptide_pdb: PDB of the peptide pose (peptide-only).
+        alpha: Penalty coefficient in kcal/mol per unit rg_per_L (default calibrated 5.4).
+
+    Returns:
+        Penalty in kcal/mol to ADD to ΔG_bind (0.0 if fewer than two Cα atoms).
+    """
+    import numpy as np  # noqa: PLC0415
+    import openmm.app as app  # noqa: PLC0415
+
+    pdb = app.PDBFile(str(peptide_pdb))
+    cas = np.array([list(pos.value_in_unit(pos.unit)) for atom, pos in
+                    zip(pdb.topology.atoms(), pdb.positions) if atom.name == "CA"])
+    if len(cas) < 2:
+        return 0.0
+    rg = float(np.sqrt(((cas - cas.mean(0)) ** 2).sum(1).mean()))
+    return alpha * (rg / len(cas))
+
+
 def compute_mmgbsa_single(
     pose_pdb: Path,
     receptor_pdb: Path,
@@ -207,6 +241,7 @@ def compute_mmgbsa_single(
     solute_dielectric: float = _SOLUTE_DIELECTRIC,
     solvent_dielectric: float = _SOLVENT_DIELECTRIC,
     three_traj: bool = False,
+    entropy_penalty: bool = False,
 ) -> float:
     """Compute MM-GBSA ΔG_bind for a single docked pose.
 
@@ -321,6 +356,10 @@ def compute_mmgbsa_single(
         "MM-GBSA: E_complex=%.2f E_receptor=%.2f E_peptide=%.2f ΔG=%.2f kcal/mol",
         e_complex, e_receptor, e_peptide, delta_g,
     )
+    if entropy_penalty:
+        pen = conformational_entropy_penalty(pose_pdb)
+        logger.debug("MM-GBSA conformational-entropy penalty +%.2f kcal/mol (rg_per_L)", pen)
+        delta_g += pen
     return delta_g
 
 

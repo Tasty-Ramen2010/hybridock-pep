@@ -57,6 +57,7 @@ _SKEMPI_STRENGTH = {
 GEOMETRY_FEATURE_KEYS = [
     "poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis",
     "bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count", "mj_contact", "strength_bur",
+    "rg_per_L",
 ]
 
 
@@ -194,6 +195,25 @@ def _mj_contact(cx_path: Path, pep_chain: str, contact_cut: float = 6.5) -> floa
     return total
 
 
+def _rg_per_residue(peptide_pdb: Path) -> float:
+    """Radius of gyration of the peptide Cα trace, normalised per residue.
+
+    An intensive shape descriptor of peptide EXTENDEDNESS. Higher = more spread-out per residue =
+    larger conformational-entropy cost on binding = weaker affinity. Unlike raw length / interface
+    size (which are extensive and flip sign across datasets via selection bias), rg_per_L is
+    sign-stable across crystal-65 and the-98 (corr with ΔG +0.32 / +0.39; docs E63/E64) and proxies
+    the −TΔS_conf term that single-snapshot MM-GBSA omits.
+
+    Returns 0.0 if fewer than two Cα atoms are present.
+    """
+    cas = np.array([a.coord for r in _P.get_structure("rg", str(peptide_pdb))[0].get_residues()
+                    if r.id[0] == " " for a in r if a.name == "CA"])
+    if len(cas) < 2:
+        return 0.0
+    rg = float(np.sqrt(((cas - cas.mean(0)) ** 2).sum(1).mean()))
+    return rg / len(cas)
+
+
 def compute_geometry_features(peptide_pose_pdb: Path, receptor_pdb: Path) -> dict | None:
     """Extract the ensemble's geometry + per-contact-energy features for one pose.
 
@@ -212,6 +232,7 @@ def compute_geometry_features(peptide_pose_pdb: Path, receptor_pdb: Path) -> dic
         fi = _interface_features(peptide_pose_pdb, cx, "P")
         if pk is None or fi is None:
             return None
-        return {**pk, **fi, "mj_contact": _mj_contact(cx, "P")}
+        return {**pk, **fi, "mj_contact": _mj_contact(cx, "P"),
+                "rg_per_L": _rg_per_residue(peptide_pose_pdb)}
     finally:
         cx.unlink(missing_ok=True)

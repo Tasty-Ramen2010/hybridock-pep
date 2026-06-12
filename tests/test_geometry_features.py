@@ -67,6 +67,40 @@ def test_mj_contact_is_negative_for_real_contacts(tmp_path: Path) -> None:
     assert feats["mj_contact"] < 0.0
 
 
+def test_rg_per_l_extended_exceeds_compact(tmp_path: Path) -> None:
+    """rg_per_L must be larger for an extended peptide than a compact one (extendedness proxy)."""
+    from hybridock_pep.scoring.geometry_features import _rg_per_residue
+
+    extended = tmp_path / "ext.pdb"
+    compact = tmp_path / "cmp.pdb"
+    # extended: 4 CA strung along x at 3.8 Å spacing
+    extended.write_text("".join(
+        f"ATOM  {i:5d}  CA  ALA A{i:4d}    {i*3.8:8.3f}   0.000   0.000  1.00  0.00           C\n"
+        for i in range(1, 5)) + "END\n")
+    # compact: 4 CA clustered in a tight tetrahedron-ish cloud
+    compact.write_text(
+        "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\n"
+        "ATOM      2  CA  ALA A   2       1.500   0.000   0.000  1.00  0.00           C\n"
+        "ATOM      3  CA  ALA A   3       0.750   1.300   0.000  1.00  0.00           C\n"
+        "ATOM      4  CA  ALA A   4       0.750   0.430   1.220  1.00  0.00           C\n"
+        "END\n")
+    assert _rg_per_residue(extended) > _rg_per_residue(compact) > 0.0
+
+
+def test_conformational_entropy_penalty_positive_and_scales(tmp_path: Path) -> None:
+    """The MM-GBSA conformational penalty must be >=0 and scale with alpha (weaker for extended)."""
+    from hybridock_pep.scoring.mmgbsa import conformational_entropy_penalty
+
+    pep = tmp_path / "pep.pdb"
+    pep.write_text("".join(
+        f"ATOM  {i:5d}  CA  ALA A{i:4d}    {i*3.8:8.3f}   0.000   0.000  1.00  0.00           C\n"
+        for i in range(1, 6)) + "END\n")
+    p1 = conformational_entropy_penalty(pep, alpha=5.4)
+    p2 = conformational_entropy_penalty(pep, alpha=10.8)
+    assert p1 > 0.0
+    assert p2 == pytest.approx(2.0 * p1, rel=1e-6)
+
+
 def test_no_interface_returns_none(tmp_path: Path) -> None:
     # receptor placed 100 Å away -> no contacts, no buried SASA on the receptor side,
     # but pocket descriptors require receptor residues near the peptide; expect None.
