@@ -1170,3 +1170,32 @@ floor is NOT addressable by any static charge-resolved feature; the missing phys
 explicit-solvent (water-mediated networks, ion atmosphere) OR the answer is simply "packing strength =
 charged binding strength" (which we now capture). STOP building static charge features. Forward levers:
 (1) explicit-solvent LIE on a charged subset (expensive, real); (2) lean on packing (free, done).
+
+## E76 + FLIP AUTOPSY — why charge features flip: physics doesn't, our solvent model does (Jun 12)
+
+Ram's challenge: a true charge term CANNOT flip sign across datasets; if it does, our scoring is wrong.
+Autopsy of the flip:
+
+### The flip is in RAW net charge itself
+corr(net_charge, ΔG): cr65 +0.258 / the98 −0.269. Not a derived feature — the bare peptide charge→
+affinity sign is OPPOSITE between datasets. NOT the size confound (corr(n_unsat,L)=0.03/0.13, low).
+
+### ROOT CAUSE = pocket desolvation environment (hidden variable), proven via Ki/Kd split
+cr65 charged by measurement type:
+  Ki (enzyme ACTIVE SITES = buried, desolvating):  corr(netQ,ΔG)=+0.592  -> charge HURTS (desolvation cost)
+  Kd (mixed):                                       corr(netQ,ΔG)=+0.152
+the98 (figshare Kd, surface/PPI-like):             corr(netQ,ΔG)=−0.269  -> charge HELPS (exposed salt bridge)
+The SAME charge has OPPOSITE ΔG consequence depending on whether it desolvates into a DRY (buried, active
+site) or WET (exposed, surface) pocket. Born model: ΔG_elec sign depends on ε_pocket. Our implicit GBn2
+uses ONE generic burial-based dielectric and CANNOT distinguish wet vs dry pockets -> the charge term
+inherits each dataset's pocket distribution -> flips. PHYSICS DOESN'T FLIP; our SOLVENT MODEL is blind to
+the local dielectric. Same reason complementarity/shielding/unsatisfied all flip: all charge-derived,
+all read through the same dielectric-blind implicit solvent on static poses.
+
+### Why explicit-solvent LIE is THE fix (E76, running)
+Explicit TIP3P water computes the ACTUAL desolvation per pocket (real local dielectric), so MD-averaged
+⟨E_elec⟩ should be sign-CONSISTENT with strength across datasets. E76 runs explicit PME MD on 10 charged
+complexes (5 strongest + 5 weakest), records per-frame pep-rec vdw+elec to data/lie_explicit_dataset.jsonl.
+Test: if explicit ⟨E_elec⟩ correlates with ΔG sign-stable (|r|>0.3) where implicit net_elec was flat
+(−0.115)/flipping, explicit water DE-FLIPS the charge term = diagnosis confirmed + the deployable lever is
+explicit (or a pocket-dielectric-aware correction). 2HRP (strong,+3): explicit ⟨elec⟩=−127 (favorable).
