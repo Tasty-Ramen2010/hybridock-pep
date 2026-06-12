@@ -1094,3 +1094,25 @@ LEAVE-DATASET-OUT stays near-zero (legacy −0.01/−0.20; +rg_per_L +0.15/−0.
 set still barely extrapolates to the other — which is EXACTLY why pooled/balanced training is needed and
 correct (Ram's balanced-dataset idea VALIDATED). 0.54 is within-pooled-distribution; the honest
 deployment number is the balanced held-out test 0.518. Candidate: data/calibration_pooled_candidate.json.
+
+## E70/E71 — MD surrogate feasibility + charge-aware entry (Jun 12)
+
+### MD surrogate (Ram: record MD, learn it, skip cost) — feasibility
+LOO predict MD outputs from cheap static features (n=156): minus_tds Pearson +0.27 (needs MD),
+e_int_std +0.33 (partial), e_int_mean +0.19. VERDICT: −TΔS is only WEAKLY predictable from static
+features = the MD captures genuine dynamics, NOT a hand-feature shortcut. So the surrogate must learn
+from RECORDED TRAJECTORIES (per-frame E_int series + Cα RMSF), not static descriptors. Built
+md_recorder.py: appends per-frame series + RMSF + −TΔS target to a growing JSONL; accumulate across
+runs -> train GNN/regressor input→−TΔS, then drop MD at inference. Seeded 156 summary records (per-frame
+series wasn't cached historically; future runs record full series). top static predictors of −TΔS:
+n_anchor +0.46, total_bsa +0.44 (size/contact, confounded) — exactly why a trajectory model is needed.
+
+### Charge-aware entry (PROPKA) — built + HONEST validation
+Installed propka 3.5.1 + pdb2pqr30; built protonation.py (assign_protonation via
+pdb2pqr30 --titration-state-method=propka, opt-in, graceful degrade). VALIDATION on the charged-floor
+complexes: PROPKA finds large pKa SHIFTS (Arg→14.8, Asp→2.2) but they push residues MORE firmly into
+default state; only 1/186 titratable residues CROSSES pH 7. So default protonation is mostly CORRECT
+here — charge-awareness is a PRECISION tool for the rare buried-His/ambiguous case (e.g. 2R0L His
+pKa 7.7), NOT a broad accuracy lever. Did NOT wire a half-integration into MM-GBSA (feeding PROPKA
+charges into ff14SB needs variant-name plumbing; flag without it = theater). Module shipped + validated;
+full FF charge-substitution is the documented next step IF a complex shows a pH-7-crossing titratable.
