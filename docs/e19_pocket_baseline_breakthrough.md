@@ -1142,3 +1142,31 @@ rotamers but STILL uses implicit solvent — it cannot add the actual missing ph
 water-mediated bridges, ion atmosphere). So MD-averaged implicit is likely ALSO flat. The real fix is
 EXPLICIT-solvent LIE/FEP (expensive tier) OR — pragmatically — lean on vdW/packing (+0.50, already have
 it). Dataset persisted: data/electrostatic_decomp_dataset.jsonl (86 rows, tracked, ML-ready).
+
+## E73–E75 — packing IS the charged-strength lever; charge-resolved features all flip (Jun 12)
+
+### E73 — vdW/packing separates strong/weak (Ram's redirect, VALIDATED)
+vdw vs ΔG: ALL +0.30, CHARGED +0.498, low-Q +0.15. Best: vdw/mean_burial +0.673 on charged. The CHEAP
+proxy mj_contact/burial recovers +0.507; mean_burial (per-res burial density) is sign-stable +0.30(cr65)
+/+0.26(the98) AND on charged. WIRED mean_burial into geometry_features (pooled LOO 0.532→0.544, weight
+−0.35). Charged strong binders bind by PACKING, not charge.
+
+### E74/E75 — every CHARGE-RESOLVED static feature FLIPS cross-dataset (decisive negative)
+Tested 6 charge-specific hypotheses for what separates strong/weak CHARGED binders:
+  charge complementarity: cr65 +0.461 / the98 +0.032 — real but LOW-VARIANCE (53/61 already complementary)
+  hydrophobic shielding:  cr65 +0.064 / the98 −0.223 — FLIPS (pooled +0.428 was Simpson mirage)
+  charged-res burial:     cr65 +0.294 / the98 +0.064 — weak
+  n_unsatisfied buried Q:  cr65 +0.371 / the98 −0.181 — FLIPS (leave-dataset-out 0.405→0.005, DESTROYS)
+  satisfaction_frac:      flips ; net_satisfied: sign-stable but weak (−0.07/−0.19)
+Leave-dataset-out on charged: mean_burial alone +0.405/+0.287; NO charge-resolved feature beats it both
+directions. Best they do is neutral (satisfaction_frac 0.408/0.286 ≈ baseline).
+
+### IRONCLAD CONCLUSION
+Across electrostatic decomposition (E72) + 6 charge-resolved geometric features (E74/E75), the ONLY
+sign-stable charged-strength separator is GENERIC PACKING (mean_burial/vdw) — which is NOT charge-
+specific. Every attempt to read the salt-bridge environment statically (complementarity, satisfaction,
+shielding, unsatisfied burial) FLIPS across datasets = within-dataset mirage. This proves the charged
+floor is NOT addressable by any static charge-resolved feature; the missing physics is genuinely
+explicit-solvent (water-mediated networks, ion atmosphere) OR the answer is simply "packing strength =
+charged binding strength" (which we now capture). STOP building static charge features. Forward levers:
+(1) explicit-solvent LIE on a charged subset (expensive, real); (2) lean on packing (free, done).
