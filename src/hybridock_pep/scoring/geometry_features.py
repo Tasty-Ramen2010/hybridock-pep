@@ -57,7 +57,7 @@ _SKEMPI_STRENGTH = {
 GEOMETRY_FEATURE_KEYS = [
     "poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis",
     "bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count", "mj_contact", "strength_bur",
-    "rg_per_L", "org_density", "cys_frac",
+    "rg_per_L", "org_density", "cys_frac", "mean_burial",
 ]
 
 # Intra-peptide bond weights for the pre-organization score (heavy-atom distance cutoffs, |i−j|>=2
@@ -141,6 +141,7 @@ def _interface_features(peptide_pdb: Path, cx_path: Path, pep_chain: str) -> dic
     bsa_hyd = sasa_hb = sasa_sb = 0.0
     hb_count = arom_cc = 0
     s_wsum = s_wnorm = 0.0  # burial-weighted experimental strength accumulators
+    dsasa_sum = 0.0         # total buried ΔSASA over all peptide residues (for mean burial density)
     for i in range(n):
         rc = pep_res[i]
         rn = rc.resname.upper()
@@ -148,6 +149,7 @@ def _interface_features(peptide_pdb: Path, cx_path: Path, pep_chain: str) -> dic
         rfree = free.get((pf[i].get_parent().id, pf[i].id), 0.0)
         rbound = cpx.get((rc.get_parent().id, rc.id), 0.0)
         dsasa = max(0.0, rfree - rbound)
+        dsasa_sum += dsasa
         if aa in _SKEMPI_STRENGTH:  # accumulate over ALL residues, weighted by buried fraction
             bur = dsasa / (rfree + 1e-6)
             s_wsum += bur * _SKEMPI_STRENGTH[aa]
@@ -180,7 +182,8 @@ def _interface_features(peptide_pdb: Path, cx_path: Path, pep_chain: str) -> dic
             arom_cc += 1
     return dict(bsa_hyd=bsa_hyd / 100, sasa_hb=sasa_hb / 100, sasa_sb=sasa_sb / 100,
                 arom_cc=float(arom_cc), hb_count=float(hb_count),
-                strength_bur=float(s_wsum / (s_wnorm + 1e-6)))
+                strength_bur=float(s_wsum / (s_wnorm + 1e-6)),
+                mean_burial=float(dsasa_sum / max(1, n)))
 
 
 def _mj_contact(cx_path: Path, pep_chain: str, contact_cut: float = 6.5) -> float:
