@@ -652,3 +652,33 @@ free-state compute door is closed at this MD budget. (3) Intensive /L removes th
 robust physics baseline for the ML residual model. ROBUSTNESS win kept: ensemble rescues single-pose
 clash blowups (3FUR single=+5.6e9 -> ensemble sane). Residual driver for ML: net_charge (over-
 stabilizes +peptides). Next: M1 ML residual model on this baseline (docs/ml_residual_model_scoping.md).
+
+## M1/M1b — ML residual: leave-DATASET-out FAILS (sign-flip) but POOLED works (+0.43); M2 justified
+
+Ram pushed: build the ML residual model; if it fails, diagnose WHY (which structures, missing
+features, linear-vs-nonlinear). scripts/m1_residual_model.py, m1b_diagnosis.py. Baseline = winsorized
+intensive <E_int>/L -> ΔG; ML learns residual from charge+composition.
+
+**Leave-DATASET-out FAILS:** within-crystal-65 LCO baseline+ML 0.13->0.44, but cross-dataset (train
+cr->test 98 and reverse) ML goes NEGATIVE (charged baseline +0.29 -> +ML −0.13/−0.23). Classic
+within-dataset mirage.
+
+**WHY (sign-flip diagnostic — the core finding):** the high-signal features FLIP sign across
+datasets: mj −0.525cr/+0.308 98, L +0.371/−0.409, logL +0.369/−0.368, net_charge +0.210/−0.128,
+bsa_hyd +0.198/−0.311. Transferable features (bsa_polar_frac +0.23/+0.21, hyd_frac, strength) are
+WEAK. So ANY model (linear/log/GBT/interactions) leaning on signal features learns one dataset's
+sign, applies it backwards. NOT a model-class problem. Nonlinearity (GBT/log/charge×burial) tested
+fairly cross-dataset — none beat baseline.
+
+**Per-complex failures:** all 12 worst = WEAK binders predicted too STRONG by 7-10 kcal/mol
+(PPPPPPPPPP, PSYPTSPS polyproline no-burial; SLEVEAD/DFTD/YAGDEN acidic weak). crystal-65 has NO weak
+binders (mean −10.1, weakest −5.8) so model never learned "weak" = range compression from
+distribution shift.
+
+**THE TURN — POOLED leave-one-complex-out (n=154):** train on BOTH datasets -> ML HELPS:
+  all-12 GBT: all +0.05->+0.43, charged −0.16->+0.19 (best); ridge +0.37 all. Pooling BREAKS the
+sign-flip (model sees both distributions, learns universal not local sign). NONLINEAR (GBT) beats
+linear (Ram right). Caveat: pooled-LOCO = interpolation (optimistic vs true new-dataset which fails);
+deployment r between ~baseline (alien data) and ~0.43 (in-distribution). LESSON: model generalizes
+WITHIN trained distribution, not beyond -> fix = MORE diverse data (M2), exactly the PPI-Affinity
+route (0.55 @ thousands). M2 (data campaign through e49 ensemble pipeline) is JUSTIFIED.
