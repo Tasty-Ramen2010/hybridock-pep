@@ -861,3 +861,43 @@ The error is NOT a missing additive physics TERM (those appear as learnable syst
 NOT fixable by a feature-correlated constant. It is a GAIN/DISCRIMINATION deficit — the interaction
 energy can't spread strong from weak. Same floor, now precisely named: dynamic-range compression, not
 bias. Confirms charged error is noise not bias. No linear/nonlinear feature recovers it (LOO R²<0).
+
+## E60/E61 — Ram's challenge: was "no correction scales" wrong? (Jun 12)
+
+Ram pushed back on E59's "math says no." He was RIGHT that E59 used the wrong test (residual~feature R²
+is circular: corr(residual,y)=+0.969, residual IS strength). Correct test = does y~mmgbsa+F improve
+OUT-OF-SAMPLE ranking of real ΔG.
+
+### E60 — WITHIN the-98, a correction DOES scale (Ram right)
+y~mmgbsa LOO Pearson 0.152. Adding a feature:
+  + L (length):        0.152 -> 0.314  (+0.162)
+  + sasa_hb:           -> 0.309
+  + hyd_frac / mj:     -> 0.245
+Cheap MODEL-SPACE ensemble (blend scoring fns, NO MD): mmgbsa+mj+bsa+poc_n -> 0.346; ALL -> 0.409.
+So within-distribution, a size/blend correction lifts 0.15->0.41. e59's flat "no" was too strong.
+
+### E61 — ACROSS datasets it INVERTS (the mirage confirmed)
+The lifters are extensive size features. Measured directly:
+  corr(L, exp ΔG) on the-98     = -0.404  (longer -> STRONGER)
+  corr(L, exp ΔG) on crystal-65 = +0.464  (longer -> WEAKER)
+OPPOSITE SIGNS. Transfer (train one, predict other): mmgbsa+L weight flips -0.73(98)/+0.98(65); cross
+corr goes NEGATIVE (-0.40). The within-98 0.41 is a within-distribution mirage — the correction
+anti-scales. Physics doesn't lie; "length" isn't physics — it ALIASES two opposite effects (added
+contacts = stabilizing vs added flexibility = entropy cost). A static constant can't know which regime.
+
+### What DOES transfer (both train-directions positive, honest but small)
+  mmgbsa+eint (model-ensemble, cheap): +0.05 (98→65) / +0.28 (65→98) — beats mmgbsa-alone (both ~0/neg)
+  eint_perL / intensive blend:         +0.04–0.08 both ways
+INTENSIVE (per-residue) features and model-space score-blending transfer weakly-positive; all EXTENSIVE
+size terms flip. Matches the campaign throughline.
+
+### Why ensembles beat "guessing the mean" — and the cheap version
+Range compression = regression dilution: a single static pose is a NOISY energy estimate; OLS shrinks
+the slope by signal/(signal+noise), pulling preds to the mean (pred std 0.43 vs exp 1.73 = 25%). Ensemble
+averaging cuts predictor noise (→ un-shrinks slope, restores range) AND adds configurational entropy
+(−TΔS) a single pose structurally cannot hold. The cheap replication that the campaign already validated:
+REAL free-state MD entropy (8s/pep GPU) is the term that DISAMBIGUATES floppy-long from contact-long —
+the exact alias that makes length flip. Sequence proxy too weak; real MD works (+0.08, transfers).
+VERDICT: the wall is a DATA/ENTROPY wall (size aliases two physics regimes), not "we can't beat 1995."
+Levers: free-state entropy term (cheap-ish, validated) or more real Kd (population-conditional sign, the
+PPI-Affinity route to 0.55). Not a feature-correlated constant — that overfits the population.
