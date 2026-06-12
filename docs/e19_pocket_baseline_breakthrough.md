@@ -1224,3 +1224,12 @@ solvent captures the real desolvation. AND GBT≈linear = no nonlinear signal le
 - FEP 0.8-0.9: NOT reachable for diverse cross-family (reserved for congeneric series w/ reference)
 The binding constraint is DATA + LABELS + explicit-solvent on charged, NOT model class. We're at the
 feature ceiling; next +0.05-0.10 needs the expensive tier, +to-0.7 needs clean labels + data.
+
+## E76 FINAL — explicit-LIE bound state does NOT de-flip charge (Jun 12)
+charged corr(⟨E_elec⟩,ΔG)=+0.043 (implicit was −0.115) = FLAT. Strong ⟨elec⟩ mean −236 ≈ weak −222
+(no separation). INVERTED per-complex: highest attraction 1ZKK −427/3C3R −426 are WEAK (−6.1/−6.0,
+Q+4/−3); strongest binder 2HRP −127. Bound state = raw attraction only, omits desolvation leg; net =
+attraction−desolvation needs free-peptide leg (E50 showed crude free leg HURTS). vdw +0.243 = PACKING
+separates (4th independent confirmation). VERDICT: explicit water on static-derived pose does NOT cheaply
+de-flip; proper full-LIE (both legs, longer MD, α/β fit) is the real expensive tier. Doesn't change
+r-ceiling (~0.55 now, ~0.6-0.65 needs full desolvation + clean Kd/Ki labels). Data tracked.
