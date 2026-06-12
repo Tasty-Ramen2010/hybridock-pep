@@ -751,3 +751,21 @@ quantity isn't the bottleneck for flip-prone features; the feature type is.
 LASTING: only INTENSIVE features transfer; the data door (real Kd: M2 +0.13 charged, ATLAS 694 TCR-pMHC
 next) helps ONLY them. Selectivity cancels the floor (real) but caps ~0.3-0.45 cheaply. PDBbind
 protein-ligand transfer (registration-blocked) + flex-ddG backbone ensembles = the real (heavier) levers.
+
+## E54/E55 — BEAT FlexPepDock on mutation-ΔΔG (via sequence prior), but NOT receptor-selectivity
+
+ref2015 (=FlexPepDock) ΔΔG on saved SKEMPI mutants (e54): per-complex Spearman 1PPF +0.42, 1CHO +0.43,
+1R0R +0.38, 3SGB −0.48(broken, +1115kcal/mol clash blowup), 1AO7 +0.24. Clean MEAN ~+0.30 (ex-3SGB).
+
+E55 hybrid leave-COMPLEX-out (cleaned n=494): Δphys(Δhydrophobicity/Δvolume/Δcharge, SEQUENCE-only)
+MEAN +0.422 (robust ALL 5 complexes incl 3SGB +0.50) >> ref2015 +0.145. Physics (ref2015+mmgbsa) adds
+NOTHING on top of Δphys (+0.403, slightly hurts). mmgbsa alone +0.091 (worse, complex-dependent).
+
+VERDICT: On SKEMPI MUTATION-ΔΔG we BEAT FlexPepDock — but via a trivial SEQUENCE prior, not physics.
+Physics is noisier + complex-dependent. CRITICAL: SKEMPI = mutation-ΔΔG (change PEPTIDE, same receptor)
+where Δphys works; OUR tool's selectivity = RECEPTOR-ΔΔG (same peptide, two receptors) where Δphys
+CANCELS -> only physics survives ~0.3 complex-dependent, NOT reliably FlexPepDock-level. The Δphys win
+transfers to PEPTIDE AFFINITY MATURATION (rank variants for one receptor) = real deliverable; NOT to
+receptor-selectivity. 3SGB ref2015 anti-correlates even cleaned (−0.48) = problem structure/SGPB
+specificity. "Physics never lies" but for point mutations a sequence prior is less noisy than structural
+physics; for receptor-selectivity physics is the ONLY signal (Δphys cancels) and caps ~0.3.
