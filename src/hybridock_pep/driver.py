@@ -192,6 +192,20 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
         return
     cal = EnsembleCalibration.load(cal_path)
     receptor = config.receptor_path.resolve()
+    # Length router: short peptides (<= router.short_max_len) score via a lean hydrophobic
+    # sub-model instead of the full ensemble (the 16-feature model collapses to r~0 on them;
+    # docs E85-E87, scoring/length_router.py). Optional — absent calibration = no routing.
+    router_cal = None
+    pep_len = len(config.peptide_sequence)
+    router_path = Path(__file__).resolve().parents[2] / "data" / "calibration_length_router.json"
+    if router_path.exists():
+        from hybridock_pep.scoring.length_router import (  # noqa: PLC0415
+            LengthRouterCalibration, route_score,
+        )
+        try:
+            router_cal = LengthRouterCalibration.load(router_path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Length router: failed to load %s (%s) — disabled", router_path.name, exc)
     want_entropy = config.compute_free_entropy and "s_free_bur" in cal.feature_names
     if config.compute_free_entropy and not want_entropy:
         logger.info("Free-entropy requested but calibration lacks s_free_bur — skipping MD.")
@@ -212,13 +226,20 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
                     s_free_buried(ent["s_free"], feats.get("f_hyd_iface", 0.5))
                     if ent else 0.0
                 )
-            pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
+            if router_cal is not None and pep_len <= router_cal.short_max_len:
+                pose.ensemble_dg = route_score(
+                    feats, pose.vina_score, pep_len, router_cal, cal,
+                )
+            else:
+                pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
             n_ok += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning("Pose %d: ensemble ΔG failed (%s)", pose.pose_idx, exc)
-    logger.info("Stage 3.6: geometry+Vina ensemble ΔG on %d/%d poses (calibration %s%s)",
+    routed = router_cal is not None and pep_len <= router_cal.short_max_len
+    logger.info("Stage 3.6: geometry+Vina ensemble ΔG on %d/%d poses (calibration %s%s%s)",
                 n_ok, len(scored_poses), cal_path.name,
-                ", +free-entropy" if want_entropy else "")
+                ", +free-entropy" if want_entropy else "",
+                f", short-peptide router (len={pep_len})" if routed else "")
 
 
 def run_dock(

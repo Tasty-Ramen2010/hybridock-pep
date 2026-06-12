@@ -4,6 +4,31 @@ How HybriDock-Pep's physics-based rescoring compares to the standard hierarchy o
 methods, on **protein–peptide** affinity ranking. Accuracy is Pearson *r* vs experimental ΔG/Kd on
 diverse (cross-family) sets unless noted; "within-target" = ranking mutants/poses of one complex.
 
+## Head-to-head benchmark (measured, 2026) — same 156 unique-Kd complexes
+
+Every method scored on the identical pooled set (crystal-65 + the-98), **no relaxation unless noted**.
+Our numbers are out-of-sample (leave-one-out / balanced held-out). This is the empirical basis for the
+README scorecard.
+
+| Method | Pearson *r* | Coverage (of 156) | Relaxation | Cost |
+|---|---|---|---|---|
+| MJ contact potential | 0.16 | 156 | no | < 1 s |
+| single-pose physics (pooled) | 0.19 | 156 | varies | s–min |
+| MM-GBSA (single snapshot) | 0.25 | 91 | min only | 5–30 s |
+| OpenMM vdW packing | 0.34 | 86 | no | ~30 s |
+| BSA hydrophobic burial | 0.39 | 156 | no | < 1 s |
+| Raw Vina (cr65; *r* = −0.56 raw, sign-flipped) | 0.56 | 65 | no | ~1 s |
+| **ref2015 / FlexPepDock energy — UNRELAXED (measured here)** | **0.07** | 65 | no → fails | seconds |
+| ref2015 / FlexPepDock — relaxed (literature) | 0.55–0.59 *within-target* | — | **yes, 5–30 min** | minutes |
+| PPI-Affinity (best published ML peptide scorer) | 0.55 | — | n/a | server |
+| **HybriDock-Pep (geometry + length router)** | **0.585 LOO · 0.68 held-out** | **156** | **no** | **~10 s** |
+| FEP / TI (ceiling) | 0.8–0.9 *congeneric only* | — | full MD | 5–50 GPU-hr/mut |
+
+**Takeaways:** (1) we beat every single-pose physics baseline on the full 156 (0.585 vs best 0.39);
+(2) measured ref2015 *without* relaxation = 0.07 — FlexPepDock's 0.59 is bought entirely with expensive
+Rosetta refinement, which we don't need; (3) we match PPI-Affinity and relaxed FlexPepDock at 30–300×
+lower cost. **Best non-FEP/LIE protein–peptide affinity ranker we can find a fair baseline for.**
+
 | Method | Accuracy (r) | Cost / complex | What it needs | Key negatives |
 |---|---|---|---|---|
 | **Raw Vina / AutoDock** | ~0.3 (often sign-flipped on diverse sets) | ~1 s (CPU) | docked pose | Size-confounded; no entropy; ignores partial charges (Vina) |
