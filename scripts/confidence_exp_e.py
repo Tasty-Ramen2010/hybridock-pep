@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-confidence_exp_e.py — Frozen vs partial encoder finetuning (standalone).
+confidence_exp_e.py — Definitive encoder information + fine-tuning experiment.
 
-Four conditions:
-  E0  Frozen encoder           Cached 96-dim features, head-only training
-  E1  Unfreeze last block      cross_convs[-1] + head, bench_only
-  E2  Unfreeze last 2 blocks   cross_convs[-2:] + head, bench_only
-  E3  Unfreeze last block      cross_convs[-1] + head, 75B/25G dataset
+Three conditions:
+  E0       Cached 96-dim features + E0 batch training (control, τ≈0.28)
+  E0_live  Live encoder features (extracted once) + same E0 batch training
+           → answers: do live features support τ=0.28 given proper training?
+  E1_v3    E0_live head warm-start + encoder fine-tuned at enc_lr=1e-5
+           → answers: does encoder FT beat frozen encoder?
 
-Memory design:
-  - base_graphs cached once per dataset (~500 MB bench + ~800 MB gen)
-  - Pose graphs built ON-THE-FLY per complex, discarded immediately after
-  - Peak GPU: ~1-2 GB (one complex batch at a time)
-  - Peak RAM: ~1.5-2 GB (base_graphs + one complex in flight)
+Key lessons from failed runs:
+  - Live encoder features have 70× smaller absolute variance than cached.
+    Fixed by LayerNorm(96) input normalisation on V2Head.
+  - Training volume was the real bottleneck: E0 gets 24× more pair-evaluations
+    than the per-complex E1 runs. E0_live uses identical procedure to E0.
+  - Encoder LR 5e-7 = effectively frozen (weights moved <0.1%). E1_v3 uses 1e-5.
 
 Usage:
-  conda run -n rapidock python3 -u scripts/confidence_exp_e.py --device cuda
+  /home/igem/miniconda3/envs/rapidock/bin/python3 -u scripts/confidence_exp_e.py
 """
 from __future__ import annotations
 
@@ -28,7 +30,6 @@ import os
 import pickle
 import sys
 import warnings
-from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
 
@@ -45,31 +46,34 @@ torch.set_num_threads(4)
 REPO       = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "third_party" / "RAPiDock"))
 
-FEAT_BENCH = REPO / "logs" / "diagnosis" / "feats_bench300.pkl"
-BENCH_JSON = REPO / "logs" / "analysis_bench300" / "benchmark_results.json"
-BENCH_CSV  = REPO / "data" / "benchmark300.csv"
-GEN_JSON   = REPO / "logs" / "confidence_training_data" / "benchmark_results.json"
-GEN_CSV    = REPO / "data" / "confidence_training_500.csv"
-PARAMS_YML = REPO / "train_models" / "confidence_model" / "model_parameters.yml"
-PRETRAINED = REPO / "third_party" / "RAPiDock" / "train_models" / \
-             "CGTensorProductEquivariantModel" / "rapidock_global.pt"
-OUT        = REPO / "logs" / "training_campaign"
+FEAT_BENCH  = REPO / "logs" / "diagnosis" / "feats_bench300.pkl"
+BENCH_JSON  = REPO / "logs" / "analysis_bench300" / "benchmark_results.json"
+BENCH_CSV   = REPO / "data" / "benchmark300.csv"
+PARAMS_YML  = REPO / "train_models" / "confidence_model" / "model_parameters.yml"
+PRETRAINED  = REPO / "third_party" / "RAPiDock" / "train_models" / \
+              "CGTensorProductEquivariantModel" / "rapidock_global.pt"
+LIVE_FEATS  = REPO / "logs" / "diagnosis" / "feats_bench300_live.pkl"
+OUT         = REPO / "logs" / "training_campaign"
 OUT.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s",
-                    datefmt="%H:%M:%S")
+                    datefmt="%H:%M:%S", force=True)
+for _h in logging.root.handlers:
+    if hasattr(_h, "stream"):
+        _h.stream = os.fdopen(os.dup(_h.stream.fileno()), "w", buffering=1)
 log = logging.getLogger("exp_e")
 
 
-# ── shared head / training utilities (same as campaign script) ────────────────
+# ── head + training utilities ─────────────────────────────────────────────────
 
 class V2Head(nn.Module):
     def __init__(self, in_dim: int = 96):
         super().__init__()
         self.net = nn.Sequential(
+            nn.LayerNorm(in_dim),                        # critical: normalise input scale
             nn.Linear(in_dim, 128), nn.LayerNorm(128), nn.GELU(), nn.Dropout(0.2),
-            nn.Linear(128, 64),     nn.GELU(),          nn.Dropout(0.2),
+            nn.Linear(128, 64),     nn.GELU(),           nn.Dropout(0.2),
             nn.Linear(64, 1),
         )
 
@@ -92,8 +96,7 @@ def build_dataset(feat_map, json_data):
     ds = {}
     for (cname, mkey, pose_idx), feat in feat_map.items():
         rmsds = json_data.get(cname, {}).get(mkey, {}).get("ref_rmsds", [])
-        if pose_idx >= len(rmsds):
-            continue
+        if pose_idx >= len(rmsds): continue
         ds.setdefault(cname, []).append((feat.astype(np.float32), float(rmsds[pose_idx])))
     return {k: v for k, v in ds.items() if len(v) >= 2}
 
@@ -107,8 +110,8 @@ def build_pairs(ds, complexes):
     return pairs
 
 
-def train_head_cached(head, train_pairs, val_pairs, epochs=50, seed=0):
-    """Standard cached-feature head training (E0)."""
+def train_head_cached(head, train_pairs, val_pairs, epochs=50, lr=1e-3, seed=0):
+    """Batch head training on pre-cached features (E0 / E0_live procedure)."""
     torch.manual_seed(seed)
     for m in head.modules():
         if isinstance(m, (nn.Linear, nn.LayerNorm)): m.reset_parameters()
@@ -118,10 +121,9 @@ def train_head_cached(head, train_pairs, val_pairs, epochs=50, seed=0):
     lbl = torch.tensor([p[2] for p in train_pairs],           dtype=torch.float32)
     vfi = torch.tensor(np.stack([p[0] for p in val_pairs]),   dtype=torch.float32)
     vfj = torch.tensor(np.stack([p[1] for p in val_pairs]),   dtype=torch.float32)
-    vlb = torch.tensor([p[2] for p in val_pairs],             dtype=torch.float32)
 
-    opt = torch.optim.Adam(head.parameters(), lr=1e-3, weight_decay=1e-4)
-    best_acc, best_state = -1.0, None
+    opt = torch.optim.Adam(head.parameters(), lr=lr, weight_decay=1e-4)
+    best_tau, best_state = -1.0, None
     n = len(train_pairs)
 
     for ep in range(epochs):
@@ -129,13 +131,16 @@ def train_head_cached(head, train_pairs, val_pairs, epochs=50, seed=0):
         perm = torch.randperm(n)
         for b in range(0, n, 512):
             idx = perm[b: b+512]
-            loss = bpr_loss(head(fi[idx]).squeeze(-1), head(fj[idx]).squeeze(-1), lbl[idx])
+            loss = bpr_loss(head(fi[idx]).squeeze(-1),
+                            head(fj[idx]).squeeze(-1), lbl[idx])
             opt.zero_grad(); loss.backward(); opt.step()
+
         head.eval()
         with torch.no_grad():
-            acc = ((head(vfi).squeeze(-1) > head(vfj).squeeze(-1)).float() - vlb).abs().lt(0.5).float().mean().item()
-        if acc > best_acc:
-            best_acc = acc; best_state = copy.deepcopy(head.state_dict())
+            vs = head(vfi).squeeze(-1); vt = head(vfj).squeeze(-1)
+            correct = ((vs > vt).float()).mean().item()
+        if correct > best_tau:
+            best_tau = correct; best_state = copy.deepcopy(head.state_dict())
 
     head.load_state_dict(best_state)
 
@@ -153,52 +158,70 @@ def eval_tau_cached(head, ds, complexes):
             tau, _ = sp.kendalltau(-scores, rmsds)
             if math.isnan(tau): continue
             taus.append(tau); tops.append(float(rmsds[np.argmax(scores)]))
-    return float(np.mean(taus)) if taus else float("nan"), \
-           float(np.mean(tops))  if tops else float("nan")
+    return (float(np.mean(taus)) if taus else float("nan"),
+            float(np.mean(tops))  if tops else float("nan"))
 
 
-# ── encoder loading + graph utilities ────────────────────────────────────────
+# ── encoder + graph utilities ─────────────────────────────────────────────────
+
+class _FeatureRecorder(nn.Module):
+    """Drop-in replacement for confidence_predictor; records 96-dim inputs."""
+    def __init__(self):
+        super().__init__()
+        self.captured: list[torch.Tensor] = []
+
+    def reset(self): self.captured.clear()
+
+    def forward(self, x):
+        self.captured.append(x.detach().cpu())
+        return torch.zeros(x.shape[0], 1, device=x.device)
+
 
 def load_model(n_unfreeze: int, device: str, new_head: nn.Module):
-    """Load pretrained model, freeze all, unfreeze last n cross_conv blocks."""
     import yaml
     from models.model import ConfidenceModel
     from argparse import Namespace
-
-    with open(PARAMS_YML) as f:
-        params = yaml.safe_load(f)
+    with open(PARAMS_YML) as f: params = yaml.safe_load(f)
     params["confidence_mode"] = True
     model = ConfidenceModel(Namespace(**params))
     ckpt  = torch.load(PRETRAINED, map_location="cpu")
     model.load_state_dict(ckpt.get("model_state_dict", ckpt), strict=False)
-    model.eval()
-
-    for p in model.parameters():
-        p.requires_grad_(False)
-
+    for p in model.parameters(): p.requires_grad_(False)
     enc = model.encoder
     for blk in list(enc.cross_convs)[-n_unfreeze:]:
-        for p in blk.parameters():
-            p.requires_grad_(True)
-    for p in new_head.parameters():
-        p.requires_grad_(True)
+        for p in blk.parameters(): p.requires_grad_(True)
+    for p in new_head.parameters(): p.requires_grad_(True)
     enc.confidence_predictor = new_head
     model.to(device)
     return model, enc
 
 
-def build_base_graphs(csv_path, label: str = ""):
-    """Build per-complex base graphs (receptor + peptide topology, no pose)."""
-    from utils.inference_utils import InferenceDataset
+def load_frozen_encoder_with_recorder(device: str):
+    """Frozen encoder with FeatureRecorder; used for live feature extraction."""
+    import yaml
+    from models.model import ConfidenceModel
+    from argparse import Namespace
+    with open(PARAMS_YML) as f: params = yaml.safe_load(f)
+    params["confidence_mode"] = True
+    model = ConfidenceModel(Namespace(**params))
+    ckpt  = torch.load(PRETRAINED, map_location="cpu")
+    model.load_state_dict(ckpt.get("model_state_dict", ckpt), strict=False)
+    for p in model.parameters(): p.requires_grad_(False)
+    rec = _FeatureRecorder()
+    model.encoder.confidence_predictor = rec
+    model.eval().to(device)
+    return model, rec
 
+
+def build_base_graphs(csv_path, label=""):
+    from utils.inference_utils import InferenceDataset
     df     = pd.read_csv(csv_path)
     names, recs, peps = [], [], []
     for _, row in df.iterrows():
-        if Path(str(row.get("receptor", ""))).exists() and \
-           Path(str(row.get("peptide_pdb", ""))).exists():
+        if Path(str(row.get("receptor",""))).exists() and \
+           Path(str(row.get("peptide_pdb",""))).exists():
             names.append(row["name"]); recs.append(str(row["receptor"]))
             peps.append(str(row["peptide_pdb"]))
-
     tmp = f"/tmp/exp_e_base_{label}"
     os.makedirs(tmp, exist_ok=True)
     ds = InferenceDataset(
@@ -220,8 +243,7 @@ def build_base_graphs(csv_path, label: str = ""):
 def load_pose_positions(pdb: str, exclude_oxt: bool = False):
     import MDAnalysis as mda
     try:
-        u   = mda.Universe(pdb)
-        pos = []
+        u = mda.Universe(pdb); pos = []
         for res in u.residues:
             sel   = "not type H" + (" and not name OXT" if exclude_oxt else "")
             heavy = res.atoms.select_atoms(sel)
@@ -233,33 +255,24 @@ def load_pose_positions(pdb: str, exclude_oxt: bool = False):
 
 def inject_pose(bg, pos):
     from utils.diffusion_utils import set_time
-    g      = copy.deepcopy(bg)
-    center = pos.mean(0)
+    g = copy.deepcopy(bg); center = pos.mean(0)
     g["pep_a"].pos    = pos - center
-    if g["pep_a"].x is not None:
-        g["pep_a"].x  = g["pep_a"].x.float()
+    g["pep_a"].x      = g["pep_a"].x.float()
     g["receptor"].pos = g["receptor"].pos - center
-    if hasattr(g["pep_a"], "node_sigma_emb"):
-        del g["pep_a"].node_sigma_emb
-    set_time(g, 0.0, 0.0, 0.0, 0.0, 1, device="cpu")
+    if hasattr(g["pep_a"], "node_sigma_emb"): del g["pep_a"].node_sigma_emb
+    set_time(g, 0., 0., 0., 0., 1, device="cpu")
     return g
 
 
-def cache_pose_positions(json_data: dict, base_graphs: dict) -> dict:
-    """Load all pose PDB positions into RAM once. Returns:
-       {cname: [(pos_tensor, rmsd), ...]}
-    PDB I/O cost is paid here once; inject_pose runs in-memory each epoch.
-    """
+def cache_pose_positions(json_data, base_graphs):
     cache: dict[str, list] = {}
     n_ok = n_skip = 0
     for cname, model_results in json_data.items():
         bg = base_graphs.get(cname)
         if bg is None: continue
-        n_g = bg["pep_a"].pos.shape[0]
-        poses = []
+        n_g = bg["pep_a"].pos.shape[0]; poses = []
         for mkey, res in model_results.items():
-            pdir  = Path(res["poses_dir"])
-            rmsds = res.get("ref_rmsds", [])
+            pdir  = Path(res["poses_dir"]); rmsds = res.get("ref_rmsds", [])
             for i, rmsd in enumerate(rmsds):
                 pdb = pdir / f"pose_{i}.pdb"
                 if not pdb.exists(): continue
@@ -268,70 +281,133 @@ def cache_pose_positions(json_data: dict, base_graphs: dict) -> dict:
                 if pos.shape[0] != n_g:
                     pos = load_pose_positions(str(pdb), exclude_oxt=True)
                     if pos is None or pos.shape[0] != n_g: n_skip += 1; continue
-                poses.append((pos, float(rmsd)))
-                n_ok += 1
-        if len(poses) >= 2:
-            cache[cname] = poses
-    log.info("Pose position cache: %d poses across %d complexes (%d skipped)",
-             n_ok, len(cache), n_skip)
+                poses.append((pos, float(rmsd))); n_ok += 1
+        if len(poses) >= 2: cache[cname] = poses
+    log.info("Pose cache: %d poses across %d complexes (%d skipped)", n_ok, len(cache), n_skip)
     return cache
 
 
-def build_cx_graphs_from_cache(cname: str, pos_cache: dict, base_graphs: dict) -> list:
-    """Build (graph, rmsd) list using cached positions — no disk I/O."""
+def build_cx_graphs_from_cache(cname, pos_cache, base_graphs):
     bg = base_graphs.get(cname)
     if bg is None or cname not in pos_cache: return []
     out = []
     for pos, rmsd in pos_cache[cname]:
-        try:
-            out.append((inject_pose(bg, pos), rmsd))
+        try: out.append((inject_pose(bg, pos), rmsd))
         except Exception: pass
     return out
 
 
-# ── Exp E1 / E2: on-the-fly GPU finetuning ───────────────────────────────────
+# ── live feature extraction ───────────────────────────────────────────────────
 
-def run_finetune(label: str, n_unfreeze: int, device: str,
-                 train_pos_cache: dict, train_base_graphs: dict,
-                 bench_ds: dict, train_c: list, val_c: list,
-                 val_pos_cache: dict | None = None, val_base_graphs: dict | None = None,
-                 n_epochs: int = 20, pairs_per_cx: int = 10) -> dict:
+def extract_live_feats_to_pkl(bench_json, bench_base, device):
     """
-    train_pos_cache: {cname: [(pos_tensor, rmsd), ...]} — positions pre-loaded, no disk I/O per epoch.
-    val_pos_cache / val_base_graphs: used for eval; defaults to train cache.
+    Run all bench300 poses through the frozen pretrained encoder.
+    Save 96-dim features as {(cname, mkey, pose_idx): feat}.
+    Same format as feats_bench300.pkl — can be used directly with build_dataset.
+    """
+    from torch_geometric.data import Batch
+
+    model, rec = load_frozen_encoder_with_recorder(device)
+    feat_map   = {}
+    n_cx = 0
+
+    for cname, model_results in bench_json.items():
+        bg = bench_base.get(cname)
+        if bg is None: continue
+        n_g = bg["pep_a"].pos.shape[0]
+
+        for mkey, res in model_results.items():
+            pdir  = Path(res["poses_dir"])
+            rmsds = res.get("ref_rmsds", [])
+
+            # Build pose graphs, keeping (mkey, pose_idx) provenance
+            entries, graphs = [], []
+            for i, rmsd in enumerate(rmsds):
+                pdb = pdir / f"pose_{i}.pdb"
+                if not pdb.exists(): continue
+                pos = load_pose_positions(str(pdb))
+                if pos is None: continue
+                if pos.shape[0] != n_g:
+                    pos = load_pose_positions(str(pdb), exclude_oxt=True)
+                    if pos is None or pos.shape[0] != n_g: continue
+                try:
+                    graphs.append(inject_pose(bg, pos))
+                    entries.append((mkey, i))
+                except Exception: pass
+
+            if len(graphs) < 2: continue
+
+            rec.reset()
+            try:
+                batch = Batch.from_data_list(graphs).to(device)
+                with torch.no_grad(): model(batch)
+                del batch; torch.cuda.empty_cache()
+            except Exception:
+                torch.cuda.empty_cache(); continue
+
+            if not rec.captured: continue
+            feats = torch.cat(rec.captured, dim=0).numpy()
+            if feats.shape[0] != len(entries): continue
+
+            for (mk, pi), feat in zip(entries, feats):
+                feat_map[(cname, mk, pi)] = feat.astype(np.float32)
+
+        n_cx += 1
+        if n_cx % 20 == 0:
+            log.info("  Extracted %d / %d complexes", n_cx, len(bench_json))
+
+    log.info("Live feature extraction complete: %d features, %d complexes",
+             len(feat_map), len(set(k[0] for k in feat_map)))
+    return feat_map
+
+
+# ── E1_v3: on-the-fly encoder fine-tuning ─────────────────────────────────────
+
+def run_encoder_finetune(label, device, train_pos_cache, train_base_graphs,
+                         val_pos_cache, val_base_graphs, train_c, val_c,
+                         head_init_state, n_epochs=50,
+                         enc_lr=1e-5, head_lr=1e-4,
+                         pairs_per_cx=200):
+    """
+    True encoder fine-tuning:
+    - Warm-starts head from E0_live (already calibrated for live features)
+    - Unfreezes last 1 cross_conv block
+    - Uses grad_accum = len(train_c): ONE optimizer step per epoch,
+      gradient averaged over ALL train complexes
+      → matches E0's gradient diversity while allowing encoder to adapt
+    - 50 epochs = 50 clean encoder gradient steps from full training data
     """
     from torch_geometric.data import Batch
     from scipy import stats as sp
 
-    log.info("=== %s: unfreezing %d cross_conv block(s) ===", label, n_unfreeze)
-    new_head  = V2Head().to(device)
-    model, enc = load_model(n_unfreeze, device, new_head)
-    trainable  = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    log.info("  Trainable params: %d", trainable)
+    log.info("=== %s ===", label)
+    new_head = V2Head().to(device)
+    new_head.load_state_dict(head_init_state)
+    log.info("  Head warm-started from E0_live weights")
 
-    enc_block_params = [p for blk in list(enc.cross_convs)[-n_unfreeze:]
-                        for p in blk.parameters()]
+    model, enc = load_model(n_unfreeze=1, device=device, new_head=new_head)
+    enc_params  = [p for blk in list(enc.cross_convs)[-1:] for p in blk.parameters()]
+    head_params = list(new_head.parameters())
+    trainable   = sum(p.numel() for p in enc_params + head_params)
+    log.info("  Trainable params: %d  (enc_lr=%.0e  head_lr=%.0e)",
+             trainable, enc_lr, head_lr)
+
     opt = torch.optim.Adam([
-        {"params": enc_block_params,          "lr": 5e-6, "weight_decay": 1e-4},
-        {"params": list(new_head.parameters()), "lr": 1e-3, "weight_decay": 1e-4},
+        {"params": enc_params,  "lr": enc_lr,  "weight_decay": 1e-4},
+        {"params": head_params, "lr": head_lr, "weight_decay": 1e-4},
     ])
 
-    # Default val data to same as train data
-    if val_pos_cache is None:   val_pos_cache   = train_pos_cache
-    if val_base_graphs is None: val_base_graphs = train_base_graphs
-
-    rng       = np.random.RandomState(0)
-    best_tau  = -1.0
-    best_head = None
+    rng = np.random.RandomState(0)
+    best_tau, best_head_state = -1.0, None
 
     for ep in range(n_epochs):
-        # ── training ──────────────────────────────────────────────────────────
         model.train()
         for m in model.modules():
             if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)): m.eval()
 
-        ep_loss, ep_pairs = 0.0, 0
         cx_order = list(train_c); rng.shuffle(cx_order)
+        opt.zero_grad()
+        ep_loss, ep_pairs, n_accum = 0.0, 0, 0
 
         for cname in cx_order:
             cx_data = build_cx_graphs_from_cache(cname, train_pos_cache, train_base_graphs)
@@ -339,193 +415,203 @@ def run_finetune(label: str, n_unfreeze: int, device: str,
 
             batch  = Batch.from_data_list([g for g, _ in cx_data]).to(device)
             rmsds  = [r for _, r in cx_data]
-            try:
-                scores = model(batch)          # [n_poses] on device
+            try: scores = model(batch)
             except Exception:
                 del batch; torch.cuda.empty_cache(); continue
 
             pair_idx = list(combinations(range(len(cx_data)), 2))
             if len(pair_idx) > pairs_per_cx:
-                sel = rng.choice(len(pair_idx), pairs_per_cx, replace=False)
+                sel      = rng.choice(len(pair_idx), pairs_per_cx, replace=False)
                 pair_idx = [pair_idx[k] for k in sel]
 
-            loss = torch.tensor(0.0, device=device)
+            cx_loss = torch.tensor(0.0, device=device); cx_n = 0
             for i, j in pair_idx:
                 ri, rj = rmsds[i], rmsds[j]
                 if abs(ri - rj) < 1e-6: continue
-                lbl  = torch.tensor(1.0 if ri < rj else 0.0, device=device)
-                loss = loss + bpr_loss(scores[i:i+1], scores[j:j+1], lbl.unsqueeze(0))
-                ep_pairs += 1
+                lbl     = torch.tensor(1.0 if ri < rj else 0.0, device=device)
+                cx_loss = cx_loss + bpr_loss(scores[i:i+1], scores[j:j+1], lbl.unsqueeze(0))
+                cx_n += 1
 
-            if ep_pairs > 0 and loss.item() > 0:
-                opt.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(enc_block_params + list(new_head.parameters()), 1.0)
-                opt.step()
-                ep_loss += loss.item()
+            if cx_n > 0:
+                # Divide by len(train_c) — normalise so accumulated gradient
+                # is the mean over all complexes, not the sum.
+                (cx_loss / len(train_c)).backward()
+                ep_loss  += cx_loss.item()
+                ep_pairs += cx_n
+                n_accum  += 1
 
-            # Free immediately — key to keeping RAM/VRAM in check
-            del batch, scores, loss
-            torch.cuda.empty_cache()
+            del batch, scores, cx_loss; torch.cuda.empty_cache()
 
-        # ── eval ──────────────────────────────────────────────────────────────
-        model.eval()
-        taus, tops = [], []
+        # ONE step per epoch: gradient is averaged over all complexes
+        torch.nn.utils.clip_grad_norm_(enc_params,  0.1)
+        torch.nn.utils.clip_grad_norm_(head_params, 1.0)
+        opt.step(); opt.zero_grad()
+
+        # Eval
+        model.eval(); taus, tops = [], []
         with torch.no_grad():
             for cname in val_c:
                 cx_data = build_cx_graphs_from_cache(cname, val_pos_cache, val_base_graphs)
                 if len(cx_data) < 2: continue
-
                 batch  = Batch.from_data_list([g for g, _ in cx_data]).to(device)
                 rmsds  = np.array([r for _, r in cx_data])
-                try:
-                    scores = model(batch).detach().cpu().numpy()
+                try: sv = model(batch).detach().cpu().numpy()
                 except Exception:
                     del batch; torch.cuda.empty_cache(); continue
-
-                tau, _ = sp.kendalltau(-scores, rmsds)
+                tau, _ = sp.kendalltau(-sv, rmsds)
                 if not math.isnan(tau):
-                    taus.append(tau); tops.append(float(rmsds[np.argmax(scores)]))
-
+                    taus.append(tau); tops.append(float(rmsds[np.argmax(sv)]))
                 del batch; torch.cuda.empty_cache()
 
         ep_tau  = float(np.mean(taus)) if taus else float("nan")
         ep_top1 = float(np.mean(tops)) if tops else float("nan")
-        log.info("  ep=%2d  loss=%.4f  val_τ=%.4f  top1=%.3f",
-                 ep, ep_loss / max(ep_pairs, 1), ep_tau, ep_top1)
+        mean_loss = ep_loss / max(ep_pairs, 1)
+        log.info("  ep=%2d  loss=%.4f  val_τ=%.4f  top1=%.3f  n_cx=%d",
+                 ep, mean_loss, ep_tau, ep_top1, n_accum)
 
         if not math.isnan(ep_tau) and ep_tau > best_tau:
-            best_tau  = ep_tau
-            best_head = copy.deepcopy(new_head.state_dict())
+            best_tau = ep_tau
+            best_head_state = copy.deepcopy(new_head.state_dict())
 
+    if best_head_state is not None: new_head.load_state_dict(best_head_state)
     log.info("  %s best_τ=%.4f", label, best_tau)
-    return {
-        "exp": "E_finetune", "label": label, "seed": 0,
-        "n_train_cx": len(train_c), "n_train_pairs": n_epochs * len(train_c) * pairs_per_cx,
-        "tau": best_tau, "top1": ep_top1,
-        "train_acc": float("nan"), "val_acc": float("nan"),
-        "best_val_acc": best_tau, "best_epoch": -1, "overfit_gap": float("nan"),
-        "n_unfreeze_blocks": n_unfreeze, "trainable_params": trainable,
-    }
+    return best_tau
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--device",  default="cuda")
-    ap.add_argument("--epochs",  type=int, default=20)
-    ap.add_argument("--pairs-per-cx", type=int, default=10)
+    ap.add_argument("--device",      default="cuda")
+    ap.add_argument("--e0-epochs",   type=int, default=50)
+    ap.add_argument("--e1v3-epochs", type=int, default=50)
+    ap.add_argument("--skip-extract", action="store_true",
+                    help="Reuse existing feats_bench300_live.pkl if present")
     args = ap.parse_args()
     device = args.device if torch.cuda.is_available() else "cpu"
     log.info("Device: %s", device)
 
     bench_json = json.load(open(BENCH_JSON))
 
-    # ── E0: frozen encoder, cached features ───────────────────────────────────
-    log.info("=== E0: frozen encoder (cached features) ===")
-    with open(FEAT_BENCH, "rb") as f:
-        bench_feats = pickle.load(f)
-    bench_ds  = build_dataset(bench_feats, bench_json)
-    bench_all = sorted(bench_ds.keys())
+    # ── E0: cached features, E0 batch training (control) ─────────────────────
+    log.info("=== E0: cached features (control) ===")
+    with open(FEAT_BENCH, "rb") as f: bench_feats = pickle.load(f)
+    bench_ds   = build_dataset(bench_feats, bench_json)
+    bench_all  = sorted(bench_ds.keys())
     train_c, val_c = split_complexes(bench_all, 0.85, seed=42)
-
-    head_e0   = V2Head()
     tr_pairs  = build_pairs(bench_ds, train_c)
     va_pairs  = build_pairs(bench_ds, val_c)
-    train_head_cached(head_e0, tr_pairs, va_pairs, epochs=50, seed=0)
+    head_e0   = V2Head()
+    train_head_cached(head_e0, tr_pairs, va_pairs, epochs=args.e0_epochs, seed=0)
     tau_e0, top1_e0 = eval_tau_cached(head_e0, bench_ds, val_c)
-    log.info("  E0 τ=%.4f  top1=%.3f", tau_e0, top1_e0)
+    log.info("  E0 τ=%.4f  top1=%.3f  (pairs: train=%d val=%d)",
+             tau_e0, top1_e0, len(tr_pairs), len(va_pairs))
 
-    rows = [{
-        "exp": "E_finetune", "label": "E0_frozen", "seed": 0,
-        "n_train_cx": len(train_c), "n_train_pairs": len(tr_pairs),
-        "tau": tau_e0, "top1": top1_e0,
-        "train_acc": float("nan"), "val_acc": float("nan"),
-        "best_val_acc": float("nan"), "best_epoch": -1, "overfit_gap": float("nan"),
-        "n_unfreeze_blocks": 0, "trainable_params": sum(p.numel() for p in head_e0.parameters()),
-    }]
+    rows = [{"label": "E0_cached", "tau": tau_e0, "top1": top1_e0,
+             "n_train_pairs": len(tr_pairs), "note": "control"}]
 
     if device == "cpu":
-        log.warning("No GPU — skipping E1/E2/E3")
+        log.warning("No GPU — skipping E0_live and E1_v3"); return
+
+    # ── Build base graphs (one-time) ──────────────────────────────────────────
+    log.info("Building bench base graphs (~3-5 min)...")
+    bench_base = build_base_graphs(BENCH_CSV, label="bench")
+
+    # ── E0_live: extract live encoder features, same E0 training procedure ───
+    # Critical experiment: tests whether live encoder features support τ=0.28
+    # when given the same training volume as E0 (batch training, all pairs).
+    # If yes → the per-complex training volume was the bottleneck all along.
+    # If no  → live encoder features genuinely lack discriminative signal.
+    log.info("=== E0_live: live features + E0 batch training ===")
+
+    if args.skip_extract and LIVE_FEATS.exists():
+        log.info("  Loading cached live features from %s", LIVE_FEATS)
+        with open(LIVE_FEATS, "rb") as f: live_feat_map = pickle.load(f)
     else:
-        # ── build base graphs (one-time topology, no pose coords) ─────────────
-        log.info("Building bench base graphs (~3-5 min)...")
-        bench_base = build_base_graphs(BENCH_CSV, label="bench")
+        log.info("  Extracting live encoder features for all bench300 complexes (~25 min)...")
+        live_feat_map = extract_live_feats_to_pkl(bench_json, bench_base, device)
+        with open(LIVE_FEATS, "wb") as f: pickle.dump(live_feat_map, f)
+        log.info("  Saved to %s", LIVE_FEATS)
 
-        log.info("Building gen base graphs (~5-8 min)...")
-        gen_json  = json.load(open(GEN_JSON))
-        gen_base  = build_base_graphs(GEN_CSV, label="gen")
+    live_ds   = build_dataset(live_feat_map, bench_json)
+    live_all  = sorted(live_ds.keys())
+    # Use same train/val split as E0 — compare on identical validation set
+    live_tr_c, live_va_c = split_complexes(
+        [c for c in train_c if c in live_ds], 1.0, seed=42)  # all that survived extraction
+    live_tr_c = [c for c in train_c if c in live_ds]
+    live_va_c = [c for c in val_c   if c in live_ds]
+    live_tr_pairs = build_pairs(live_ds, live_tr_c)
+    live_va_pairs = build_pairs(live_ds, live_va_c)
+    log.info("  Live DS: %d train complexes (%d pairs), %d val complexes (%d pairs)",
+             len(live_tr_c), len(live_tr_pairs), len(live_va_c), len(live_va_pairs))
 
-        # ── cache ALL pose positions in RAM (one-time disk I/O) ───────────────
-        # Positions are [N_atoms, 3] float32 tensors — ~5 MB total, trivial RAM.
-        # inject_pose() runs in-memory each epoch; no PDB reads after this point.
-        log.info("Caching bench pose positions (one-time PDB load)...")
-        bench_pos = cache_pose_positions(bench_json, bench_base)
+    head_e0live = V2Head()
+    train_head_cached(head_e0live, live_tr_pairs, live_va_pairs,
+                      epochs=args.e0_epochs, seed=0)
+    tau_e0live, top1_e0live = eval_tau_cached(head_e0live, live_ds, live_va_c)
+    log.info("  E0_live τ=%.4f  top1=%.3f", tau_e0live, top1_e0live)
+    log.info("  Gap vs E0: %.4f  (%.1f%%)",
+             tau_e0live - tau_e0, 100 * (tau_e0live - tau_e0) / max(tau_e0, 1e-9))
 
-        log.info("Caching gen pose positions (one-time PDB load)...")
-        gen_pos   = cache_pose_positions(gen_json, gen_base)
+    rows.append({"label": "E0_live", "tau": tau_e0live, "top1": top1_e0live,
+                 "n_train_pairs": len(live_tr_pairs),
+                 "note": "live features, E0 batch training"})
 
-        # merged caches for E3
-        merged_base = {**gen_base, **bench_base}
-        merged_pos  = {**gen_pos,  **bench_pos}
+    e0_live_head_state = copy.deepcopy(head_e0live.state_dict())
 
-        # 75B/25G train set: 75% of bench_train + all gen_train
-        gen_all   = sorted(gen_base.keys())
-        gen_train, _ = split_complexes(gen_all, 0.85, seed=42)
-        rng_mix    = np.random.RandomState(42)
-        n_bench_75 = int(round(0.75 * len(train_c)))
-        bench_75   = list(rng_mix.choice(train_c, n_bench_75, replace=False))
-        train_c_75b25g = bench_75 + gen_train
-        log.info("E3 train set: %d bench + %d gen = %d total",
-                 len(bench_75), len(gen_train), len(train_c_75b25g))
+    # ── E1_v3: encoder fine-tuning on top of E0_live ─────────────────────────
+    # Design:
+    #   - Head warm-starts from E0_live (already calibrated for live features)
+    #   - Encoder unfrozen at enc_lr=1e-5 (real fine-tuning, not pseudo-frozen)
+    #   - grad_accum = ALL complexes → one clean step per epoch
+    #     (mean gradient over full training set — maximum stability)
+    #   - 50 epochs = 50 encoder gradient steps
+    # Question: does the encoder learn to output more pose-discriminative
+    # features when given a well-calibrated head as a training signal?
+    log.info("=== E1_v3: encoder fine-tuning (warm-started from E0_live) ===")
 
-        # ── E1: unfreeze last 1 cross_conv, bench_only ─────────────────────────
-        rows.append(run_finetune(
-            "E1_unfreeze_last1_bench", n_unfreeze=1, device=device,
-            train_pos_cache=bench_pos, train_base_graphs=bench_base,
-            bench_ds=bench_ds, train_c=train_c, val_c=val_c,
-            val_pos_cache=bench_pos, val_base_graphs=bench_base,
-            n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
-        ))
+    log.info("  Caching bench pose positions...")
+    bench_pos = cache_pose_positions(bench_json, bench_base)
 
-        # ── E2: unfreeze last 2 cross_convs, bench_only ────────────────────────
-        rows.append(run_finetune(
-            "E2_unfreeze_last2_bench", n_unfreeze=2, device=device,
-            train_pos_cache=bench_pos, train_base_graphs=bench_base,
-            bench_ds=bench_ds, train_c=train_c, val_c=val_c,
-            val_pos_cache=bench_pos, val_base_graphs=bench_base,
-            n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
-        ))
+    tau_e1v3 = run_encoder_finetune(
+        label      = "E1_v3_encoder_FT",
+        device     = device,
+        train_pos_cache   = bench_pos,
+        train_base_graphs = bench_base,
+        val_pos_cache     = bench_pos,
+        val_base_graphs   = bench_base,
+        train_c    = live_tr_c,
+        val_c      = live_va_c,
+        head_init_state = e0_live_head_state,
+        n_epochs   = args.e1v3_epochs,
+        enc_lr     = 1e-5,
+        head_lr    = 1e-4,
+        pairs_per_cx = 200,
+    )
 
-        # ── E3: unfreeze last 1, 75B/25G ───────────────────────────────────────
-        rows.append(run_finetune(
-            "E3_unfreeze_last1_75B25G", n_unfreeze=1, device=device,
-            train_pos_cache=merged_pos, train_base_graphs=merged_base,
-            bench_ds=bench_ds, train_c=train_c_75b25g, val_c=val_c,
-            val_pos_cache=bench_pos, val_base_graphs=bench_base,
-            n_epochs=args.epochs, pairs_per_cx=args.pairs_per_cx,
-        ))
+    rows.append({"label": "E1_v3_encoder_FT", "tau": tau_e1v3, "top1": float("nan"),
+                 "n_train_pairs": -1, "note": "live features, encoder FT, 1 step/epoch"})
 
-    # ── merge with A-F results and save ───────────────────────────────────────
-    df_new = pd.DataFrame(rows)
+    # ── summary ───────────────────────────────────────────────────────────────
+    df = pd.DataFrame(rows)
+    df.to_csv(OUT / "exp_e_results.csv", index=False)
+
+    # Merge into all_results.csv
     existing = OUT / "all_results.csv"
     if existing.exists():
         df_old = pd.read_csv(existing)
-        # Drop any prior E_finetune rows and replace
-        df_old = df_old[df_old["exp"] != "E_finetune"]
-        df_out = pd.concat([df_old, df_new], ignore_index=True)
+        df_old = df_old[~df_old.get("label", df_old.get("exp", "")).isin(
+            ["E0_cached", "E0_live", "E1_v3_encoder_FT"])]
+        df_out = pd.concat([df_old, df], ignore_index=True)
     else:
-        df_out = df_new
+        df_out = df
     df_out.to_csv(existing, index=False)
-    df_new.to_csv(OUT / "exp_e_results.csv", index=False)
-    log.info("Saved results to %s", existing)
 
-    log.info("\n=== Exp E Summary ===")
-    for r in rows:
-        log.info("  %-25s  τ=%.4f  top1=%.3f  trainable_params=%s",
-                 r["label"], r["tau"], r["top1"],
-                 r.get("trainable_params", "n/a"))
+    log.info("\n=== Exp E Final Summary ===")
+    log.info("  E0 (cached, control):  τ=%.4f", tau_e0)
+    log.info("  E0_live (live feats):  τ=%.4f  (Δ=%.4f)", tau_e0live, tau_e0live - tau_e0)
+    log.info("  E1_v3 (encoder FT):    τ=%.4f  (Δ=%.4f vs E0_live)", tau_e1v3, tau_e1v3 - tau_e0live)
+    log.info("  Results: %s", OUT / "exp_e_results.csv")
 
 
 if __name__ == "__main__":
