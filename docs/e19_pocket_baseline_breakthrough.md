@@ -1051,3 +1051,27 @@ specific anchors). Ties to the two known levers: free-state entropy + electrosta
 Add hyd_frac reward (validated) and cys/disulfide pre-organization feature; build pep×pocket hydrophobic
 complementarity (needs cr65 pocket features to validate transfer). Strong/weak compression floor =
 pre-organization(entropy) + electrostatics, exactly the two expensive levers — confirmed from a 3rd angle.
+
+## E68 — intra-peptide organization scorer + hyd/cys recalibration (Jun 12)
+
+3D bond detector (disulfide SG-SG<2.5, salt-bridge<4.0, ss-Hbond N..O<3.5 |i-j|>=3, aromatic<6.0),
+weighted, per-residue density. Detected across 156: ss=5, sb=22, hb=670, ar=14.
+
+### Real physics (sign-stable vs ΔG)
+  org_density  cr65 −0.333 / the98 −0.366  YES — more internal bonds = stronger
+  cys_frac     −0.183 / −0.284  YES ;  n_hb −0.03/−0.44 ;  n_sb −0.24/−0.14
+Disulfide/cys flags the E67 misses: corr(n_ss, residual)=−0.218, corr(cys_frac, residual)=−0.189.
+
+### Recalibration — REGIME-DEPENDENT (the honest verdict)
+  crystal-65 LOO:  base+rg_per_L 0.595 -> +hyd 0.562 -> +hyd+cys 0.556 -> +org 0.518  (ALL HURT)
+  POOLED LOO(156): base 0.233 -> +org_density 0.329 (+0.10)  ;  +cys ~same
+  transfer 65→98:  base 0.455 -> +cys_frac 0.521 (+0.07)  ;  +org_density 0.249 (HURTS −0.21)
+crystal-65 is SATURATED (existing 13 geom features already encode hydrophobicity/contacts) -> adding
+peptide-composition features only adds LOO variance. The new features' value is in the DIVERSE/POOLED
+regime: org_density +0.10 pooled; cys_frac +0.07 transfer (cleaner, not SS-confounded). org_density
+bundles dataset-dependent SS H-bonds -> use only in pooled calibration.
+
+### ACTION
+Wired org_density + cys_frac into geometry_features (available, insulated from existing calib via
+cal.feature_names). Crystal-65 production candidate stays rg_per_L-only (0.595). cys_frac/org_density
+belong to a POOLED recalibration (next: compute full geom features on the-98 for a balanced fit).

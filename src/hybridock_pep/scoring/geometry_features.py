@@ -57,8 +57,24 @@ _SKEMPI_STRENGTH = {
 GEOMETRY_FEATURE_KEYS = [
     "poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis",
     "bsa_hyd", "sasa_hb", "sasa_sb", "arom_cc", "hb_count", "mj_contact", "strength_bur",
-    "rg_per_L",
+    "rg_per_L", "org_density", "cys_frac",
 ]
+
+# Intra-peptide bond weights for the pre-organization score (heavy-atom distance cutoffs, |i−j|>=2
+# to skip sequence neighbours). A peptide held rigid by internal bonds pays less free-state entropy on
+# binding, so it can bind strongly with a small interface (the E67 misses). org_density is sign-stable
+# vs ΔG (−0.33 crystal-65 / −0.37 the-98; docs E68) and the disulfide/cysteine part specifically flags
+# the strong binders an interface-size model under-rates (residual corr −0.22). org_density bundles
+# secondary-structure H-bonds (dataset-dependent) so it is best used in a POOLED/diverse calibration,
+# not a saturated single-set fit; cys_frac is the cleaner cross-dataset-transferable piece.
+_BOND_W = {"disulfide": 3.0, "salt_bridge": 1.5, "ss_hbond": 1.0, "aromatic": 1.0}
+_ANION = {"ASP": ("OD1", "OD2"), "GLU": ("OE1", "OE2")}
+_CATION = {"LYS": ("NZ",), "ARG": ("NH1", "NH2", "NE"), "HIS": ("ND1", "NE2")}
+_AROM_RING = {
+    "PHE": ("CG", "CD1", "CD2", "CE1", "CE2", "CZ"), "TYR": ("CG", "CD1", "CD2", "CE1", "CE2", "CZ"),
+    "TRP": ("CG", "CD1", "CD2", "NE1", "CE2", "CE3", "CZ2", "CZ3", "CH2"),
+    "HIS": ("CG", "ND1", "CD2", "CE1", "NE2"),
+}
 
 
 def _merge_complex(peptide_pdb: Path, receptor_pdb: Path) -> Path:
@@ -214,6 +230,58 @@ def _rg_per_residue(peptide_pdb: Path) -> float:
     return rg / len(cas)
 
 
+def _intra_organization(peptide_pdb: Path) -> dict:
+    """Pre-organization score from intramolecular bonds in the peptide's 3D structure.
+
+    Detects disulfides (Cys SG–SG < 2.5 Å), salt bridges (D/E↔K/R/H < 4.0 Å), secondary-structure
+    backbone H-bonds (N···O < 3.5 Å, |i−j|>=3) and aromatic stacking (ring centroids < 6.0 Å), weights
+    them by ``_BOND_W``, and returns the per-residue density plus the cysteine fraction. Higher density
+    = more internally rigid = lower free-state entropy cost (docs E68).
+
+    Returns {"org_density": float, "cys_frac": float}.
+    """
+    res = [r for r in _P.get_structure("org", str(peptide_pdb))[0].get_residues() if r.id[0] == " "]
+    n = len(res)
+    if n == 0:
+        return {"org_density": 0.0, "cys_frac": 0.0}
+    at = [{a.name: a.coord for a in r} for r in res]
+    rn = [r.resname.upper() for r in res]
+
+    def d(c1, c2) -> float:
+        return float(np.linalg.norm(c1 - c2))
+
+    n_ss = n_sb = n_hb = n_ar = 0
+    cys = [i for i in range(n) if rn[i] == "CYS" and "SG" in at[i]]
+    for a in range(len(cys)):
+        for b in range(a + 1, len(cys)):
+            if abs(cys[a] - cys[b]) >= 2 and d(at[cys[a]]["SG"], at[cys[b]]["SG"]) < 2.5:
+                n_ss += 1
+    for i in range(n):
+        for j in range(i + 2, n):
+            an, ca = (None, None)
+            if rn[i] in _ANION and rn[j] in _CATION:
+                an, ca = (i, _ANION[rn[i]]), (j, _CATION[rn[j]])
+            elif rn[j] in _ANION and rn[i] in _CATION:
+                an, ca = (j, _ANION[rn[j]]), (i, _CATION[rn[i]])
+            if an and ca and min((d(at[an[0]][x], at[ca[0]][y]) for x in an[1] if x in at[an[0]]
+                                  for y in ca[1] if y in at[ca[0]]), default=99.0) < 4.0:
+                n_sb += 1
+    for i in range(n):
+        if "N" in at[i] and any(abs(i - j) >= 3 and "O" in at[j] and d(at[i]["N"], at[j]["O"]) < 3.5
+                                for j in range(n)):
+            n_hb += 1
+    cents = {i: np.mean([at[i][a] for a in _AROM_RING[rn[i]] if a in at[i]], axis=0)
+             for i in range(n) if rn[i] in _AROM_RING and any(a in at[i] for a in _AROM_RING[rn[i]])}
+    ks = list(cents)
+    for a in range(len(ks)):
+        for b in range(a + 1, len(ks)):
+            if abs(ks[a] - ks[b]) >= 2 and d(cents[ks[a]], cents[ks[b]]) < 6.0:
+                n_ar += 1
+    score = (_BOND_W["disulfide"] * n_ss + _BOND_W["salt_bridge"] * n_sb
+             + _BOND_W["ss_hbond"] * n_hb + _BOND_W["aromatic"] * n_ar)
+    return {"org_density": score / n, "cys_frac": rn.count("CYS") / n}
+
+
 def compute_geometry_features(peptide_pose_pdb: Path, receptor_pdb: Path) -> dict | None:
     """Extract the ensemble's geometry + per-contact-energy features for one pose.
 
@@ -233,6 +301,7 @@ def compute_geometry_features(peptide_pose_pdb: Path, receptor_pdb: Path) -> dic
         if pk is None or fi is None:
             return None
         return {**pk, **fi, "mj_contact": _mj_contact(cx, "P"),
-                "rg_per_L": _rg_per_residue(peptide_pose_pdb)}
+                "rg_per_L": _rg_per_residue(peptide_pose_pdb),
+                **_intra_organization(peptide_pose_pdb)}
     finally:
         cx.unlink(missing_ok=True)
