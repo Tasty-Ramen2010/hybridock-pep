@@ -1075,3 +1075,22 @@ bundles dataset-dependent SS H-bonds -> use only in pooled calibration.
 Wired org_density + cys_frac into geometry_features (available, insulated from existing calib via
 cal.feature_names). Crystal-65 production candidate stays rg_per_L-only (0.595). cys_frac/org_density
 belong to a POOLED recalibration (next: compute full geom features on the-98 for a balanced fit).
+
+## E69 — POOLED/balanced calibration: approaching PPI-Affinity (Jun 12)
+
+Full 15-key geometry model fit on POOLED crystal-65 + the-98 (n=156), three honest evals:
+                              pooled-LOO   balanced-test(5seed)   leave-dataset-out(98→65/65→98)
+  base-12 (legacy)            0.440        0.453±0.046            −0.01 / −0.20
+  + rg_per_L                  0.524        0.512±0.039            +0.15 / −0.04
+  + rg_per_L + cys_frac       0.540        0.518±0.047            +0.10 / −0.01
+  + rg + org + cys (full 15)  0.541        0.518±0.054            +0.06 / −0.01
+
+KEY: pooled LOO 0.44->0.54 and balanced held-out test 0.45->0.52 with the new physics features —
+APPROACHING PPI-Affinity (0.554). Full-pool weights (correct signs): sasa_hb +0.98, mj_contact −0.78,
+poc_n −0.69, bsa_hyd −0.62, rg_per_L +0.52 (extended=weaker), org_density −0.37 (organized=stronger),
+cys_frac −0.29. The new features ALL carry meaningful weight.
+
+LEAVE-DATASET-OUT stays near-zero (legacy −0.01/−0.20; +rg_per_L +0.15/−0.04): a model trained on ONE
+set still barely extrapolates to the other — which is EXACTLY why pooled/balanced training is needed and
+correct (Ram's balanced-dataset idea VALIDATED). 0.54 is within-pooled-distribution; the honest
+deployment number is the balanced held-out test 0.518. Candidate: data/calibration_pooled_candidate.json.
