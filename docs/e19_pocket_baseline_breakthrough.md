@@ -682,3 +682,27 @@ linear (Ram right). Caveat: pooled-LOCO = interpolation (optimistic vs true new-
 deployment r between ~baseline (alien data) and ~0.43 (in-distribution). LESSON: model generalizes
 WITHIN trained distribution, not beyond -> fix = MORE diverse data (M2), exactly the PPI-Affinity
 route (0.55 @ thousands). M2 (data campaign through e49 ensemble pipeline) is JUSTIFIED.
+
+## M1c — Simpson's paradox PROVEN: extensive features flip, intensive transfer (the fix = intensive-only)
+
+Ram: 'physics never lies — investigate what causes the continuous flipping.' scripts/m1c_simpson.py.
+PERFECT split: every EXTENSIVE feature flips sign across datasets (L +0.46/−0.40, mj −0.54/+0.32,
+bsa_hyd +0.07/−0.32, sasa_sb +0.45/−0.07, net_charge +0.27/−0.13); every INTENSIVE feature transfers
+or is weak, NONE flip (hyd_frac −0.20/−0.23, strength −0.20/−0.17, bsa_hyd_frac −0.31/−0.29,
+bsa_polar_frac +0.31/+0.21).
+
+MECHANISM: corr(length,ΔG)=+0.46 crystal-65 vs −0.40 the-98 — size→affinity slope has OPPOSITE sign
+(selection bias: crystal long peptides = ordered tight binders; the-98 long = floppy weak). Physics
+(per-residue energy) identical; extensive aggregation inherits the dataset size-affinity slope and
+flips = textbook Simpson's paradox. The physics doesn't lie; extensive features conflate amount with
+per-unit quality.
+
+FIX (decisive, leave-DATASET-out): EXTENSIVE-only ML charged cr→98 −0.188/98→cr −0.108 (flips);
+INTENSIVE-only +0.333/+0.027 (TRANSFERS, cr→98 beats baseline +0.29); all-12 mixed −0.214/−0.131
+(extensive POISONS the mix). >> Restricting ML to INTENSIVE features stops the flip = the
+generalizable model. Pooled +0.43 was interpolation on fragile extensive feats.
+
+M2 DATA REALITY (Ram's sparsity warning vindicated): bulk affinity file 2725 rows but Kd only 151
+(IC50 1140/Ki 529/EC50 905), 63 unique Kd PDBs, unfiltered for peptide. M2 is NOT scale-to-thousands;
+peptide-Kd is genuinely rare. -> M2 = modest expansion + INTENSIVE-only model; selectivity ΔΔG backup
+becomes the real differentiator (floor cancels, needs no absolute-Kd).
