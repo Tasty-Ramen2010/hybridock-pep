@@ -928,3 +928,41 @@ in the unbiased pool is the TRUE signal: mean_burial +0.07. The big ±0.4 within
 mostly selection artifact. This is WHY absolute scoring caps low: the real per-residue burial→affinity
 physics is genuinely weak once selection is removed. Same floor, now proven from the burial side.
 Constructive exits unchanged: free-state entropy term (disambiguates, transfers) or ML-on-thousands.
+
+## E63 — the lurking variable behind length's flip = COMPACTNESS (Ram's hypothesis CONFIRMED, Jun 12)
+
+Hunt: corr(feature, LENGTH) per dataset, find the most-opposite coupling = what length stands for.
+
+### (A) What length aliases — OPPOSITELY
+  rg_per_L (extendedness/residue): corr w/ L  cr65 +0.32 / the98 −0.76  (|diff| 1.09)  TOP
+  e2e_per_L:                                   +0.37 / −0.61  (0.98)
+  hyd_frac:                                    −0.68 / +0.01  (0.69)
+Length couples to peptide SHAPE/compactness oppositely in the two sets = the confounder.
+
+### (B) The FIX EXISTS — compactness is SIGN-STABLE where length flips
+corr(feature, ΔG)  [ΔG neg; +corr = weaker binding]   cr65 / the98
+  rg_per_L     +0.32 / +0.39   TRANSFERS  <-- more extended/residue -> WEAKER, both sets
+  e2e_per_L    +0.28 / +0.38   TRANSFERS
+  hyd_frac     −0.23 / −0.28   TRANSFERS (hydrophobic -> stronger)
+  FLIP: total_bsa, n_anchor, n_nonbinding, net_charge, rg(raw), mmgbsa, eint (all EXTENSIVE/size)
+
+### (C) Dataset personality — confirms "65 = compact strong, 98 = extended weak"
+  ΔG:        cr65 −10.06  vs the98 −8.10   (65 stronger)
+  rg_per_L:  cr65   0.51  vs the98  0.73   (98 more extended)
+  e2e_per_L: cr65   1.52  vs the98  2.03   (98 more stretched)
+  total_bsa: cr65    679  vs the98   585   (65 buries more)
+  nonbind_frac/dangling ~equal -> difference is SHAPE (compactness), NOT literal tail-residue count.
+
+### (D) Constructive: reward-contacts + penalize-tails works ONLY intensive
+  raw L                       98→cr65 −0.43 / cr65→98 −0.40  (fail)
+  total_bsa + n_nonbinding    −0.43 / −0.31  (extensive, fail)
+  mean_burial + nonbind_frac  +0.11 / +0.17  POSITIVE BOTH (intensive, transfers, weak)
+
+### VERDICT
+Ram right: length is a proxy; the lurking variable is peptide COMPACTNESS (rg_per_L/e2e_per_L). cr65 =
+compact strong binders, the-98 = extended weak — measured. The transferable fix = an EXTENDEDNESS PENALTY
+(rg_per_L, sign-stable +0.3/+0.4) instead of length. Physically = conformational-entropy / cooperativity:
+extended peptide pays more entropy + fewer cooperative contacts -> weaker, universally. Independently
+CORROBORATES the free-state entropy lever from a pure-shape angle. mmgbsa/eint themselves FLIP (size-
+confounded) = what we're "wrongly calculating" (absolute magnitude not normalized). Magnitude modest
+(~0.35 within, ~0.15 transfer) — real new feature, not a ceiling-breaker. Add rg_per_L; normalize physics.
