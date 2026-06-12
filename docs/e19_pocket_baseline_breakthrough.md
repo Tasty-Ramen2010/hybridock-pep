@@ -998,3 +998,22 @@ extendedness penalty (α≈5.4 kcal/mol/unit) un-flips and lifts it. ACTIONS: (a
 geometry_features (cheap, sign-stable); (b) add optional MM-GBSA conformational penalty term; (c) prefer
 mmgbsa/BSA over raw for cross-family ranking. Magnitude modest (~0.25-0.46 transfer) — real, not ceiling-
 breaking. NOT made default until benchmark-recalibrated (CLAUDE §7).
+
+## E65 — autopsy AFTER the rg_per_L penalty: what changed (Jun 12)
+
+the-98 (n=91), BASE=MMGBSA-only vs CORR=MMGBSA+α·rg_per_L (global OLS):
+  Pearson 0.247 -> 0.415 ;  RMSE 1.68 -> 1.58 ;  dynamic range 25% -> 41% of real spread
+
+Over/under by factor, meanErr(pred−exp) kcal/mol [+ve=under-predicts affinity]:
+  EXTENDED (rg_per_L hi)   −0.35 -> +0.06   FIXED (the bias the penalty targets, ~zeroed)
+  COMPACT  (rg_per_L lo)   +0.34 -> −0.06   FIXED
+  length>med               +0.30 -> −0.03   FIXED (length bias was extendedness in disguise)
+  charged hi               +0.18 -> +0.14   improved
+  hydrophobic hi           +0.45 -> +0.36   slightly
+  strength=strong          +1.35 -> +1.24   only −0.08 (compression barely moved)
+  strength=weak            −1.32 -> −1.21   only −0.06
+
+VERDICT: the penalty FULLY corrected the shape/extendedness/length bias axis (−0.35→+0.06 on extended)
+and recovered dynamic range (25%→41%). But the dominant strong/weak compression (±1.3 kcal/mol) only
+nudged ~0.1 — that's the residual DISCRIMINATION deficit needing real-MD entropy / data, not one term.
+Honest: shape axis solved; magnitude-discrimination axis remains the floor.
