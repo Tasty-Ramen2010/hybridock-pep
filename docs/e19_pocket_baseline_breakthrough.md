@@ -784,3 +784,42 @@ big-effect muts (resid 2.40=range compression) + pro/gly (1.75=backbone), NOT ch
 so physics has no niche. DEPLOYABLE: Δphys ranker for peptide affinity maturation (mutation-ΔΔG, rank
 variants for ONE receptor) = real tool capability beating FlexPepDock. Does NOT apply to receptor-
 selectivity (Δphys cancels). Receptor-selectivity stays physics-only ~0.3.
+
+## E56b — CONSTRAINED-relax backbone ensemble: the Goldilocks verdict (Jun 12)
+
+Final backbone-lever test on 3SGB pos-12 (buried P1 hotspot, the physics-failure case). flex-ddG's
+actual recipe: `constrain_relax_to_start_coords` + coordinate_constraint weight 1.0, K=3 models.
+
+**Result: n=20, Spearman = −0.370 — FAIL by collapse.** Every substitution gives ΔΔG ≈ +8.8 (range
+8.62–8.99) while experiment spans −0.01→+8.33. Constraint pins the backbone, S1 pocket can't breathe,
+energy = constant lost-WT-packing cavity penalty. Zero discrimination.
+
+### Goldilocks wall (same 3SGB pos-12 mutations, three backbone treatments)
+| Backbone | ΔΔG behavior | Spearman |
+|---|---|---|
+| Rigid (mutate+pack) | clash blowups +1115 | −0.48 |
+| Floppy (FastRelax free) | compressed +1–2.5 | +0.10 |
+| Pinned (constrain_to_start) | constant +8.8 | −0.37 |
+
+No FastRelax setting ranks a buried hotspot. flex-ddG's edge = backRUB (K≈35 + ramped torsion
+constraints), a specific ensemble protocol, not a relax flag. FastRelax-K3 is the wrong sampler.
+
+### Per-feature loss ledger (e55 re-run, n=526, leave-complex-out)
+| Feature | Standalone Spearman | Δ added to ref2015 | Failure mode |
+|---|---|---|---|
+| ref2015 (enthalpy) | +0.198 | baseline | dies at buried hotspots (3SGB −0.48); strong on pro/gly (+0.44) |
+| MM-GBSA (GB desolv) | +0.163 | +0.033 | only positive on 3SGB (+0.14), orthogonal but continuum-solvent caps low |
+| ensemble ⟨E_int⟩ | — | −0.13 | NET NEGATIVE: thermal MD = sidechain wiggle not backbone mode, noise |
+| Δphys (sequence) | — | +0.21 | DOMINANT but sequence stat → CANCELS for receptor-selectivity |
+
+Hybrid ref2015+mmgbsa+Δphys = +0.406 (beats FlexPepDock +0.198) — but carried by Δphys sequence prior.
+`all` features = +0.221 (dilutes the working signal).
+
+### VERDICT (the honest wall)
+- We beat FlexPepDock on SKEMPI MUTATION-ranking (+0.406) via a SEQUENCE prior that cancels for the
+  tool's actual receptor-selectivity job.
+- The physics gap to flex-ddG is a SAMPLING amount (backrub backbone ensemble, K≈35), NOT a nonlinearity
+  (all-ridge +0.221, GBT cross-dataset dead) and NOT a missing energy term (MM-GBSA buys +0.03).
+- Even perfect backrub buys ~+0.15 over the sequence model on mutations the prior already handles; for
+  receptor-selectivity it's the only path but unproven for peptide-receptor pairs.
+- ATLAS TCR-pMHC real-Kd expansion: NOT run (out of context). Still the legitimate next data-door lever.
