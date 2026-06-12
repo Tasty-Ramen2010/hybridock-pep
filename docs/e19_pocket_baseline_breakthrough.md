@@ -1199,3 +1199,28 @@ complexes (5 strongest + 5 weakest), records per-frame pep-rec vdw+elec to data/
 Test: if explicit ⟨E_elec⟩ correlates with ΔG sign-stable (|r|>0.3) where implicit net_elec was flat
 (−0.115)/flipping, explicit water DE-FLIPS the charge term = diagnosis confirmed + the deployable lever is
 explicit (or a pocket-dielectric-aware correction). 2HRP (strong,+3): explicit ⟨elec⟩=−127 (favorable).
+
+## E76 LIE verdict + ML ceiling analysis (Jun 12)
+
+### Explicit-LIE bound-cut: flat, BUT illustrates the mechanism
+explicit ⟨E_elec⟩ vs ΔG on 10 charged = +0.043 (flat, like implicit −0.115); ⟨vdw⟩ = +0.243 (packing).
+WHY flat: weakest binders have STRONGEST raw attraction (3C3R y−6.0 elec−426; 1ZKK y−6.1 elec−427) vs
+strongest binder 2HRP y−11.3 elec−127. High-charge peptides = huge Coulomb attraction EATEN by huge
+desolvation. Bound-state ⟨elec⟩ omits the desolvation subtraction -> need the FREE-PEPTIDE LEG (full LIE
+net = attraction − desolvation). Bound cut confirms physics, isn't the predictor. Data persisted+tracked
+(per-frame series, data/lie_explicit_dataset.jsonl).
+
+### ML de-flip test: pocket-conditioning does NOT salvage charge (decisive)
+Leave-dataset-out: raw netQ flips; netQ + poc_f_hyd + poc_net + Q×pocket interactions (linear AND GBT) =
+still ~0 cross-dataset. Pooled LOO: 16-feat linear 0.544 -> +pocket-conditioned-charge 0.544 -> GBT 0.546.
+NO lift. Coarse pocket descriptors (residue-composition) are NOT the local dielectric; only explicit
+solvent captures the real desolvation. AND GBT≈linear = no nonlinear signal left in current features.
+
+### EXPECTED r (honest, empirically bounded)
+- Current features, ANY ML: ~0.55 (= PPI-Affinity; we're at 0.544 = feature ceiling, GBT doesn't beat it)
+- + explicit-solvent LIE features (full free-leg) on charged + clean Kd/Ki labels: ~0.58-0.63
+- HARD ceiling diverse cross-family peptide ΔG: ~0.65-0.70, set by label noise (cr65 mixes 34 Kd + 31 Ki!
+  + ~1 kcal/mol exp uncertainty) and genuine multi-pose/entropy physics
+- FEP 0.8-0.9: NOT reachable for diverse cross-family (reserved for congeneric series w/ reference)
+The binding constraint is DATA + LABELS + explicit-solvent on charged, NOT model class. We're at the
+feature ceiling; next +0.05-0.10 needs the expensive tier, +to-0.7 needs clean labels + data.
