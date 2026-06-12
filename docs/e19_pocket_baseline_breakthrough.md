@@ -1017,3 +1017,37 @@ VERDICT: the penalty FULLY corrected the shape/extendedness/length bias axis (�
 and recovered dynamic range (25%→41%). But the dominant strong/weak compression (±1.3 kcal/mol) only
 nudged ~0.1 — that's the residual DISCRIMINATION deficit needing real-MD entropy / data, not one term.
 Honest: shape axis solved; magnitude-discrimination axis remains the floor.
+
+## E67 — anatomy of strong vs weak binders (Jun 12)
+
+### (A) What ARE strong binders? Sign-consistent discriminators (Cohen's d, BOTH datasets)
+  hyd_frac    +0.67/+0.62  REAL — strong = more hydrophobic
+  bulky_frac  +0.71/+0.42  REAL — strong = bulkier sidechains (W/F/Y/L/I/M anchors)
+  rg_per_L    −0.34/−0.86  REAL — strong = more compact
+  gravy       +0.40/+0.38  REAL — more hydrophobic
+  mmgbsa      −0.32/−0.72  REAL (weak in cr65)
+  L/n_anchor/total_bsa  −1.3/+0.9  BIGGEST |d| but FLIP = selection artifact, NOT intrinsic to strength
+=> strong binder = COMPACT + HYDROPHOBIC + BULKY anchor. Size/BSA are the loud confound, not the cause.
+
+### (B) Can we rank strong vs weak? Partially
+  cr65 Spearman 0.367, caught 14/21 true-strong;  the98 Spearman 0.386, caught 20/30. ~2/3, not random.
+
+### (C) The MISSES (true-strong we under-rate) — the fundamental gap
+Small-interface peptides that bind strong anyway (exp −12, we say −9): two flavors —
+  (1) CYSTEINE/disulfide pre-organized (GCCSDPRCAWR, APAPTPCNPAECFDPL): corr(cys_count, ΔG)=−0.283,
+      corr(cys, residual)=−0.187 (we under-rate them) — pre-organization = low free-state entropy.
+  (2) CHARGED-anchored (+3 net: PGRQACGRRH, MSLPGRWKPK): salt-bridge strong = the electrostatic floor.
+Contrast missed−caught: total_bsa −369, mean_burial −15 => misses bind strong with SMALL/SHALLOW
+interface. FUNDAMENTAL: strength ≠ interface SIZE; it's enthalpy/entropy DENSITY (pre-org rigidity +
+specific anchors). Ties to the two known levers: free-state entropy + electrostatics.
+
+### (D) Hydrophobic term (Ram's idea): helps, but as a REWARD not penalty
+  mmgbsa+rg_per_L transfer 65→98 +0.413 -> +hyd_frac +0.460 (+0.047). bulky/arom hurt.
+  calibrated hyd_frac = −2.93 kcal/mol per unit frac (REWARD; ~1.5 kcal/mol swing). Sign = reward
+  (strong are hydrophobic, A). Even better as COMPLEMENTARITY: pep_hyd × pocket_hyd corr −0.314 (beats
+  pep_hyd −0.28 or pocket_hyd −0.04 alone) = strength is INTERFACE matching, not peptide alone.
+
+### ACTIONS
+Add hyd_frac reward (validated) and cys/disulfide pre-organization feature; build pep×pocket hydrophobic
+complementarity (needs cr65 pocket features to validate transfer). Strong/weak compression floor =
+pre-organization(entropy) + electrostatics, exactly the two expensive levers — confirmed from a 3rd angle.
