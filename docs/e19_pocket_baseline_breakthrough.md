@@ -716,3 +716,16 @@ costs 70% of data (154->45). Balanced LOO WORSE (all +0.37->+0.22, charged +0.02
 features already sidestep the confound, so balancing is redundant + too costly at n=154. KEY limit:
 crystal-65 has ZERO weak binders — can't subsample coverage you don't have. CONSTRUCTIVE USE: bias M2
 ACQUISITION toward weak/floppy binders to fill empty cells (not subsample). Principle right, lever wrong.
+
+## M2 result + E51 single-point selectivity: data helps; single-point ΔΔG NOT LIE-level
+
+M2 (scripts/m2_expand_pool.py): +26 new peptide-Kd complexes (biased to weak binders per Ram's
+fill-the-empty-cells idea). Intensive-only LOO: crystal65+the98 n=154 all +0.365/charged +0.024 ->
++M2 n=180 all +0.429/charged +0.158. Data door WORKS (charged +0.13 from 26 complexes); PPI-Affinity
+trajectory, Kd-sparsity-limited.
+
+E51 SKEMPI single-point MM-GBSA ΔΔG (n=600, 5 complexes): per-complex Spearman 1PPF +0.30, 1CHO −0.10,
+1R0R +0.29, 3SGB +0.16, 1AO7(peptide-MHC) +0.26; POOLED Pearson +0.150/Spearman +0.138. Beats absolute
+charged floor (0.07) = floor partially cancels, BUT single-point is too noisy = NOT LIE-level (lit
+single-pt MM-GBSA 0.3-0.5, flex-ddG 0.55). High complex-to-complex variance (−0.10..+0.30) is the
+noise signature. E52 (MD-averaged = true LIE) running to test if ensemble denoising reaches LIE-level.
