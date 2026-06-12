@@ -901,3 +901,30 @@ the exact alias that makes length flip. Sequence proxy too weak; real MD works (
 VERDICT: the wall is a DATA/ENTROPY wall (size aliases two physics regimes), not "we can't beat 1995."
 Levers: free-state entropy term (cheap-ish, validated) or more real Kd (population-conditional sign, the
 PPI-Affinity route to 0.55). Not a feature-correlated constant — that overfits the population.
+
+## E62 — Ram's effective-length hypothesis (count binders not residues) + pooled 98+65 (Jun 12)
+
+Idea: raw L flips because it counts floppy tails; replace with #residues that actually bury (anchors).
+Computed per-residue burial (ShrakeRupley free−complex SASA) for all 156 complexes, pooled the-98+cr65.
+
+### Result: effective-length is BETTER within-dataset but STILL FLIPS
+Spearman(feat, ΔG)  [neg = stronger binding]      cr65 / the98 / stable?
+  L (raw)            +0.393 / −0.320  FLIP
+  eff_len (soft)     +0.487 / −0.256  FLIP   (better within cr65 than L — intuition partly right)
+  n_anchor40         +0.406 / −0.295  FLIP
+  total_bsa          +0.432 / −0.222  FLIP
+  mean_burial (INT)  +0.074 / +0.075  STABLE  (identical sign+mag, transfers +0.08/+0.12)
+  max_burial  (INT)  +0.175 / +0.025  STABLE
+
+### Lesson: the flip is SELECTION BIAS, not what L counts
+Counting only anchors doesn't fix it because n_anchor/eff_len/total_bsa are STILL EXTENSIVE. Both datasets
+have OPPOSITE size↔affinity slopes (cr65: bigger=stronger; the98: bigger=weaker) — a property of dataset
+SELECTION, not of floppy tails. ANY extensive size feature inherits the flip. Only INTENSIVE per-residue
+DENSITY (mean_burial) is sign-stable — and it's WEAK (~0.07).
+
+### Pooling worked exactly as intended (Ram's unbiased-dataset idea)
+Pooled eff_len corr collapses to −0.128 (vs ±0.4 within-dataset) = the confound CANCELLED. What survives
+in the unbiased pool is the TRUE signal: mean_burial +0.07. The big ±0.4 within-dataset correlations were
+mostly selection artifact. This is WHY absolute scoring caps low: the real per-residue burial→affinity
+physics is genuinely weak once selection is removed. Same floor, now proven from the burial side.
+Constructive exits unchanged: free-state entropy term (disambiguates, transfers) or ML-on-thousands.
