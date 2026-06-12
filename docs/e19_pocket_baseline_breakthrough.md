@@ -966,3 +966,35 @@ extended peptide pays more entropy + fewer cooperative contacts -> weaker, unive
 CORROBORATES the free-state entropy lever from a pure-shape angle. mmgbsa/eint themselves FLIP (size-
 confounded) = what we're "wrongly calculating" (absolute magnitude not normalized). Magnitude modest
 (~0.35 within, ~0.15 transfer) — real new feature, not a ceiling-breaker. Add rg_per_L; normalize physics.
+
+## E64 — extendedness/entropy penalty FIXES MM-GBSA's flip (Jun 12)
+
+### (1) Normalizing un-flips MM-GBSA
+  mmgbsa raw      cr65 −0.14 / the98 +0.27   FLIP (size-confounded absolute magnitude)
+  mmgbsa / BSA    cr65 +0.14 / the98 +0.15   STABLE  <-- divide out interface size
+  mmgbsa / L      cr65 +0.10 / the98 +0.02   stable but transfer goes neg
+
+### (2) MM-GBSA's residual IS the missing −TΔS (the diagnostic)
+corr(MMGBSA residual, rg_per_L):  cr65 +0.343 / the98 +0.385 / POOLED +0.494
+Consistent: extended peptides have positive residual = MM-GBSA OVER-rates them (ignores the entropy
+cost they pay to order). Structured error, both datasets = a real missing term, not noise.
+
+### (3) Penalty model ΔG_corr = a·mmgbsa + b·rg_per_L + c
+  mmgbsa baseline           transfer cr65→98 +0.247 / 98→cr65 +0.147
+  mmgbsa + rg_per_L                  +0.413 / +0.147
+  mmgbsa + rg_per_L + hyd            +0.460 / +0.147
+Calibrated α = +5.4 kcal/mol per unit rg_per_L (~5 kcal/mol swing across the range) — physically sane
+for −TΔS_conf. Pooled Pearson 0.05 -> 0.48. (Striking: pooled mmgbsa coef ≈ 0 — the cheap SHAPE feature
+carries the ranking; MM-GBSA absolute magnitude barely helps once shape is in.)
+
+### (4) Best transferable intensive model
+  mean_burial + hyd_frac                 +0.238 / +0.225
+  + rg_per_L                             +0.444 / +0.251   <== sign-stable both ways, best
+  + rg_per_L + e2e_per_L                 +0.442 / +0.231
+
+### VERDICT / ACTIONS
+Ram's penalty idea VALIDATED as physics: MM-GBSA's blind spot is −TΔS_conf; it tracks rg_per_L; an
+extendedness penalty (α≈5.4 kcal/mol/unit) un-flips and lifts it. ACTIONS: (a) wire rg_per_L into
+geometry_features (cheap, sign-stable); (b) add optional MM-GBSA conformational penalty term; (c) prefer
+mmgbsa/BSA over raw for cross-family ranking. Magnitude modest (~0.25-0.46 transfer) — real, not ceiling-
+breaking. NOT made default until benchmark-recalibrated (CLAUDE §7).
