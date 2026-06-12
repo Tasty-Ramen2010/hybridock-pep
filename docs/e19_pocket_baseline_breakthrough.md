@@ -706,3 +706,13 @@ M2 DATA REALITY (Ram's sparsity warning vindicated): bulk affinity file 2725 row
 (IC50 1140/Ki 529/EC50 905), 63 unique Kd PDBs, unfiltered for peptide. M2 is NOT scale-to-thousands;
 peptide-Kd is genuinely rare. -> M2 = modest expansion + INTENSIVE-only model; selectivity ΔΔG backup
 becomes the real differentiator (floor cancels, needs no absolute-Kd).
+
+## M2b — Ram's balancing idea: sound principle, redundant here (pooling already cancels confound)
+
+Ram: combine datasets into an EVEN weak/strong x short/long distribution to break the Simpson
+confound. Tested (scripts/m2b_balanced_pool.py): confound is strong WITHIN datasets (corr(L,ΔG)
++0.46 cr / −0.40 98) but POOLING already cancels it to −0.13; balancing barely moves it (−0.12) and
+costs 70% of data (154->45). Balanced LOO WORSE (all +0.37->+0.22, charged +0.02->−0.20). Intensive
+features already sidestep the confound, so balancing is redundant + too costly at n=154. KEY limit:
+crystal-65 has ZERO weak binders — can't subsample coverage you don't have. CONSTRUCTIVE USE: bias M2
+ACQUISITION toward weak/floppy binders to fill empty cells (not subsample). Principle right, lever wrong.
