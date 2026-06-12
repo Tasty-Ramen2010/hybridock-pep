@@ -487,6 +487,120 @@ _ROT_W = 0.25
 _TOR_BB_W = 0.25
 _TOR_SC_W = 0.25
 
+# ---------------------------------------------------------------------------
+# INJECT mode: apply architectural fixes to existing checkpoints
+# ---------------------------------------------------------------------------
+# Two injectable fixes (no full retrain needed):
+#   1. Tanh → SiLU in torsion heads (diffusion.py already patched)
+#      The state_dict keys are identical (Tanh/SiLU have no params), so
+#      existing checkpoints load with strict=True.  The final torsion scale
+#      layer (tor_*_final_layer.3.weight) is scaled down by TOR_SCALE_FACTOR
+#      because SiLU is unbounded vs Tanh's [-1,1] — prevents initial explosion.
+#   2. cross_type_embedding (4→ns Embedding, zero-init in diffusion.py __init__)
+#      Not present in old checkpoints → load with strict=False; the new param
+#      starts at zero (neutral, no effect on first inference pass).
+#
+# Training protocol:
+#   Phase 0 (P0, 3 epochs): ONLY tor_*_final_layer + cross_type_embedding
+#     → recalibrate torsion scale; let cross_type_embedding see first gradients
+#     → high LR (1e-5) so torsion heads recover quickly
+#   Phase 1 (P1, 12 epochs): all score heads + output convs + cross_type_embedding
+#     → standard v5c-style finetuning from P0 best checkpoint
+#     → ultra-low LR (1e-6 → 5e-8)
+#
+# TOR_SCALE_FACTOR: scale-down applied to tor_*_final_layer.3.weight after load.
+# Tanh(x) ≈ 1 for |x|>2; SiLU(x) ≈ x for x>2 (unbounded).
+# Factor 0.1 → initial torsion scores ≈ 10× smaller than pretrained Tanh scores.
+# The P0 phase quickly re-grows them to the correct scale.
+_TOR_SCALE_FACTOR = 0.1
+
+# P0: only the two targets needing immediate recalibration
+_UNFREEZE_PATTERNS_INJECT_P0 = [
+    "tor_bb_final_layer",      # both linear layers: recalibrate full head
+    "tor_sc_final_layer",
+    "cross_type_embedding",    # new 4-way contact type embedding (starts at 0)
+]
+
+# P1: standard v5c P2 set + cross_type_embedding
+_UNFREEZE_PATTERNS_INJECT_P1 = [
+    "tr_final_layer",
+    "rot_final_layer",
+    "tor_bb_final_layer",
+    "tor_sc_final_layer",
+    "final_conv",
+    "tor_bb_bond_conv",
+    "tor_sc_bond_conv",
+    "center_edge_embedding",
+    "pep_a_node_embedding",
+    "final_edge_embedding",
+    "cross_type_embedding",    # keep updating through P1
+]
+
+
+def load_model_for_inject(model_args, ckpt_path, device):
+    # type: (Namespace, str, torch.device) -> torch.nn.Module
+    """Load a checkpoint into the patched architecture (SiLU + cross_type_embedding).
+
+    Uses strict=False so that the new cross_type_embedding param (absent in old
+    checkpoints) initialises from diffusion.py's zero-init rather than crashing.
+    After loading:
+      - cross_type_embedding.weight is verified to be zero (or re-zeroed).
+      - tor_*_final_layer.3.weight is scaled by _TOR_SCALE_FACTOR to compensate
+        for SiLU being unbounded vs Tanh's [-1,1] output range.
+    """
+    model = get_model(model_args, no_parallel=True)
+    raw_ckpt = torch.load(ckpt_path, map_location="cpu")
+
+    # Extract raw model weights — skip EMA entirely for inject mode.
+    # EMA loading requires identical param counts/shapes which breaks when
+    # the injected architecture adds cross_type_embedding.
+    if isinstance(raw_ckpt, dict) and "model" in raw_ckpt:
+        state = raw_ckpt["model"]
+        if "ema_weights" in raw_ckpt:
+            print("[inject] EMA weights found in checkpoint but skipped — "
+                  "using raw model weights to avoid shape conflicts with new params.")
+    else:
+        state = raw_ckpt
+
+    # Strip 'encoder.' prefix — train_lastlayer saves with this wrapper prefix
+    # but get_model() returns a bare CGTensorProductEquivariantModel without it.
+    sample = next(iter(state.keys())) if state else ""
+    model_keys = set(k for k, _ in model.named_parameters())
+    if sample.startswith("encoder.") and not any(k.startswith("encoder.") for k in model_keys):
+        state = {k[len("encoder."):]: v for k, v in state.items()
+                 if k.startswith("encoder.")}
+        print(f"[inject] Stripped 'encoder.' prefix from checkpoint keys ({len(state)} tensors)")
+
+    missing, unexpected = model.load_state_dict(state, strict=False)
+    if unexpected:
+        print(f"[inject] Unexpected keys in checkpoint (ignored): {unexpected}")
+    new_keys = [k for k in missing if "cross_type_embedding" in k]
+    other_missing = [k for k in missing if "cross_type_embedding" not in k]
+    if other_missing:
+        print(f"[inject] WARNING: missing non-inject keys: {other_missing[:5]}...")
+    print(f"[inject] New inject params (zero-init): {new_keys}")
+
+    # Ensure cross_type_embedding is zero (neutral start — no effect on inference)
+    if hasattr(model, "cross_type_embedding"):
+        torch.nn.init.zeros_(model.cross_type_embedding.weight)
+        print(f"[inject] cross_type_embedding.weight zeroed — shape {model.cross_type_embedding.weight.shape}")
+
+    # Scale down torsion final layers: SiLU unbounded vs Tanh [-1,1]
+    for head_name in ("tor_bb_final_layer", "tor_sc_final_layer"):
+        head = getattr(model, head_name, None)
+        if head is None:
+            continue
+        # The final Linear is index 3 in the Sequential
+        final_linear = head[3]
+        with torch.no_grad():
+            final_linear.weight.mul_(_TOR_SCALE_FACTOR)
+        print(f"[inject] {head_name}.3.weight scaled by {_TOR_SCALE_FACTOR}× "
+              f"(max after={final_linear.weight.abs().max().item():.4f})")
+
+    total = sum(p.numel() for p in model.parameters())
+    print(f"[inject] Model loaded: {total:,} total params")
+    return model.to(device)
+
 
 # ---------------------------------------------------------------------------
 # Model loading
@@ -2379,8 +2493,9 @@ def main():
         default=str(_HERE / "train_models" / "CGTensorProductEquivariantModel" / "model_parameters.yml"),
     )
     parser.add_argument("--output-dir", default="finetune_out")
-    parser.add_argument("--unfreeze-phase", type=int, choices=[1, 2, 3], default=1,
-                        help="1=score heads only (~5%%), 2=+last equivariant block (~20%%), "
+    parser.add_argument("--unfreeze-phase", type=int, choices=[0, 1, 2, 3], default=1,
+                        help="0=inject torsion warmup only (inject-mode), "
+                             "1=score heads only (~5%%), 2=+last equivariant block (~20%%), "
                              "3=all layers (full retrain)")
     parser.add_argument(
         "--v3-mode", action="store_true",
@@ -2472,6 +2587,15 @@ def main():
              "NO cross_conv adaptation in any phase. NO phase 3. Save every epoch after ep4. "
              "Hypothesis: score-head recalibration alone is sufficient; any cross_conv update "
              "risks compressing the diffusion exploration manifold."
+    )
+    parser.add_argument(
+        "--inject-mode", action="store_true",
+        help="INJECT: apply Tanh→SiLU + cross_type_embedding fixes to an existing checkpoint. "
+             "Uses load_model_for_inject() (strict=False, cross_type_embedding zero-init, "
+             "tor_*_final_layer.3.weight scaled by 0.1×). "
+             "P0 (--unfreeze-phase 0): ONLY tor_*_final_layer + cross_type_embedding (recal). "
+             "P1 (--unfreeze-phase 1): all score heads + output convs + cross_type_embedding. "
+             "No phase 2/3 needed — same scope as v5c P2."
     )
     parser.add_argument(
         "--v6-mode", action="store_true",
@@ -2611,11 +2735,11 @@ def main():
     active_modes = [m for m in [args.v3_mode, args.v4_mode, args.v5_mode,
                                  args.v3b_mode, args.v4n_mode, args.v5n_mode,
                                  args.v3c_mode, args.v4c_mode, args.v5c_mode,
-                                 args.v6_mode] if m]
+                                 args.v6_mode, args.inject_mode] if m]
     if len(active_modes) > 1:
         parser.error("Only one of --v3-mode, --v4-mode, --v5-mode, --v3b-mode, "
                      "--v4n-mode, --v5n-mode, --v3c-mode, --v4c-mode, --v5c-mode, "
-                     "--v6-mode may be set at a time.")
+                     "--v6-mode, --inject-mode may be set at a time.")
 
     # v6 forces cosine schedule — warn if user passed something else
     if args.v6_mode and args.lr_schedule not in ("cosine",):
@@ -2634,12 +2758,34 @@ def main():
                 else "V5" if args.v5_mode else "V3B" if args.v3b_mode
                 else "V4N" if args.v4n_mode else "V5N" if args.v5n_mode
                 else "V3C" if args.v3c_mode else "V4C" if args.v4c_mode
-                else "V5C" if args.v5c_mode else "V6" if args.v6_mode else "standard")
+                else "V5C" if args.v5c_mode else "V6" if args.v6_mode
+                else "INJECT" if args.inject_mode else "standard")
     print(f"\nLoading checkpoint: {args.checkpoint}")
     print(f"Experiment mode: {mode_tag}")
 
+    # INJECT mode uses its own loader (strict=False + scale-down + zero-init)
+    if args.inject_mode:
+        model = load_model_for_inject(model_args, args.checkpoint, device)
+        # Freeze all params, then selectively unfreeze based on inject patterns
+        for param in model.parameters():
+            param.requires_grad = False
+        inject_patterns = (_UNFREEZE_PATTERNS_INJECT_P0 if args.unfreeze_phase == 0
+                           else _UNFREEZE_PATTERNS_INJECT_P1 if args.unfreeze_phase == 1
+                           else [])
+        inject_unfrozen = 0
+        for name, param in model.named_parameters():
+            if any(pat in name for pat in inject_patterns):
+                param.requires_grad = True
+                inject_unfrozen += param.numel()
+        total_params = sum(p.numel() for p in model.parameters())
+        pct = 100.0 * inject_unfrozen / total_params
+        print(f"[INJECT-Phase {args.unfreeze_phase}] Unfrozen: {inject_unfrozen:,} / "
+              f"{total_params:,} ({pct:.2f}%)")
+        _frozen_bn_snapshot = {}
+        n_bn_frozen = freeze_frozen_bn_stats(model)
+        print(f"[inject] BN freeze: {n_bn_frozen} frozen BN layers set to eval()")
     # V6 uses its own dedicated loader (validates pretrained-only start)
-    if args.v6_mode:
+    elif args.v6_mode:
         model = load_model_for_finetuning_v6(model_args, args.checkpoint, device,
                                               unfreeze_phase=args.unfreeze_phase)
         # BUG FIX: freeze BatchNorm running stats for frozen conv blocks
@@ -2722,6 +2868,13 @@ def main():
             patterns = _UNFREEZE_PATTERNS_V6P2
         else:
             patterns = _UNFREEZE_PATTERNS_V6P3  # phase 3 = same as P2
+    elif args.inject_mode:
+        if args.unfreeze_phase == 0:
+            patterns = _UNFREEZE_PATTERNS_INJECT_P0
+        elif args.unfreeze_phase == 1:
+            patterns = _UNFREEZE_PATTERNS_INJECT_P1
+        else:
+            patterns = None  # inject has no phase 2+ by design
     else:
         patterns = (_UNFREEZE_PATTERNS_P1 if args.unfreeze_phase == 1
                     else _UNFREEZE_PATTERNS_P2 if args.unfreeze_phase == 2
@@ -3057,6 +3210,8 @@ def main():
         phase_label = f"V5C-Phase {args.unfreeze_phase}"
     elif args.v6_mode:
         phase_label = f"V6-Phase {args.unfreeze_phase}"
+    elif args.inject_mode:
+        phase_label = f"INJECT-Phase {args.unfreeze_phase}"
     else:
         phase_label = f"Phase {args.unfreeze_phase}"
     print(f"\nStarting {phase_label} fine-tuning: "
