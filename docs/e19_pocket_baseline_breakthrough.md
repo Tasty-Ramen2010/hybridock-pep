@@ -769,3 +769,18 @@ transfers to PEPTIDE AFFINITY MATURATION (rank variants for one receptor) = real
 receptor-selectivity. 3SGB ref2015 anti-correlates even cleaned (−0.48) = problem structure/SGPB
 specificity. "Physics never lies" but for point mutations a sequence prior is less noisy than structural
 physics; for receptor-selectivity physics is the ONLY signal (Δphys cancels) and caps ~0.3.
+
+## E56 — backbone ensemble: naive FastRelax OVER-RELAXES (hurts); Δphys is the deployable win
+
+Naive FastRelax backbone-ensemble (8Å shell, bb free) on 3SGB pos-12 muts: Spearman +0.104 vs
+single-point +0.432 — HURTS. Over-relaxation: free backbone lets WT+mutant relax to similar energies,
+COMPRESSING ΔΔG. flex-ddG avoids this with CONSTRAINED backrub (restrain to start coords), not
+FastRelax. E56b tests constrained-relax (constrain_relax_to_start_coords) on 3SGB incl pos-15.
+
+Δphys mutation-ΔΔG SOLIDIFIED: 6-feature (Δvol,Δhyd,Δchg,|Δchg|,charged,progly) leave-complex-out
++0.42 BEATS FlexPepDock ref2015 (+0.30 clean). Single-feature: d_vol −0.24 (biggest), progly −0.22,
+d_hyd −0.16. Adding ref2015/mmgbsa to Δphys: +0.01 (physics adds NOTHING). LOSS: Δphys fails on
+big-effect muts (resid 2.40=range compression) + pro/gly (1.75=backbone), NOT charged (1.36≈1.41) —
+so physics has no niche. DEPLOYABLE: Δphys ranker for peptide affinity maturation (mutation-ΔΔG, rank
+variants for ONE receptor) = real tool capability beating FlexPepDock. Does NOT apply to receptor-
+selectivity (Δphys cancels). Receptor-selectivity stays physics-only ~0.3.
