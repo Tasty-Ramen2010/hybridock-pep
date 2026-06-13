@@ -28,3 +28,12 @@ AI-pose haircut we do if it scored RAPiDock poses. The AI-pose robustness is OUR
     Our "bad" RMSE = (a) wider affinity spread in our 156 (2.14 vs T100 1.73) + (b) genuinely lower r on
     the diverse subset. Not a separate calibration bug; it tracks r×spread.
   - THE BAR to beat: **0.629 on the shared 91.** That's the target for the physics+ML combo. Building e104.
+- **04:58** E104 physics+ML combo — DECISIVE, honest. On n=156 LOCO:
+  - M0 ridge/struct+router: pooled **0.587**, shared-91 **0.449** (BEST)
+  - M1 GBT/struct 0.503/0.307 · M2 GBT/struct+seq 0.483/0.245 · M3 stack 0.520/0.304 — **all WORSE**.
+  - Nonlinear ML + sequence features OVERFIT on 156 and HURT. Linear physics is permutation-genuine
+    (null max 0.12 ≪ 0.449). → The gap to PPI-Affinity 0.629 is **DATA SCALE** (their 949 labeled
+    complexes), NOT model cleverness. Confirms the PDBbind/Drive data lever is THE bottleneck.
+  - Bonus: M0 with net_dewet+polar_desolv+router = 0.587 pooled, our best honest pooled number.
+- **05:00** Next: test whether our physics is COMPLEMENTARY to PPI-Affinity (orthogonal → ensemble wins).
+  This is a Drive-free, potentially strong positive ("use both / we add value even to the leader").
