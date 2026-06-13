@@ -65,6 +65,52 @@ experiment; **no relaxation** unless noted. Our numbers are out-of-sample (leave
 \* Vina's raw score is *anti-correlated* (more-negative ≠ tighter on this set, *r* = −0.56); only after a
 sign-aware fit does it reach 0.56, and only on crystal-65 — it has no the-98 coverage and flips cross-family.
 
+### The full competitive landscape — three different jobs, don't conflate them
+
+The peptide-modelling field splits into **three distinct tasks**. We are an **affinity** tool. The honest
+comparison keeps the tasks separate — a tool that's excellent at one is usually not even attempting another.
+
+**① Protein–PEPTIDE absolute affinity (kcal/mol / Kd) — *our lane*:**
+
+| Tool | *r* | Cost / complex | License | Note |
+|---|---|---|---|---|
+| Raw AutoDock Vina | ~0.3 (sign-flips) | ~1 s | Apache-2.0 | size-confounded, no entropy |
+| ADCP (AutoDock CrankPep) — AD4 score | ~0.2–0.4 | minutes | LGPL | a *docking* tool; affinity is a by-product |
+| MM-GBSA (single snapshot) | 0.25 | 5–30 s | — | omits conformational entropy |
+| HADDOCK score / dMM-PBSA | 0.3–0.5 | minutes–hours | **academic-only** | PB solve; not OSI for iGEM |
+| MM-PBSA | 0.3–0.5 | 1–5 min | — | dielectric-sensitive |
+| PPI-Affinity (ML) | 0.55 | server | — | best published ML peptide scorer |
+| FlexPepDock (relaxed) | 0.55–0.59 *within-target* | 5–30 min | academic | flips cross-family; needs refinement |
+| **HybriDock-Pep** | **0.585 LOO · 0.68 held-out** | **~10 s** | **MIT** | **no relaxation, commodity HW** |
+| LIE | 0.5–0.7 *system-specific* | 0.5–4 GPU-hr | — | per-system refit |
+| FEP / TI | 0.8–0.9 *congeneric only* | 5–50 GPU-hr/mut | — | not a screener |
+
+**② Protein–peptide POSE prediction / docking (Ångström RMSD — a *different* task, different units):**
+
+| Tool | Metric | License | Does it predict affinity? |
+|---|---|---|---|
+| ADCP | 76% success @ 1.0 Å | LGPL | no (pose) |
+| HADDOCK | 70% medium-quality (top-10) | academic | no (pose) |
+| PepScorer::RMSD (2025) | R=0.70 vs RMSD, 92% top-1 | **CC-BY (not OSI)** | **no — predicts pose RMSD** |
+| GraphPep (2025) | decoy discrimination | CC-BY data | **no — native/decoy scoring** |
+| **HybriDock-Pep (Stage 1)** | **0.8–2.1 Å best-of-top-25** | MIT | pose *and* affinity |
+
+> We **also** do pose selection (RAPiDock + Vina/BSA-clush ranking), but it's a *means*, not our claim.
+> PepScorer/GraphPep are strong pose rankers — but they're **not OSI-licensed** (CC-BY), so they cannot be
+> bundled into an iGEM Best-Software entry, and they do **not** predict binding strength.
+
+**③ Protein–SMALL-MOLECULE affinity (a *different molecule class* — NOT peptides):**
+
+| Tool | *r* | Benchmark | Why it's not a fair comparison |
+|---|---|---|---|
+| ΔVinaRF | 0.82 | CASF-2016 | small-molecule ligands, abundant training data |
+| AK-Score (3D-CNN) | 0.83, MAE 1.0 | CASF-2016 | small-molecule; peptides are sparser & flexible |
+
+> The headline "0.8+" affinity numbers in the field are **small-molecule** scorers on CASF-2016. Peptides
+> are a harder, data-sparse regime (flexible backbones, few labelled Kd). We do not claim to beat ΔVinaRF —
+> it solves a different, easier-to-train problem. Within **protein–peptide affinity**, we are at the top of
+> the non-FEP tier.
+
 **Two results worth staring at:**
 
 1. **We beat every single-pose physics method on the full 156** — 0.585 vs the best baseline's 0.39 — and
