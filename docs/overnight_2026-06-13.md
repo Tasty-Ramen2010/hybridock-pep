@@ -37,3 +37,12 @@ AI-pose haircut we do if it scored RAPiDock poses. The AI-pose robustness is OUR
   - Bonus: M0 with net_dewet+polar_desolv+router = 0.587 pooled, our best honest pooled number.
 - **05:00** Next: test whether our physics is COMPLEMENTARY to PPI-Affinity (orthogonal → ensemble wins).
   This is a Drive-free, potentially strong positive ("use both / we add value even to the leader").
+- **05:05** E105 complementarity — directional positive, not significant. On shared 91:
+  - r(ours, PPI-Affinity) = **0.38** → our STRUCTURAL physics is orthogonal to their sequence-SVM.
+  - equal-weight z-ensemble ours+PPI = 0.639 vs PPI 0.629; **ours is the ONLY method that doesn't HURT
+    the ensemble** (Kdeep −0.05, DFIRE −0.02, PRODIGY −0.12 all degrade it).
+  - BUT bootstrap: Δ=+0.010, 95% CI [−0.10, +0.10], P(Δ>0)=0.58 → **within noise on n=91.** Honest:
+    qualitative "best/only complement" holds; magnitude not provable without more data. Same data wall.
+- **05:07** Model+combo levers exhausted on n=156. Verdict for the night: we are DATA-LIMITED, not
+  model-limited. Pivoting to (a) grade the combined real-pose deployment (pending all night), (b) build
+  the PDBbind extraction pipeline so it runs the instant Ram's data is reachable.
