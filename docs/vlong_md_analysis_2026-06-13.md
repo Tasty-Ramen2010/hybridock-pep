@@ -1,8 +1,19 @@
 # Very-long peptides (≥17): floating? Would MD fix it? — full analysis
 
-**Date:** 2026-06-13 · **Script:** `e99_vlong_investigation.py` · **Cache:** `runs/e99_cache.json`
+**Date:** 2026-06-13 · **Scripts:** `e99_vlong_investigation.py`, `e100_levers_and_vlong_history.py`
 **Question (Ram):** vlong real-pose r=−0.515. Are the poses floating? Would 60 ps MD relaxation re-seat
 them and let us score them? How do we beat PPI-Affinity (0.554)?
+
+## ⚠️ CORRECTION (E100) — "crystal vlong = 0.10" was a cr65-only artifact
+Ram asked: if vlong scores so badly now, how was the combined-dataset correlation ~0.59? **He was right
+to push.** On the COMBINED crystal set (cr65+the98, n=156): pooled r=0.544, and **vlong-band r=+0.435**
+(n=30) — vlong is NOT unpredictable. The cr65-only crystal vlong=0.10 below is a **degenerate-range
+artifact**: cr65's 15 vlong complexes span only 3.6 kcal of affinity (almost no variance to correlate),
+giving r=−0.058. the98's vlong spans 6.4 kcal → r=+0.337; combined → +0.435. **So my "MD ceiling = 0.10"
+conclusion is WITHDRAWN — the real vlong ceiling is ~0.44.** The floating refutation (§B, coverage matches
+crystal) still stands; the poses are seated. But the cr65 vlong negative is mostly a narrow-range
+measurement artifact, not a deep model failure. The honest vlong deployment grade needs the COMBINED
+real-pose set (the98 real poses still generating). See §"Levers (E100)" at the bottom for what actually moves the number.
 
 ## Bottom line (rebuts the floating hypothesis AND my own prior "MD may help")
 1. **The poses are NOT floating.** vlong interface coverage real=0.78 = crystal=0.78 (Δ=0.00), mean
@@ -90,3 +101,25 @@ reverse). So vlong is not the blocker — the overall ceiling is.
 - **MD is not the unlock.** The crystal ceilings (0.35 / 0.49 / 0.10 by band) say the limit is features
   and the charged floor, which MD-relaxation cannot move. Spend the compute on the entropy term, not 60 ps
   re-seating of poses that aren't floating.
+
+## Levers (E100) — all 3 tried, only one holds
+| lever | pooled real r | verdict |
+|---|---|---|
+| top-5 diffusion (baseline) | +0.372 | — |
+| ML-best-5 (leaky ranker) | +0.478 | inflated |
+| **L1: ML-best-5 LEAK-CLEAN (LOCO ranker)** | **+0.456** | **WORKS — banked, leak was only 0.022** |
+| L2: drop poc_net,poc_eis | +0.389 | HURTS (high-CV ≠ useless; they carry cross-complex signal) |
+| L2: drop +rg_per_L,org_density | +0.426 | hurts |
+| L2: robust-only 8 feats | +0.452 | neutral (simplify OK, no gain) |
+| L3: vlong→salt-bridge submodel | +0.399 (vlong −0.39) | FAILS (fits cr65 vlong noise) |
+
+**Honest verdict:** of the 3 levers I proposed, **only ML-best-5 leak-clean (0.456) works** — and it's the
+real banked deployment number (up +0.084 from diffusion-order). **L2 and L3 are dead ends** — dropping
+"noisy" features hurts (they're within-complex-noisy but cross-complex-informative), and a vlong submodel
+just fits cr65's degenerate range. My earlier "drop high-CV features" suggestion is **refuted**.
+
+**Beat-PPI-Affinity, honestly:** on equal footing (crystal poses, the basis PPI-Affinity reports) we are
+**at parity: 0.544 vs 0.554**. The real-pose deployment haircut (to ~0.456) is the cost of scoring AI-
+generated poses — a cost PPI-Affinity doesn't pay (it scores given structures). The lever that raises the
+*ceiling* (not just recovers poses) is the documented **s_free conformational-entropy term** for flexible
+peptides — a feature add, not pose relaxation. Feature surgery (L2/L3) does not get us past 0.554.
