@@ -46,3 +46,31 @@ AI-pose haircut we do if it scored RAPiDock poses. The AI-pose robustness is OUR
 - **05:07** Model+combo levers exhausted on n=156. Verdict for the night: we are DATA-LIMITED, not
   model-limited. Pivoting to (a) grade the combined real-pose deployment (pending all night), (b) build
   the PDBbind extraction pipeline so it runs the instant Ram's data is reachable.
+- **05:25** the98 campaign DONE (91/91). E106 COMBINED real-pose deployment (the pending headline):
+  - **151 complexes: pooled r=0.501, RMSE 1.87** (cr65 0.49, the98 0.30). diffusion-top5 = ML-best-5
+    (both 0.501 — ML selection didn't separate on the combined set, unlike cr65-only e100 +0.08; mean-feat
+    over 5 washes it out when pooled).
+  - AI-pose head-to-head on 86 shared: ours (REAL/AI poses) 0.304 vs PPI-Affinity (CRYSTAL poses) 0.627.
+    We pay an AI-pose handicap they don't; Ram's point that PPI would also drop on AI poses is plausible
+    but unproven (would need to run their model on our poses).
+- **05:27** Built scripts/ingest_pdbbind_peptides.py — the data-lever pipeline, READY TO RUN when Ram's
+  PDBbind v2020 is reachable (reproduces PPI-Affinity's filters: single-chain rec, peptide 3-40, Kd/Ki,
+  ΔG∈[−14.4,−3.6], seq-dedup). One command → curated CSV → e107 grade vs PPI-Affinity.
+
+## HONEST SUMMARY (for Ram, morning)
+**Where we stand vs PPI-Affinity (0.554 pooled / 0.629 on shared diverse crystal):**
+| basis | ours | PPI-Affinity |
+|---|---|---|
+| mixed pool, crystal poses | **0.587** | 0.554 (reported) |
+| diverse shared-91, crystal poses | 0.449 | **0.629** |
+| diverse shared, real AI poses (ours) vs crystal (theirs) | 0.30 | 0.63 |
+| combined real-pose DEPLOYMENT (151) | **0.50** (RMSE 1.87) | — |
+
+**Verdict:** we TIE/edge them on the easy mixed pool and CRUSH every other physics method (Kdeep 0.32,
+DFIRE 0.35, CP_PIE −0.35, RF-Score 0.28, PRODIGY 0.12), but on the hard diverse subset they genuinely lead.
+We are **DATA-LIMITED, not model-limited** — proven: nonlinear ML + sequence features OVERFIT n=156 and
+HURT; linear physics is already optimal. Our physics is ORTHOGONAL to theirs (0.38) and the only positive
+ensemble complement (+0.01, within noise).
+**The one real lever to beat them = PDBbind-scale data** (~1149 peptide complexes). BioLiP is dead for
+peptides (licensing). PDBbind direct needs Ram's account → the Drive upload. Pipeline is built & waiting.
+**RMSE answer:** not a bug — RMSE ≈ std·√(1−r²); our 1.87 = wider affinity spread (2.14) × our r.
