@@ -191,3 +191,5 @@ data/drive_pull/
 data/pdbbind_peptides.jsonl
 data/sfree_peptides/
 data/sfree_results.jsonl
+data/sfree_perres.jsonl
+data/sfree_proto.jsonl
