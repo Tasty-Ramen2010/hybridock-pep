@@ -187,3 +187,5 @@ complex_v2/
 docs/PepScorerRMSD/
 runs/e93_realpose_campaign/
 data/biolip/
+data/drive_pull/
+data/pdbbind_peptides.jsonl
