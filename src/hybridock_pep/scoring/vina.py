@@ -190,6 +190,15 @@ def score_vina_batch(
     scored: list[ScoredPose] = []
     failures: list[PoseFailure] = []
 
+    if Vina is None:
+        raise RuntimeError(
+            "AutoDock Vina Python bindings are not importable in the active environment. "
+            "The hybridock-pep CLI must be run from the 'score-env' conda environment "
+            "(which provides `vina`), not the base environment. Activate it with "
+            "`conda activate score-env` (or invoke "
+            "`/path/to/envs/score-env/bin/hybridock-pep`) and re-run."
+        )
+
     # --- One instance; receptor loaded once; maps computed once before loop ---
     v = Vina(sf_name="vina", verbosity=verbosity)
     v.set_receptor(str(receptor_pdbqt))

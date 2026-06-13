@@ -184,3 +184,5 @@ Complex.zip
 complex_v2/
 *.chk
 *.pka
+docs/PepScorerRMSD/
+runs/e93_realpose_campaign/
