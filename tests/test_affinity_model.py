@@ -18,9 +18,15 @@ def _geom() -> dict[str, float]:
 
 
 def test_feature_vector_length() -> None:
-    """49 features: 16 geometry + 29 sequence descriptors + 3 charge-compl + length."""
+    """240 features: 16 geometry + 220 ProtDCal + 3 charge-compl + length."""
     v = build_feature_vector(_geom(), "LISDAELEAIFEADC")
-    assert v.shape == (49,)
+    assert v.shape == (240,)
+    assert np.isfinite(v).all()
+
+
+def test_single_residue_peptide_is_finite() -> None:
+    """A length-1 peptide must not produce NaN/inf (autocorrelation edge case)."""
+    v = build_feature_vector(_geom(), "K")
     assert np.isfinite(v).all()
 
 
