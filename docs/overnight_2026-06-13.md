@@ -114,3 +114,37 @@ Beating PPI-Affinity (0.55/0.63) needs **DATA × FEATURE-RICHNESS together**, an
   - Concrete next build: ProtDCal-scale descriptors (PPI's recipe) on the 925+156 → GBT, target 0.55+.
   - Our 16 structural features alone cap ~0.45; the climb to PPI is more features, now unlocked by the data.
 RMSE answer stands: ≈ std·√(1−r²), not a bug.
+
+## HYBRID (physics + ML charge-residual) — Ram's design, tested honestly
+Architecture: final = physics_ridge(16 struct) + charge_residual_GBT(charge features only). NOT a ProtDCal
+black box — ML corrects only the charged regime; physics stays the interpretable base. Residuals out-of-fold.
+Stratified train/test split (e112), graded by charge + on PPI-Affinity shared subset.
+
+| model | all | low-ch | high-ch | shared-91 |
+|---|---|---|---|---|
+| physics base (ridge16) | 0.223 | 0.287 | 0.133 | 0.263 |
+| **HYBRID phys+charge-resid** | 0.254 | 0.281 | **0.218** | 0.271 |
+| full GBT (the "mere copy") | 0.335 | 0.362 | 0.299 | 0.225 |
+| PPI-Affinity (shared) | — | — | — | **0.634** |
+
+**Findings:**
+1. **Ram's hypothesis WORKS directionally:** the charge-residual ML lifts high-charge 0.133→0.218 on the
+   broad pool, WITHOUT a black box, and transfers to shared-91 BETTER than full GBT (0.271 vs 0.225) — the
+   "mere copy" overfits the PDBbind distribution. Architecture validated.
+2. **But it does NOT beat PPI-Affinity on the head-to-head** (shared-91 0.27 vs 0.63; high-charge-on-shared
+   PPI 0.72 vs us 0.18). Reason: PPI's 0.63 is an IN-DISTRIBUTION result (its T949 train matches its T100
+   test, same BioLiP curation). Ours is CROSS-DISTRIBUTION (train 91% PDBbind broad ligand-peptides →
+   predict curated structural shared-91). Not apples-to-apples.
+3. **PDBbind is the wrong distribution** for the curated head-to-head: D0 showed PDBbind peptides are more
+   buried (mean_burial 75 vs 50) and less organized (org_density 0.07 vs 0.33) = deeper fragment-like
+   binders, different mode. Volume ≠ matching distribution.
+
+## CORRECTED LEVER (final, honest)
+- **Fair in-distribution comparison: our 156 LOO 0.587 ≈ PPI 0.554** — we already match/edge them where the
+  comparison is fair. PDBbind volume didn't transfer (wrong distribution + weak features at scale, 10/16
+  sign-stable, most |r|<0.15).
+- The hybrid (physics + charge-residual ML) is a SOUND, interpretable architecture that helps high-charge
+  on its own distribution — worth keeping as an optional charge-correction, NOT auto-shipped (cross-dist caveat).
+- **To fairly BEAT PPI-Affinity needs more CURATED (structurally-resolved, the98-type) peptide-Kd data**,
+  not broad PDBbind fragments. That's the real data lever — PDBbind gave volume but the wrong binding mode.
+- RMSE answer stands: ≈ std·√(1−r²), not a bug.
