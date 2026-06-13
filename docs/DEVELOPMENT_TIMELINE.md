@@ -26,6 +26,7 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 8. [The five epochs, experiment by experiment](#8-the-five-epochs)
 9. [The three capabilities we actually ship](#9-the-three-capabilities)
 10. [Lessons — the method that made it real](#10-lessons)
+11. [Epoch 6 — PDBbind scale, ProtDCal descriptors & the deployment fix (E93–E153)](#15-epoch-6--pdbbind-scale-protdcal-descriptors--the-deployment-fix-e93e153-2026-06-13)
 
 ---
 
@@ -583,7 +584,114 @@ collapse.
 
 ---
 
-*Generated from committed experiments E0–E92. Full per-experiment detail in
-`docs/e19_pocket_baseline_breakthrough.md`; head-to-head method table in `docs/SCORING_COMPARISON.md`;
-field comparison in `README.md`. Every number is leave-one-out or held-out unless explicitly marked
-in-distribution.*
+## 15. Epoch 6 — PDBbind scale, ProtDCal descriptors & the deployment fix (E93–E153, 2026-06-13)
+
+The epoch where the honest number stopped climbing on curated sets and the work turned to **scale, the
+right metric, and real-pose deployment**. Three things changed the story: (a) Ram's PDBbind v2020 (925
+clean peptide–Kd complexes) let features that overfit at n=156 finally pay off; (b) we were comparing our
+**RMSE** to everyone else's **MAE** — on the same metric we *lead*; (c) the model that wins on crystal
+**collapses on the RAPiDock poses we actually deploy on** — fixed by training on real poses.
+
+### 15.1 The metric reframe — we already lead on MAE
+
+```
+                         r        MAE (kcal/mol)      metric they report
+ Vina (fitted)         0.527        ~2.1              —
+ AutoDock4             0.534        ~2.0              —
+ PPI-Affinity (SOTA)   0.554        ~1.8              MAE  ← their headline number
+ HybriDock-Pep         0.55–0.60    1.31–1.44         MAE  ← we BEAT it (1.3 < 1.8)
+```
+
+The "our RMSE is high (1.8)" worry was an apples-to-oranges artifact: PPI-Affinity reports **MAE**. Ours is
+**1.31 pooled / 1.41 benchmark**; median |err| = **1.21 kcal/mol** (half the set sub-1.2). RMSE/MAE = 1.25
+(a few outliers). **On the metric the field uses, we are #1.**
+
+### 15.2 Short fixed, and the charged floor partly dissolved
+
+```
+ band / subset       before (E92-era)     after (E150 ProtDCal, pooled CV)
+ short ≤8            −0.30 (n=19, starved)   +0.55   ← FIXED (pool to n=327; length = soft feature)
+ charged |q|≥2        0.281                  +0.461  ← +0.18 (ProtDCal descriptors)
+ high  |q|≥3          0.235                  +0.365  ← ×1.5
+ overall (pooled)     0.475                  +0.534
+ benchmark (PPI set)  0.556                  +0.598
+```
+
+- **Short** was never a physics problem — it was *data starvation* (19 training points). Pooling to 327
+  short + length as a soft feature (not a hard router, E126) → +0.55, stable ±0.012.
+- **The charged floor is partly FEATURES, not FEP.** PPI-Affinity hits 0.71 high-charge *without FEP* on the
+  *same complexes we have* (T100 ≈ 91% overlaps PDBbind). The gap was their **ProtDCal (23040 descriptors →
+  37)** vs our 29 hand-made ones. Building the 220-descriptor ProtDCal pool (22 property scales × 10
+  aggregations) lifted charged 0.29 → 0.46. (We did not reach 0.71 on *broad* PDBbind charged — that set is
+  harder than their curated T100 — but our charged **MAE 1.17 beats their overall 1.8**.)
+
+### 15.3 The desolvation / water arc — fully mapped, honestly closed
+
+| lever | verdict |
+|---|---|
+| Hydrophobic complementarity (E134, `hydro_net`) | real, gate-passed, +0.026 — **shipped** |
+| Polar/charged desolvation penalty (E134) | wrong-signed = the FEP floor |
+| GIST-lite pocket-water MD (E138/E139) | **dead** — non-reproducible (1rlp/1rlq same peptide → 10×), wrong regime |
+| MHP continuous field (E142/E143) | regime confirmed, but redundant w/ `hydro_net`; gate-failed |
+| Free-state MD entropy surrogate (E140) | **r = 0.614** — shipped `data/entropy_surrogate.joblib` |
+
+Net: the nonpolar half is saturated, the polar/charged half is the FEP floor, the entropy half is now a
+shipped MD-distilled surrogate. No more static-pose signal to extract.
+
+### 15.4 The AI haircut — the deployment fix that mattered most
+
+The 240-feature model scores **crystal poses at r=0.53** but **REAL RAPiDock poses at r=0.06** — a −0.45
+"haircut". Diagnosis by feature group (cr65, same complexes, crystal vs RAPiDock poses):
+
+```
+ model                crystal r     real-pose r    haircut
+ geometry (16)          +0.541        −0.184        −0.724   ← pose-FRAGILE
+ sequence (ProtDCal)    +0.327        +0.328         0.000   ← pose-INVARIANT (by construction)
+ full (240)             +0.508        +0.062        −0.446
+```
+
+Geometry features (`org_density` 0.41×, `bsa_hyd` 0.66×, `arom_cc` 0.70× crystal→RAPiDock) are calibrated
+for crystal packing and mispredict on looser RAPiDock poses. **Fix:** train on real poses — a model on 156
+real-RAPiDock-pose complexes scores real poses at **r=0.551 / MAE 1.43, no haircut.** The driver now defaults
+to `data/affinity_realpose.joblib`; the crystal model is kept only for crystal inputs. *This is the single
+most important deployment correction of the project: the "best on paper" model was the wrong tool for the
+pipeline we ship.*
+
+### 15.5 The capability delivered — PfLDH vs hLDH selectivity (the parent iGEM case)
+
+`LISDAELEAIFEADC`, real-pose model, top-5 ensemble of 100 RAPiDock poses per receptor:
+
+```
+ PfLDH (1T2D, malaria target)   ΔG = −11.10 kcal/mol
+ hLDH  (1I0Z, human off-target) ΔG = −10.23 kcal/mol
+ ─────────────────────────────────────────────────
+ selectivity ΔΔG = −0.87 kcal/mol  →  PfLDH-SELECTIVE (desired)
+```
+
+Consistent with the Vina lean (−0.95). Modest and within the charged-floor noise on a 15-mer (FEP would
+confirm), but the right direction with the deployment-correct model.
+
+### 15.6 Where we stand at the close of Epoch 6
+
+- **Best fast non-FEP peptide scorer**: match PPI-Affinity on *r* (0.55–0.60), **beat it on MAE** (1.3 vs 1.8).
+- **All length bands positive** (short fixed); charged correlation up 0.29→0.46; charged MAE beats their
+  overall MAE.
+- **Deployment-honest**: real-pose model means the number we quote is the number you get on RAPiDock output.
+- **Gap to FEP** (~0.77 kcal/mol RMSE, in-series only, 10⁵× compute): the irreducible electrostatic-
+  desolvation core + curated charged-rich data (a registered-PDBbind / T949-equivalent) — the one remaining
+  data lever to fully match 0.71-charged.
+
+```
+ Honest pooled r across all six epochs:
+ 0.23 (E28 independent) → 0.42 (E31 intensive) → 0.488 (E40 entropy) → 0.544 (E69 pooled)
+   → 0.585 / 0.68 (E87 router) → 0.534 pooled / 0.55 real-pose deploy / 0.60 benchmark (E153)
+ Metric corrected: MAE 1.3 (beats PPI 1.8). Deployment corrected: real-pose r 0.55 (no haircut).
+```
+
+---
+
+*Generated from committed experiments E0–E153. Epochs 1–5 detail in
+`docs/e19_pocket_baseline_breakthrough.md`; Epoch 6 in `docs/protdcal_charged_2026-06-13.md`,
+`docs/production_fix_short_2026-06-13.md`, `docs/capstone_scorecard_2026-06-13.md`; head-to-head in
+`docs/SCORING_COMPARISON.md`. Every number is leave-one-out, grouped-CV, or held-out unless explicitly
+marked in-distribution.*
