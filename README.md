@@ -128,8 +128,31 @@ and collapsed their ranking to **r ≈ 0**. Routing them to a lean hydrophobic-b
 — **short-peptide r 0.02 → 0.66, RMSE 1.8 → 1.2 kcal/mol** on the held-out set — and lifts the pooled
 number (0.60 → 0.68) **with the rest of the set unchanged**. Long peptides are deliberately *not* re-routed:
 their gap is conformational-ensemble averaging that only sampling (MM-GBSA / MD) addresses, confirmed by
-test. Honest **AI-pose cost**: on real RAPiDock-generated poses (not crystal), *r* settles at ~0.43–0.49 —
-the price of going fully structure-free, documented rather than hidden.
+test.
+
+### Crystal poses vs real generated poses — the number you actually get
+
+**This is the most important honesty point in the project, and most papers never report it.** Every
+affinity *r* in the tables above — ours (0.585/0.68), FlexPepDock (0.59), PPI-Affinity (0.55) — is measured
+on **crystal (native) poses**. That is the field-standard benchmark convention, and it makes the comparison
+apples-to-apples: it isolates the *scoring function* from the *pose generator*. But it is an **upper bound**
+— it assumes you already have the correct binding mode.
+
+In real deployment you **don't** have the crystal pose — you have RAPiDock's AI-generated poses. So we
+measured the deployment number directly (n=65 Kd complexes, real rank-1 RAPiDock poses):
+
+| Pose source | *r* (geometry) | *r* (geometry + MJ) | what it represents |
+|---|---|---|---|
+| **crystal / native** | 0.54 | 0.585 LOO · 0.68 held-out | benchmark upper bound (all tools report this) |
+| **real RAPiDock pose** | **0.486** | **0.532** | **what an actual run delivers** |
+
+So going fully structure-free costs **~0.05–0.10 in *r*** — and *every* structure-based scorer takes a
+similar haircut on non-native poses (FlexPepDock, MM-GBSA, etc. are all pose-sensitive; they just rarely
+publish the number). **We disclose ours.** The pocket term is the pose-robust component (tolerates the
+RAPiDock haircut); the fine-grained interface ranker is pose-fragile, which is why the ensemble leans on
+pocket + MJ for deployment. A live end-to-end N=100 run on MDM2/p53 reproduces this: correct cluster found,
+best pose ~2 Å, calibrated ΔG in the right regime (it over-binds on a single blind complex — the documented
+range compression).
 
 ### Physics features behind the numbers
 

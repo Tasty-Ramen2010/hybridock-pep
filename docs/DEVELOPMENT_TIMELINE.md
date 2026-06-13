@@ -127,6 +127,23 @@ noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
 2. **ref2015 unrelaxed = 0.07.** FlexPepDock's 0.59 is *bought entirely* by 5–30 min/complex of Rosetta
    refinement. Strip the refinement → the energy is noise. **We reach 0.52–0.58 from the raw pose.**
 
+### ⚠ Crystal poses vs REAL generated poses — the deployment haircut
+
+Every *r* in the table above (ours AND every competitor) is on **crystal/native poses** — the field-standard
+convention that isolates the *scorer* from the *pose generator*. It's an **upper bound**: it assumes you
+already have the right binding mode. In real deployment you have RAPiDock's AI poses instead. We measured it
+(n=65 Kd complexes, real rank-1 RAPiDock poses):
+
+```
+ pose source                       geometry   +MJ        = what it represents
+ crystal / native (the benchmark)   0.54       0.585 LOO / 0.68 held-out   ← all tools report THIS
+ REAL RAPiDock generated pose       0.486      0.532                       ← what an actual run DELIVERS
+                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ going fully structure-free costs ~0.05–0.10 r.  Every structure scorer takes this haircut on non-native
+ poses (FlexPepDock, MM-GBSA…) — they just rarely publish it. WE DISCLOSE OURS.
+ pocket term = POSE-ROBUST (survives the haircut) ; fine interface ranker = POSE-FRAGILE (0.45→0.18 @2Å).
+```
+
 ---
 
 ## 4. Cost vs accuracy
