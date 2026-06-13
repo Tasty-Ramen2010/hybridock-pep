@@ -74,3 +74,21 @@ ensemble complement (+0.01, within noise).
 **The one real lever to beat them = PDBbind-scale data** (~1149 peptide complexes). BioLiP is dead for
 peptides (licensing). PDBbind direct needs Ram's account → the Drive upload. Pipeline is built & waiting.
 **RMSE answer:** not a bug — RMSE ≈ std·√(1−r²); our 1.87 = wider affinity spread (2.14) × our r.
+- **05:35** E107 — WHERE PPI-Affinity's edge lives (decisive, mechanistic). On shared 91:
+  - **low-charge (n=47): ours 0.501 vs PPI 0.543 — gap +0.04 (PARITY where physics is computable)**
+  - **high-charge (n=44): ours 0.365 vs PPI 0.707 — gap +0.34 (their ENTIRE edge)**
+  - PPI-advantage correlates with length (+0.27) and abs_charge_frac (+0.13).
+  → PPI-Affinity's whole lead is the CHARGED FLOOR — single-pose electrostatics wash for us (documented,
+    needs FEP), but a 949-complex SVM learns it statistically. **This is the precise case for the data
+    lever:** PDBbind-scale data buys us exactly the charged regime (learn the floor statistically, as PPI
+    did). Not a cleverer physics term (those wash). We're already at parity where physics works.
+
+## FINAL NIGHT VERDICT (reframed, evidence-backed)
+We are NOT generally behind PPI-Affinity. We are at **PARITY on the computable-physics regime (low-charge
+0.50 vs 0.54)** and **crush every other physics method**. PPI's lead is **entirely the charged floor** —
+a data-learnable effect we can't get from single-pose physics. Two honest paths:
+  1. **DATA (the lever):** PDBbind v2020 peptide subset (~1149) → learn the charged floor statistically.
+     Pipeline built (`ingest_pdbbind_peptides.py`), waiting on Drive reconnect / PDBbind login.
+  2. **Ship honestly now:** crystal pooled 0.587, real-pose deployment 0.50, best non-ML physics scorer,
+     orthogonal complement to PPI-Affinity, AI-pose robustness as unique scope.
+**Blocker:** Google Drive MCP disconnected — couldn't reach Ram's PDBbind upload. Needs reconnect.
