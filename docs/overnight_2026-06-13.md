@@ -92,3 +92,25 @@ a data-learnable effect we can't get from single-pose physics. Two honest paths:
   2. **Ship honestly now:** crystal pooled 0.587, real-pose deployment 0.50, best non-ML physics scorer,
      orthogonal complement to PPI-Affinity, AI-pose robustness as unique scope.
 **Blocker:** Google Drive MCP disconnected — couldn't reach Ram's PDBbind upload. Needs reconnect.
+
+## PDBbind DATA LEVER — Ram's Drive upload arrived (13:50), full arc
+- **09:50** Pulled both Drive files (direct download): index.tar.gz (labels) + P-L.tar.gz (3.3GB structures).
+  PDBbind v2020: 19,037 PL complexes; **2,150 peptide entries with Kd/Ki** (~14× our 156), good length spread.
+- **10:10** Built ingestion (mol2→peptide PDB + our 16 features). First pass kept 872 but **e110 D0 caught a
+  feature-prep bug**: 15/16 features scale-shifted, rg_per_L & org_density = 0. Root cause: PDBbind mol2 stores
+  subst_id=1 for ALL atoms (no residue number) → all residues collapsed to 1. FIXED: derive residue boundaries
+  from backbone N atoms. Re-ingested → **925 clean peptide-Kd complexes**, D0 now 4/16 shifted (was 15/16).
+- **10:30** Honest findings with FIXED features:
+  - combined GBT 5-fold (n=1028) r=**0.456** (ridge 0.316) → at SCALE, nonlinear ML WINS (n=156 it overfit).
+  - PDBbind lifts cross-distribution transfer (cr65-only→the98 0.012 → +PDBbind 0.319; high-charge 0.07→0.33).
+  - within-PDBbind GBT 0.39; high-charge 0.36 → our 16 features cap ~0.4; gap to PPI = FEATURE RICHNESS.
+  - **RICHNESS LEVER PROVEN (e111):** +11 cheap seq features lift pooled 0.456→0.479; scaling curve: seq feats
+    HURT at n=154 (Δ−0.04) but HELP at n≥411 (Δ+0.06). Features that overfit small help at scale.
+
+## CORRECTED FINAL VERDICT (supersedes last night's "data alone is the lever")
+Beating PPI-Affinity (0.55/0.63) needs **DATA × FEATURE-RICHNESS together**, and we now have the data:
+  - 925 PDBbind peptide-Kd complexes ingested + validated (data/pdbbind_peptides.jsonl).
+  - At scale, GBT > linear, and adding features HELPS (both reverse the n=156 conclusions).
+  - Concrete next build: ProtDCal-scale descriptors (PPI's recipe) on the 925+156 → GBT, target 0.55+.
+  - Our 16 structural features alone cap ~0.45; the climb to PPI is more features, now unlocked by the data.
+RMSE answer stands: ≈ std·√(1−r²), not a bug.
