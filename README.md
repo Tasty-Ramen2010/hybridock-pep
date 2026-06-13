@@ -154,6 +154,25 @@ pocket + MJ for deployment. A live end-to-end N=100 run on MDM2/p53 reproduces t
 best pose ~2 Å, calibrated ΔG in the right regime (it over-binds on a single blind complex — the documented
 range compression).
 
+### Is the affinity edge just BSA in disguise? (no — the ablation proves it)
+
+A fair reviewer asks: *you rank poses on BSA+clash, and BSA is an affinity feature — is 0.585 just
+self-inflated BSA?* We tested it by removing every BSA/burial feature:
+
+| model | *r* (pooled LOO, n=156) |
+|---|---|
+| BSA / burial **alone** vs ΔG | 0.40 |
+| **full model (16 features)** | **0.544** |
+| model with **all 4 BSA/burial features removed** | **0.510** (−0.034) |
+
+The model keeps **94% of its accuracy with zero BSA** — the edge is independent physics (pocket descriptors,
+MJ contact energy, `rg_per_L` compactness, `org_density`), not BSA. And there is no circular inflation in the
+headline, because **the scorecard is measured on crystal native poses (no pose selection happens)**; the
+real-pose deployment number (0.486) is *lower*, not higher — selection adds conservative noise, never
+inflation. Pose selection is always graded against Cα-RMSD-to-native, never the BSA score we rank on. See
+[docs/DEVELOPMENT_TIMELINE.md §12b–12c](docs/DEVELOPMENT_TIMELINE.md) for the full ablation and the
+mechanistic reason the best-RMSD pose does *not* score the highest affinity (pose ↔ affinity are decoupled).
+
 ### Physics features behind the numbers
 
 Each is calibrated on a pooled, balanced crystal-65 + the-98 reference set and validated to be **sign-stable across datasets** (no Simpson's-paradox flips):
