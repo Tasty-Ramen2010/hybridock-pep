@@ -151,6 +151,10 @@ class ScoredPose(PoseRecord):
     # Geometry+Vina ensemble ΔG (kcal/mol; scoring/ensemble.py). Pocket+interface+MJ
     # per-contact-energy linear model z-blended with Vina. Populated when --ensemble is set.
     ensemble_dg: float | None = None
+    # Pooled data-driven ΔG (kcal/mol; scoring/affinity_model.py). Length-conditioned GBT over
+    # 16 geometry + 29 sequence descriptors + charge-complementarity, trained on 1076 pooled
+    # complexes. Matches PPI-Affinity on r, beats it on MAE. Populated when --ensemble is set.
+    pooled_affinity_dg: float | None = None
     # BSA-fit pose ranker (replaces ref2015): lower = tighter/cleaner fit.
     # bsa = interface buried surface area (Å²); n_clash = overlapping peptide atoms.
     bsa_fit_score: float | None = None

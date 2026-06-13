@@ -232,6 +232,10 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
                 )
             else:
                 pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
+            # Pooled data-driven ΔG (length-conditioned GBT + sequence descriptors). Optional
+            # annotation: graceful no-op if the artifact is absent (returns None).
+            from hybridock_pep.scoring.affinity_model import predict_affinity  # noqa: PLC0415
+            pose.pooled_affinity_dg = predict_affinity(feats, config.peptide_sequence)
             n_ok += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning("Pose %d: ensemble ΔG failed (%s)", pose.pose_idx, exc)
