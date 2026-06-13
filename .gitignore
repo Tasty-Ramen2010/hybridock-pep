@@ -186,3 +186,4 @@ complex_v2/
 *.pka
 docs/PepScorerRMSD/
 runs/e93_realpose_campaign/
+data/biolip/
