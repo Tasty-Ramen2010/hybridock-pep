@@ -189,3 +189,5 @@ runs/e93_realpose_campaign/
 data/biolip/
 data/drive_pull/
 data/pdbbind_peptides.jsonl
+data/sfree_peptides/
+data/sfree_results.jsonl
