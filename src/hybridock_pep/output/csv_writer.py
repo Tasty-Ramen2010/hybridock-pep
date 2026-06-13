@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 FIELDNAMES: list[str] = [
     "rank",
+    "ml_pose_score",
     "bsa_fit_score",
     "bsa",
     "n_clash",
@@ -37,10 +38,13 @@ FIELDNAMES: list[str] = [
 def _rank_key(pose: ScoredPose) -> float:
     """Pose ranking key (ascending = best first).
 
-    BSA-fit (buried surface + clash penalty) is the pose ranker that replaced
-    ref2015. Falls back to hybrid_score when BSA-fit is unavailable (e.g. <2
-    valid poses to z-normalise, or SASA failure) so ranking never crashes.
+    Priority: ML pose ranker (predicted native RMSD, ≈2× BSA-fit within-complex τ;
+    E96) → BSA-fit (buried surface + clash penalty) → hybrid_score. The ML score and
+    BSA-fit are STRUCTURAL rankers only; neither alters the affinity number. Falls
+    through so ranking never crashes when an upstream ranker is unavailable.
     """
+    if pose.ml_pose_score is not None:
+        return pose.ml_pose_score
     if pose.bsa_fit_score is not None:
         return pose.bsa_fit_score
     return pose.hybrid_score if pose.hybrid_score is not None else float("inf")
@@ -88,6 +92,9 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
         rows.append(
             {
                 "rank": rank,
+                "ml_pose_score": (
+                    f"{pose.ml_pose_score:.3f}" if pose.ml_pose_score is not None else ""
+                ),
                 "bsa_fit_score": (
                     f"{pose.bsa_fit_score:.4f}" if pose.bsa_fit_score is not None else ""
                 ),
@@ -151,12 +158,20 @@ def write_best_pose_pdb(
     if not cluster_result.per_cluster_stats:
         raise ValueError("cluster_result.per_cluster_stats is empty — cannot select best pose")
 
-    # Pose ranker = BSA-fit (replaced ref2015): best_pose is the tightest valid
-    # fit. Fall back to MM-GBSA winner, then best cluster centroid, when BSA-fit
-    # is unavailable.
+    # Pose ranker priority: ML ranker (predicted native RMSD, ≈2× BSA-fit τ; E96) →
+    # BSA-fit → MM-GBSA winner → best cluster centroid. All STRUCTURAL selectors; none
+    # changes the affinity number. Each falls through when unavailable.
+    ml_poses = [p for p in scored_poses if p.ml_pose_score is not None]
     bsa_poses = [p for p in scored_poses if p.bsa_fit_score is not None]
     mmgbsa_poses = [p for p in scored_poses if p.mmgbsa_dg is not None]
-    if bsa_poses:
+    if ml_poses:
+        best = min(ml_poses, key=lambda p: p.ml_pose_score)  # type: ignore[arg-type]
+        best_pose_idx = best.pose_idx
+        logger.info(
+            "Best pose selected by ML ranker: pose %d (predicted native RMSD = %.2f Å)",
+            best_pose_idx, best.ml_pose_score,
+        )
+    elif bsa_poses:
         best = min(bsa_poses, key=lambda p: p.bsa_fit_score)  # type: ignore[arg-type]
         best_pose_idx = best.pose_idx
         logger.info(

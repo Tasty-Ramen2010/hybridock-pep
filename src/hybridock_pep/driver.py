@@ -446,6 +446,12 @@ def run_dock(
     from hybridock_pep.scoring.bsa_fit import compute_bsa_fit_scores  # noqa: PLC0415
     compute_bsa_fit_scores(scored_poses, config.receptor_path.resolve())
 
+    # Stage 2d-ml: ML pose ranker (OSI-clean computable features → predicted native RMSD).
+    # Primary pose ranker when its artifact is present (≈2× BSA-fit within-complex τ, E96);
+    # silently no-ops to BSA-fit otherwise. STRUCTURAL ranking only — does NOT touch ΔG.
+    from hybridock_pep.scoring.pose_ranker_ml import compute_ml_pose_scores  # noqa: PLC0415
+    compute_ml_pose_scores(scored_poses)
+
     # Load calibration once; both the entropy-sum gate below and the
     # hybrid-score stage further down consume the same dict.
     calibration = load_calibration(calibration_path.resolve())
