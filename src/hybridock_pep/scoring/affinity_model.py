@@ -64,7 +64,13 @@ _SCALES = {
     "sidechain_vol": {"A": 27, "R": 105, "N": 58, "D": 52, "C": 44, "Q": 80, "E": 73, "G": 0, "H": 79, "I": 93, "L": 93, "K": 100, "M": 94, "F": 115, "P": 41, "S": 29, "T": 51, "W": 145, "Y": 117, "V": 67},
 }
 
-_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_pooled_prodn.joblib"
+# The pipeline scores RAPiDock-generated poses, so the DEFAULT is the real-pose-trained model
+# (data/affinity_realpose.joblib, grouped-CV r≈0.55 on real poses). The crystal-trained model
+# (affinity_pooled_prodn.joblib, r≈0.53 on crystal) COLLAPSES on real poses (E152 "AI haircut":
+# geometry features are pose-fragile; org_density/bsa_hyd/arom_cc shift crystal→RAPiDock). Use the
+# crystal model only when scoring crystal structures.
+_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_realpose.joblib"
+_CRYSTAL_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_pooled_prodn.joblib"
 
 
 def _approx_pI(seq: str) -> float:
