@@ -156,6 +156,9 @@ class ScoredPose(PoseRecord):
     bsa_fit_score: float | None = None
     bsa: float | None = None
     n_clash: float | None = None
+    # ML pose ranker: predicted native Cα-RMSD (Å, lower = more native). STRUCTURAL
+    # ranking only — never feeds the affinity/ΔG number. See scoring/pose_ranker_ml.py.
+    ml_pose_score: float | None = None
     # NIS composition (within-target RELATIVE affinity only; see scoring/nis.py).
     # nis_score = nis_charged_frac - nis_polar_frac; lower = stronger predicted binding.
     nis_polar_frac: float | None = None
