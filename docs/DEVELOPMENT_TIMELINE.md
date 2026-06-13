@@ -89,7 +89,7 @@ Every milestone, both metrics, with the idea that moved it:
 | E82 | charged | local-dryness desolv penalty | — | charged 0.47→**0.51** | only charged keeper |
 | **E87** | length | **SHORT-PEPTIDE ROUTER** | — | **0.585 LOO / 0.68 held-out** | short 0.02→0.66 |
 | E90/E91 | scorecard | vs all baselines + ref2015 | — | best non-FEP | ref2015 unrelaxed=0.07 |
-| E92 | force-field | clean OpenMM vdW (replace Vina) | — | +0.03 sign-correct | validating |
+| E92 | force-field | clean OpenMM vdW (replace Vina) | — | flips cross-dataset (−0.32/+0.34) | NOT wired — gate caught it |
 
 **Net climb of the honest number: 0.228 → 0.42 → 0.488 → 0.544 → 0.585 LOO → 0.68 held-out.**
 
@@ -115,8 +115,8 @@ noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
  ▶ HybriDock-Pep (LOO)       ███████████▋               0.585  [156]   ←━ US, no relaxation
  ▶ HybriDock-Pep (held-out)  █████████████▌             0.68   [ 39]   ←━ US, balanced held-out
  ───────────────────────────────────────────────  the FEP/LIE ceiling (different cost class) ───
- LIE (system-specific)       ██████████──██████         0.5–0.7  *per-system refit, both MD legs*
- FEP / TI (congeneric)       ████████████████──██       0.8–0.9  *5–50 GPU-hr PER MUTATION*
+ LIE (system-specific)       ██████████████████         0.5–0.7  *per-system refit, both MD legs*
+ FEP / TI (congeneric)       ████████████████████       0.8–0.9  *5–50 GPU-hr PER MUTATION*
 
  * Vina raw r = −0.56 (anti-correlated); only a sign-fit + cr65-only reaches 0.56.
  * ref2015 relaxed and FlexPepDock are within-target; cross-family they hit the same ~0.5 wall.
@@ -433,9 +433,17 @@ A worked example of the project's whole method, applied to one question: *should
           corr(clean vdW, length) = −0.656   ← less confounded than Vina's −0.75
           geometry + clean vdW    = 0.351 → 0.380   (+0.03, HONEST)
 
- VERDICT: replace the size-confounded, sign-inverted full-Vina blend with the clean intermolecular
-          force-field term. Keep Vina ONLY as (a) the pose-quality selector for clustering, and
-          (b) the zero-training out-of-distribution fallback. This is the E92 architecture.
+ STEP 5 — the cross-dataset GATE (the project's iron law): does clean vdW survive on a NEW dataset?
+          on the98 ALONE:  +0.339 ✓  (the within-dataset win is real)
+          cr65 (de-outliered): −0.319  ◀━ FLIPS. The earlier "+0.227 stable" was an OUTLIER ARTIFACT
+                                          (one −2,500,000 kcal/mol clashed pose dominated the correlation).
+          pooled LOO:       0.538 → 0.528 (no gain)   leave-dataset-out: +0.055 → −0.115 (WORSE)
+
+ VERDICT: NOT WIRED. Even the clean force-field energy flips cross-dataset — vdW is 66% size-confounded,
+          and cr65-compact vs the98-extended flips it, same as raw Vina and every charge feature. The
+          gate did its job: a feature that looked good in-distribution (the98 +0.03) was caught flipping
+          on a second dataset. Vina stays ONLY as (a) the pose-quality selector for clustering and (b) the
+          zero-training out-of-distribution fallback. The honest scorer remains geometry + length router.
 ```
 
 ---
