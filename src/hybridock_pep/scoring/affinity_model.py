@@ -29,6 +29,10 @@ GEOMETRY_KEYS = [
     "poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis", "bsa_hyd", "sasa_hb", "sasa_sb",
     "arom_cc", "hb_count", "strength_bur", "mean_burial", "mj_contact", "rg_per_L", "org_density", "cys_frac",
 ]
+# Sign-stable anchor features (commit cbd193bff, restored E170): help long/med +0.03–0.04 on pooled data.
+# Appended only when present in the geometry dict (i.e. compute_anchor_features was run for the pose) so
+# older 240-feature artifacts keep working unchanged.
+ANCHOR_KEYS = ["max_burial", "buried_inert", "pro_run"]
 _AA = "ACDEFGHIKLMNPQRSTVWY"
 _POS, _NEG = set("KR"), set("DE")
 _KD = {"A": 1.8, "R": -4.5, "N": -3.5, "D": -3.5, "C": 2.5, "Q": -3.5, "E": -3.5, "G": -0.4, "H": -3.2,
@@ -144,7 +148,10 @@ def build_feature_vector(geometry: dict[str, float], seq: str) -> np.ndarray:
     geom = [float(geometry.get(k, 0.0)) for k in GEOMETRY_KEYS]
     pdesc = _protdcal_descriptors(seq)
     compl = _charge_complementarity(seq, float(geometry.get("poc_net", 0.0)))
-    vec = np.asarray(geom + pdesc + compl + [float(len(seq))], dtype=float)
+    # Restored anchor features are appended only when the pose's geometry dict carries them, so artifacts
+    # trained without anchor (240-feat) and with anchor (243-feat) both consume the matching vector length.
+    anchor = [float(geometry[k]) for k in ANCHOR_KEYS] if all(k in geometry for k in ANCHOR_KEYS) else []
+    vec = np.asarray(geom + pdesc + compl + [float(len(seq))] + anchor, dtype=float)
     return np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
 
 
@@ -164,5 +171,11 @@ def predict_affinity(geometry: dict[str, float], seq: str, artifact: Path | str 
     model, _ = _load(str(artifact or _DEFAULT_ARTIFACT))
     if model is None:
         return None
-    x = build_feature_vector(geometry, seq).reshape(1, -1)
-    return float(model.predict(x)[0])
+    x = build_feature_vector(geometry, seq)
+    # Backward-compatible feature length: build_feature_vector appends the 3 anchor features when the pose
+    # carries them, producing 243. Models trained without anchor expect 240 — trim the trailing anchor block
+    # so old (240) and anchor (243) artifacts both work regardless of what the driver computed.
+    n_exp = getattr(model, "n_features_in_", x.shape[0])
+    if x.shape[0] > n_exp:
+        x = x[:n_exp]
+    return float(model.predict(x.reshape(1, -1))[0])
