@@ -217,6 +217,17 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
             feats = compute_geometry_features(pose.pdb_path, receptor)
             if feats is None:
                 continue
+            # Sign-stable anchor features (max_burial/buried_inert/pro_run) — help long/med ΔG; merged into
+            # the geometry dict so build_feature_vector appends them for anchor-aware artifacts (E170).
+            try:
+                from hybridock_pep.scoring.anchor_features import (  # noqa: PLC0415
+                    compute_anchor_features, ANCHOR_STABLE_KEYS,
+                )
+                anc = compute_anchor_features(pose.pdb_path, receptor, hb_count=float(feats.get("hb_count", 0.0)))
+                if anc:
+                    feats.update({k: float(anc[k]) for k in ANCHOR_STABLE_KEYS})
+            except Exception as exc:  # noqa: BLE001 — anchor is an optional enrichment
+                logger.debug("Pose %d: anchor features skipped (%s)", pose.pose_idx, exc)
             if want_entropy:
                 from hybridock_pep.scoring.free_entropy import (  # noqa: PLC0415
                     compute_free_state_entropy, s_free_buried,
