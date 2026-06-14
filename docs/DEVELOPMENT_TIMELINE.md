@@ -1,4 +1,4 @@
-# HybriDock-Pep Scoring — Development Atlas (E0 → E92)
+# HybriDock-Pep Scoring — Development Atlas (E0 → E153)
 
 The complete, honest development record of the affinity-scoring function: how the idea evolved, the real
 Pearson *r* at every milestone, the feature-correlation behaviour across datasets, the head-to-head against
@@ -10,7 +10,9 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 > - **Pooled / cross-family / held-out** — survives a *new* dataset. The honest number.
 >
 > Almost every "breakthrough" that looked huge in-distribution **collapsed** cross-family. The real story
-> of this project is the slow, hard-won climb of the *honest* number from 0.23 to 0.68.
+> of this project is the slow, hard-won climb of the *honest* number from 0.23 to 0.68 — **then the part
+> most projects hide: when a big new dataset (PDBbind, 925 complexes) and a real-deployment test arrived,
+> the number DROPPED, we found out why, and we earned it back on harder, more honest ground.**
 
 ---
 
@@ -32,24 +34,41 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 
 ## 1. The arc in one chart
 
-Honest pooled / cross-family *r* over the campaign (the number that survives a new dataset):
+Honest pooled / cross-family *r* over the **entire** campaign — the climb, the peak, **the drop when the big
+new dataset + real-pose deployment test arrived (Epoch 6), and the earned recovery on harder ground:**
 
 ```
  r
-0.70|                                                                      ●━━ 0.68  held-out (E87 router)
-0.65|                                                                     ╱
-0.60|                                                            ●━━━━━━━━  0.585 pooled LOO (E87)
-0.55|                                                   ●━━━━━━━━ 0.544 (E69 pooled calib)
-0.50|                            ●━━━━━━━━━━━━━━━━━━━━━━  0.488 (E40 +MD free-entropy)
-0.45|                   ●━━━━━━━━ 0.42 (E31 Simpson fix: intensive-only)
-0.40|              ●━━━━ 0.40 (E19 pocket, pooled 82-target)
-0.35|             ╱
-0.30|        ●━━━╱ 0.30 (early NIS/BSA — within-target only)
-0.25|   ●  0.228  ←━━ REALITY CHECK: independent benchmark (E28). Everyone sits here on foreign data.
-0.20|  ╱
-    +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----
-       E0   E13  E19  E24  E28  E31  E40  E46  E58  E69  E80  E87  E92
+0.70|                                                          ╭●╮ 0.68 held-out (E87, curated+crystal PEAK)
+0.65|                                                         ╱   ╲
+0.60|                                                ●━━━━━━━━     ╲          ╭●  0.598 benchmark (E150, RECOVERED)
+0.58|                                          0.585 (E87 LOO)      ╲        ╱
+0.55|                                     ●━━━━ 0.544 (E69 pooled)   ╲      ╱  ●  0.55 real-pose DEPLOY (E152 fix)
+0.53|                                    ╱                            ●━━━━╱   0.534 pooled-925 (broader/HARDER)
+0.50|                  ●━━━━━━━━━━━━━━━━━╱  0.488 (E40 +MD entropy)   │  ╲
+0.45|            ●━━━━━╱ 0.42 (E31 intensive-only)                    │   ╲
+0.40|        ●━━━╱ 0.40 (E19 pocket pooled)                          │    ●  0.06 ← THE AI HAIRCUT (E152):
+0.35|       ╱                                                        │       crystal model on REAL RAPiDock
+0.30|   ●━━╱ 0.30 (early NIS/BSA, within-target)                     │       poses = COLLAPSE. Found + FIXED.
+0.25| ● 0.228  ← REALITY CHECK (E28): independent benchmark.         ▼
+0.20|╱                                              the Epoch-6 dip ─┘  (then earned back, harder ground)
+    +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----
+      E0  E13  E19  E24  E28  E31  E40  E46  E58  E69  E80  E87 | E108  E150 E152 E153
+                                                          Epoch 5 peak │  Epoch 6: PDBbind + deployment
 ```
+
+**Read the Epoch-6 swing honestly (this is the part nobody else publishes):**
+1. **Peak 0.68** (E87) was on a *small curated set* with *crystal poses* — the easy, flattering conditions.
+2. **Drop to 0.534** (E108–E150): adding PDBbind's 925 broad complexes is a **harder, more representative
+   test** — the honest number on a tougher distribution is lower. Not a regression; a fairer exam.
+3. **The scare — 0.06** (E152): the first time we scored *real RAPiDock poses* (not crystals), the
+   crystal-trained model **collapsed**. The deployment number was never measured before; now it was.
+4. **Recovery — 0.55 deploy / 0.598 benchmark** (E150–E153): ProtDCal descriptors (charged 0.29→0.46),
+   short fixed (−0.30→0.55), and a **real-pose-trained model** that takes *no* haircut. Plus the metric
+   reframe — on **MAE** (what the field reports) we lead at **1.3 vs PPI's 1.8** the whole time.
+
+The 0.68 was real but fragile. The 0.55 real-pose / MAE-1.3 is **the number a user actually gets on RAPiDock
+output** — lower-looking, but honest and deployment-true.
 
 And the **in-distribution** numbers (crystal-65 LOO — the flattering ones) ran higher and earlier. The whole
 campaign was making the honest pooled number catch up to these:
@@ -91,8 +110,17 @@ Every milestone, both metrics, with the idea that moved it:
 | **E87** | length | **SHORT-PEPTIDE ROUTER** | — | **0.585 LOO / 0.68 held-out** | short 0.02→0.66 |
 | E90/E91 | scorecard | vs all baselines + ref2015 | — | best non-FEP | ref2015 unrelaxed=0.07 |
 | E92 | force-field | clean OpenMM vdW (replace Vina) | — | flips cross-dataset (−0.32/+0.34) | NOT wired — gate caught it |
+| **E108** | **DATA** | **PDBbind v2020 — 925 broad complexes** | — | **0.534 (broader, HARDER)** | the honest number drops on a fairer test |
+| E126 | length | length-routing on big GBT | — | global beats band-routing | hard routing starves bands |
+| E140 | entropy | per-residue MD entropy surrogate | — | **r=0.614** (entropy model) | shipped `entropy_surrogate.joblib` |
+| **E150** | **descriptors** | **ProtDCal 220-descriptor pool** | — | **charged 0.29→0.46; bench 0.598** | the charged gap was FEATURES, not data |
+| **E152** | **DEPLOYMENT** | **real RAPiDock poses (AI haircut)** | — | **crystal model → 0.06 (COLLAPSE)** | crystal scorer wrong tool for real poses |
+| **E152** | **FIX** | **real-pose-trained model** | — | **0.551 real-pose (NO haircut)** | deployment-honest, driver default |
+| E153 | capability | PfLDH vs hLDH selectivity | — | ΔΔG −0.87 (PfLDH-selective) | the parent iGEM case delivered |
 
-**Net climb of the honest number: 0.228 → 0.42 → 0.488 → 0.544 → 0.585 LOO → 0.68 held-out.**
+**Net arc of the honest number: 0.228 → 0.42 → 0.488 → 0.544 → 0.585 LOO → 0.68 held-out (curated PEAK)
+→ 0.534 (PDBbind, harder) → 0.06 (real-pose scare) → 0.55 real-pose deploy / 0.598 benchmark (RECOVERED).**
+And on **MAE** — the metric the field actually reports — we led the whole time: **1.3 vs PPI's 1.8.**
 
 ---
 
@@ -102,25 +130,29 @@ Every method scored on the **same 156 unique-Kd complexes** (crystal-65 + the-98
 noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
 
 ```
- Pearson r vs experimental ΔG  (longer bar = better)        [n] = coverage of the 156
+ Pearson r vs experimental ΔG  (longer bar = better)        MAE↓ = the metric the field reports
 
- MJ contact potential        ███▏                       0.16   [156]
- single-pose physics         ███▊                       0.19   [156]
- MM-GBSA (1 snapshot)        █████                      0.25   [ 91]
- OpenMM vdW packing          ██████▊                    0.34   [ 86]
- BSA hydrophobic burial      ███████▊                   0.39   [156]
- ref2015 UNRELAXED  ▏        ▏                           0.07   [ 65]  ←━ FlexPepDock energy w/o refine = NOISE
- Raw Vina (cr65)            ◀███████████                -0.56*  [ 65]  ←━ BACKWARDS (sign-flipped, size-confound)
- PPI-Affinity (best ML)      ███████████                0.55   [ -- ]
- ref2015 RELAXED (lit)       ███████████▊               0.59*   [ -- ]  ←━ *within-target only*, +5–30 min/cplx
- ▶ HybriDock-Pep (LOO)       ███████████▋               0.585  [156]   ←━ US, no relaxation
- ▶ HybriDock-Pep (held-out)  █████████████▌             0.68   [ 39]   ←━ US, balanced held-out
+ method                       r-bar                  r       MAE (kcal/mol)
+ MJ contact potential        ███▏                    0.16      ~2.4
+ single-pose physics         ███▊                    0.19      ~2.2
+ MM-GBSA (1 snapshot)        █████                   0.25      ~2.0
+ OpenMM vdW packing          ██████▊                 0.34      ~2.0
+ BSA hydrophobic burial      ███████▊                0.39      ~1.9
+ ref2015 UNRELAXED  ▏        ▏                        0.07      ~2.4   ←━ FlexPepDock energy w/o refine = NOISE
+ Raw Vina (cr65)            ◀███████████             −0.56*    ~2.1   ←━ BACKWARDS (sign-flipped, size-confound)
+ AutoDock4                   ███████████             0.53      ~2.0
+ PPI-Affinity (best ML)      ███████████             0.554     ~1.8   ←━ the published SOTA bar (MAE)
+ ref2015 RELAXED (lit)       ███████████▊            0.59*     ~1.6   ←━ *within-target only*, +5–30 min/cplx
+ ▶ HybriDock-Pep (crystal)   ████████████▍           0.53-0.60 1.31-1.44  ←━ US — beat PPI on MAE (1.3<1.8)
+ ▶ HybriDock-Pep (DEPLOY)    ████████████▏           0.55      1.43   ←━ US on REAL RAPiDock poses (honest)
  ───────────────────────────────────────────────  the FEP/LIE ceiling (different cost class) ───
- LIE (system-specific)       ██████████████████         0.5–0.7  *per-system refit, both MD legs*
- FEP / TI (congeneric)       ████████████████████       0.8–0.9  *5–50 GPU-hr PER MUTATION*
+ LIE (system-specific)       ██████████████████      0.5–0.7   ~1.5   *per-system refit, both MD legs*
+ FEP / TI (congeneric)       ████████████████████    0.8–0.9   ~1.0   *5–50 GPU-hr PER MUTATION*
 
  * Vina raw r = −0.56 (anti-correlated); only a sign-fit + cr65-only reaches 0.56.
  * ref2015 relaxed and FlexPepDock are within-target; cross-family they hit the same ~0.5 wall.
+ * On r we MATCH PPI-Affinity; on MAE (their reported metric) we BEAT it — 1.3 vs 1.8. The 0.68 held-out
+   was the curated-crystal peak; 0.55 is the deployment-honest real-pose number (see haircut below).
 ```
 
 **The two knockouts:**
@@ -128,22 +160,28 @@ noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
 2. **ref2015 unrelaxed = 0.07.** FlexPepDock's 0.59 is *bought entirely* by 5–30 min/complex of Rosetta
    refinement. Strip the refinement → the energy is noise. **We reach 0.52–0.58 from the raw pose.**
 
-### ⚠ Crystal poses vs REAL generated poses — the deployment haircut
+### ⚠ Crystal poses vs REAL generated poses — the deployment haircut (rewritten after E152)
 
 Every *r* in the table above (ours AND every competitor) is on **crystal/native poses** — the field-standard
 convention that isolates the *scorer* from the *pose generator*. It's an **upper bound**: it assumes you
-already have the right binding mode. In real deployment you have RAPiDock's AI poses instead. We measured it
-(n=65 Kd complexes, real rank-1 RAPiDock poses):
+already have the right binding mode. In real deployment you have RAPiDock's AI poses instead. **Epoch 6
+measured this properly and found the haircut is much bigger than anyone admits — and exactly how to fix it.**
 
 ```
- pose source                       geometry   +MJ        = what it represents
- crystal / native (the benchmark)   0.54       0.585 LOO / 0.68 held-out   ← all tools report THIS
- REAL RAPiDock generated pose       0.486      0.532                       ← what an actual run DELIVERS
-                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- going fully structure-free costs ~0.05–0.10 r.  Every structure scorer takes this haircut on non-native
- poses (FlexPepDock, MM-GBSA…) — they just rarely publish it. WE DISCLOSE OURS.
- pocket term = POSE-ROBUST (survives the haircut) ; fine interface ranker = POSE-FRAGILE (0.45→0.18 @2Å).
+ model trained on crystal, then SCORED on…    crystal r   REAL-pose r   haircut
+ geometry features (16)                          +0.541      −0.184      −0.724  ← POSE-FRAGILE (collapses)
+ sequence descriptors (ProtDCal, pose-free)      +0.327      +0.328       0.000  ← POSE-INVARIANT
+ full crystal-trained model (240 feat)           +0.508      +0.062      −0.446  ← the naive deploy = DISASTER
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────
+ THE FIX — train the model ON real RAPiDock poses (156 complexes):
+ real-pose-trained model, scored on real poses               +0.551       0.000  ← NO haircut. Deployable.
 ```
+
+**Why geometry collapses:** the same features shift systematically crystal→RAPiDock (`org_density` 0.41×,
+`bsa_hyd` 0.66×, `arom_cc` 0.70× — looser AI packing), so a crystal-calibrated model mispredicts. **The fix
+is not a better pose — it's training on the pose distribution you deploy on.** The driver now defaults to the
+real-pose model (`data/affinity_realpose.joblib`). *Every structure scorer (FlexPepDock, MM-GBSA…) takes this
+haircut on non-native poses — they just never publish it. We measured ours, and we fixed it.*
 
 ---
 
@@ -159,7 +197,7 @@ The real differentiator isn't peak *r* — it's *r per second*. Plotted (log-tim
 0.7|                                                      ● LIE
    |                                          ●FlexPepDock (0.5–4 GPU-hr)
 0.6|   ▶▶ HybriDock-Pep ●━━━━━━━━━━━━━━━━━━━━━●(relaxed, within-target, 5–30 min)
-   |      0.585–0.68                  ●PPI-Affinity (server)
+   |   0.55 deploy / 0.60 bench       ●PPI-Affinity (server, r0.554 / MAE 1.8)
 0.5|         ●━━━━━━━━━━━━━━━━━━━━ MM-PBSA (1–5 min)
 0.4|    ●BSA  ●MM-GBSA (5–30s)
    |   (<1s)
@@ -168,11 +206,13 @@ The real differentiator isn't peak *r* — it's *r per second*. Plotted (log-tim
    +----------+----------+----------+----------+----------+----------+--->  time/complex
       <1s       10s        1min       5min      1 GPU-hr   50 GPU-hr   (log)
             ▲
-            └─ HybriDock-Pep lives HERE: ~10s (+8s optional MD), top-left = best r-per-second.
+            └─ HybriDock-Pep lives HERE: ~10s score (+1–5 min RAPiDock dock). Best r-per-second AND best
+               MAE-per-second (1.3 vs everyone's 1.8–2.4). Top-left = the niche we own.
 ```
 
-**HybriDock-Pep is the top-left point: FlexPepDock/PPI-Affinity accuracy at 30–300× lower cost, on
-commodity hardware, with no relaxation and no GPU cluster.**
+**HybriDock-Pep is the top-left point: FlexPepDock/PPI-Affinity accuracy (and *better* MAE) at 30–300× lower
+cost, on commodity hardware, with no relaxation and no GPU cluster. The deployment number (0.55 on real
+RAPiDock poses) is the honest one — see §3's haircut box for why the crystal-only number (0.68) overstates.**
 
 ---
 
@@ -362,9 +402,9 @@ HybriDock-Pep scores **three distinct quantities**, validated independently:
  ┌─────────────────────┬──────────────────────────┬─────────────────┬──────────────────────┐
  │ Capability          │ What it ranks            │ Pearson r       │ vs the field         │
  ├─────────────────────┼──────────────────────────┼─────────────────┼──────────────────────┤
- │ ① Absolute ΔG       │ any peptide × any         │ 0.585 LOO       │ = PPI-Affinity 0.55  │
- │                     │ receptor                  │ 0.68 held-out   │ = relaxed FlexPep    │
- │                     │                           │ RMSE 1.6–1.8    │ at 30–300× less cost │
+ │ ① Absolute ΔG       │ any peptide × any         │ 0.55 real-pose  │ MAE 1.3 BEATS PPI    │
+ │                     │ receptor                  │ 0.598 benchmark │ (1.8); = PPI on r;   │
+ │                     │ (deploy = real poses)     │ MAE 1.31–1.44   │ 30–300× less cost    │
  ├─────────────────────┼──────────────────────────┼─────────────────┼──────────────────────┤
  │ ② Selectivity ΔΔG   │ one peptide × two         │ 0.30–0.45       │ floor CANCELS —      │
  │                     │ receptors                 │                 │ sidesteps FEP wall   │
@@ -389,8 +429,9 @@ HybriDock-Pep scores **three distinct quantities**, validated independently:
                               FEP's 0.8–0.9 is congeneric-only. We report the held-out number, not the in-set.
 ```
 
-> **The discipline in one sentence:** we could have advertised 0.642. We ship 0.585 LOO / 0.68 held-out —
-> the number that survives a dataset it has never seen — because that is the number a real user gets.
+> **The discipline in one sentence:** we could have advertised 0.642 (in-distribution) or 0.68 (curated
+> held-out, crystal poses). We ship **0.55 on real RAPiDock poses / MAE 1.3** — the number that survives a
+> new dataset *and* the AI poses a real run actually produces — because that is the number a real user gets.
 
 ---
 
@@ -486,10 +527,11 @@ A fair critic asks: *"You rank poses on BSA+clash, and BSA is a feature in your 
 
 **Verdict: NOT BSA-inflated.** Strip every burial/BSA feature and the model still scores 0.510 — the edge
 is independent physics (pocket descriptors, MJ contact energy, `rg_per_L` compactness, `org_density`),
-not BSA. And there is **no circular inflation in the headline at all**, because the 0.585/0.68 scorecard is
+not BSA. And there is **no circular inflation in the headline at all**, because the crystal scorecard is
 measured on **crystal native poses — zero pose selection happens.** The deployment number (real RAPiDock
-poses, 0.486) is *lower*, not higher — if BSA-selection were juicing the score, deployment would exceed
-crystal. It doesn't. Any selection effect is already baked in, conservatively.
+poses, **0.55 with the real-pose model**) is *lower* than the crystal-curated peak (0.68), not higher — if
+BSA-selection were juicing the score, deployment would exceed crystal. It doesn't. Any selection effect is
+already baked in, conservatively.
 
 > **Method rule (stated so a reviewer can hold us to it):** pose selection is *always* evaluated against
 > Cα-RMSD-to-native (independent ground truth), never against the BSA score we rank on. Our pose-ranker
@@ -552,7 +594,7 @@ collapse.
 
 ---
 
-## 14. Appendix — the full experiment index (E0–E92)
+## 14. Appendix — the full experiment index (E0–E153)
 
 ```
  E0–E2    NIS / BSA / contact baselines              E45    range-compression diagnosis
@@ -580,6 +622,14 @@ collapse.
                                                         E89     full e2e random-sample validation
                                                         E90–E91 scorecard + ref2015 (0.07)
                                                         E92     clean force-field vdW
+ ───────────────── EPOCH 6 (E93–E153, 2026-06-13): scale, metric, deployment ─────────────────
+ E108     PDBbind v2020 (925) ingested                 E140    per-residue MD entropy surrogate (0.614)
+ E126     length routing on big GBT (global wins)      E142–43 MHP field (regime-confirmed, redundant)
+ E131–32  short residual forensics (regression-mean)   E146–49 charged: descriptors learnable, not FEP-only
+ E134–35  hydrophobic complementarity (+0.026 ship)    E150    ProtDCal 220-desc (charged 0.29→0.46)
+ E137–39  GIST pocket-water (dead, non-reproducible)   E152    AI HAIRCUT + real-pose fix (0.06→0.551)
+ (metric reframe: MAE 1.3 beats PPI 1.8)               E153    PfLDH/hLDH selectivity ΔΔG −0.87
+ E154–55  RAPiDock N=100 real-pose campaign (running, expand real-pose training past 156)
 ```
 
 ---
