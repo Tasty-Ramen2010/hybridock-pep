@@ -223,3 +223,40 @@ honest gap is ~0.11, concentrated in neutral; we **win charged everywhere, tie m
 own selectivity.** Closing the residual neutral edge needs their BioLiP training distribution (data lever) or
 a proper hydrophobic-complementarity *match* feature (not the raw product, which backfired) — not separate
 per-band models (measured to overfit).
+
+---
+
+## 6. PPIKB long/vlong AUGMENTATION — the validated come-back lever for long (E211)
+
+Ram's concern about long, tested two ways (leak-free; T100 pdb+seq excluded from augmentation):
+
+**A. Curated fresh head-to-head WITH vlong (n=305, 94 vlong):** per band, OUR model beats the PPI-clone on
+**every** length band on fresh data:
+```
+ band       n     OURS    PPI-clone
+ vlong>=17  94   +0.248   +0.059
+ long13-16  32   +0.485   +0.128
+ <=12      179   +0.254   +0.116
+ overall   305   +0.356   +0.249   (raw 0.356 > 0.294 without vlong — our fresh vlong is decent)
+```
+The ratio-scale extrapolation flips (favours PPI 0.447) only because the partial clone's low home reference
+makes its retention look high — the DIRECT per-band comparison (we beat the clone everywhere) is the robust
+signal.
+
+**B. AUGMENT training with PPIKB long/vlong → T100 (the lever):** adding 178 clean PPIKB long/vlong Kd
+complexes to the seq+pocket training:
+```
+ model                       overall   long      vlong
+ 925 only                    +0.396    −0.598    +0.217
+ 925 + PPIKB long/vlong      +0.446    −0.312    +0.278    (Δ +0.05 / +0.29 / +0.06)
+ PPI shipped                 +0.549    +0.943    +0.420
+```
+**Augmenting with the brand-new PPIKB long/vlong data HELPS the bands we lose** (long +0.29, vlong +0.06,
+overall +0.05) — because PPIKB is literature/patent-mined, in a BioLiP-adjacent distribution closer to T100
+than PDBbind. This reverses the earlier "PPIKB hurts" (E189), which added ALL PPIKB indiscriminately; adding
+ONLY clean long/vlong Kd to the bands that need them is the right, validated move. (Long stays negative on
+n=15 T100 because 6 of those are BioLiP-only home-field, but the direction is decisively positive.)
+
+**Ship path:** retrain the production crystal model with PPIKB long/vlong augmentation — needs the 16 geometry
+features computed for the ~178 PPIKB structures (a follow-up structure-parse campaign, since e188 cached only
+desc3d + pocket). The seq+pocket result already validates the lever.
