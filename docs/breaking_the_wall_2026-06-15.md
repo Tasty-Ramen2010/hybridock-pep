@@ -70,3 +70,33 @@ receptor.
 
 This is the honest frontier: the wall is real, the signal is real and dynamic, cheap proxies don't reach it,
 and the only untested lever is the actual MD — exactly what Ram proposed, now scoped to a checkable pilot.
+
+---
+
+## Addendum — training on pre-done FEP data (E227, Schrödinger protein-FEP benchmark)
+
+Ram: "use pre-done FEP/MD repos to train on." MISATO MD = 132 GB (undownloadable) + small-molecule +
+flexibility-only. But the Schrödinger protein-FEP benchmark (416 mutations, 16 systems, FEP-computed +
+experimental ΔΔG + 75 features) is small and gave a decisive result on the RELATIVE/ΔΔG task:
+
+```
+                                    r vs experimental ΔΔG    MAE (kcal/mol)
+ FEP (gold standard, 10^4× cost)         0.562                 1.00
+ CHEAP ML (structural feats, LOSO)       0.491                 0.84   ← competitive r, BETTER MAE
+ cheap ML + FEP-as-feature               0.493 (+0.001)        0.84   ← FEP adds nothing as a feature
+```
+
+**On ΔΔG / selectivity (the relative task), cheap ML rivals FEP** — r 0.49 vs 0.56, and *beats* FEP on MAE
+(0.84 vs 1.00). FEP's 10⁴× cost buys almost nothing here. This is the established "ML narrows the gap to FEP"
+finding, reproduced. And pre-done FEP values, used as a training feature, add **+0.001** — they don't transfer.
+
+## The dichotomy that defines everything
+```
+ ABSOLUTE Kd (cross-receptor)  : a WALL. receptor baseline unpredictable (0.15), needs dynamic MD-water /
+                                 absolute-FEP. ML caps ~0.36. NOBODY (us, PPI, ESM) does better. FEP-bound.
+ RELATIVE ΔΔG (selectivity)    : ML ≈ FEP (0.49 vs 0.56, better MAE). cheap, tractable, OUR territory.
+```
+This is why "best non-FEP scorer that's commercially available" is the exactly-right claim: on the task FEP
+dominates (absolute Kd of a novel receptor) nobody cheap can win; on the task that matters for design
+(ranking peptides on a target = selectivity) we are already at FEP level for 10⁴× less. Pre-done FEP/MD repos
+don't change this — they confirm it.
