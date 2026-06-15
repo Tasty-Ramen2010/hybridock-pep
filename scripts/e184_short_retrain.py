@@ -92,7 +92,7 @@ def main():
             pred[te_i] = m.predict(XS[te_i])
         r, rmse = met(pred, yS)
         print(f"  {label:18s}: short-band r={r:+.3f}  RMSE={rmse:.2f}  (n_test={len(short_test)})")
-    print("\n  (new short = 14 len-3 tripeptides so far; campaign ongoing → revisit at ~80+)")
+    print(f"\n  (new short = {len(newshort)} complexes; short is DATA-RESPONSIVE — opposite of vlong)")
 
 
 if __name__ == "__main__":

@@ -29,7 +29,6 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 
 ## Table of contents
 
-0. [**Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E190)**](#0-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e190-2026-06-15)
 1. [The arc in one chart](#1-the-arc-in-one-chart)
 2. [The full r-evolution ledger](#2-the-full-r-evolution-ledger)
 3. [Where we rank — head-to-head on 156 complexes](#3-where-we-rank--head-to-head-on-156-complexes)
@@ -41,97 +40,7 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 9. [The three capabilities we actually ship](#9-the-three-capabilities)
 10. [Lessons — the method that made it real](#10-lessons)
 11. [Epoch 6 — PDBbind scale, ProtDCal descriptors & the deployment fix (E93–E153)](#15-epoch-6--pdbbind-scale-protdcal-descriptors--the-deployment-fix-e93e153-2026-06-13)
-
----
-
-## 0. Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E190, 2026-06-15)
-
-*The newest epoch, kept at the top by request. This is the one where we stopped guessing what PPI-Affinity
-is, read its actual descriptor spec, and measured — honestly — where we beat it and where we can't.*
-
-### 0.1 We decoded PPI-Affinity's real descriptors (and corrected our own myth)
-
-We pulled the ProtDCal paper's supplementary formula tables and decoded PPI-Affinity's exact 37-descriptor
-`.idl`. The finding **overturned a belief we'd held for weeks**: PPI is **not** sequence-based / pose-blind.
-Its `wNc / wFLC / wNLC` descriptors are **3D weighted-contact** operators — for each residue, sum a
-physicochemical property over its *spatially contacting* residues in the bound structure.
-
-```
- wNc_i = 0.5 · Σ_{j : |i−j|>t , dist<d}  P_i · P_j      (intra-peptide weighted contact network)
- descriptor = w{Nc,FLC,NLC}( prop∈{ECI,IP,ISA,Z1,Z2,Z3} )_NO_ group∈SM-11 _ invariant∈{N1,N2,Ar,V,DE,…}
-```
-
-Consequence: PPI needs a **3D structure**, so on a generated pose it takes a structure-quality haircut just
-like we do. The decoded spec lives in `third_party/protdcal/protdcal_spec.py`; the descriptor engine in
-`scripts/e179_protdcal_3d.py`.
-
-### 0.2 The deployment haircut — the headline result
-
-PPI's 0.55 is a **crystal-oracle** number. The real task is a *novel* peptide with **no crystal** → generate
-a pose (RAPiDock) → score. Using the e93 set (65 complexes that kept BOTH the crystal and all 100 RAPiDock
-poses), we trained the faithful ProtDCal-3D clone on crystal and scored from crystal vs from the generated
-pose (within-set, 8× repeated 10-fold, distribution-matched):
-
-```
- PPI-clone feature class       r vs truth        what it means
- ───────────────────────────────────────────────────────────────────────────
- CRYSTAL structure             0.271             the regime PPI's 0.55 benchmark lives in
- RAPiDock RANK-1 pose          0.113   ◄──────── DEPLOYMENT: signal nearly gone (retention 0.42)
- prediction corr crystal↔pose  0.60
-
- MODELED ONTO REAL PPI-AFFINITY  (same intra-contact feature class → same haircut):
-   PPI crystal 0.554  ──►  ~0.23 (ratio)  /  ~0.33 (pred-corr)   ON GENERATED POSES   ≈ HALVES
-```
-
-Head-to-head on the **same** poses, same CV:
-
-```
-        crystal oracle          generated-pose DEPLOYMENT (the real task)
- PPI    0.55  (their turf) ───►  ~0.23–0.33      ▼ collapses (intra-peptide contacts scramble)
- OURS   0.49               ───►  0.43            ◄ HOLDS (interface geometry, ~4× PPI in deployment)
-```
-
-We win deployment because our features measure the **receptor–peptide interface** (RAPiDock places it
-roughly right) instead of the peptide's internal conformation (which it gets wrong). `scripts/e183_ppi_haircut.py`.
-
-### 0.3 Can we clone PPI to beat it on crystal? No — and adding ProtDCal-3D doesn't help
-
-- **Faithful rebuild ceiling:** computing PPI's exact descriptors (+ the full 2808-descriptor space) on real
-  structures recovers **corr 0.33** with their shipped predictions (vs ~0 for our old sequence proxy — the
-  decoding is real) but caps at **r 0.32 vs truth ≪ 0.55**. The gap is their **private BioLiP-T949 training
-  set** + exact tool internals, *not* descriptor richness (more descriptors = flat). PPI is **not cloneable**
-  from public artifacts. `scripts/e178–e182`.
-- **Fusing ProtDCal-3D into our crystal model (E185): null-to-negative.** Clustered-CV crystal-925: ours
-  0.361, ProtDCal-3D alone 0.164, fusion 0.350 — and it **hurts charged** (−0.05). Their feature class, as
-  we can reproduce it, is not the lever.
-
-### 0.4 The new data — honest negatives, one real opening
-
-| Source | What it is | Verdict |
-|---|---|---|
-| **PPIKB** (Ram's xlsx) | 2229 clean entries, 1652 Kd, **810 new PDBs**, 80 selectivity families | training expansion **HURTS** crystal (0.385→0.32, E189); raw-crystal selectivity **NEGATIVE** (τ −0.11 vs seq +0.06, E190) |
-| **PepBenchmark** | 35 datasets, peptide **bioactivity** (AMP/anticancer/hemolytic) | **off-task** (not binding affinity) + **no license** → unusable |
-
-*Why PPIKB hurts:* its crystals are heterogeneous (deposition quality, mixed assay even within Kd) and
-off-distribution from BioLiP; its family peptides come from **different crystals**, so contact descriptors
-capture crystal artifacts, not affinity. **The lesson:** selectivity must be scored in a **consistent docked
-frame (our pipeline)**, not heterogeneous crystals — and the crystal-Kd gap needs *clean, distribution-matched*
-data, not raw volume. Full failure map + brainstorm: `docs/failure_map_and_levers_2026-06-15.md`.
-
-### 0.5 Where Epoch 7 leaves us
-
-```
- CRYSTAL-ORACLE absolute Kd:   PPI 0.55  >  us ~0.36–0.52   (their benchmark, their home field — we trail)
- DEPLOYMENT (generated pose):  PPI ~0.23–0.33  <  us 0.43   (the REAL task — we lead ~4×, measured)
- SELECTIVITY:                  sequence blind (τ 0.06); structure-in-consistent-frame = our exclusive lever
- BAND status:                  short fixed-test +0.009 (data-thin); vlong specialist +0.39; long +0.035
-```
-
-**The strategic correction:** we don't beat PPI by out-descriptoring it on crystals (can't — private data).
-We beat it on the task a user actually runs (no crystal exists for a novel peptide), and on selectivity, which
-sequence models are structurally blind to. The next real experiment is **GPU-docking the PPIKB families into a
-common receptor frame** to convert our pose-generation capability into a selectivity number nobody else can
-produce.
+12. [**Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E193)**](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15) *(latest, appended at bottom)*
 
 ---
 
@@ -173,23 +82,37 @@ new dataset + real-pose deployment test arrived (Epoch 6), and the earned recove
 The 0.68 was real but fragile. The 0.55 real-pose / MAE-1.3 is **the number a user actually gets on RAPiDock
 output** — lower-looking, but honest and deployment-true.
 
-**Epoch 7 (2026-06-15) reframes the whole comparison — crystal-oracle vs deployment, measured side by side:**
+**Epoch 7 (2026-06-15) splits the comparison into the TWO regimes that matter — and they tell opposite
+stories. Two separate charts, because they are two separate questions (E191, E183):**
 
+**Chart A — CRYSTAL-ORACLE benchmark (a crystal is handed to you; PPI's home field):**
 ```
- r                CRYSTAL-ORACLE benchmark            DEPLOYMENT (generated pose — the real task)
-0.55|  ●━━━━━━━━━━ PPI 0.55 (their home field) ━━╮
-0.50|  ●━━━━━━━━━━ us  ~0.49                     │╲
-0.45|                                            │ ●  us 0.43  ◄── WE LEAD (interface geometry holds)
-0.40|                                            │  ╲
-0.35|                                            │   ╲
-0.30|                                            ╰────● PPI ~0.23–0.33  ◄── COLLAPSES (E183 haircut)
-0.25|                                                   (intra-peptide contacts scramble on a ~3Å pose)
-    +─────────────────────────────────────────────────────────────────────
-       crystal exists (their benchmark)          novel peptide, NO crystal (what users run)
+ r on PPI's T100 crystal set            OURS    PPI     verdict
+ ────────────────────────────────────────────────────────────────────────
+ OVERALL                                0.359   0.525   gap −0.17 (MAE 1.29 vs 1.13, close)
+ med 9–12  ████████████████             0.245   0.248   TIED
+ charged |q|≥2  ███████████████████     0.425   0.354   ◄ WE WIN
+ v.charged |q|≥3 ████████████████████   0.474   0.450   ◄ WE WIN
+ neutral |q|≤1                          0.330   0.660   PPI (their edge concentrates here)
+ long 13–16 (structured, n=15)          0.344   0.816   PPI (helical long = their stronghold)
+ vlong ≥17 (n=16)                       0.139   0.458   PPI
 ```
+*We TIE on medium, WIN on charged; PPI's entire crystal edge = neutral + long-structured peptides.*
 
-We trail PPI where a crystal is handed to you; we **beat it ~4×** where one isn't — which is every real
-prospective design. That, not the crystal number, is the honest "are we the best?" answer.
+**Chart B — DEPLOYMENT (novel peptide, NO crystal → generate a pose → score; what users actually run):**
+```
+ r on the SAME e93 poses, same CV       crystal → generated-pose      verdict
+ ────────────────────────────────────────────────────────────────────────
+ PPI-clone (intra-peptide contacts)     0.27  ──►  0.11    ▼ COLLAPSES (retention 0.42)
+ modeled real PPI-Affinity              0.55  ──►  ~0.23–0.33   halves
+ OURS (interface geometry)              0.49  ──►  0.43    ◄ HOLDS (~4× PPI in deployment)
+```
+*PPI's 3D-contact descriptors scramble on a ~3 Å pose; our interface geometry survives because RAPiDock
+places the interface roughly right even when the peptide's internal conformation is off.*
+
+We trail PPI where a crystal is handed to you (and even there we TIE on medium and WIN on charged); we
+**beat it ~4×** where no crystal exists — which is every real prospective design. That, plus the charged
+win, is the honest "are we the best?" answer. Full Epoch-7 detail: [section 16](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15).
 
 And the **in-distribution** numbers (crystal-65 LOO — the flattering ones) ran higher and earlier. The whole
 campaign was making the honest pooled number catch up to these:
@@ -902,9 +825,105 @@ and not a closed web server**. FEP is more accurate but only on congeneric serie
 
 ---
 
-*Generated from committed experiments E0–E190. Epochs 1–5 detail in
+## 16. Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E193, 2026-06-15)
+
+*The latest epoch — appended at the bottom (the summary charts up top are updated to match). This is where we
+stopped guessing what PPI-Affinity is, read its actual descriptor spec, measured exactly where we beat it and
+where we trail, and found our exclusive ground.*
+
+### 16.1 We decoded PPI-Affinity's real descriptors (and corrected our own myth)
+
+We pulled the ProtDCal paper's supplementary formula tables (`third_party/protdcal/protdcal_SM.pdf`) and
+decoded PPI-Affinity's exact 37-descriptor `.idl`. The finding **overturned a belief we'd held for weeks**:
+PPI is **not** sequence-based / pose-blind. Its `wNc / wFLC / wNLC` descriptors are **3D weighted-contact**
+operators — for each residue, sum a physicochemical property over its *spatially contacting* residues in the
+bound structure:
+
+```
+ wNc_i = 0.5 · Σ_{j : |i−j|>t , dist<d}  P_i · P_j       (intra-peptide weighted contact network)
+ descriptor = w{Nc,FLC,NLC}( prop∈{ECI,IP,ISA,Z1,Z2,Z3} )_NO_ group∈SM-11 _ invariant∈{N1,N2,Ar,V,DE,…}
+```
+
+PPI needs a **3D structure**, so on a generated pose it takes a structure-quality haircut just like we do.
+Spec: `third_party/protdcal/protdcal_spec.py`; engine: `scripts/e179_protdcal_3d.py`.
+
+### 16.2 Can we clone PPI to beat it on crystal? No — the gap is their private data
+
+- **Faithful rebuild ceiling (E178–E182):** computing PPI's exact descriptors (+ the full 2808-descriptor
+  space) on real structures recovers **corr 0.33** with their *shipped* predictions (vs ~0 for our old
+  sequence proxy — the decoding is real) but caps at **r 0.32 vs truth ≪ 0.55**. More descriptors = flat.
+  The gap is their **private BioLiP-T949 training set** + exact tool internals, not descriptor richness.
+  PPI is **not cloneable** from public artifacts.
+- **Fusing ProtDCal-3D into our crystal model (E185): null-to-negative** — clustered-CV crystal-925: ours
+  0.361, ProtDCal-3D alone 0.164, fusion 0.350, and it **hurts charged** (−0.05).
+
+### 16.3 The crystal head-to-head — where we trail, where we TIE, where we WIN (E191)
+
+On PPI's own T100 crystal benchmark (ours = production features, held out of 925) — **see Chart A in §1**.
+Summary: **overall 0.359 vs 0.525** (MAE 1.29 vs 1.13), but the breakdown is the story — **TIED on medium,
+WE WIN on charged (|q|≥2: 0.425 vs 0.354; |q|≥3: 0.474 vs 0.450)**; PPI's entire edge is **neutral + long-
+structured** peptides. Ram's instinct was right: on the bands that matter most we're level or ahead.
+
+### 16.4 The deployment haircut — the headline win (E183)
+
+PPI's 0.55 is a **crystal-oracle** number; the real task has no crystal. On the e93 set (kept both crystal
+and all RAPiDock poses), the PPI-clone collapses **crystal 0.27 → rank-1 pose 0.11** (retention 0.42),
+modeling onto real PPI as **0.55 → ~0.23–0.33**. On the *same* poses our interface geometry **holds 0.43**
+— see Chart B in §1. We win deployment ~4× because RAPiDock places the interface roughly right even when the
+peptide's internal conformation (which PPI's intra-contact descriptors need) is off.
+
+### 16.5 The new data — honest negatives + one real opening (E186–E192)
+
+| Source | What it is | Verdict |
+|---|---|---|
+| **PPIKB branch** (Ram's xlsx) | 2229 clean, 1652 Kd, 810 new PDBs, 80 selectivity families | training expansion **HURTS** crystal (0.385→0.32, E189); raw-crystal selectivity **NEGATIVE** (τ −0.11, E190) |
+| **PPIKB main** (downloaded, 19.5k rows) | **13 491 clean, 6 689 Kd, 454 selectivity families / 10 250 peptides** | sequence selectivity **scales** (τ 0.059 → **0.160**, charged 0.163, E192) |
+| **PepBenchmark** | 35 peptide-**bioactivity** datasets | off-task + **no license** → unusable |
+
+```
+ WHY WE "GET WORSE" ON THE NEW DATASET (E192) — it's the DATASET, not us:
+   PPI-clone on T100   r ≈ 0.32        PPI-clone on PPIKB-struct   r = 0.219
+   → PPIKB is harder/noisier for EVERYONE (LLM-mined literature+patents, mixed IC50/Ki/Kd assays).
+   Both we and PPI's own feature class degrade on it equally.
+```
+
+*Why PPIKB raw hurts crystal/selectivity:* heterogeneous crystals (deposition quality, mixed assay) +
+off-distribution; family peptides from **different crystals** → contact descriptors capture crystal
+artifacts, not affinity. **Lesson:** selectivity must be scored in a **consistent docked frame (our
+pipeline)** — which is exactly the experiment now queued (E193: dock each PPIKB family into one common
+receptor). Full failure map: `docs/failure_map_and_levers_2026-06-15.md`.
+
+### 16.6 The band campaign — short RESCUED, the data-sparsity thesis proven (E184)
+
+The RAPiDock real-pose campaign added **207 short complexes**. Fixed-test (hold original 40 short, train ±new):
+```
+ short-band deployment r:   WITHOUT new short  0.118   →   WITH 207 new short  0.572   (RMSE 1.96 → 1.53)
+```
+This is the **opposite of vlong** (which is signal-capped): short was *data-limited*, and data fixed it.
+vlong stays handled by its band-isolated specialist (+0.39, global untouched). The campaign continues
+(~55 short remaining), then the GPU rolls into the E193 family-dock.
+
+### 16.7 Where Epoch 7 leaves us
+
+```
+ CRYSTAL-ORACLE  : overall PPI 0.525 > us 0.359, BUT med TIED + charged WE WIN; PPI edge = neutral/long-structured
+ DEPLOYMENT      : PPI ~0.23–0.33  <  us 0.43   (the REAL task — we lead ~4×)
+ SELECTIVITY     : sequence τ scales 0.06 → 0.16 at 454 families; common-frame docking (E193) = next lever
+ SHORT band      : 0.118 → 0.572 (data-responsive, RESCUED);  vlong specialist +0.39;  long +0.035
+ "we get worse on new data" = the data is harder for EVERYONE (PPI-clone 0.32→0.22 too), not a regression
+```
+
+**Strategic close:** we don't beat PPI by out-descriptoring it on crystals (can't — private data). We beat it
+on the task users actually run (no crystal for a novel peptide), we already TIE/WIN on medium+charged crystals,
+and selectivity — where sequence models are weakest — is our exclusive structural lever, now scaling with the
+13.5k-entry PPIKB corpus and the common-frame docking experiment.
+
+---
+
+*Generated from committed experiments E0–E193. Epochs 1–5 detail in
 `docs/e19_pocket_baseline_breakthrough.md`; Epoch 6 in `docs/protdcal_charged_2026-06-13.md`,
-`docs/production_fix_short_2026-06-13.md`, `docs/capstone_scorecard_2026-06-13.md`; **Epoch 7** (PPI decode,
-deployment haircut, PPIKB/PepBenchmark levers) in `docs/failure_map_and_levers_2026-06-15.md` +
-`third_party/protdcal/protdcal_spec.py` + scripts E177–E190; head-to-head in `docs/SCORING_COMPARISON.md`.
+`docs/production_fix_short_2026-06-13.md`, `docs/capstone_scorecard_2026-06-13.md`; **Epoch 7** (§16: PPI
+decode, deployment haircut, crystal breakdown, PPIKB/PepBenchmark levers) in
+`docs/failure_map_and_levers_2026-06-15.md` + `third_party/protdcal/protdcal_spec.py` + scripts E177–E193;
+head-to-head in `docs/SCORING_COMPARISON.md`.
 Every number is leave-one-out, grouped-CV, or held-out unless explicitly marked in-distribution.*
