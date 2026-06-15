@@ -129,6 +129,15 @@ def _charge_complementarity(seq: str, poc_net: float) -> list[float]:
     return [float(pq * poc_net), float(abs(pq) * abs(poc_net)), float(abs(pq + poc_net))]
 
 
+def _pocket_protdcal(pocket_seq: str) -> list[float]:
+    """22 pocket-composition descriptors: the mean of each physicochemical scale over the binding-site
+    residues. Pose-independent and TRANSFERABLE — E205 found production was missing these; adding them lifts
+    T100 r 0.27→0.40 and flips charged to a win (0.33→0.50 vs PPI 0.35). Empty pocket → zeros."""
+    if not pocket_seq:
+        return [0.0] * len(_SCALES)
+    return [float(np.mean([sc.get(c, 0.0) for c in pocket_seq])) for sc in _SCALES.values()]
+
+
 @lru_cache(maxsize=4)
 def _load(artifact: str):
     try:
@@ -176,10 +185,14 @@ def build_feature_vector(geometry: dict[str, float], seq: str) -> np.ndarray:
     geom = [float(geometry.get(k, 0.0)) for k in GEOMETRY_KEYS]
     pdesc = _protdcal_descriptors(seq)
     compl = _charge_complementarity(seq, float(geometry.get("poc_net", 0.0)))
+    # Pocket-ProtDCal (E205): 22 binding-site composition descriptors, always appended after the 240-feature
+    # base (zeros if pocket_seq is absent). Pose-independent + transferable — the biggest come-back lever vs
+    # PPI. Legacy 240-feature artifacts trim this block off (n_exp), new 262-feature artifacts consume it.
+    pocket = _pocket_protdcal(str(geometry.get("pocket_seq", "")))
     # Restored anchor features are appended only when the pose's geometry dict carries them, so artifacts
     # trained without anchor (240-feat) and with anchor (243-feat) both consume the matching vector length.
     anchor = [float(geometry[k]) for k in ANCHOR_KEYS] if all(k in geometry for k in ANCHOR_KEYS) else []
-    vec = np.asarray(geom + pdesc + compl + [float(len(seq))] + anchor, dtype=float)
+    vec = np.asarray(geom + pdesc + compl + [float(len(seq))] + pocket + anchor, dtype=float)
     return np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
 
 
