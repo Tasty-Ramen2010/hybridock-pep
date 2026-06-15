@@ -1,203 +1,178 @@
-# Python bytecode
-__pycache__/
-*.py[cod]
-*.pyo
 
-# Distribution / packaging
-*.egg-info/
-*.egg
-dist/
-build/
-.eggs/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-.ruff_cache/
-
-# macOS resource forks + finder junk (Windows mount artifacts too)
-.DS_Store
-._*
-**/._*
-**/.DS_Store
-*:Zone.Identifier
-**/*:Zone.Identifier
-
-# Run outputs — never committed; only tests/fixtures/ contains committed PDB/data
-runs/
-raw/
-
-# Jupyter checkpoints
-.ipynb_checkpoints/
-*.ipynb_checkpoints/
-
-# Large binary downloads (ADFRsuite, RAPiDock tarballs)
-*.tar.gz
-*.tar.gz.Zone.Identifier
-*.run
-
-# AutoDock map files (generated at runtime, can be large)
-*.map
-*.fld
-*.gpf
-*.glg
-
-# Secrets / credentials
-.env
-*.pem
-*.key
-secrets.json
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-Thumbs.db
-
-# ADCP run directories (local experiment outputs, not pipeline artifacts)
-adcp_*/
-
-# Cached dot-file NumPy arrays (SO3 / scoring runtime caches)
-.*.npy
-
-# Development tooling — internal planning and Claude Code config
-.planning/
-.claude/
-CLAUDE.md
-
-# Backup and working data files (keep only canonical data/ files)
-data/calibration_*backup*.json
-data/calibration_backup*.json
-data/training_scores_*.json
-data/pdbs/abcd.pdb
-data/pdbs/pfldh_tetramer_peptide_complex*.pdb
-
-# One-off working scripts with machine-specific paths
-scripts/prep_complex_openmm.py
-
-# RAPiDock benchmark datasets — large binary structure files (~1.5 GB total)
-# not committed to git; reproduce from manifests using:
 #   python scripts/download_from_manifests.py
-# The manifests, raw_pdbs (training complexes), and metadata are committed.
-datasets/*/structures/
-datasets/cache/
-datasets/training_expanded_structures/
-
-# These are explicitly allowed (override the patterns above via negation):
-# - datasets/raw_pdbs/         (18 MB gold-standard training PDBs, needed for Tier 0.4)
+# (multi-GB ESM caches, RAPiDock fine-tuning datasets, train_models/ checkpoints)
+# - datasets/*.txt / *.md      (metadata, bad-entry lists, validation reports)
 # - datasets/*/manifest.csv    (download manifests — recreate structure dirs on new machine)
 # - datasets/pepset/           (held-out test set metadata)
-# - datasets/*.txt / *.md      (metadata, bad-entry lists, validation reports)
-
+# - datasets/raw_pdbs/         (18 MB gold-standard training PDBs, needed for Tier 0.4)
+# 185 dirs of PepSet crystal poses; manifest-driven
+# 382 PDBs, large; manifest-driven
+# ADCP run directories (local experiment outputs, not pipeline artifacts)
+# AutoDock map files (generated at runtime, can be large)
+# Backup and working data files (keep only canonical data/ files)
+# CLI/library. Keep on disk locally; do not redistribute.
+# Cached dot-file NumPy arrays (SO3 / scoring runtime caches)
+# Development tooling — internal planning and Claude Code config
+# Distribution / packaging
+# Editor
+# Experimental scripts for RAPiDock fine-tuning + confidence-model training.
+# Jupyter checkpoints
+# Large binary downloads (ADFRsuite, RAPiDock tarballs)
+# Local clones of external repos (not redistributed here)
+# Logs — all transient
+# OS
+# Old binary training cache shouldn't have been in data/pdbs/
+# One-off working scripts with machine-specific paths
+# PEPBI Dryad dataset (51MB, external)
+# Python bytecode
+# RAPiDock benchmark datasets — large binary structure files (~1.5 GB total)
 # RAPiDock copies (large external repo — not redistributed)
-third_party/RAPiDock/
-third_party/RAPiDock_finetuned/
-
+# RAPiDock-Reloaded/ = local working clone; canonical copy is at third_party/RAPiDock/
+# Run outputs — never committed; only tests/fixtures/ contains committed PDB/data
+# Secrets / credentials
+# Supplementary material (papers + Excel tables) — leave on disk, don't ship
+# Testing
+# The manifests, raw_pdbs (training complexes), and metadata are committed.
+# These are explicitly allowed (override the patterns above via negation):
+# These belong to a separate research campaign, not the shipping HybriDock-Pep
+# Top-level scratch
 # Training pipeline state — never committed
-# (multi-GB ESM caches, RAPiDock fine-tuning datasets, train_models/ checkpoints)
-data/v6_*.pt
+# Virtual environments
+# hybridock-pep/ = local clone of Tasty-Ramen2010/hybridock-pep (public GitHub mirror)
+# macOS resource forks + finder junk (Windows mount artifacts too)
+# not committed to git; reproduce from manifests using:
+**/*:Zone.Identifier
+**/.DS_Store
+**/._*
+*.chk
+*.egg
+*.egg-info/
+*.fld
+*.glg
+*.gpf
+*.ipynb_checkpoints/
+*.key
+*.map
+*.pdf
+*.pem
+*.pka
+*.py[cod]
+*.pyo
+*.run
+*.swo
+*.swp
+*.tar.gz
+*.tar.gz.Zone.Identifier
+*.xls
+*.xlsx
+*:Zone.Identifier
+.*.npy
+.DS_Store
+._*
+.claude/
+.coverage
+.eggs/
+.env
+.idea/
+.ipynb_checkpoints/
+.mypy_cache/
+.p.npy
+.planning/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.vscode/
+CLAUDE.md
+Complex.zip
+RAPiDock-Reloaded/
+Thumbs.db
+__pycache__/
+adcp_*/
+build/
+complex_v2/
 data/*_esm_cache.pt
-data/poses_raw_graph_v1.pt
 data/_backups/
-data/confidence_training_*.csv
-data/inference_benchmark_set.csv
-data/sheet_complexes_peppc.csv
-data/training_sheet_*.csv
 data/benchmark_very_long.csv
+data/biolip/
+data/calibration_*backup*.json
+data/calibration_backup*.json
+data/confidence_training_*.csv
+data/drive_pull/
+data/e180_protdcal3d.jsonl
+data/e199_compl.jsonl
+data/e224_esm_recep.npz
+data/inference_benchmark_set.csv
+data/pdbbind_peptides.jsonl
+data/pdbs/abcd.pdb
+data/pdbs/pfldh_tetramer_peptide_complex*.pdb
+data/pdbs/poses_raw_graph_v1.pt
+data/poses_raw_graph_v1.pt
+data/ppb_affinity/
+data/ppikb_clean.jsonl
+data/ppikb_features.jsonl
+data/ppikb_main_clean.jsonl
+data/rcsb_full/
+data/sfree_peptides/
+data/sfree_perres.jsonl
+data/sfree_proto.jsonl
+data/sfree_results.jsonl
+data/sheet_complexes_peppc.csv
+data/skempi_v2.csv
+data/training_scores_*.json
+data/training_sheet_*.csv
+data/v6_*.pt
+datasets/*/structures/
+datasets/RefPepDB-RecentSet/
+datasets/cache/
+datasets/cases/
+datasets/family_targeted/
 datasets/frag_raw_data_final/
 datasets/nat_raw_data_final/
-datasets/RefPepDB-RecentSet/
-datasets/cases/
+datasets/pdb_*/
+datasets/pepset/
+datasets/ppii_*/
+datasets/raw_pdbs/
+datasets/training_expanded_structures/
 datasets/training_formatted/
 datasets/training_formatted_peppc/
 datasets/wang_pepset/
-datasets/ppii_*/
-datasets/family_targeted/
-datasets/pdb_*/
-# 382 PDBs, large; manifest-driven
-datasets/raw_pdbs/
-# 185 dirs of PepSet crystal poses; manifest-driven
-datasets/pepset/
-train_models/
-memory/
-tmp_inference_test.py
-
-# Supplementary material (papers + Excel tables) — leave on disk, don't ship
-*.pdf
-*.xls
-*.xlsx
+dist/
+docs/Affinity Dataset(main).xlsx
+docs/PepScorerRMSD/
 doi_*.zip
-
-# Logs — all transient
+doi_10_5061_dryad_wstqjq2wk__v20250617.zip
+env/
+htmlcov/
+hybridock-pep/
 logs/
-
-# Top-level scratch
-.p.npy
-
-# Experimental scripts for RAPiDock fine-tuning + confidence-model training.
-# These belong to a separate research campaign, not the shipping HybriDock-Pep
-# CLI/library. Keep on disk locally; do not redistribute.
+memory/
+raw/
+runs/
+runs/e93_realpose_campaign/
 scripts/analyze_very_long_sampling.py
 scripts/analyze_vina_ranking.py
 scripts/build_benchmark30.py
 scripts/build_confidence_training_csv.py
 scripts/chain_training_*.sh
-scripts/launch_v*.sh
-scripts/run_v*.sh
 scripts/compare_rapidock_vs_finetuned.py
+scripts/confidence_exp_e.py
 scripts/confidence_pipeline_orchestrator.py
 scripts/encoder_audit.py
 scripts/forensic_*.py
 scripts/generate_confidence_poses.py
+scripts/launch_v*.sh
 scripts/mega_benchmark_analysis.py
+scripts/prep_complex_openmm.py
 scripts/rank_comparison_vina.py
 scripts/reranking_diagnostic.py
+scripts/run_v*.sh
 scripts/score_bench300_poses.py
 scripts/score_best_poses_vina.py
 scripts/train_confidence_v2.py
 scripts/update_training_excel.py
-scripts/confidence_exp_e.py
-# Old binary training cache shouldn't have been in data/pdbs/
-data/pdbs/poses_raw_graph_v1.pt
-
-# Local clones of external repos (not redistributed here)
-# hybridock-pep/ = local clone of Tasty-Ramen2010/hybridock-pep (public GitHub mirror)
-hybridock-pep/
-# RAPiDock-Reloaded/ = local working clone; canonical copy is at third_party/RAPiDock/
-RAPiDock-Reloaded/
-
-
-# PEPBI Dryad dataset (51MB, external)
-doi_10_5061_dryad_wstqjq2wk__v20250617.zip
-data/skempi_v2.csv
-Complex.zip
-complex_v2/
-*.chk
-*.pka
-docs/PepScorerRMSD/
-runs/e93_realpose_campaign/
-data/biolip/
-data/drive_pull/
-data/pdbbind_peptides.jsonl
-data/sfree_peptides/
-data/sfree_results.jsonl
-data/sfree_perres.jsonl
-data/sfree_proto.jsonl
-data/ppikb_features.jsonl
-data/e180_protdcal3d.jsonl
-data/rcsb_full/
-data/ppikb_clean.jsonl
-data/ppikb_main_clean.jsonl
-docs/Affinity Dataset(main).xlsx
-data/e199_compl.jsonl
-data/e224_esm_recep.npz
+secrets.json
+third_party/RAPiDock/
+third_party/RAPiDock_finetuned/
+tmp_inference_test.py
+train_models/
+venv/
