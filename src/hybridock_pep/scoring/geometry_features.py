@@ -122,6 +122,10 @@ def _pocket_descriptors(cx_model, pep_chain: str, radius: float = 8.0) -> dict |
         poc_f_arom=sum(x in _AROM for x in poc) / n,
         poc_net=(sum(x in _POS for x in poc) - sum(x in _NEG for x in poc)) / n,
         poc_eis=float(np.mean([_EISENBERG.get(a, 0.0) for a in names])),
+        # Pocket sequence (1-letter, pose-independent composition of binding-site residues). Feeds the
+        # affinity model's pocket-ProtDCal descriptors (E205: +0.13 r on T100, wins charged) — a strong,
+        # transferable feature production was missing.
+        pocket_seq="".join(names),
     )
 
 
