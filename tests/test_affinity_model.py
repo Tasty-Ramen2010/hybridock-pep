@@ -60,3 +60,24 @@ def test_predict_returns_float_or_none() -> None:
 def test_missing_artifact_is_graceful() -> None:
     """A non-existent artifact path must not raise — pooled ΔG is an optional annotation."""
     assert predict_affinity(_geom(), "ETFSDLWKLLPE", artifact="/nonexistent/model.joblib") is None
+
+
+def test_vlong_router_only_affects_vlong() -> None:
+    """The crystal artifact's vlong router (E216) must fire only for L>=17: a short peptide's prediction is
+    unchanged whether or not the router exists; a vlong peptide may differ. Skips if artifact absent."""
+    from pathlib import Path
+
+    from hybridock_pep.scoring.affinity_model import _CRYSTAL_ARTIFACT, _load
+
+    if not Path(_CRYSTAL_ARTIFACT).exists():
+        return
+    _model, _fo, _sr, router = _load(str(_CRYSTAL_ARTIFACT))
+    if router is None:
+        return  # artifact predates the router — nothing to assert
+    g = dict(_geom())
+    g["pocket_seq"] = "LIWFYACDEKR"
+    short = predict_affinity(g, "ACDEFG", artifact=_CRYSTAL_ARTIFACT)
+    vlong = predict_affinity(g, "ACDEFGHIKLMNPQRSTVW", artifact=_CRYSTAL_ARTIFACT)  # 19-mer
+    assert short is not None and vlong is not None
+    assert np.isfinite(short) and np.isfinite(vlong)
+    assert router[2] == 17  # threshold

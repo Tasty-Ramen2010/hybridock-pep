@@ -144,13 +144,18 @@ def _load(artifact: str):
         import joblib
         bundle = joblib.load(artifact)
         # size_regs: {geometry_index: [coef, intercept]} for the length→size-feature residualisation.
-        return bundle["model"], bundle.get("feature_order"), bundle.get("size_regs")
+        # Optional vlong router (E216): a separate sub-model + size_regs used ONLY for L>=vlong_threshold
+        # (PPIKB-vlong-augmented; lifts crystal vlong 0.06→0.17 with non-vlong byte-identical to main).
+        router = None
+        if bundle.get("vlong_model") is not None:
+            router = (bundle["vlong_model"], bundle.get("vlong_size_regs"), int(bundle.get("vlong_threshold", 17)))
+        return bundle["model"], bundle.get("feature_order"), bundle.get("size_regs"), router
     except FileNotFoundError:
         logger.warning("Affinity model: artifact not found at %s — pooled ΔG skipped", artifact)
-        return None, None, None
+        return None, None, None, None
     except Exception as exc:  # noqa: BLE001 — never break the pipeline on an optional annotation
         logger.warning("Affinity model: failed to load %s (%s) — pooled ΔG skipped", artifact, exc)
-        return None, None, None
+        return None, None, None, None
 
 
 def _apply_size_fix(x: np.ndarray, seq_len: int, size_regs: dict | None) -> np.ndarray:
@@ -209,9 +214,13 @@ def predict_affinity(geometry: dict[str, float], seq: str, artifact: Path | str 
     """
     if not seq:
         return None
-    model, _, size_regs = _load(str(artifact or _DEFAULT_ARTIFACT))
+    model, _, size_regs, router = _load(str(artifact or _DEFAULT_ARTIFACT))
     if model is None:
         return None
+    # vlong router (E216): for peptides at/above the threshold, use the PPIKB-vlong-augmented sub-model with
+    # its own size_regs; below threshold the main model is used (byte-identical to the non-routed artifact).
+    if router is not None and len(seq) >= router[2]:
+        model, size_regs = router[0], router[1]
     x = build_feature_vector(geometry, seq)
     # Size-confound fix (E203): residualise size-geometry vs length before predicting (no-op for legacy
     # artifacts without size_regs). Applied to the stable geometry block, before any anchor trim.
