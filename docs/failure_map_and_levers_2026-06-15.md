@@ -52,6 +52,21 @@ license** (null) → fails our OSI/MIT requirement (CLAUDE.md §2.6). Verdict: i
 
 ---
 
+### 2.3 PPIKB main (downloaded full DB, 19.5k rows) — selectivity SCALES, dataset is just harder
+
+The full PPIKB (`Affinity Dataset(main).xlsx`, 13 491 clean entries, 6 689 Kd, **454 selectivity families /
+10 250 peptides**) flips the small-sample selectivity verdict:
+```
+ sequence within-family τ:   80-family branch +0.059   →   454-family main +0.160   (charged +0.163, 65% fams >0)
+```
+Scale unlocks sequence selectivity from "blind" to "modestly real." And the "why we get worse on a new
+dataset" question is answered cleanly — **it's the dataset, not us**:
+```
+ PPI-clone (their own feature class) on T100 r≈0.32   →   on PPIKB-structured r=0.219
+```
+PPIKB is LLM-mined from literature+patents with mixed IC50/Ki/Kd assays → noisier labels; **both** we and
+PPI's descriptors degrade on it equally. Not a regression on our side.
+
 ## 3. The brainstorm — what WOULD work, ranked by leverage
 
 1. **Selectivity in a CONSISTENT frame (the real win).** The selectivity signal that *does* transfer is
