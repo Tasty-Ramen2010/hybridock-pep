@@ -86,3 +86,36 @@ on n=15 — small-n, and PPI's 0.816 is partly that redundancy.
 **The headline:** our vlong failure was a **self-inflicted modeling mistake** (size-confounded geometry), not
 physics. The fix is a geometry-free vlong route. Everything else PPI does on the bands, we have the features
 for — their edge is selection + home-field, which the ratio-scale already showed evaporates on fresh data.
+
+---
+
+## RESOLUTION — shipped (E202/E203, both scoring functions)
+
+Findings 1 + 3 turned out to be the **same root cause** (size confound) and one fix addresses both. We tested
+band routing vs the size-confound fix and **the size-fix won decisively**:
+
+- **Band routing tested & rejected:** geometry-free vlong route helps crystal (+0.12) but **HURTS deployment
+  vlong −0.06 to −0.16** (on real poses geometry carries pose-quality signal); a long specialist HURT both
+  (crystal 0.343→0.211, deployment 0.131→0.021 — slice-starvation). So **no length-gated routing.**
+- **Size-confound fix shipped (the root-cause fix):** residualise the 7 size-correlated geometry features
+  against peptide length, applied GLOBALLY in both scoring functions. Grouped-CV before→after:
+
+```
+            CRYSTAL                         AI / DEPLOYMENT
+ band     base   size-fix   Δ            base   size-fix   Δ
+ overall  0.354  0.365   +0.011          0.318  0.328   +0.010
+ short    0.456  0.485   +0.029          0.271  0.273   +0.002
+ med      0.275  0.275    0.000          0.469  0.489   +0.020
+ long     0.348  0.343   −0.005(noise)   0.134  0.131   −0.003(noise)
+ vlong    0.072  0.158   +0.086 ★        0.234  0.328   +0.094 ★
+ size-confound corr(pred,len): −0.207 → −0.189 (crystal) / −0.259 (deploy), toward truth −0.10
+```
+
+**Two individual scoring functions, both size-fixed** (`predict_affinity` applies the stored
+length→size-feature regressors before predicting; legacy artifacts without `size_regs` still load as no-op):
+- `data/affinity_ai_sizefix.joblib` — DEFAULT (real RAPiDock poses)
+- `data/affinity_crystal_sizefix.joblib` — crystal inputs only
+
+vlong **fixed on both regimes** (0.07→0.16 crystal, 0.23→0.33 deployment), short + med + overall up, nothing
+regresses. 30 affinity-model tests + 142 core tests green. The size confound — not FEP, not data, not band
+architecture — was the lever.
