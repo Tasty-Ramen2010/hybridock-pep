@@ -188,6 +188,32 @@ standard BioLiP-internal redundancy that inflates every model evaluated on its o
 effect that inflated *our* old crystal-65 numbers). On a level field PPI is a ~0.36 model, we are ~0.25–0.36
 depending on slice, and we win charged + deployment + selectivity.
 
+## 4h. Ram's structured-reward + hydrophobic-efficiency-penalty (E200) — calibrated, both NEGATIVE
+
+Two more physically-motivated ideas, tested rigorously on crystal-925:
+
+**(A) Structured-fraction reward** ((helix+sheet)/len → stronger binding via pre-organisation entropy):
+overall r +0.330→+0.332, neutral −0.003, charged +0.011 — **flat.** Already captured by `org_density` +
+helix/sheet features; no new signal.
+
+**(B) Hydrophobic-incompatibility EFFICIENCY penalty** (Ram's key idea: mismatch → repulsion → scale down
+|ΔG|, −8→−6). **The gate fails before we even calibrate:**
+```
+ corr(signed residual pred−y, mismatch):   want NEGATIVE (overpredict when mismatch high)
+   iface_hyd_mismatch      +0.008   global|pep−pock|hyd  +0.045
+   directional(pock−pep)+  +0.055   iface_hyd_compl      +0.009     ← all ≈ 0, none negative
+ efficiency multiplier pred×(1−λ·mismatch):  λ=0 best; every λ>0 monotonically WORSE (r 0.33→0.03)
+```
+**Why the sound intuition doesn't pay:** the model **already uses** hydrophobic information (`bsa_hyd`,
+`poc_f_hyd`, peptide-hydrophobicity in the 220 seq descriptors), so it already predicts weaker binding for
+incompatible pairs. The *residual* — what's left after the model — has **no remaining hydrophobic-mismatch
+signal** to correct. The over-predicted cases in §4d are a few large-polar-pocket anecdotes (FEP physics),
+not a systematic mismatch effect. Applying a mismatch-proportional penalty just adds noise.
+
+*Take-away: hydrophobic compatibility is real physics, but our model captures it up front; there is no
+second-pass efficiency correction to extract. The neutral gap remains affinity-extreme calibration + polar-
+pocket FEP physics (§4d), not a hydrophobic-matching term.*
+
 ## 5. One-line verdict
 
 PPI's neutral/long/vlong crystal edge is **home-field, not skill** — proven by specialists failing, gated
