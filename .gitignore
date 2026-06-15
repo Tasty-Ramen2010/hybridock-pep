@@ -199,3 +199,4 @@ data/rcsb_full/
 data/ppikb_clean.jsonl
 data/ppikb_main_clean.jsonl
 docs/Affinity Dataset(main).xlsx
+data/e199_compl.jsonl
