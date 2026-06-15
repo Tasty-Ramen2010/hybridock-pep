@@ -176,3 +176,4 @@ third_party/RAPiDock_finetuned/
 tmp_inference_test.py
 train_models/
 venv/
+data/e225_fpocket.jsonl
