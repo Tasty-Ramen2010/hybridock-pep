@@ -193,3 +193,7 @@ data/sfree_peptides/
 data/sfree_results.jsonl
 data/sfree_perres.jsonl
 data/sfree_proto.jsonl
+data/ppikb_features.jsonl
+data/e180_protdcal3d.jsonl
+data/rcsb_full/
+data/ppikb_clean.jsonl
