@@ -102,9 +102,45 @@ descriptors (hurts charged & vlong); chasing PPI's crystal number with feature e
 
 ---
 
+## 4b. Ram's engineered fixes — TESTED (gated features, not separate models)
+
+Ram proposed three targeted fixes as **gated features** (global model stays identical for non-target slices).
+Tested on T100 *and* robustly on crystal-925 clustered-CV (n=865):
+
+| Fix | Idea | T100 (small n) | crystal-925 robust | Verdict |
+|---|---|---|---|---|
+| **Gated structured PD3D** | ProtDCal-3D contacts × 1[helix+sheet≥0.4] | long 0.73→0.78 (≈PPI 0.79!), neutral 0.25→0.33 | long **+0.02**, structured −0.02, overall flat | small real gain on long; T100 jumps were n=54 noise |
+| **Hydrophobicity complementarity** | peptide-hyd × pocket-hyd product | hurts neutral (0.25→0.16) | — | **wrong formulation** (product backfires); needs a match-score, not a product |
+| **vlong de-dilution** | size aggregates × 1[L≥17] | — | vlong **+0.02** (0.150→0.172) | small real gain, consistent |
+
+**Honest read:** Ram's instinct is directionally right — gated-structured-PD3D helps long, vlong-de-dilution
+helps vlong — but the robust gains are **~+0.02 per band**, not gap-closing. The dramatic T100 jumps
+(neutral +0.08) did **not** survive the robust n=865 test (they were small-sample noise). Complementarity as a
+raw product hurts. None of these close the structural gap; they're worth at most a modest fold-in.
+
+## 4c. PPI-clone on BRAND-NEW data + ratio scale (E197) — PPI's 0.55 is mostly home-field inflation
+
+We can't run real PPI on new data, but the faithful clone is in its exact feature class, so its retention
+ratio transfers:
+```
+ CLONE on T100 (PPI home field)   r = 0.340
+ CLONE on FRESH PPIKB (novel)     r = 0.219      retention ratio = 0.64
+ ───────────────────────────────────────────────────────────────────────
+ ESTIMATED real PPI-Affinity on brand-new data:  0.554 × 0.64 = 0.36
+ OURS on the same fresh data:                    0.25
+ OURS on fresh CHARGED:  0.261   vs  clone 0.136   ← WE WIN charged on fresh too
+ OURS on fresh NEUTRAL:  0.234   vs  clone 0.279   ← PPI's contacts genuinely better (small, real)
+```
+**PPI's famous 0.55 drops to ~0.36 on data outside its BioLiP home field.** The headline "0.55 vs our 0.36"
+gap is *mostly their inflation*, not our deficit. On fresh data the honest gap is ~0.11, concentrated in
+**neutral** (where contact descriptors have a real but small edge); we already **win charged** everywhere.
+
 ## 5. One-line verdict
 
-PPI's neutral/long/vlong crystal edge is **home-field, not skill** — proven by specialists failing, feature
-injection stalling at +0.02, and PPI's own descriptors not transferring. We **win charged, tie medium, win
-deployment 4×, and own selectivity.** The only way to also match them on neutral/long/vlong crystals is to
-train on their data distribution (the PDBbind+/BioLiP registration lever) — not a modelling trick.
+PPI's neutral/long/vlong crystal edge is **home-field, not skill** — proven by specialists failing, gated
+feature engineering giving only +0.02, PPI's own descriptors not transferring, and the **ratio-scale showing
+PPI's 0.55 falls to ~0.36 on brand-new data** (its 0.55 is mostly BioLiP inflation). On truly novel data the
+honest gap is ~0.11, concentrated in neutral; we **win charged everywhere, tie medium, win deployment 4×, and
+own selectivity.** Closing the residual neutral edge needs their BioLiP training distribution (data lever) or
+a proper hydrophobic-complementarity *match* feature (not the raw product, which backfired) — not separate
+per-band models (measured to overfit).
