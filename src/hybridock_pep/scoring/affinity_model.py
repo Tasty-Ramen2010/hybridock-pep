@@ -33,6 +33,12 @@ GEOMETRY_KEYS = [
 # Appended only when present in the geometry dict (i.e. compute_anchor_features was run for the pose) so
 # older 240-feature artifacts keep working unchanged.
 ANCHOR_KEYS = ["max_burial", "buried_inert", "pro_run"]
+# Size-confound fix (E201/E202/E203): the model over-relied on peptide length (corr(pred,len)=−0.21 vs
+# truth −0.10), which sabotaged vlong (geometry features are size-driven and band-miscalibrated). These 7
+# geometry features carry the size signal; the size-fix artifacts store length→feature regressors and
+# residualise them at predict time, fixing vlong on BOTH crystal (0.07→0.16) and deployment (0.23→0.33).
+SIZE_GEO_KEYS = ["poc_n", "bsa_hyd", "sasa_hb", "sasa_sb", "mj_contact", "mean_burial", "strength_bur"]
+SIZE_IDX = [GEOMETRY_KEYS.index(k) for k in SIZE_GEO_KEYS]
 _AA = "ACDEFGHIKLMNPQRSTVWY"
 _POS, _NEG = set("KR"), set("DE")
 _KD = {"A": 1.8, "R": -4.5, "N": -3.5, "D": -3.5, "C": 2.5, "Q": -3.5, "E": -3.5, "G": -0.4, "H": -3.2,
@@ -68,13 +74,16 @@ _SCALES = {
     "sidechain_vol": {"A": 27, "R": 105, "N": 58, "D": 52, "C": 44, "Q": 80, "E": 73, "G": 0, "H": 79, "I": 93, "L": 93, "K": 100, "M": 94, "F": 115, "P": 41, "S": 29, "T": 51, "W": 145, "Y": 117, "V": 67},
 }
 
-# The pipeline scores RAPiDock-generated poses, so the DEFAULT is the real-pose-trained model
-# (data/affinity_realpose.joblib, grouped-CV r≈0.55 on real poses). The crystal-trained model
-# (affinity_pooled_prodn.joblib, r≈0.53 on crystal) COLLAPSES on real poses (E152 "AI haircut":
-# geometry features are pose-fragile; org_density/bsa_hyd/arom_cc shift crystal→RAPiDock). Use the
-# crystal model only when scoring crystal structures.
-_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_realpose.joblib"
-_CRYSTAL_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_pooled_prodn.joblib"
+# Two individual scoring functions (E203), both size-confound-corrected:
+#   - AI / deployment (DEFAULT): trained on real RAPiDock poses (data/affinity_ai_sizefix.joblib). The
+#     pipeline scores generated poses, so this is the default; the crystal model COLLAPSES on real poses
+#     (E152 "AI haircut": geometry features are pose-fragile).
+#   - CRYSTAL: trained on crystal-925 (data/affinity_crystal_sizefix.joblib) — use only for crystal inputs.
+# Both apply the size-fix (residualise size-geometry vs length) which fixed vlong on both regimes
+# (crystal 0.07→0.16, deployment 0.23→0.33) and lifted short/overall (E203). Legacy artifacts
+# (affinity_realpose.joblib / affinity_pooled_prodn.joblib) lack size_regs and still load (no residualise).
+_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_ai_sizefix.joblib"
+_CRYSTAL_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_crystal_sizefix.joblib"
 
 
 def _approx_pI(seq: str) -> float:
@@ -124,13 +133,31 @@ def _load(artifact: str):
     try:
         import joblib
         bundle = joblib.load(artifact)
-        return bundle["model"], bundle.get("feature_order")
+        # size_regs: {geometry_index: [coef, intercept]} for the length→size-feature residualisation.
+        return bundle["model"], bundle.get("feature_order"), bundle.get("size_regs")
     except FileNotFoundError:
         logger.warning("Affinity model: artifact not found at %s — pooled ΔG skipped", artifact)
-        return None, None
+        return None, None, None
     except Exception as exc:  # noqa: BLE001 — never break the pipeline on an optional annotation
         logger.warning("Affinity model: failed to load %s (%s) — pooled ΔG skipped", artifact, exc)
-        return None, None
+        return None, None, None
+
+
+def _apply_size_fix(x: np.ndarray, seq_len: int, size_regs: dict | None) -> np.ndarray:
+    """Residualise the size-correlated geometry features against peptide length (E203 size-fix).
+
+    Removes the length-predictable component of each size-geometry feature so the model cannot over-rely on
+    size. No-op for legacy artifacts that carry no ``size_regs``. The geometry block sits at indices 0..15,
+    unaffected by the optional trailing anchor block, so this is safe before any length trim.
+    """
+    if not size_regs:
+        return x
+    x = x.copy()
+    for j, (coef, intercept) in size_regs.items():
+        j = int(j)
+        if j < x.shape[0]:
+            x[j] = x[j] - (coef * float(seq_len) + intercept)
+    return x
 
 
 def build_feature_vector(geometry: dict[str, float], seq: str) -> np.ndarray:
@@ -168,10 +195,13 @@ def predict_affinity(geometry: dict[str, float], seq: str, artifact: Path | str 
     """
     if not seq:
         return None
-    model, _ = _load(str(artifact or _DEFAULT_ARTIFACT))
+    model, _, size_regs = _load(str(artifact or _DEFAULT_ARTIFACT))
     if model is None:
         return None
     x = build_feature_vector(geometry, seq)
+    # Size-confound fix (E203): residualise size-geometry vs length before predicting (no-op for legacy
+    # artifacts without size_regs). Applied to the stable geometry block, before any anchor trim.
+    x = _apply_size_fix(x, len(seq), size_regs)
     # Backward-compatible feature length: build_feature_vector appends the 3 anchor features when the pose
     # carries them, producing 243. Models trained without anchor expect 240 — trim the trailing anchor block
     # so old (240) and anchor (243) artifacts both work regardless of what the driver computed.
