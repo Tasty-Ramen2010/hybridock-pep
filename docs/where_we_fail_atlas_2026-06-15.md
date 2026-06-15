@@ -135,6 +135,59 @@ ratio transfers:
 gap is *mostly their inflation*, not our deficit. On fresh data the honest gap is ~0.11, concentrated in
 **neutral** (where contact descriptors have a real but small edge); we already **win charged** everywhere.
 
+## 4d. WHICH neutral complexes we fail on (E198 deep-dive, crystal-925 neutral n=508)
+
+Per-complex error vs complex properties — what drives our neutral failures:
+```
+ corr(|error|, property):
+   affinity magnitude |y|   +0.236   ← #1: we fail on EXTREME-affinity neutral (regression-to-mean)
+   pocket size (poc_n)      +0.178   ← #2: big pockets = harder
+   pocket hydrophobicity    −0.165   ← we do BETTER on hydrophobic pockets (simple burial); WORSE on polar
+   hyd_MISMATCH (mean)      +0.035   ← weak: simple mean-hyd mismatch is NOT the driver
+```
+Two distinct failure modes in the worst-predicted neutral complexes:
+- **Strong structured (β-sheet) binders we UNDER-predict** (1jp5 −12.6→−6.9; 6d40, 1sfi, 5u98; sheet≈0.4):
+  the model regresses to the mean, can't reach the extreme-strong values.
+- **Hydrophilic peptides in polar/large pockets we OVER-predict** (3fn0 −6.0→−10.7; 3qfd, 4pge; pep_hyd≈−1):
+  specific H-bond/electrostatic networks (FEP-only physics) we can't capture from a static snapshot.
+
+Sub-binning by affinity magnitude: weak-binder neutral r=0.241, mid r=0.056, **strong-binder r=0.474 but
+mean|err| 1.96** — the strong tail is where the absolute error concentrates.
+
+## 4e. The proper interface complementarity feature (E199) — built, marginal
+
+Ram's "match-score, not product." Built the *physically correct* INTER-chain version: over interface contacts
+(Cβ–Cβ < 8 Å), Σ property products across the peptide↔pocket interface (hyd, shape, aromatic complementarity +
+mismatch + contact count). Cached `data/e199_compl.jsonl`.
+```
+ neutral single-feature |r|:  n_contacts −0.165 (strongest) · hyd_compl +0.069 · hyd_mismatch −0.047
+ clustered-CV Δ:  neutral +0.010 · long +0.011 · overall −0.002 · charged −0.020
+```
+**+0.01 on neutral** — the right physics, and unlike the raw product it doesn't backfire, but it's marginal.
+**Conclusion: the neutral gap is NOT a hydrophobic-complementarity gap.** It's affinity-extreme calibration
++ polar-pocket specific interactions (FEP-only) — largely irreducible with cheap static features.
+
+## 4f. The RAPiDock-pose (deployment) scoring + PPI-clone scaled (E183, restated)
+
+The number on RAPiDock-generated poses — what a user actually gets, with PPI's clone ratio-scaled:
+```
+ PPI-clone on RAPiDock rank-1 poses:  crystal 0.271 → pose 0.113   (retention 0.42)
+ scaled to real PPI-Affinity:         0.554 → 0.23 (ratio) / 0.33 (pred-corr)
+ OURS on the same RAPiDock poses:     0.43      ← ~4× the scaled PPI deployment number
+```
+
+## 4g. IS PPI OVERFIT? — Yes, partially (two independent signatures)
+
+1. **Redundancy signature:** PPI scores **0.590 on the BioLiP-only T100** (most redundant with its T949
+   training) vs **0.454 on the PDBbind-overlap T100** (less redundant) — **+0.136 better where the test
+   overlaps its training distribution**. A generalising model would be flat across the two halves.
+2. **Ratio-scale:** PPI's 0.55 → ~0.36 on brand-new data (§4c).
+
+So **~0.15–0.19 of PPI's 0.55 is train/test redundancy + home-field inflation.** It is not fraud — it's the
+standard BioLiP-internal redundancy that inflates every model evaluated on its own distribution (the same
+effect that inflated *our* old crystal-65 numbers). On a level field PPI is a ~0.36 model, we are ~0.25–0.36
+depending on slice, and we win charged + deployment + selectivity.
+
 ## 5. One-line verdict
 
 PPI's neutral/long/vlong crystal edge is **home-field, not skill** — proven by specialists failing, gated
