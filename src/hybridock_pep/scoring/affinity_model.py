@@ -74,15 +74,16 @@ _SCALES = {
     "sidechain_vol": {"A": 27, "R": 105, "N": 58, "D": 52, "C": 44, "Q": 80, "E": 73, "G": 0, "H": 79, "I": 93, "L": 93, "K": 100, "M": 94, "F": 115, "P": 41, "S": 29, "T": 51, "W": 145, "Y": 117, "V": 67},
 }
 
-# Two individual scoring functions (E203), both size-confound-corrected:
-#   - AI / deployment (DEFAULT): trained on real RAPiDock poses (data/affinity_ai_sizefix.joblib). The
-#     pipeline scores generated poses, so this is the default; the crystal model COLLAPSES on real poses
-#     (E152 "AI haircut": geometry features are pose-fragile).
-#   - CRYSTAL: trained on crystal-925 (data/affinity_crystal_sizefix.joblib) — use only for crystal inputs.
-# Both apply the size-fix (residualise size-geometry vs length) which fixed vlong on both regimes
-# (crystal 0.07→0.16, deployment 0.23→0.33) and lifted short/overall (E203). Legacy artifacts
-# (affinity_realpose.joblib / affinity_pooled_prodn.joblib) lack size_regs and still load (no residualise).
-_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_ai_sizefix.joblib"
+# Two SEPARATE scoring functions, each tuned to its regime (E203/E204):
+#   - AI / deployment (DEFAULT): trained on real RAPiDock poses, NO size-fix (data/affinity_ai_nofix.joblib).
+#     The pipeline scores generated poses, so this is the default; the crystal model COLLAPSES on real poses
+#     (E152 "AI haircut"). The size-fix HELPS crystal but HURTS deployment on current data (real poses carry
+#     pose-quality signal in the geometry block), so the AI model deliberately omits it.
+#   - CRYSTAL: trained on crystal-925 WITH the size-fix (data/affinity_crystal_sizefix.joblib) — use only for
+#     crystal inputs. The size-fix residualises size-geometry vs length, fixing crystal vlong 0.07→0.16 and
+#     lifting short 0.46→0.49 (E203), and is applied at predict time via the artifact's size_regs.
+# Artifacts without size_regs (the AI model, plus legacy artifacts) load with no residualisation.
+_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_ai_nofix.joblib"
 _CRYSTAL_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_crystal_sizefix.joblib"
 
 
