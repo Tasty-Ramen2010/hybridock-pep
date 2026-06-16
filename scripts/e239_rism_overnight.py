@@ -32,12 +32,14 @@ import e230_rism_pilot as e230  # noqa: E402  (run_one + eval helpers)
 
 MANIFEST = ROOT / "data" / "e228_manifest_all.json"
 OUT = ROOT / "data" / "e230_rism_all.jsonl"
-CACHES = [ROOT / "data" / "e230_rism.jsonl", ROOT / "data" / "e230_t100_rism.jsonl", OUT]
+# every rism cache is read for de-dup (a receptor done in ANY run is skipped). OUT is set per-run.
+ALL_CACHES = [ROOT / "data" / "e230_rism.jsonl", ROOT / "data" / "e230_t100_rism.jsonl",
+              ROOT / "data" / "e230_rism_all.jsonl", ROOT / "data" / "e240_ppikb_rism.jsonl"]
 
 
 def done_set():
     done = set()
-    for c in CACHES:
+    for c in set(ALL_CACHES + [OUT]):
         if c.exists():
             done |= {json.loads(l)["rep_pdb"] for l in c.read_text().splitlines() if l.strip()}
     return done
@@ -64,9 +66,9 @@ def _work(rc):
         return ("fail", pdb, str(e)[:160], time.time() - t0)
 
 
-def eval_only():
+def eval_only(caches=None):
     rows = []
-    for c in CACHES:
+    for c in (caches or ALL_CACHES):
         if c.exists():
             rows += [json.loads(l) for l in c.read_text().splitlines() if l.strip()]
     seen, uniq = set(), []
@@ -100,13 +102,18 @@ def eval_only():
 
 
 def main():
+    global OUT
     ap = argparse.ArgumentParser()
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--omp", type=int, default=2)
     ap.add_argument("--manifest", default=str(MANIFEST))
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--out", default=str(OUT), help="output cache (use a distinct file per concurrent run)")
+    ap.add_argument("--no-t100-guard", action="store_true",
+                    help="skip the t100 work-dir partition (use for a non-PDBbind pdb universe like PPIKB)")
     ap.add_argument("--eval-only", action="store_true")
     a = ap.parse_args()
+    OUT = Path(a.out)
     if a.eval_only:
         return eval_only()
 
@@ -115,7 +122,7 @@ def main():
     # partition away from the still-running t100 driver: it owns runs/e230_rism/{pdb}/ for
     # every pdb in its manifest, so e239 must not touch those (shared work-dir = corruption).
     t100_man = ROOT / "data" / "e228_manifest_t100.json"
-    if t100_man.exists():
+    if t100_man.exists() and not a.no_t100_guard:
         done |= {r["peptides"][0]["pdb"] for r in json.load(open(t100_man))["receptors"]}
     todo = [r for r in recs if r["peptides"][0]["pdb"] not in done]
     todo.sort(key=lambda d: d.get("receptor_len", 9999))   # cheapest first
