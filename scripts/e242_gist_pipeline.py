@@ -207,23 +207,36 @@ def main():
     ap.add_argument("--prod-ps", type=float, default=2000.0)
     ap.add_argument("--manifest", default=str(MANIFEST))
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--cache", default=str(CACHE), help="output cache (distinct per parallel worker)")
+    ap.add_argument("--nshard", type=int, default=1, help="number of parallel GPU workers")
+    ap.add_argument("--shard", type=int, default=0, help="this worker's index in [0, nshard)")
     a = ap.parse_args()
+    cache = Path(a.cache)
     man = json.load(open(a.manifest))["receptors"]
     if a.pdb:
         man = [r for r in man if r["peptides"][0]["pdb"] == a.pdb]
-    done = {json.loads(l)["rep_pdb"] for l in CACHE.read_text().splitlines()} if CACHE.exists() else set()
+    # de-dup against my receptor-baseline gist caches (base + shards) so concurrent workers never
+    # repeat each other. schema-guard with .get so an unrelated e242_gist_*.jsonl (e.g. SKEMPI) is ignored.
+    done = set()
+    for c in [ROOT / "data" / "e242_gist.jsonl", *ROOT.glob("data/e242_gist_[ab].jsonl")]:
+        if c.exists():
+            for l in c.read_text().splitlines():
+                p = json.loads(l).get("rep_pdb") if l.strip() else None
+                if p:
+                    done.add(p)
     man = [r for r in man if r["peptides"][0]["pdb"] not in done]
     man.sort(key=lambda r: r.get("receptor_len", 9999))   # cheapest MD first
+    man = man[a.shard::a.nshard]                            # interleave shards (even size split)
     if a.limit:
         man = man[: a.limit]
-    print(f"=== E242 GIST: {len(man)} receptor(s) TODO ({len(done)} done), "
-          f"equil={a.equil_ps}ps prod={a.prod_ps}ps ===", flush=True)
+    print(f"=== E242 GIST shard {a.shard}/{a.nshard}: {len(man)} receptor(s) TODO ({len(done)} done), "
+          f"equil={a.equil_ps}ps prod={a.prod_ps}ps -> {cache.name} ===", flush=True)
     for rc in man:
         rep = rc["peptides"][0]; pdb = rep["pdb"]; t0 = time.time()
         try:
             d = run_one(pdb, rep["seq"], rep["pep_ch"], a.equil_ps, a.prod_ps)
             row = {"rep_pdb": pdb, "n_pep": rc["n_pep"], "y_mean": rc["y_mean"], "y_std": rc["y_std"], **d}
-            with open(CACHE, "a") as fh:
+            with open(cache, "a") as fh:
                 fh.write(json.dumps(row) + "\n")
             print(f"  {pdb} dG_pocket={d['gist_dG_pocket']:+.1f} unhappy={d['gist_unhappy_dG']:+.1f} "
                   f"Esw={d['gist_Esw']:+.1f} dEww={d['gist_dEww']:+.1f} -TdS={d['gist_mTdS']:+.1f} "

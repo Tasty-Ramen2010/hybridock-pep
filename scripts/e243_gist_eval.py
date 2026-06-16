@@ -40,7 +40,15 @@ def loo(rows, feats):
 
 
 def main():
-    gist = [json.loads(l) for l in GIST.read_text().splitlines() if l.strip()]
+    gist, seen = [], set()
+    for c in [ROOT / "data" / "e242_gist.jsonl", *sorted(ROOT.glob("data/e242_gist_[ab].jsonl"))]:
+        if not c.exists():
+            continue
+        for l in c.read_text().splitlines():
+            if l.strip():
+                d = json.loads(l)
+                if d.get("rep_pdb") and d["rep_pdb"] not in seen:
+                    seen.add(d["rep_pdb"]); gist.append(d)
     # RISM max_g by pdb
     maxg = {}
     for c in RISM_C:
