@@ -144,12 +144,17 @@ def _load(artifact: str):
         import joblib
         bundle = joblib.load(artifact)
         # size_regs: {geometry_index: [coef, intercept]} for the length→size-feature residualisation.
-        # Optional vlong router (E216): a separate sub-model + size_regs used ONLY for L>=vlong_threshold
-        # (PPIKB-vlong-augmented; lifts crystal vlong 0.06→0.17 with non-vlong byte-identical to main).
-        router = None
+        # Optional band routers (E216/E238): PPIKB-augmented sub-models used ONLY for their length band
+        # (long 13-16: +0.026 T100; vlong >=17: +0.06->0.17). Out-of-band predictions are byte-identical to
+        # the main model. Returned as a list of (sub_model, size_regs, lo, hi) — first matching band wins.
+        routers = []
+        if bundle.get("long_model") is not None:
+            lo, hi = bundle.get("long_band", [13, 16])
+            routers.append((bundle["long_model"], bundle.get("long_size_regs"), int(lo), int(hi)))
         if bundle.get("vlong_model") is not None:
-            router = (bundle["vlong_model"], bundle.get("vlong_size_regs"), int(bundle.get("vlong_threshold", 17)))
-        return bundle["model"], bundle.get("feature_order"), bundle.get("size_regs"), router
+            routers.append((bundle["vlong_model"], bundle.get("vlong_size_regs"),
+                            int(bundle.get("vlong_threshold", 17)), 10**9))
+        return bundle["model"], bundle.get("feature_order"), bundle.get("size_regs"), routers
     except FileNotFoundError:
         logger.warning("Affinity model: artifact not found at %s — pooled ΔG skipped", artifact)
         return None, None, None, None
@@ -214,13 +219,15 @@ def predict_affinity(geometry: dict[str, float], seq: str, artifact: Path | str 
     """
     if not seq:
         return None
-    model, _, size_regs, router = _load(str(artifact or _DEFAULT_ARTIFACT))
+    model, _, size_regs, routers = _load(str(artifact or _DEFAULT_ARTIFACT))
     if model is None:
         return None
-    # vlong router (E216): for peptides at/above the threshold, use the PPIKB-vlong-augmented sub-model with
-    # its own size_regs; below threshold the main model is used (byte-identical to the non-routed artifact).
-    if router is not None and len(seq) >= router[2]:
-        model, size_regs = router[0], router[1]
+    # Band routers (E216/E238): if the peptide length falls in a specialist's band, use that PPIKB-augmented
+    # sub-model with its own size_regs; otherwise the main model (byte-identical to the non-routed artifact).
+    for sub_model, sub_regs, lo, hi in (routers or []):
+        if lo <= len(seq) <= hi:
+            model, size_regs = sub_model, sub_regs
+            break
     x = build_feature_vector(geometry, seq)
     # Size-confound fix (E203): residualise size-geometry vs length before predicting (no-op for legacy
     # artifacts without size_regs). Applied to the stable geometry block, before any anchor trim.
