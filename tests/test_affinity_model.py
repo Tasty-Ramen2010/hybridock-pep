@@ -62,22 +62,29 @@ def test_missing_artifact_is_graceful() -> None:
     assert predict_affinity(_geom(), "ETFSDLWKLLPE", artifact="/nonexistent/model.joblib") is None
 
 
-def test_vlong_router_only_affects_vlong() -> None:
-    """The crystal artifact's vlong router (E216) must fire only for L>=17: a short peptide's prediction is
-    unchanged whether or not the router exists; a vlong peptide may differ. Skips if artifact absent."""
+def test_band_routers_only_affect_their_band() -> None:
+    """The crystal artifact's band routers (E216/E238) must fire only inside their length band: a short
+    peptide is on the main model; long (13-16) and vlong (>=17) may use their specialists. The routers are
+    returned as a list of (sub_model, size_regs, lo, hi). Skips if artifact absent/legacy."""
     from pathlib import Path
 
     from hybridock_pep.scoring.affinity_model import _CRYSTAL_ARTIFACT, _load
 
     if not Path(_CRYSTAL_ARTIFACT).exists():
         return
-    _model, _fo, _sr, router = _load(str(_CRYSTAL_ARTIFACT))
-    if router is None:
-        return  # artifact predates the router — nothing to assert
+    _model, _fo, _sr, routers = _load(str(_CRYSTAL_ARTIFACT))
+    if not routers:
+        return  # artifact predates the routers — nothing to assert
     g = dict(_geom())
     g["pocket_seq"] = "LIWFYACDEKR"
-    short = predict_affinity(g, "ACDEFG", artifact=_CRYSTAL_ARTIFACT)
-    vlong = predict_affinity(g, "ACDEFGHIKLMNPQRSTVW", artifact=_CRYSTAL_ARTIFACT)  # 19-mer
-    assert short is not None and vlong is not None
-    assert np.isfinite(short) and np.isfinite(vlong)
-    assert router[2] == 17  # threshold
+    short = predict_affinity(g, "ACDEFG", artifact=_CRYSTAL_ARTIFACT)            # L=6, main
+    long_ = predict_affinity(g, "ACDEFGHIKLMNP", artifact=_CRYSTAL_ARTIFACT)     # L=13, long band
+    vlong = predict_affinity(g, "ACDEFGHIKLMNPQRSTVW", artifact=_CRYSTAL_ARTIFACT)  # L=19, vlong band
+    for v in (short, long_, vlong):
+        assert v is not None and np.isfinite(v)
+    # every router declares a valid (lo, hi) band; bands are disjoint and ordered
+    bands = sorted((lo, hi) for _m, _r, lo, hi in routers)
+    for (lo, hi) in bands:
+        assert 0 < lo <= hi
+    for (_, hi0), (lo1, _) in zip(bands, bands[1:]):
+        assert hi0 < lo1  # disjoint
