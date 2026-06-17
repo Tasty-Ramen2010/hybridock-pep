@@ -1,279 +1,265 @@
 # Reference-Anchored Relative Scoring for Peptide–Protein Affinity
 
-**Status:** design / pre-registration for an n=100 test
-**Author:** Dry Lab (HybriDock-Pep), 2026-06-16
-**One-line thesis:** We cannot *predict* the per-receptor error of an absolute ML scorer, but we can
-*measure* it from a few known-Kd reference peptides on that receptor and subtract it. This converts the
-FEP-bound absolute-Kd problem into the solvable within-receptor (relative) problem + a cheap calibration.
+**Status:** engine validated (e260, shuffle-controlled). Phase 1 (MD + real Kd) designed.
+**Updated:** 2026-06-16
 
 ---
 
-## 0. Why this is worth doing (grounding in what we already proved)
+## 0. Which tool for which job (read this first)
 
-| Prior result | What it establishes | Role here |
+HybriDock-Pep operates on **two independent axes**. Use the right machine for the job — they do not
+substitute for each other.
+
+```
+What do you actually need?
+│
+├─ "Rank my candidate peptides against ONE target; pick the best binder."   → RANKING axis
+│      Use the RELATIVE SCORER (charge_complementarity, pose-ranker, ref2015).
+│      Offset b(R) is a shared constant → cancels in any within-target ranking → anchoring IRRELEVANT.
+│      SHIPPED. No anchors, no Kd, no MD needed. This is iGEM deployment mode (a).
+│
+├─ "What is the absolute Kd of this peptide on this target?"                 → SCORING axis
+│      Use ANCHORING: ΔG_pred = ΔG_exp(ref) + [S(p)−S(ref)] on the SAME receptor.
+│      Needs ≥1 known-Kd reference on that receptor. Accuracy ≈ 1.3 kcal/mol (η floor).
+│
+└─ "Does this peptide prefer target A or target B?" (cross-target selectivity) → SCORING axis
+       ΔΔG = [S(P,A) − b̂(A)] − [S(P,B) − b̂(B)]. Needs anchors on BOTH receptors.
+       Accuracy ≈ 1.9 kcal/mol (independent) → ≤2.0 target.
+```
+
+**Anchoring is a cross-receptor SCORING/selectivity method. It does nothing for within-target ranking,
+and can slightly hurt it** (per-point anchoring adds noise to an order that was already correct;
+measured: within-receptor Spearman 0.351 → 0.195). Ranking quality is owned entirely by the relative
+scorer. Do not confuse the axes.
+
+---
+
+## 1. Why this exists (grounding)
+
+| Prior result | Establishes | Role |
 |---|---|---|
-| e246 forensics | ~55% of charged ΔΔG error variance is **between-receptor** (a per-receptor offset) | This is the term anchoring removes |
-| e255 offset attack | That offset is **not predictable** from sequence, ESM, fpocket, Poisson–Boltzmann, or 0.6 ns GIST (all ≤ permutation null) | So we must *observe* it, not regress it |
-| E254 two-stage ceiling | With the offset **known**, within-receptor charged reaches **r ≈ 0.755** | The anchored ceiling |
-| Absolute-Kd ceiling (Jun 14) | Honest clustered-CV truth ≈ 0.35 for *everyone incl. PPI-Affinity*; the 0.55 numbers are redundancy/homology mirages | Why "just train a better absolute model" is a dead end |
+| e246 | ~55% of charged ΔΔG error is a **between-receptor offset** | the term anchoring removes |
+| e255 | that offset is **not predictable** from seq/ESM/fpocket/PB/0.6 ns GIST (≤ null) | so we *observe* it, not regress it |
+| E254 | with offset **known**, within-receptor charged → **r ≈ 0.755** | the anchored ceiling (the η floor) |
+| Absolute-Kd ceiling (Jun 14) | honest clustered-CV ≈ 0.35 for everyone incl. PPI; 0.55 = homology mirage | why a better absolute model is a dead end |
+| **e260 (this work)** | cross-receptor charged r −0.07 → **+0.71** by anchoring; **shuffle collapses** | the engine works |
 
-The synthesis: the wall (b(R)) is real, large, and unpredictable — **but observable per-receptor.**
-Anchoring is the only lever that turns an unpredictable nuisance into a measured constant.
+The crux: `b(R)` is real, large, and unpredictable — **but perfectly observable the moment you have one
+known-Kd peptide on that receptor.** Anchoring does not predict the FEP-bound term; it **measures and
+subtracts** it. That is also why PPI-Affinity scores ~0.7 on charged T100 (it *memorized* `b(R)` for
+PDBbind-overlapping receptors) yet falls to ~0.35 on novel receptors. Anchoring makes that implicit
+memorization **explicit**, so it works on receptors no global model has ever seen — our deployment case.
 
----
-
-## 1. Formalization
-
-### 1.1 Error model
-
-Let `S(p,R)` be our absolute ML score (estimated ΔG_bind) for peptide `p` on receptor `R`, and
-`G(p,R)` the true binding free energy. Assume the error decomposes:
+## 1.1 Error model
 
 ```
-S(p,R) = G(p,R) + b(R) + c(p) + η(p,R)
+S(p,R) = G_true(p,R) + b(R) + c(p) + η(p,R)
 ```
+- **b(R)** per-receptor offset — large, systematic, FEP-bound. The target of anchoring.
+- **c(p)** per-peptide systematic error (charge-dependent). Cancels only for *similar* references.
+- **η(p,R)** irreducible interaction residual. The hard floor (~1.3 kcal/mol RMSE here).
 
-- **b(R)** — per-receptor offset. Pocket dielectric / desolvation reference / scoring-function bias
-  specific to that protein environment. Large, systematic, FEP-bound. **The target of anchoring.**
-- **c(p)** — per-peptide systematic error. E.g. the scorer is off by ~X kcal/mol per unit net charge,
-  or per salt bridge. Does **not** cancel unless test and reference are similar peptides.
-- **η(p,R)** — irreducible interaction-specific residual (binding-mode dependent). Pure noise to us.
+e260 measured directly that **58% of the cold cross-receptor model error is a per-receptor constant**,
+independently reproducing e246's ~55%. The decomposition is real, not assumed.
 
-This additivity is **the central assumption** and is itself testable (§4, variance decomposition).
+## 1.2 Thermodynamic cycle
 
-### 1.2 The thermodynamic cycle (why relative is computable when absolute isn't)
+For test `p` and reference `r` on the **same** receptor `R`, path-independence gives
+`ΔG_bind(p) − ΔG_bind(r) = ΔΔG(p→r)`. The large absolute terms (the cancelling Coulomb-vs-desolvation
+pair that wrecks charged absolute scoring) are computed identically inside both endpoints and subtracted
+away — we never form the small-difference-of-large-numbers. This is relative binding free energy (RBFE).
 
-For test `p` and reference `r` on the **same** receptor `R`:
-
-```
-   p (unbound) + R   ──ΔG_bind(p)──►   p·R
-        │                                  │
-   alchemical p→r                     alchemical p→r
-   in solvent  ΔG_free                in complex  ΔG_bound
-        │                                  │
-   r (unbound) + R   ──ΔG_bind(r)──►   r·R
-```
-
-Path independence of a state function closes the cycle:
+## 1.3 Back out absolute Kd
 
 ```
-ΔG_bind(p) − ΔG_bind(r) = ΔG_bound − ΔG_free ≡ ΔΔG(p→r)
+ΔG_pred(p) = ΔG_exp(r) + [S(p,R) − S(r,R)]
+           = G_true(p) + [c(p) − c(r)] + Δη + ε_exp(r)     ← b(R) CANCELLED exactly
 ```
 
-The large absolute terms (full desolvation, the cancelling Coulomb vs Born terms that wreck charged
-absolute scoring) are computed **inside ΔG_bind(p) and ΔG_bind(r) identically and subtracted away.**
-We never form the small-difference-of-large-numbers. **That is the cancellation Ram is reaching for,
-and it is exactly relative binding free energy (RBFE).**
+## 1.4 Triangulation = empirical offset estimation
 
-### 1.3 Backing out an absolute Kd
+With K references, `ΔG_pred(p) = S(p,R) − b̂(R)`, where `b̂(R) = mean_k[S(r_k) − ΔG_exp(r_k)]` is a
+direct measurement of the offset with `Var(b̂) ∝ 1/K`. Two consequences, both confirmed by e260:
+more references reduce variance, and references with consistent `c(r)` (same charge class) minimize the
+residual.
 
-If the reference Kd is known, `ΔG_exp(r) = −RT ln(1/K_d(r))`, then
+## 1.5 Similarity-weighting is LOAD-BEARING, not optional
 
-```
-ΔG_pred(p) = ΔG_exp(r) + ΔΔG_ML(p→r),   where ΔΔG_ML = S(p,R) − S(r,R)
-```
+**This is the single most important practical lesson from e260.** Naive averaging over *all* same-receptor
+references is *worse* than using the 3 nearest, because dissimilar references inject `c(p)−c(r)` and `Δη`:
 
-Substituting the error model:
-
-```
-ΔG_pred(p) = G(p,R) + [c(p) − c(r)] + [η(p,R) − η(r,R)] + ε_exp(r)
-                       └── b(R) CANCELLED ──┘
-```
-
-**The b(R) offset is gone exactly.** What remains:
-- `c(p) − c(r)` — vanishes only if p and r are *similar* (⇒ **stratify by net charge**),
-- `Δη` — irreducible scatter (⇒ **average over references**),
-- `ε_exp(r)` — inherited reference assay noise (⇒ **high-quality Kd, average over references**).
-
-### 1.4 Triangulation = empirical offset estimation (the clean result)
-
-With K references `r_1…r_K` on receptor R, average the per-reference estimates:
-
-```
-ΔG_pred(p) = (1/K) Σ_k [ ΔG_exp(r_k) + S(p,R) − S(r_k,R) ]
-           = S(p,R) − b̂(R),    b̂(R) ≡ (1/K) Σ_k [ S(r_k,R) − ΔG_exp(r_k) ]
-```
-
-**Triangulation over K references is literally an empirical per-receptor offset correction.** `b̂(R)` is
-a direct estimate of `b(R)` from data, with variance
-
-```
-Var(b̂) = (1/K) · Var_r[ c(r) + η(r,R) + ε_exp(r) ]
-```
-
-Two consequences fall straight out — both confirming Ram's intuitions:
-1. **More references → 1/K variance reduction** ("directional noise averages out").
-2. **References with small, consistent `c(r)`** (same charge class) minimize the residual ⇒ stratify.
-
-The optimal estimator is not a plain mean but a **precision/similarity-weighted mean** (§3, Bayesian).
-
-### 1.5 The honest ceiling
-
-Anchoring removes `b(R)` (≈55% of charged error variance) but **not** `c(p)` or `η`. So the realistic
-ceiling is the **within-receptor** predictability, which E254 pegs at **r ≈ 0.75** for charged. Expect
-anchoring to move charged from ~0 (cross-receptor) toward ~0.5–0.75 — **not** to 0.95. This is a
-few-shot per-receptor calibrator, not a zero-data universal oracle. Say so plainly in the paper.
-
----
-
-## 2. Failure modes (each tied to the algebra)
-
-| # | Failure | Algebraic cause | Severity |
+| arm | native r | RMSE | MAE |
 |---|---|---|---|
-| F1 | Test and reference have **different net charge** | `c(p) − c(r)` large (charge-dependent scorer bias) | **High** (the charged case) |
-| F2 | **Different binding mode / subsite** | `Δη` large; cycle assumes comparable complexes | High |
-| F3 | **100 ps MD insufficient** | `ΔG_bound` not converged: slow side-chain/backbone/water/charge reorganization unsampled | Med–High |
-| F4 | **Noisy reference Kd** (IC50≠Kd, mixed assays/conditions) | `ε_exp(r)` propagates 1:1 | Med |
-| F5 | **ML error not additive** — real `p×R` cross term | `η(p,R)` not separable ⇒ anchoring can't reach it | **Fundamental cap** |
-| F6 | **No reference for a novel/orphan receptor** | b̂(R) undefined | Med (scope limit) |
-| F7 | **Reference too dissimilar** (extrapolation) | both `c(p)−c(r)` and `Δη` blow up | Med |
-| F8 | **Evaluation leakage** (near-duplicate ref/test, or generic regularization mimicking the effect) | measures memorization, not cancellation | **Validity threat** |
+| ABSOLUTE (cold) | −0.071 | 2.23 | 1.34 |
+| ANCHOR k=1 (nearest) | +0.667 | 1.67 | 1.01 |
+| ANCHOR k=3 (nearest) | +0.693 | 1.44 | 0.98 |
+| ANCHOR **all** (naive avg) | +0.657 | 1.44 | 1.01 |
+| **BAYES (similarity-weighted)** | **+0.712** | **1.33** | **0.91** |
+| **charge-matched nearest** | **+0.744** | 1.39 | 0.91 |
+
+`all` (0.657) < `k=3` (0.693): **adding dissimilar references actively hurts.** The similarity kernel
+(`w_k ∝ exp(−d²/2σ²)`) and charge-class matching recover the ceiling. **Always weight references by
+similarity; never plain-average over everything.** Charge-matched anchor selection gives the best r
+(0.744) — restrict anchors to the test's `|Δq|` class when ≥1 is available.
+
+## 1.6 The η ceiling (honest cap)
+
+Anchoring removes `b(R)`, **not** `c(p)` or `η`. The realistic ceiling is the within-receptor
+predictability, ≈ 0.75 charged (E254), RMSE floor ≈ **1.3 kcal/mol**. e260 BAYES native r=0.712,
+RMSE 1.33 — at the ceiling. A tell-tale: the simulated-absolute block (1.93 kcal/mol injected offset)
+gives **identical RMSE 1.33** — anchoring is provably immune to offset magnitude; only `r` rises (the
+offset inflates total variance, the denominator of `r`). RMSE is the honest, scale-free metric.
 
 ---
 
-## 3. Mitigations
+## 2. Charged is where anchoring matters MOST
 
-- **F1 — charge stratification + classical Δ-correction.** Restrict references to the same net-charge
-  class as p. *And* add a fast physics term to absorb the residual charge bias:
-  `ΔG_pred = ΔG_exp(r) + [S(p)−S(r)] + λ·[E_elec(p) − E_elec(r)]`, where `E_elec` is a cheap
-  Debye–Hückel-screened Coulomb or single-shot Poisson–Boltzmann (APBS, already wired in e248).
-  λ fit on a held-out grid. This is delta-learning layered on the anchor.
-- **F2 — geometric reference filtering.** Require references that share the pocket / epitope and have
-  pose overlap (Cα-RMSD of the bound peptide core, shared anchor residues). Reject references binding a
-  different subsite.
-- **F3 — MD as relaxation, not alchemy; replicas; adaptive escalation.** Use 100 ps only to relax the
-  pose + reorganize water, then score the endpoint. Run 3× short replicas, average. Flag high-variance
-  pairs and escalate *only those* to real λ-FEP. Never claim 100 ps gives a converged alchemical ΔΔG for
-  a large/charged perturbation.
-- **F4 — Kd quality gate + averaging.** Kd/Ki only (no IC50 unless converted), single assay family per
-  receptor where possible; variance ∝ 1/K from averaging.
-- **F5 — measure it, then accept it.** Variance decomposition (§4) quantifies the between- vs
-  within-receptor split; the within-receptor part is the hard ceiling. Report it; don't pretend past it.
-- **F6 — homolog transfer / measure 2–3 anchors.** Anchor on a close homolog (accept residual b
-  mismatch, downweight), or have the wet lab measure 2–3 reference Kds — which is *already* how the
-  parent project picks receptors. For zero-data orphans the method degrades gracefully to absolute S.
-- **F7 — similarity-weighted Bayesian references.** Weight reference k by a kernel
-  `w_k ∝ exp(−d(p,r_k)²/2σ²) / σ_exp(r_k)²` (sequence/charge distance × inverse assay variance). Report
-  a confidence that widens with min reference distance.
-- **F8 — shuffle + permutation controls (§4.5).** Mandatory.
+Charge-stratified by mutation `|Δq|` (e260 native, BAYES):
 
-**Unifying upgrade — hierarchical Bayesian model.** Treat `b(R)` as a random intercept with a prior;
-references update its posterior (strong shrinkage when few references, sharp when many). The K-reference
-mean is the flat-prior special case. The fully rigorous form is the **DiffNet maximum-likelihood
-estimator** (Xu 2019): reconcile *all* noisy relative edges `S(p)−S(r)` with the absolute anchors into
-a single MLE of every node's absolute ΔG. Plain triangulation is the one-hop approximation.
+| class | n | absolute r | anchored r | anchored RMSE |
+|---|---|---|---|---|
+| `|Δq|=0` (same-sign swap) | 35 | +0.308 | +0.413 | 2.21 |
+| `|Δq|=1` (charge→neutral) | 908 | −0.065 | **+0.721** | 1.29 |
+| `|Δq|=2` (charge reversal) | 77 | **−0.271** | **+0.829** | 1.31 |
+
+The bigger the charge perturbation, the **worse** absolute scoring does (charge reversal is *anti*-
+correlated, r=−0.27 — exactly the cancellation-of-large-terms catastrophe) and the **more** anchoring
+recovers (0.83). This is the cleanest possible statement of the thesis: anchoring rescues precisely the
+charged regime that breaks every absolute scorer.
+
+**Caveat (honest):** the same-Δq vs different-Δq anchor split is nearly equal (r 0.667 vs 0.669), i.e.
+`c(p)−c(r)` is a *modest* residual here — because our features already encode the WT charge, the relative
+term `S(p)−S(r)` partly absorbs it. Charge-matching still wins overall, but mainly via better anchor
+*similarity*, not pure `c()` cancellation. For **peptides** (Phase 1), net charge spans a wider range and
+may be less fully captured by features, so `c(p)−c(r)` could matter more — keep charge stratification.
 
 ---
 
-## 4. Experimental protocol (n ≈ 100, implementable tomorrow)
+## 3. Reference Kd precision is NOT a bottleneck
 
-### 4.1 Design
+Inject Gaussian noise into the reference ΔG (BAYES arm, native):
 
-Within-receptor leave-one-peptide-out, on receptors that each have **many measured-Kd peptides**, so
-every test peptide has same-receptor references. Target ~10–15 receptors × ~7–10 peptides ≈ 100 complexes.
+| reference σ (kcal/mol) | r | RMSE | MAE |
+|---|---|---|---|
+| 0.0 | 0.712 | 1.33 | 0.91 |
+| 0.1 | 0.712 | 1.33 | 0.91 |
+| 0.3 | 0.710 | 1.34 | 0.91 |
+| 0.5 | 0.708 | 1.34 | 0.92 |
 
-### 4.2 Data sources
+Even ±0.5 kcal/mol reference error (≈ 2.4× in Kd) barely moves the result, because triangulation averages
+reference noise (`σ/√K`). **Literature/assay Kd values are good enough as anchors — no need for gold-
+standard ITC.** (Single-reference k=1 would be more noise-sensitive; this robustness is a property of
+triangulation, another reason to use multiple weighted references.)
 
-- **ATLAS** (TCR–pMHC) and **IEDB / MHC class-I binding** — many peptides per identical MHC receptor with
-  measured affinity. Ideal absolute-Kd anchoring substrate. (ATLAS already cached.)
-- **PDBbind peptide subset** (our 925, `data/pdbbind_peptides.jsonl`) grouped by receptor via UniProt
-  mapping — proteases, bromodomains, SH3, MDM2 analogs give multi-peptide receptors.
-- **SKEMPI v2** — same-receptor mutation ΔΔG (WT = built-in reference). Use for the **relative-engine /
-  cancellation proof** (Phase 0), not absolute back-out (labels are ΔΔG). *We already have this staged in
-  `scripts/e260_anchor_triangulation.py` on the 1,122-record charged set `data/e254_recs.json`.*
-- **PROPEDIA / Propedia, AS-Bind** — supplementary multi-peptide-per-receptor complexes.
+---
 
-Selection rules: ≥5 Kd-quality peptides per receptor; cluster receptors (≤30% seq id between groups) to
-prevent cross-receptor leakage; record net charge + length per peptide for stratification.
+## 4. Failure modes → mitigations
 
-### 4.3 Per-complex pipeline (identical for test and references)
+| # | Failure | Cause | Mitigation | e260 evidence |
+|---|---|---|---|---|
+| F1 | test/ref different net charge | `c(p)−c(r)` ≠ 0 | charge-class matching (+ optional PB Δ-term) | charge-matched best (0.744) |
+| F2 | different binding mode | `Δη` large | geometric reference filtering (pose overlap, shared anchors) | — |
+| F3 | 100 ps MD insufficient | endpoint unconverged | MD = relaxation+scoring, not alchemy; 3 replicas; escalate flagged pairs to λ-FEP | — |
+| F4 | noisy reference Kd | `ε_exp(r)` | average over K (∝1/K) | σ=0.5 → RMSE 1.34 (negligible) |
+| F5 | non-additive `p×R` error | `η` not separable | accept the cap; it IS the ceiling | RMSE floor 1.3 |
+| F6 | orphan receptor (no anchor) | b̂(R) undefined | homolog transfer, or measure 2–3 anchors; else revert to absolute S | — |
+| F7 | reference too dissimilar | `c`,`Δη` blow up | **similarity-weight / charge-match — load-bearing** | `all` < `k=3` |
+| F8 | evaluation leakage | memorization ≠ cancellation | **shuffle control** | shuffle collapses, r≈−0.05 |
 
-1. **Pose:** RAPiDock Stage 1 (or crystal pose where available).
-2. **Relax:** 100 ps OpenMM, AMBER ff14SB, explicit TIP3P + 0.15 M NaCl (or GBn2 for speed), 3 replicas,
-   weak restraints on receptor backbone. ~minutes/complex on the 5070.
-3. **Score:** our absolute ML scorer `S` on each relaxed endpoint (mean over replicas).
-4. **Auxiliary:** single-shot APBS `E_elec` for the F1 Δ-correction; record pose-overlap metrics for F2.
+**Shuffle control (the make-or-break):** anchors drawn from a *wrong* receptor give r ≈ −0.05 and RMSE
+*worse* than the cold baseline (2.85–3.30 vs 2.23–2.53). The gain is genuine same-receptor offset
+cancellation, not regularization or label leakage.
 
-### 4.4 Estimators compared
+**Upgrade path:** hierarchical Bayesian `b(R)` (random intercept + prior → shrinkage with few anchors);
+the rigorous many-reference form is the **DiffNet MLE** (Xu 2019) reconciling all relative edges + anchors.
 
-| Arm | Formula |
+---
+
+## 5. Selectivity (cross-target) — the math and the test
+
+### 5.1 Error propagation
+
+```
+ΔΔG_sel(P; A,B) = [S(P,A) − b̂(A)] − [S(P,B) − b̂(B)]
+```
+Requires anchors on **both** receptors. With single-receptor anchored RMSE `s = 1.33`:
+
+| assumption | selectivity RMSE |
 |---|---|
-| **Absolute (baseline)** | `S(p,R)` (also report PPI-Affinity absolute where runnable) |
-| **Anchored k=1** | nearest same-charge reference |
-| **Anchored k=3** | mean of 3 nearest |
-| **Triangulated k=all** | `S(p) − b̂(R)` over all same-receptor refs |
-| **Bayesian-weighted** | similarity × inverse-assay-variance weighted b̂ |
-| **+ PB Δ-correction** | best anchor arm + `λ·ΔE_elec` |
-| **Oracle offset (ceiling)** | subtract true per-receptor mean residual (E254-style) |
+| independent errors | `s·√2` = **1.88** |
+| `c(p)` corr 0.3 across A,B | 1.57 |
+| `c(p)` corr 0.5 across A,B | 1.33 |
 
-### 4.5 Controls (non-negotiable)
+If the *same* peptide is scored against two related receptors, its `c(p)` error is partly shared and
+**partially cancels** — so real selectivity RMSE likely sits **below 1.88**, under the 2.0 target.
 
-- **Shuffle control:** assign each test peptide its references from a **different random receptor** (wrong
-  b(R)). Genuine cancellation ⇒ anchored performance **collapses to ≤ baseline**. If it stays high, the
-  "gain" was generic regularization, not offset removal. **This is the make-or-break test.**
-- **Permuted-Kd control:** shuffle reference Kd labels within the correct receptor — should also collapse.
-- **Positive control:** oracle offset = the ceiling (expect ≈0.75 charged).
+### 5.2 Phase-1 selectivity test case (data already on disk)
 
-### 4.6 Metrics
+**Primary: Laskowski OMTKY3 × serine-protease panel.** SKEMPI contains turkey ovomucoid third domain
+(OMTKY3) P1-site variants measured against multiple proteases — `1cho` (α-chymotrypsin), `1ppf`
+(human leukocyte elastase), `1r0r`/`3sgb` (SGPB). Same inhibitor variants, different receptors, measured
+Ki on each = the canonical protein–protein selectivity dataset.
+- Anchor each protease independently with a subset of its variants (known Ki).
+- Predict `ΔΔG_sel` for held-out variants measured on a **pair** (e.g. elastase vs chymotrypsin).
+- Compare predicted vs experimental selectivity.
+- **Success criterion: selectivity RMSE ≤ 2.0 kcal/mol AND correct sign on ≥ 70% of pairs.**
 
-Pearson r, Spearman ρ, RMSE (kcal/mol) — pooled **and stratified by net charge** (the headline is the
-charged subset) and by ref/test charge-match. Plus **within-receptor enrichment**: can we rank the
-tightest binder per receptor (top-1/top-3 accuracy, per-receptor AUC) — the selectivity use case.
-Uncertainty via **cluster bootstrap over receptors** (95% CI). Report performance vs **#references** and
-vs **ref–test distance** (the two knobs the theory predicts matter).
+**Orthogonal: TCR–pMHC (`data/atlas_tcr_pmhc.tsv`) / MHC allele panels (IEDB).** Same peptide, different
+MHC alleles, measured affinity — a wide-charge-range stress test of the cross-receptor case.
 
-### 4.7 Decision rule (pre-registered)
-
-**Success** = charged-subset anchored r ≥ 0.45 and RMSE cut ≥ 30% vs absolute baseline, **with the
-shuffle control collapsing to baseline ± noise**. Anything less than a collapsing shuffle control ⇒ not
-genuine cancellation, do not ship.
+**Anchor target (iGEM): PfLDH (1T2D) vs hLDH (1I0Z).** The actual selectivity question. Needs ≥2 known-Kd
+reference peptides per LDH (wet-lab measurable) before anchored selectivity can be quoted for LISDA…
 
 ---
 
-## 5. Literature anchors (for the writeup / to convince a referee this is principled)
+## 6. Phase 1 protocol (MD + real Kd)
 
-- **RBFE / FEP+** — Wang et al., *JACS* 2015; Cournia et al., *JCIM* 2017 (review). Provides §1.2 cycle.
-- **DiffNet optimal estimator** — Xu, *JCTC* 2019, "Optimal measurement network of pairwise differences":
-  the rigorous MLE that reconciles relative edges + absolute anchors. **This is §1.4 triangulation done
-  exactly.** Cite as the principled generalization.
-- **FEP reference networks / maps with experimental anchors** — Open Free Energy / Cinnabar tooling;
-  perturbation graphs anchored by ≥1 measured node.
-- **Δ-machine-learning** — Ramakrishnan et al., *JCTC* 2015. Our PB Δ-correction layered on the anchor is
-  delta-learning where the baseline is the reference-anchored estimate.
-- **ML-potential / NNP-MM relative FEP** — Rufa et al. 2020; Sabanés Zariquiey et al. 2024 — sharpening
-  the relative term with learned potentials (our upgrade path from 100 ps endpoint scoring).
-- **Linear Interaction Energy (LIE)** — Åqvist et al. — per-system *calibrated* scoring; the classic
-  precedent for anchoring absolute energetics to experimental references rather than computing them cold.
-- **Per-target random-effects in QSAR** — hierarchical intercept models; the statistical form of §3's
-  Bayesian b(R).
-
----
-
-## 6. If n=100 works — implications
-
-A collapsing shuffle control + charged r jumping from ~0 to ~0.5–0.75 would mean:
-
-1. **We do not need a globally accurate absolute ML scorer.** We need a decent *relative* scorer (physics
-   already gives this within-receptor) + a few experimental anchors. The hard, FEP-bound part (b(R)) is
-   never predicted — it's measured once per receptor and amortized over every screened peptide.
-2. **Low-cost & general for the realistic regime:** 2–3 reference Kds (mined or one cheap assay plate) +
-   100 ps MD + our scorer ⇒ calibrated absolute Kd for *any* new peptide on that receptor — including
-   receptors no global model (PPI-Affinity included) has ever seen.
-3. **It IS our deployment frame.** Pick a receptor, measure a couple of known binders (already how the
-   parent project chooses receptors), then screen variants. The unsolvable cross-target absolute-Kd
-   problem becomes the solvable within-receptor problem + calibration. This is the legitimate,
-   defensible "best non-FEP peptide scorer" story: not "we beat FEP at absolute energies," but "we get
-   FEP-grade *relative* ranking at docking cost, anchored to cheap experiment."
-4. **Honest scope:** few-shot, not zero-shot. Needs ≥1 anchor; degrades to absolute S for orphan
-   receptors; capped by within-receptor `η`. State this — it's still novel and fundable.
+1. **Dataset:** ATLAS/IEDB receptors with ≥5 measured-Kd peptides each, ~12–15 receptors → ~100
+   complexes; cluster receptors ≤30% seq-id (no cross-receptor leakage). + the §5.2 selectivity panels.
+2. **Per complex (identical for test & references):** RAPiDock pose → 100 ps OpenMM NPT (ff14SB,
+   TIP3P + 0.15 M NaCl, **3 replicas**, backbone-restrained) → score endpoint with `S` (mean over
+   replicas) → single-shot APBS `E_elec` for the optional F1 charge Δ-term.
+3. **Anchoring:** per receptor leave-one-peptide-out; arms = absolute / k=1 / k=3 / **BAYES** /
+   **charge-matched** / +PB. Report the **k-scaling curve per receptor** (k=1 already buys most of it).
+4. **Controls from day one:** shuffled-receptor anchors (must collapse) + permuted-Kd.
+5. **Metrics (scoring, NOT ranking):** RMSE, MAE — pooled and **charge-stratified**; selectivity ΔΔG
+   RMSE + sign accuracy. Cluster-bootstrap CIs over receptors.
+6. **Success:** scoring charged RMSE ≤ 1.5 kcal/mol with shuffle collapsing; **selectivity RMSE ≤ 2.0**.
+7. **Compute:** ~100 × 3 × 100 ps ≈ a few GPU-days on the 5070 — **only in a free GPU window; never
+   interfere with the running PfLDH production dock.**
 
 ---
 
-## 7. Immediate next step (Phase 0, already staged)
+## 7. iGEM narrative — two deployment modes
 
-Run `scripts/e260_anchor_triangulation.py` (charged SKEMPI, n=1122, score-env). It tests the
-**cancellation engine** — does within-receptor anchoring recover charged signal that cross-receptor
-prediction loses — using static features as a floor for the relative term. If even the static-feature
-anchor beats cross-receptor (toward the E254 ≈0.75 ceiling) and the shuffle control collapses, the
-physics is confirmed and the MD/ATLAS absolute-Kd benchmark (§4) is justified. If it doesn't, the idea
-dies cheaply before any MD spend.
+**Mode (a) — single-target screening (SHIP NOW).** "Rank my peptide library against PfLDH, pick the best
+binders." Pure ranking. The relative scorer is already shipped; **no anchors, no Kd, no MD.** If this is
+the deliverable, **anchoring is a research result, not the product** — a demonstrated capability that the
+within-target tool sits on solid cross-receptor footing.
+
+**Mode (b) — absolute Kd / selectivity (LOAD-BEARING anchoring).** "What's the absolute Kd?" or
+"PfLDH-selective over hLDH?" Needs anchoring + 1–3 measured references **per target**. Accuracy ≈ 1.3
+kcal/mol per target, ≈ 1.9 for selectivity. If this is the deliverable, **prioritize measuring 2–3
+reference Kd peptides per LDH** — that is the rate-limiting step, and it is cheap.
+
+**Either way:** the shuffle-controlled e260 result is the proof that anchoring works when needed, and the
+shipped relative scorer handles mode (a) today. The defensible claim is **not** "beat FEP at absolute
+energy" — it is **"FEP-grade relative ranking at docking cost, with cheap experimental anchors turning
+that into calibrated absolute Kd and selectivity, on the charged peptide systems where every global
+model hits a wall."**
+
+---
+
+## 8. Honest boundaries (state these in any writeup)
+
+- **Few-shot, not zero-shot.** Needs ≥1 anchor per receptor; orphan receptors revert to absolute `S`.
+- **Capped at η ≈ 1.3 kcal/mol** within-receptor RMSE (charged). Not FEP-accurate; a calibrator.
+- **Selectivity needs anchors on both targets** (≈1.9 kcal/mol RMSE).
+- **Validated on SKEMPI mutations with static features.** Phase 1 (real peptide Kd + 100 ps MD) is
+  required before quoting numbers for de-novo peptides. The MD only *sharpens* the relative term; if the
+  static-feature engine already works (it does) and shuffle collapses (it does), MD-anchoring works more.
+
+## 9. Reproduce
+
+`OMP_NUM_THREADS=1 python scripts/e260_anchor_triangulation.py` (score-env) → `data/e260_results.json`.
+(Single-threading is mandatory: WSL2 OpenMP oversubscription makes the HGB fits 1300× slower otherwise.)
