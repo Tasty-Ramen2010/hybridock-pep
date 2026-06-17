@@ -261,6 +261,54 @@ in fact the *worst* fallback arm (r=0.312). So the `r` wiggle is a coverage/scal
 the deployment scorer for the no-same-receptor-reference case; anchoring is reserved for the
 same-receptor few-shot case (§4).
 
+### 4.4 The clean no-cheat test + 5-ref combo (e273) — the smoking gun
+
+e272 allowed same-receptor refs. e273 forbids them: anchors may not come from the query's own receptor
+or any ≥0.9-similar one (pure cross-receptor), K=5 refs, compared to ML_abs on the **same covered
+queries**. Includes Ram's combo (2 peptide-similar among receptor-similar + 3 receptor-similar) and a
+shuffle (5 random cross-receptor refs).
+
+| arm (K=5, cross-receptor only) | n | ANCHORED r / MAE | ML_abs (same n) r / MAE |
+|---|---|---|---|
+| M1 N-term seq | 429 | 0.156 / 2.54 | 0.346 / 1.99 |
+| M2 pocket-seq | 159 | 0.104 / 2.32 | 0.085 / 1.99 |
+| M3 pocket-comp | 159 | 0.168 / 2.36 | 0.085 / 1.99 |
+| M4 pocket-3D | 429 | 0.285 / 2.26 | 0.346 / 1.99 |
+| **COMBO (2 pep + 3 receptor)** | 429 | 0.259 / 2.37 | 0.346 / 1.99 |
+| **SHUFFLE (5 random)** | 429 | **0.322** / 2.18 | 0.346 / 1.99 |
+
+**The smoking gun: SHUFFLE (random refs) ≥ every similarity metric and the combo.** If similarity carried
+*any* cross-receptor transfer signal, M4/COMBO would beat SHUFFLE. They don't — random does *better*. This
+is the cleanest possible proof that the metrics provide **zero** cross-receptor signal. Mechanism: the
+anchored prediction is `po[query] + mean(y_ref − S_ref)`; averaging *random* refs makes that correction a
+near-constant (harmless to rank, ~preserves ML's r), while concentrating on *similar* refs injects their
+specific `b(R_ref)` bias — which e271 showed does **not** match `b(R)` — actively pulling predictions
+wrong. **And every arm, including the best (SHUFFLE), is worse than plain ML_abs on MAE.**
+
+**Why "average 5" can't rescue it (bias, not noise):** `b(R)−b(R_ref)` is a *systematic* per-receptor bias
+(std 2.14 kcal/mol), not zero-mean noise. Each reference carries its own non-zero offset; averaging K of
+them estimates the *pool-mean* offset, not `b(R)` for the query's receptor. Averaging removes variance,
+not bias — so more references and combos cannot help. This is the complete answer to "why it failed when
+it seemed like it would cancel cross-receptor issues": the thing to cancel is a structural bias that is
+invisible to every similarity metric (e271) and unmoved by averaging (e273).
+
+### 4.5 Would 0.1 ns MD per transfer help? No — already tested at 0.6 ns
+
+`b(R)−b(R_ref)` is a free-energy difference between two *different proteins*. A short **equilibrium** MD
+samples each system's local fluctuations but cannot produce a cross-protein free-energy difference (that
+needs receptor-morphing alchemical FEP, not equilibrium sampling). Empirically this was already settled:
+the GIST campaign (e242–248) ran **0.6 ns explicit-water** MD and measured the offset directly →
+r=−0.43, *below* permutation null. Explicit water at 6× the proposed duration did not capture the
+transferable offset. MD-rescoring yields another absolute scorer `S'` with its own idiosyncratic `b'(R)` —
+same wall. MD's real value is sharpening the relative term *within* a receptor (the same-receptor case),
+not bridging receptors. Recommendation: do not spend GPU on 0.1 ns cross-receptor MD; it would re-confirm
+a known negative.
+
+**Cross-receptor transfer is now closed from ~8 independent angles** (e266 forced top-1, e267 abstain+pool,
+e268 same-vs-homolog, e269 peptide-sim, e270 pocket-pkf, e271 offset-transfer-metrics, e272 bake-off,
+e273 no-cheat+combo+shuffle). The receptor offset is FEP-bound and same-receptor-only. The FEP-killer is
+real — but it lives entirely on the **same-receptor** axis (§4), which is the deployment lane.
+
 **Deployment rule (honest):** anchoring works **iff ≥1 known-Kd peptide exists on the SAME receptor**
 (or a ≥~0.9 near-identical sequence). Then r≈0.63, MAE≈1.65 (PPIKB) / MAE≈1.05 (PDBbind exact). With no
 same-receptor reference, **abstain and fall back to the absolute model** — do not borrow from a merely
