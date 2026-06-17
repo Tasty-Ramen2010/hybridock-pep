@@ -201,23 +201,38 @@ for receptor identity — it injects the reference receptor's offset. There is *
 tier**; the cascade is receptor-anchor → absolute. (Peptide similarity still has its proper roles:
 within-receptor *ranking* and choosing *which* same-receptor refs to weight — just not cross-receptor.)
 
-**Pocket-similarity anchoring — TESTED and REFUTED (e270).** Proposed: index anchors by binding-POCKET
-similarity instead of whole-sequence similarity, on the hypothesis that `b(R)` is a *pocket* property and
-so pocket-similar receptors (even different proteins) share the offset. Decisive deep-dive: estimate
-`b(R)=mean(y−S)` per multi-peptide receptor (n=114, PPIKB, residual offset std 0.61 kcal/mol), then
-correlate receptor-pair `−|Δb|` against similarity:
-- `corr(sequence-sim, −|Δb|) = +0.008` (zero — sequence does not predict shared offset)
-- `corr(pocket-sim, −|Δb|) = −0.121` (**negative** — pocket similarity does *not* predict shared offset
-  either; if anything slightly anti-predicts).
+**Pocket-similarity anchoring — REFUTED, but the metric question matters (e270 corrected by e271).**
+Two corrections to an earlier flawed pass:
+1. *In-sample-residual bug:* e270 estimated `b(R)` from in-sample residuals (shrunk) → std 0.61 kcal/mol,
+   too small. e271 redoes it **out-of-fold** (GroupKFold by receptor): **true `b(R)` std = 2.14 kcal/mol**
+   — the offset is LARGE (which is exactly why removing it via a same-receptor anchor moves r 0.28→0.63).
+2. *Bad similarity metric:* the PPIKB `protein_seq` used for "sequence similarity" in e268/e270 is a fixed
+   **50-residue N-terminal truncation** (signal-peptide junk), not the pocket and not the whole protein.
+   So that "homolog" axis was nearly meaningless — a valid critique.
 
-**`b(R)` does not transfer by ANY static similarity — sequence OR pocket.** It is idiosyncratic per
-receptor (consistent with e255: offset unpredictable from any static representation). This is the deep
-answer to *why peptide crossover failed*: swapping receptors injects `b(R_ref)`, and no similarity metric
-tells you `b(R_ref)≈b(R)`. Consequently pocket-anchor-with-fallback **collapses to the absolute model** —
-n=429 fresh PPIKB: OURS r=0.346/MAE1.99, PPI-clone v2 r=0.309/MAE1.94, POCKET-ANCHOR r=0.32–0.35/MAE~2.0
-at every threshold (no gain when it falls back; slightly *worse* at high coverage when it actually
-anchors cross-receptor). Pocket similarity is useful for *finding candidate poses*, not for transferring
-the offset.
+Decisive deep-dive (e271): estimate OOF `b(R)` per multi-peptide receptor (n=195, 152 with pocket
+structure), correlate pair `−|Δb|` against four metrics:
+
+| metric | corr(sim, −\|Δb\|) | p |
+|---|---|---|
+| M1 N-term-50 sequence (the old, bad axis) | +0.015 | 0.03 |
+| M2 pocket-residue sequence k-mer | +0.035 | 2e-4 |
+| M3 pocket residue composition | +0.008 | 0.4 |
+| **M4 pocket ProtDCal-3D descriptors** | **+0.084** | 3e-31 |
+
+**Ram's instinct was directionally right:** pocket-3D similarity (M4) predicts offset transfer ~5× better
+than N-terminal sequence, and pocket-sequence (M2) ~2× better. The binding-site representation *is* the
+correct key. **But even the best key (M4) explains <1% of `|Δb|` variance** — far too weak to beat the
+absolute model: anchoring to a pocket-similar *different* receptor still carries ≈√(1−0.084²)·2.14 ≈ 2.13
+kcal/mol of offset noise, worse than the absolute MAE (2.01). Direct confirmation: anchoring keyed on M4
+(e270 pocket-pkf) gave r 0.32–0.35 / MAE ~2.0 on n=429 fresh PPIKB = **no gain** over OURS
+(r=0.346/MAE1.99) or PPI-clone v2 (r=0.309/MAE1.94).
+
+**Honest synthesis:** `b(R)` is ~93–99% idiosyncratic even under the best pocket-3D similarity. The deep
+answer to *why peptide crossover failed*: swapping receptors injects `b(R_ref)` (std 2.14 kcal/mol), and
+no available similarity metric — sequence, pocket-sequence, pocket-composition, or pocket-3D — predicts
+`b(R_ref)≈b(R)` strongly enough to help. Pocket-3D similarity is the right tool for *finding candidate
+poses/receptors*, not for transferring the offset.
 
 **Deployment rule (honest):** anchoring works **iff ≥1 known-Kd peptide exists on the SAME receptor**
 (or a ≥~0.9 near-identical sequence). Then r≈0.63, MAE≈1.65 (PPIKB) / MAE≈1.05 (PDBbind exact). With no
