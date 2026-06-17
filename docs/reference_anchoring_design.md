@@ -173,24 +173,31 @@ cancellation, not regularization or label leakage.
 **Upgrade path:** hierarchical Bayesian `b(R)` (random intercept + prior → shrinkage with few anchors);
 the rigorous many-reference form is the **DiffNet MLE** (Xu 2019) reconciling all relative edges + anchors.
 
-### 4.1 Homolog-anchoring radius (e263) — coverage vs the `b(R)−b(R')` residual
+### 4.1 Anchoring needs a SAME-RECEPTOR reference — pure homolog transfer FAILS (corrected)
 
-Anchoring needs the *same* receptor, but `b(R)` varies **smoothly** with receptor structure, so a close
-homolog has `b(R')≈b(R)`. Validated on **real peptide Kd** (PDBbind 925, leave-cluster-out, same covered
-queries each row):
+**This corrects an earlier "homolog radius is flat to 50% id" claim, which was an artifact.** That claim
+came from loose receptor clusters whose "covered" queries still contained **same-exact-receptor**
+references (the target protein paired with other peptides). It was measuring same-target anchoring, not
+homolog transfer. e268 isolates the two on PPIKB (cluster@0.5, leave-cluster-out absolute, anchor refs
+restricted per group):
 
-| receptor similarity | covered complexes | ABSOLUTE r / RMSE | ANCHORED r / RMSE |
+| group | n | ABSOLUTE r / MAE | ANCHORED r / MAE |
 |---|---|---|---|
-| exact | 196 | 0.389 / 1.61 | **0.676 / 1.39** (MAE 1.05) |
-| ~90% id | 478 | 0.278 / 1.76 | 0.626 / 1.56 |
-| ~70% id | 548 | 0.276 / 1.78 | 0.595 / 1.62 |
-| ~50% id | 597 | 0.279 / 1.83 | 0.597 / 1.66 |
+| **A: same-EXACT-receptor ref available** | 916 | 0.280 / 2.05 | **0.627 / 1.65** ✅ |
+| **B: homolog-only (0.5–1.0 sim, no same-receptor ref)** | 14 | 0.248 / 2.04 | **0.054 / 2.91** ❌ |
 
-The gain **degrades gracefully, not off a cliff** — even ~50% id anchoring (r 0.60) crushes cold
-absolute (0.28). This is the difference between a *homolog* anchor (small `b(R)−b(R')`) and the
-*shuffle* control (random receptor, `b` difference huge → collapse). **Homolog-gating is the real
-coverage lever**: 196→478 anchorable complexes at 90% id. Deployment: look up receptor R, fall back
-exact → homolog (≥~50% id), widen the confidence band as identity drops.
+Corroborated by the strict leave-own-target-out deployment sims: e266 (top-1 closest *other* receptor,
+forced) anchored r=0.069 ≈ shuffle; e267 (abstain+pool homologs ≥τ) — even on the covered subset
+anchored MAE ≥ absolute, and only **8.5%** of queries have *any* ≥0.5 homolog once their own target is
+excluded. **`b(R)` does not transfer across distinct proteins**; the smooth-variation intuition is too
+weak at the 0.5–0.9 range to beat the absolute model.
+
+**Deployment rule (honest):** anchoring works **iff ≥1 known-Kd peptide exists on the SAME receptor**
+(or a ≥~0.9 near-identical sequence). Then r≈0.63, MAE≈1.65 (PPIKB) / MAE≈1.05 (PDBbind exact). With no
+same-receptor reference, **abstain and fall back to the absolute model** — do not borrow from a merely
+homologous protein. This fits iGEM mode (b) cleanly: you measure 2–3 reference Kd **on your actual
+target** (PfLDH, hLDH), not on a cousin protein. The e261 anchor library therefore helps only the
+receptors that already have ≥2 library peptides; a brand-new target needs user-supplied references.
 
 ### 4.2 Why cross-receptor "triangulation through a known corner" does NOT work
 
