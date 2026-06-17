@@ -234,6 +234,33 @@ no available similarity metric — sequence, pocket-sequence, pocket-composition
 `b(R_ref)≈b(R)` strongly enough to help. Pocket-3D similarity is the right tool for *finding candidate
 poses/receptors*, not for transferring the offset.
 
+**Full end-to-end bake-off (e272, fresh PPIKB n=429, every metric × pure/fallback vs baselines):**
+
+| estimator | r | MAE | anchored % |
+|---|---|---|---|
+| **ML_abs (geom+descriptors)** | 0.346 | **1.99** | — |
+| PPI_clone_v2 | 0.309 | 1.94 | — |
+| M1 N-term seq (pure) | 0.330 | 2.71 | 100% |
+| M2 pocket-seq (pure) | 0.333 | 2.13 | 100% |
+| M3 pocket-comp (pure) | 0.336 | 2.11 | 100% |
+| M4 pocket-3D (pure) | 0.333 | 2.35 | 100% |
+| M1 → ML fallback | 0.370 | 2.34 | 43% |
+| M2 → ML fallback | 0.346 | 2.03 | 9% |
+| M3 → ML fallback | 0.340 | 2.03 | 9% |
+| M4 → ML fallback | 0.312 | 2.16 | 25% |
+| HOMOLOG seq → ML fallback | 0.377 | 2.27 | 43% |
+
+**No estimator beats ML_abs on MAE (1.99) — the metric that matters for a kcal/mol predictor.** Every pure
+anchor arm *degrades* MAE (2.1–2.7). The fallback arms that nudge `r` up (HOMOLOG 0.377, M1 0.370) do so
+by **trading MAE** (1.99→2.27/2.34) and the `Δr≈+0.03` is within noise for n=429. Tellingly, the apparent
+`r` bump comes from **N-term sequence / homolog** (M1/HOM) — the metric e271 showed has ~**zero**
+offset-transfer signal (+0.015) — **not** from the pocket metrics that actually carry the (weak) signal.
+If this were real cross-receptor physics, M4 (pocket-3D, the strongest transfer metric) would lead; it is
+in fact the *worst* fallback arm (r=0.312). So the `r` wiggle is a coverage/scale artifact, not transfer.
+**Verdict: anchoring by any metric, pure or fallback, does not beat the plain ML model.** ML_abs remains
+the deployment scorer for the no-same-receptor-reference case; anchoring is reserved for the
+same-receptor few-shot case (§4).
+
 **Deployment rule (honest):** anchoring works **iff ≥1 known-Kd peptide exists on the SAME receptor**
 (or a ≥~0.9 near-identical sequence). Then r≈0.63, MAE≈1.65 (PPIKB) / MAE≈1.05 (PDBbind exact). With no
 same-receptor reference, **abstain and fall back to the absolute model** — do not borrow from a merely
