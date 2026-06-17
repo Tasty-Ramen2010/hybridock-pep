@@ -192,6 +192,15 @@ anchored MAE ≥ absolute, and only **8.5%** of queries have *any* ≥0.5 homolo
 excluded. **`b(R)` does not transfer across distinct proteins**; the smooth-variation intuition is too
 weak at the 0.5–0.9 range to beat the absolute model.
 
+**Peptide-similarity secondary fallback — TESTED and REFUTED (e269).** Proposed: when no close receptor
+exists, anchor to a similar *peptide* (length, net charge, hydrophobicity, aromatic/charged fraction,
+burial proxy) on a different receptor. Algebra: this cancels the *small* peptide term `c(P)` but leaves
+the *big* `b(R)−b(R_ref)` uncancelled. PPIKB abstain-regime result: ABSOLUTE r=0.280/MAE2.02 →
+PEP_ANCHOR r=0.238/MAE2.24 (**worse**, barely above SHUFFLE 0.215). Peptide similarity cannot substitute
+for receptor identity — it injects the reference receptor's offset. There is **no peptide-anchor middle
+tier**; the cascade is receptor-anchor → absolute. (Peptide similarity still has its proper roles:
+within-receptor *ranking* and choosing *which* same-receptor refs to weight — just not cross-receptor.)
+
 **Deployment rule (honest):** anchoring works **iff ≥1 known-Kd peptide exists on the SAME receptor**
 (or a ≥~0.9 near-identical sequence). Then r≈0.63, MAE≈1.65 (PPIKB) / MAE≈1.05 (PDBbind exact). With no
 same-receptor reference, **abstain and fall back to the absolute model** — do not borrow from a merely
