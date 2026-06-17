@@ -173,6 +173,43 @@ cancellation, not regularization or label leakage.
 **Upgrade path:** hierarchical Bayesian `b(R)` (random intercept + prior → shrinkage with few anchors);
 the rigorous many-reference form is the **DiffNet MLE** (Xu 2019) reconciling all relative edges + anchors.
 
+### 4.1 Homolog-anchoring radius (e263) — coverage vs the `b(R)−b(R')` residual
+
+Anchoring needs the *same* receptor, but `b(R)` varies **smoothly** with receptor structure, so a close
+homolog has `b(R')≈b(R)`. Validated on **real peptide Kd** (PDBbind 925, leave-cluster-out, same covered
+queries each row):
+
+| receptor similarity | covered complexes | ABSOLUTE r / RMSE | ANCHORED r / RMSE |
+|---|---|---|---|
+| exact | 196 | 0.389 / 1.61 | **0.676 / 1.39** (MAE 1.05) |
+| ~90% id | 478 | 0.278 / 1.76 | 0.626 / 1.56 |
+| ~70% id | 548 | 0.276 / 1.78 | 0.595 / 1.62 |
+| ~50% id | 597 | 0.279 / 1.83 | 0.597 / 1.66 |
+
+The gain **degrades gracefully, not off a cliff** — even ~50% id anchoring (r 0.60) crushes cold
+absolute (0.28). This is the difference between a *homolog* anchor (small `b(R)−b(R')`) and the
+*shuffle* control (random receptor, `b` difference huge → collapse). **Homolog-gating is the real
+coverage lever**: 196→478 anchorable complexes at 90% id. Deployment: look up receptor R, fall back
+exact → homolog (≥~50% id), widen the confidence band as identity drops.
+
+### 4.2 Why cross-receptor "triangulation through a known corner" does NOT work
+
+A tempting idea: predict `ΔG(P,R)` by routing through a fully-known `(P_known, R_known)` corner. The
+path has two legs: a **peptide-swap** leg (same receptor R_known → `b` cancels ✅, = ordinary anchoring)
+and a **receptor-swap** leg (same peptide P, R↔R_known) which leaves **`b(R) − b(R_known)`** — the
+difference of two receptor offsets = the FEP-bound wall, just relocated. A short equilibrium MD cannot
+compute it (that is morphing one protein into a different protein = receptor-FEP, a cross-state ΔG).
+**Anchoring works precisely because it never swaps the receptor.** Homolog-gating (4.1) is the only sound
+relaxation of the same-receptor requirement.
+
+### 4.3 MD lever applies to DOCKED poses, not crystal poses (Phase-1 scoping correction)
+
+The relative term `S(p)−S(r)` is only as good as the pose. On **crystal** complexes the pose is already
+native, so 100 ps MD mostly adds thermal noise — e263's crystal-pose anchoring (RMSE 1.39) is already
+near the η floor and MD won't move it. **The MD lever pays off on DOCKED (RAPiDock) poses**, where pose
+error is real. So the Phase-1 MD test must be run on docked poses (raw vs MD-relaxed vs crystal), NOT on
+crystal panels. Testing MD on crystal complexes would be uninformative — do not do it.
+
 ---
 
 ## 5. Selectivity (cross-target) — the math and the test
