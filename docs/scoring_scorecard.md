@@ -20,7 +20,22 @@ Random K-fold leaks receptors (same receptor in train+test) → optimistic. Leav
   homology-redundant splits; clustered ≈0.35). The big PPIKB "0.608" is a redundancy mirage (e280).
 - **Head-to-head vs PPI-clone v2** (fresh PPIKB n=429, honest): OURS r=0.346/MAE1.99 vs PPI-clone
   r=0.309/MAE1.94 — **we lead r, tie MAE.** Competitive at the shared ceiling (e272).
-- **Charged subset:** FEP-bound (cancellation of large terms). No static/ML/short-MD method cracks it.
+- **POOLED PDBbind+PPIKB, strict n=305, apples-to-apples (37-dim ProtDCal-3D, leave-receptor-out, e281):**
+
+  | model (pooled) | ALL r/MAE | CHARGED (\|q\|≥2, n=160) | NEUTRAL (n=145) |
+  |---|---|---|---|
+  | OURS / PDBbind-only | 0.283 / 2.10 | 0.397 / 1.94 | 0.159 / 2.28 |
+  | OURS / **POOLED** | **0.325** / 2.02 | 0.342 / 1.91 | 0.214 / 2.13 |
+  | PPI-clone v2 / POOLED | 0.325 / 2.01 | 0.300 / 1.95 | 0.275 / 2.07 |
+
+  - **Pooling helps OVERALL** (+0.042 r vs PDBbind-only) → **adopt pooled training.**
+  - **Pooling does NOT crack charged** (stays ~0.34–0.40, capped) — confirms the FEP floor; data ≠ fix.
+  - **vs PPI-clone: TIE overall (0.325/0.325); we match/slightly lead charged (0.342 vs 0.300); PPI leads
+    neutral.** CRUCIAL: **PPI's famed charged edge (T100 0.71) does NOT replicate on honest
+    leave-receptor-out data** — it was a homology/memorization artifact. On honest data PPI has **no**
+    charged advantage.
+- **Charged subset:** FEP-bound (cancellation of large terms). No static/ML/short-MD method cracks it;
+  more data + pooling helps overall but not charged specifically (e281).
 
 **Verdict:** absolute Kd is a shared, FEP-bound ceiling. We are at/above parity with the best available
 tool, but nobody beats ~0.35 honestly. Absolute Kd is **not** where we win.
