@@ -201,6 +201,24 @@ for receptor identity — it injects the reference receptor's offset. There is *
 tier**; the cascade is receptor-anchor → absolute. (Peptide similarity still has its proper roles:
 within-receptor *ranking* and choosing *which* same-receptor refs to weight — just not cross-receptor.)
 
+**Pocket-similarity anchoring — TESTED and REFUTED (e270).** Proposed: index anchors by binding-POCKET
+similarity instead of whole-sequence similarity, on the hypothesis that `b(R)` is a *pocket* property and
+so pocket-similar receptors (even different proteins) share the offset. Decisive deep-dive: estimate
+`b(R)=mean(y−S)` per multi-peptide receptor (n=114, PPIKB, residual offset std 0.61 kcal/mol), then
+correlate receptor-pair `−|Δb|` against similarity:
+- `corr(sequence-sim, −|Δb|) = +0.008` (zero — sequence does not predict shared offset)
+- `corr(pocket-sim, −|Δb|) = −0.121` (**negative** — pocket similarity does *not* predict shared offset
+  either; if anything slightly anti-predicts).
+
+**`b(R)` does not transfer by ANY static similarity — sequence OR pocket.** It is idiosyncratic per
+receptor (consistent with e255: offset unpredictable from any static representation). This is the deep
+answer to *why peptide crossover failed*: swapping receptors injects `b(R_ref)`, and no similarity metric
+tells you `b(R_ref)≈b(R)`. Consequently pocket-anchor-with-fallback **collapses to the absolute model** —
+n=429 fresh PPIKB: OURS r=0.346/MAE1.99, PPI-clone v2 r=0.309/MAE1.94, POCKET-ANCHOR r=0.32–0.35/MAE~2.0
+at every threshold (no gain when it falls back; slightly *worse* at high coverage when it actually
+anchors cross-receptor). Pocket similarity is useful for *finding candidate poses*, not for transferring
+the offset.
+
 **Deployment rule (honest):** anchoring works **iff ≥1 known-Kd peptide exists on the SAME receptor**
 (or a ≥~0.9 near-identical sequence). Then r≈0.63, MAE≈1.65 (PPIKB) / MAE≈1.05 (PDBbind exact). With no
 same-receptor reference, **abstain and fall back to the absolute model** — do not borrow from a merely
