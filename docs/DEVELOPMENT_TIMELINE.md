@@ -14,33 +14,10 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 > most projects hide: when a big new dataset (PDBbind, 925 complexes) and a real-deployment test arrived,
 > the number DROPPED, we found out why, and we earned it back on harder, more honest ground.**
 
-> ### 🔭 Latest — Epoch 8 (2026-06-17): we BEAT PPI-Affinity, cancelled the offset, and found the interaction map
-> The newest work sits at the **top** on purpose ([jump to Epoch 8](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)). Headlines:
-> - **We beat PPI-Affinity on independent data (honest CV).** PPIKB fresh *n*=305, leave-receptor-out:
->   ours (pooled + charge-route) **0.352 / charged 0.342** vs PPI-clone **0.325 / charged 0.300** — win on
->   r *and* MAE, overall and charged. With the interaction map on crystal poses: **0.480 / charged 0.401**
->   vs PPI **0.291 / 0.146**.
-> - **The offset `b(R)` is the wall — and it's FEP-bound, not a missing feature.** Proven from ~12 angles
->   (homolog/peptide/pocket transfer, learn-b(R), 11-model ML zoo, short MD — all fail). *Identifiability
->   theorem:* `b(R)` needs ≥1 measured Kd on that receptor; off-R complexes give zero constraints.
-> - **Reference anchoring + double-difference cancel the offset exactly** (Ram's idea, validated,
->   shuffle-controlled): anchoring within-receptor r **0.25 → 0.61** (strong, not FEP-grade); the
->   **double-difference** thermodynamic cycle hits **r = 0.96** — **FEP-grade *relative*-ΔΔG** (the one
->   place we claim FEP-level). Capabilities PPI structurally cannot run.
-> - **The interaction map (Ram's idea) is the biggest feature win of the campaign** — typed per-contact
->   fingerprint adds **+0.10** (charged +0.103, the first charged crack), 7× within-receptor ranking. Caveat:
->   needs crystal-quality pose; docked-pose deployment is open work.
->
-> ### 🔭 Epoch 7 (2026-06-15): we decoded PPI-Affinity, and found our exclusive ground
-> Earlier work ([jump to Epoch 7](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15)). Headlines:
-> - **PPI-Affinity is NOT pose-blind** — decoded its 37 descriptors from the ProtDCal paper; they are **3D
->   weighted-contact** features. On generated RAPiDock poses its method **collapses 0.55 → ~0.23–0.33**,
->   while our interface geometry **holds 0.43** on the same poses. *We win the deployment task.*
-> - **We cannot clone PPI exactly** (private BioLiP training set) — best faithful from-spec rebuild recovers
->   corr 0.33 with their shipped predictions; ProtDCal-3D fused into our crystal model does **not** beat them.
-> - **Selectivity is our exclusive territory** — sequence is blind (within-family τ=0.059); structure is the
->   only positive lever. New **PPIKB** data (2229 entries, 1652 Kd, 810 new PDBs, 80 selectivity families)
->   is the on-distribution lever for both the crystal gap and selectivity.
+> **How to read this document.** Epochs run **chronologically, oldest → newest** (§8 Epochs 1–5, §15
+> Epoch 6, §16 Epoch 7, §17 Epoch 8). The most recent work is at the **bottom** ([§17 — Epoch 8: anchoring,
+> the offset wall & the interaction map](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)),
+> where the current standing is summarised. Every ASCII chart below is drawn to the committed numbers.
 
 ---
 
@@ -960,13 +937,22 @@ instantly whether a problem is solvable.
 ### 17.2 Head-to-head: we beat PPI-Affinity on honest CV
 
 ```
-  PPIKB fresh n=305 (independent; sequence/pocket; leave-receptor-out)   r / MAE
-    PPI-clone v2        ALL 0.325/2.01   CHARGED 0.300/1.95   NEUTRAL 0.275/2.07
-    OURS routed stack   ALL 0.352/1.99   CHARGED 0.342/1.91   NEUTRAL 0.275/2.07   ← win/tie all bands
+  Pearson r vs experimental ΔG   (bar scale: each █ = 0.025 r ; leave-receptor-out)
+  ──────────────────────────────────────────────────────────────────────────────────
+  PPIKB fresh n=305 (independent; sequence/pocket only) — the deployment-realistic test
+    ALL      PPI-clone v2     █████████████░░░░░░░  0.325 / MAE 2.01
+             OURS routed      ██████████████░░░░░░  0.352 / MAE 1.99   ← WIN
+    CHARGED  PPI-clone v2     ████████████░░░░░░░░  0.300 / MAE 1.95
+             OURS routed      ██████████████░░░░░░  0.342 / MAE 1.91   ← WIN
+    NEUTRAL  PPI-clone v2     ███████████░░░░░░░░░  0.275 / MAE 2.07
+             OURS routed      ███████████░░░░░░░░░  0.275 / MAE 2.07   = tie
 
-  PDBbind crystal n=865 (with 3D interaction map)
-    PPI-clone v2        ALL 0.291/1.40   CHARGED 0.146/1.38
-    OURS + IFP          ALL 0.480/1.26   CHARGED 0.401/1.20                         ← crush, incl charged
+  PDBbind crystal n=865 (with the 3D interaction map) — the structure-rich test
+    ALL      PPI-clone v2     ████████████░░░░░░░░  0.291 / MAE 1.40
+             OURS + IFP       ███████████████████░  0.480 / MAE 1.26   ← CRUSH
+    CHARGED  PPI-clone v2     ██████░░░░░░░░░░░░░░░  0.146 / MAE 1.38
+             OURS + IFP       ████████████████░░░░  0.401 / MAE 1.20   ← CRUSH (charged!)
+  ──────────────────────────────────────────────────────────────────────────────────
 ```
 
 The routed stack = **pooled PDBbind+PPIKB training (+0.04)** + **charge-routing** (neutral→SVR, charged→GBT,

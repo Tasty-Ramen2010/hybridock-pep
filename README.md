@@ -126,12 +126,22 @@ Three head-to-head and capability results that define where HybriDock-Pep stands
 out-of-sample (leave-receptor-out); the charged subset is the regime where every scorer struggles.
 
 **① We beat PPI-Affinity (the best published non-FEP peptide scorer) on an independent set.** PPIKB
-fresh *n* = 305 (independent of our training source), sequence/pocket features only:
+fresh *n* = 305 (independent of our training source), sequence/pocket features only, leave-receptor-out:
 
-| model | ALL *r* / MAE | CHARGED *r* / MAE | NEUTRAL *r* / MAE |
-|---|---|---|---|
-| PPI-clone v2 | 0.325 / 2.01 | 0.300 / 1.95 | 0.275 / 2.07 |
-| **HybriDock-Pep (pooled + charge-route)** | **0.352 / 1.99** | **0.342 / 1.91** | 0.275 / 2.07 |
+```
+  Pearson r vs experimental ΔG     (each █ = 0.025 r ; 20 blocks = 0.50)
+  ────────────────────────────────────────────────────────────────────────
+  ALL      PPI-clone v2  █████████████░░░░░░░  0.325 / MAE 2.01
+           HybriDock-Pep ██████████████░░░░░░  0.352 / MAE 1.99   ◀ WIN
+  CHARGED  PPI-clone v2  ████████████░░░░░░░░  0.300 / MAE 1.95
+           HybriDock-Pep ██████████████░░░░░░  0.342 / MAE 1.91   ◀ WIN
+  NEUTRAL  PPI-clone v2  ███████████░░░░░░░░░  0.275 / MAE 2.07
+           HybriDock-Pep ███████████░░░░░░░░░  0.275 / MAE 2.07   = tie
+  ────────────────────────────────────────────────────────────────────────
+  With the 3D interaction map on CRYSTAL poses (PDBbind n=865):
+  ALL      PPI-clone v2  ████████████░░░░░░░░  0.291        CHARGED  ██████░░░░░░░░░░░░░░  0.146
+           HybriDock-Pep ███████████████████░  0.480  ◀CRUSH         ████████████████░░░░  0.401  ◀CRUSH
+```
 
 With a 3D **interaction map** on crystal-quality poses we extend the lead dramatically (PDBbind *n* = 865):
 **ours 0.480 / charged 0.401** vs PPI-clone **0.291 / charged 0.146**. (The interaction-map gain needs a
