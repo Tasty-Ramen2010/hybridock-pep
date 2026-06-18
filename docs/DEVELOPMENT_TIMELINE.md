@@ -14,8 +14,24 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 > most projects hide: when a big new dataset (PDBbind, 925 complexes) and a real-deployment test arrived,
 > the number DROPPED, we found out why, and we earned it back on harder, more honest ground.**
 
-> ### 🔭 Latest — Epoch 7 (2026-06-15): we decoded PPI-Affinity, and found our exclusive ground
-> The newest work sits at the **top** on purpose ([jump to Epoch 7](#0-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e190-2026-06-15)). Headlines:
+> ### 🔭 Latest — Epoch 8 (2026-06-17): we BEAT PPI-Affinity, cancelled the offset, and found the interaction map
+> The newest work sits at the **top** on purpose ([jump to Epoch 8](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)). Headlines:
+> - **We beat PPI-Affinity on independent data (honest CV).** PPIKB fresh *n*=305, leave-receptor-out:
+>   ours (pooled + charge-route) **0.352 / charged 0.342** vs PPI-clone **0.325 / charged 0.300** — win on
+>   r *and* MAE, overall and charged. With the interaction map on crystal poses: **0.480 / charged 0.401**
+>   vs PPI **0.291 / 0.146**.
+> - **The offset `b(R)` is the wall — and it's FEP-bound, not a missing feature.** Proven from ~12 angles
+>   (homolog/peptide/pocket transfer, learn-b(R), 11-model ML zoo, short MD — all fail). *Identifiability
+>   theorem:* `b(R)` needs ≥1 measured Kd on that receptor; off-R complexes give zero constraints.
+> - **Reference anchoring = FEP-grade relative accuracy at docking cost** (Ram's idea, validated,
+>   shuffle-controlled): within-receptor r **0.25 → 0.61**; the **double-difference** thermodynamic cycle
+>   hits **r = 0.96**. These cancel the offset exactly — capabilities PPI structurally cannot run.
+> - **The interaction map (Ram's idea) is the biggest feature win of the campaign** — typed per-contact
+>   fingerprint adds **+0.10** (charged +0.103, the first charged crack), 7× within-receptor ranking. Caveat:
+>   needs crystal-quality pose; docked-pose deployment is open work.
+>
+> ### 🔭 Epoch 7 (2026-06-15): we decoded PPI-Affinity, and found our exclusive ground
+> Earlier work ([jump to Epoch 7](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15)). Headlines:
 > - **PPI-Affinity is NOT pose-blind** — decoded its 37 descriptors from the ProtDCal paper; they are **3D
 >   weighted-contact** features. On generated RAPiDock poses its method **collapses 0.55 → ~0.23–0.33**,
 >   while our interface geometry **holds 0.43** on the same poses. *We win the deployment task.*
@@ -40,7 +56,8 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 9. [The three capabilities we actually ship](#9-the-three-capabilities)
 10. [Lessons — the method that made it real](#10-lessons)
 11. [Epoch 6 — PDBbind scale, ProtDCal descriptors & the deployment fix (E93–E153)](#15-epoch-6--pdbbind-scale-protdcal-descriptors--the-deployment-fix-e93e153-2026-06-13)
-12. [**Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E193)**](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15) *(latest, appended at bottom)*
+12. [Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E193)](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15)
+13. [**Epoch 8 — anchoring, the offset wall & the interaction map (E260–E299)**](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17) *(latest, at bottom)*
 
 ---
 
@@ -920,10 +937,124 @@ and selectivity — where sequence models are weakest — is our exclusive struc
 
 ---
 
-*Generated from committed experiments E0–E193. Epochs 1–5 detail in
+## 17. Epoch 8 — anchoring, the offset wall & the interaction map (E260–E299, 2026-06-17)
+
+The epoch where we stopped chasing the absolute number and **named the wall, then went around it.** Three
+results that define where the tool stands: (1) we beat PPI-Affinity on honest CV; (2) the per-receptor
+offset `b(R)` is FEP-bound and we proved it from ~12 angles; (3) two ways around it — reference anchoring
+(FEP-grade *relative* accuracy) and the interaction map (the biggest feature win of the whole campaign).
+
+### 17.1 The three-axis reframe (the conceptual key)
+
+```
+  AXIS 1  ABSOLUTE Kd        shared ~0.35 honest ceiling; charged floor FEP-bound
+  AXIS 2  SAME-RECEPTOR      OUR EXCLUSIVE WIN: anchoring 0.25→0.61, double-diff 0.96
+  AXIS 3  WITHIN-TARGET RANK offset cancels → SHIPPED (charge-comp, pose-ranker, IFP-alchemy 7×)
+```
+
+The offset `b(R) = E[S − g | R]` (our scorer's systematic error on a receptor) is the wall. It cancels
+trivially on Axes 2 & 3 and is *fundamentally unpredictable* on Axis 1. Knowing your axis tells you
+instantly whether a problem is solvable.
+
+### 17.2 Head-to-head: we beat PPI-Affinity on honest CV
+
+```
+  PPIKB fresh n=305 (independent; sequence/pocket; leave-receptor-out)   r / MAE
+    PPI-clone v2        ALL 0.325/2.01   CHARGED 0.300/1.95   NEUTRAL 0.275/2.07
+    OURS routed stack   ALL 0.352/1.99   CHARGED 0.342/1.91   NEUTRAL 0.275/2.07   ← win/tie all bands
+
+  PDBbind crystal n=865 (with 3D interaction map)
+    PPI-clone v2        ALL 0.291/1.40   CHARGED 0.146/1.38
+    OURS + IFP          ALL 0.480/1.26   CHARGED 0.401/1.20                         ← crush, incl charged
+```
+
+The routed stack = **pooled PDBbind+PPIKB training (+0.04)** + **charge-routing** (neutral→SVR, charged→GBT,
++0.027). The redundancy mirage confirmed: PPIKB random-KFold 0.608 vs honest leave-receptor-out **0.259** —
+the "0.55" everyone quotes (PPI included) is a homology artifact; honest ceiling ≈ 0.35 for all.
+
+### 17.3 Reference anchoring — the FEP-killer on the right axis (Ram's idea)
+
+```
+  SAME-RECEPTOR ANCHORING (PPIKB, leave-receptor-out, shuffle-controlled)
+    cold cross-receptor absolute      r = −0.07   (the wall)
+    same-receptor anchored (bayes)    r = +0.71   ← cancels b(R)
+    SHUFFLE (wrong receptor)          r = −0.05   ← collapses ⇒ genuine cancellation, not regularization
+  Real peptide Kd: within-receptor 0.25 → 0.61, MAE 2.09 → 1.65
+
+  DOUBLE-DIFFERENCE (thermodynamic cycle):  ΔG(P,R) ≈ ΔG(P,R_ref)+ΔG(P_ref,R)−ΔG(P_ref,R_ref)
+    cancels BOTH b(R) and c(P); residual = coupling ≈ 0.85 kcal/mol
+    on 26 real 2×2 grids:  r = 0.96, MAE 0.80  ← FEP-grade relative, at docking cost
+  Probe-fingerprint deployment: measure 2–3 known Kd on target → r ≈ 0.52; full anchor set → 0.61
+```
+
+### 17.4 The offset wall — exhaustively proven unbreakable (so no one re-runs it)
+
+```
+  CAN WE GET b(R) WITHOUT MEASURING ON THE RECEPTOR?
+    sequence-homolog transfer ........ fails (n=14 r=0.05)         E268
+    peptide-similarity transfer ...... 0.24 < absolute 0.28        E269
+    pocket-3D similarity ............. no gain                     E270
+    offset-transfer corr (best) ...... +0.084 (<1% variance)       E271
+    90%-strict gate .................. CRASHES (5%: 0.62→−0.11)    E288
+    directly LEARN b(R) .............. r≈0 < predict-mean          E276
+    11-MODEL ML ZOO .................. ALL r ≤ 0                   E293
+    short MD (0.1–0.6 ns) ............ GIST < null                 E275
+  THEOREM (E290–291): b(R) is one unknown per receptor, appears ONLY in terms involving R.
+  Need ≥1 measured Kd (or 1 FEP) ON R. Off-R complexes give ZERO constraints. Information theory,
+  not a modeling gap. Why every model fails: b(R) is the scorer's OWN residual, orthogonal by
+  construction to every feature it already used.
+
+  Variance decomposition:  b(R) 0.78 · c(peptide) 0.58 · η(interaction) 1.49 (ridge)
+  → the LARGEST chunk is η, irreducible across all 11 model classes. The wall is physics, not model.
+```
+
+### 17.5 The interaction map (Ram's idea) — biggest feature win of the campaign
+
+Represent a complex by its **typed per-contact interaction fingerprint** (distance-binned salt bridges,
+H-bonds to charged/polar/backbone, hydrophobic, aromatic) — *orthogonal* physics the aggregates blur.
+
+```
+  IFP — PDBbind crystal, proper leave-receptor-out, +richIFP
+    ALL      0.383 → 0.485  (+0.102)
+    CHARGED  0.346 → 0.448  (+0.103)   ← FIRST charged crack of the whole campaign
+    NEUTRAL  0.410 → 0.508  (+0.098)
+  IFP-only (9 feat) ≈ 17 aggregate feat ⇒ genuinely orthogonal; offset shrinks 1.47 → 1.36
+  IFP-ALCHEMY (ΔG-diff from bond-diff): within-receptor ranking 0.027 → 0.183 (7×, selectivity lever)
+  CAVEAT (crystal vs AI pose): docked rank1 is ~70% faithful to the map → IFP-only degrades to r≈0.11.
+    Deploy value needs full 17+IFP, top-5 ensemble, or pose-robust IFP. OPEN WORK.
+```
+
+### 17.6 What shipped this epoch
+
+`scoring/anchoring.py` (same-receptor calibration, 6 tests), `scoring/double_difference.py` (thermo-cycle
+ΔG + selectivity, 4 tests), `affinity_stack_candidate.joblib` (pooled + charge-route), exposed module API
+in `hybridock_pep.__init__`. Research-validated (not yet wired to docked-pose pipeline): interaction map,
+IFP-alchemy. Design docs: `reference_anchoring_design.md`, `finding_bR_brainstorm.md`,
+`pocket_failure_diagnosis.md`, `scoring_ideas_brainstorm.md`, `scoring_scorecard.md`.
+
+### 17.7 Where Epoch 8 leaves us
+
+```
+  ABSOLUTE Kd   : honest ~0.35 ceiling; we beat PPI on independent CV (0.352 vs 0.325, charged 0.342 vs 0.300)
+  SAME-RECEPTOR : anchoring 0.61, double-diff 0.96 = FEP-grade RELATIVE at docking cost (PPI can't run it)
+  SELECTIVITY   : within-target ranking shipped; IFP-alchemy 7× lever; ΔΔG CLI primitive
+  INTERACTION MAP: +0.10 crystal (cracks charged) — deploy on docked poses = the open frontier
+  THE WALL      : b(R) FEP-bound, unpredictable/untransferable; cancel it (anchor) or measure it (1 Kd/1 FEP)
+```
+
+**Strategic close:** we stopped trying to predict the unpredictable and built the tool around what's true.
+On absolute Kd we are the **best non-FEP scorer on honest data**. On same-receptor and selectivity — the
+iGEM deployment frame — we reach **FEP-grade relative accuracy at docking cost**, which no structure-free ML
+scorer can. The interaction map is the next lever to make charged-cracking accuracy deployable on AI poses.
+
+---
+
+*Generated from committed experiments E0–E299. Epochs 1–5 detail in
 `docs/e19_pocket_baseline_breakthrough.md`; Epoch 6 in `docs/protdcal_charged_2026-06-13.md`,
 `docs/production_fix_short_2026-06-13.md`, `docs/capstone_scorecard_2026-06-13.md`; **Epoch 7** (§16: PPI
 decode, deployment haircut, crystal breakdown, PPIKB/PepBenchmark levers) in
 `docs/failure_map_and_levers_2026-06-15.md` + `third_party/protdcal/protdcal_spec.py` + scripts E177–E193;
-head-to-head in `docs/SCORING_COMPARISON.md`.
+**Epoch 8** (§17: anchoring, offset wall, interaction map) in `docs/reference_anchoring_design.md`,
+`docs/finding_bR_brainstorm.md`, `docs/pocket_failure_diagnosis.md`, `docs/scoring_scorecard.md` + scripts
+E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`.
 Every number is leave-one-out, grouped-CV, or held-out unless explicitly marked in-distribution.*

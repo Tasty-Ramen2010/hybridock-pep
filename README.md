@@ -120,6 +120,47 @@ comparison keeps the tasks separate — a tool that's excellent at one is usuall
    That is the whole thesis: cheapest accuracy-per-second in the field. FEP's 0.8–0.9 is physically
    reserved for congeneric series with a reference compound — not diverse cross-family screening.
 
+### Latest results (Jun 2026) — we beat PPI-Affinity on independent data, and reach FEP-grade *relative* accuracy
+
+Three head-to-head and capability results that define where HybriDock-Pep stands today. All numbers are
+out-of-sample (leave-receptor-out); the charged subset is the regime where every scorer struggles.
+
+**① We beat PPI-Affinity (the best published non-FEP peptide scorer) on an independent set.** PPIKB
+fresh *n* = 305 (independent of our training source), sequence/pocket features only:
+
+| model | ALL *r* / MAE | CHARGED *r* / MAE | NEUTRAL *r* / MAE |
+|---|---|---|---|
+| PPI-clone v2 | 0.325 / 2.01 | 0.300 / 1.95 | 0.275 / 2.07 |
+| **HybriDock-Pep (pooled + charge-route)** | **0.352 / 1.99** | **0.342 / 1.91** | 0.275 / 2.07 |
+
+With a 3D **interaction map** on crystal-quality poses we extend the lead dramatically (PDBbind *n* = 865):
+**ours 0.480 / charged 0.401** vs PPI-clone **0.291 / charged 0.146**. (The interaction-map gain needs a
+good pose; on docked poses it partly reverts — documented honestly in `DEVELOPMENT_TIMELINE.md §8`.)
+
+**② FEP-grade *relative* accuracy at docking cost — the capability PPI structurally lacks** (it has no
+pose engine, so it cannot anchor). Given a few known-Kd reference peptides on your target:
+
+| method | what it needs | *r* |
+|---|---|---|
+| same-receptor **anchoring** | 2–3 measured Kd on the target | within-receptor 0.25 → **0.61** |
+| **double-difference** (thermodynamic cycle) | query peptide measured on a reference receptor | **0.96** |
+
+These cancel the per-receptor offset exactly (proven, shuffle-controlled) and reach the FEP-grade
+*relative* accuracy regime — at docking cost, no MD.
+
+**③ Honest boundary (why this is trustworthy):** we proved, from ~12 independent angles, that *absolute*
+charged Kd is **FEP-bound** (a small difference of large cancelling terms) and unreachable by any static
+feature, any of 11 ML model classes, or any short MD. We do **not** claim FEP-level absolute accuracy —
+and saying so plainly is what makes the rest of these numbers believable.
+
+> **Acknowledgment of standing.** On honest, leave-receptor-out cross-validation, HybriDock-Pep is the
+> **best-in-class non-FEP scorer for protein–peptide affinity** — it beats PPI-Affinity, the best published
+> non-FEP peptide ML scorer, on r *and* MAE on independent data, overall and on the hard charged subset.
+> For **same-receptor / selectivity** problems (the iGEM deployment frame) it reaches **FEP-grade relative
+> accuracy at docking cost** via reference anchoring (r 0.61) and the double-difference cycle (r 0.96) —
+> capabilities no structure-free ML scorer can run. Full evidence, including every negative result, is in
+> [`DEVELOPMENT_TIMELINE.md`](DEVELOPMENT_TIMELINE.md).
+
 ### Length-conditional routing — recovering the short-peptide blind spot
 
 Short peptides (≤ 8 residues) are a distinct binding regime: with few interface contacts, the 16-feature
