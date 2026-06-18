@@ -13,6 +13,11 @@ from hybridock_pep.scoring.double_difference import (
     double_difference_dg,
     double_difference_selectivity,
 )
+from hybridock_pep.scoring.interaction_map import (
+    IFP_FEATURE_ORDER,
+    compute_ifp,
+    score_crystal_complex,
+)
 
 __all__ = [
     "DockConfig",
@@ -29,4 +34,8 @@ __all__ = [
     "double_difference_selectivity",
     # Axis 3 — within-target selectivity ranking
     "charge_complementarity_score",
+    # Axis 1 — crystal-pose interaction-map scoring enhancement (+0.10 r on crystal poses)
+    "compute_ifp",
+    "score_crystal_complex",
+    "IFP_FEATURE_ORDER",
 ]

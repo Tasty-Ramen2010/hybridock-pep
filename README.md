@@ -140,13 +140,15 @@ good pose; on docked poses it partly reverts — documented honestly in `DEVELOP
 **② FEP-grade *relative* accuracy at docking cost — the capability PPI structurally lacks** (it has no
 pose engine, so it cannot anchor). Given a few known-Kd reference peptides on your target:
 
-| method | what it needs | *r* |
-|---|---|---|
-| same-receptor **anchoring** | 2–3 measured Kd on the target | within-receptor 0.25 → **0.61** |
-| **double-difference** (thermodynamic cycle) | query peptide measured on a reference receptor | **0.96** |
+| method | what it needs | *r* | regime |
+|---|---|---|---|
+| same-receptor **anchoring** | 2–3 measured Kd on the target | within-receptor 0.25 → **0.61** | strong (not FEP-grade) |
+| **double-difference** (thermodynamic cycle) | query peptide measured on a reference receptor | **0.96** | **FEP-grade relative** |
 
-These cancel the per-receptor offset exactly (proven, shuffle-controlled) and reach the FEP-grade
-*relative* accuracy regime — at docking cost, no MD.
+Both cancel the per-receptor offset exactly (proven, shuffle-controlled). **The FEP-grade claim is reserved
+for the double-difference specifically** (r = 0.96, the relative-ΔΔG thermodynamic cycle — where FEP itself
+operates and scores ~0.8–0.9); anchoring (r = 0.61) is a strong same-receptor calibrator but we do *not*
+call it FEP-grade. Both run at docking cost, no MD.
 
 **③ Honest boundary (why this is trustworthy):** we proved, from ~12 independent angles, that *absolute*
 charged Kd is **FEP-bound** (a small difference of large cancelling terms) and unreachable by any static
@@ -156,10 +158,12 @@ and saying so plainly is what makes the rest of these numbers believable.
 > **Acknowledgment of standing.** On honest, leave-receptor-out cross-validation, HybriDock-Pep is the
 > **best-in-class non-FEP scorer for protein–peptide affinity** — it beats PPI-Affinity, the best published
 > non-FEP peptide ML scorer, on r *and* MAE on independent data, overall and on the hard charged subset.
-> For **same-receptor / selectivity** problems (the iGEM deployment frame) it reaches **FEP-grade relative
-> accuracy at docking cost** via reference anchoring (r 0.61) and the double-difference cycle (r 0.96) —
-> capabilities no structure-free ML scorer can run. Full evidence, including every negative result, is in
-> [`DEVELOPMENT_TIMELINE.md`](DEVELOPMENT_TIMELINE.md).
+> For same-receptor / selectivity problems (the iGEM deployment frame) it adds capabilities no structure-free
+> ML scorer can run: reference anchoring (within-receptor r 0.61) and — uniquely — the **double-difference
+> thermodynamic cycle, which reaches FEP-grade *relative*-ΔΔG accuracy (r 0.96) at docking cost.** The
+> FEP-grade claim is scoped to the double-difference alone; absolute-Kd accuracy is honestly capped at the
+> non-FEP ceiling (the charged floor is FEP-bound and we say so). Full evidence, including every negative
+> result, is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 ### Length-conditional routing — recovering the short-peptide blind spot
 
