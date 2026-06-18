@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-285%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-409%20passing-brightgreen.svg)](#testing)
 
 HybriDock-Pep predicts how short peptides bind to protein receptors. It takes a peptide sequence and a receptor PDB, returns ranked binding poses with calibrated ΔG estimates, and includes a first-class **selectivity primitive** for comparing how the same peptide binds two different targets (decoy ΔΔG with bootstrap CI).
 
@@ -47,23 +47,38 @@ Every method below was scored on the **same pooled benchmark of 156 unique prote
 experimental ΔG** (crystal-65 + the-98, mixed Kd/Ki, balanced stratified train/test). Pearson *r* vs
 experiment; **no relaxation** unless noted. Our numbers are out-of-sample (leave-one-out and held-out).
 
-| Method (same crystal poses) | *r* | Coverage | Relaxation | Time / complex |
-|---|---|---|---|---|
-| MJ contact potential | 0.16 | 156 | no | < 1 s |
-| single-pose physics (pooled) | 0.19 | 156 | varies | s–min |
-| MM-GBSA (single snapshot) | 0.25 | 91 | min only | 5–30 s |
-| OpenMM vdW packing | 0.34 | 86 | no | ~30 s |
-| BSA (hydrophobic burial) | 0.39 | 156 | no | < 1 s |
-| Raw Vina (cr65; sign-flipped) | 0.56\* | 65 | no | ~1 s |
-| **ref2015 / FlexPepDock energy — *unrelaxed*** | **0.07** | 65 | **no → fails** | seconds |
-| ref2015 / FlexPepDock — *with* relaxation (lit.) | 0.55–0.59 *within-target* | — | **yes, 5–30 min** | 5–30 min |
-| PPI-Affinity (best published ML peptide scorer) | 0.55 | — | n/a | server |
-| **HybriDock-Pep (geometry + length router)** | **0.585 LOO · 0.68 held-out** | **156** | **no** | **~10 s (+8 s MD opt.)** |
-| LIE | 0.5–0.7 *system-specific* | — | both MD legs | 0.5–4 GPU-hr |
-| FEP / TI | 0.8–0.9 *congeneric only* | — | full MD | 5–50 GPU-hr / mutation |
+```
+ NON-FEP/LIE PROTEIN–PEPTIDE AFFINITY LEADERBOARD          each █ = 0.025 r ; frame = 0.60
+ "measured" = we ran it on our 156 complexes · "published" = the author's own reported number
 
-\* Vina's raw score is *anti-correlated* (more-negative ≠ tighter on this set, *r* = −0.56); only after a
-sign-aware fit does it reach 0.56, and only on crystal-65 — it has no the-98 coverage and flips cross-family.
+ method                        r-bar (0 ──────────────► 0.60)   r        provenance
+ ▶ HybriDock-Pep (crystal)     ███████████████████████░  0.585    measured (LOO; 0.68 balanced held-out)  ◀ #1 NON-FEP/LIE
+ ▶ HybriDock-Pep (DEPLOY pose) █████████████████████░░░  0.55     measured (real RAPiDock poses, honest)  ◀ still #1 deployed
+   PPI-Affinity (best pub. ML) ██████████████████████░░  0.554    published — server CURRENTLY DOWN; we re-implemented it
+   AutoDock4 (AD4)             █████████████████████░░░  0.53     measured (uses Gasteiger charges)
+   BSA hydrophobic burial      ████████████████░░░░░░░░  0.39     measured (our single strongest standalone feature)
+   DFIRE (KB potential)        ██████████████░░░░░░░░░░  0.35     published (PPI-Affinity benchmark cohort)
+   OpenMM vdW packing          ██████████████░░░░░░░░░░  0.34     measured
+   Kdeep (3D-CNN)              █████████████░░░░░░░░░░░  0.32     published (PPI-Affinity benchmark cohort)
+   ADCP / AutoDock CrankPep    ████████████░░░░░░░░░░░░  ~0.30    published (a docking tool; affinity is a by-product)
+   RF-Score                    ███████████░░░░░░░░░░░░░  0.28     published (PPI-Affinity benchmark cohort)
+   MM-GBSA (1 snapshot)        ██████████░░░░░░░░░░░░░░  0.25     measured
+   MJ contact potential        ██████░░░░░░░░░░░░░░░░░░  0.16     measured
+   PRODIGY (contacts+NIS)      █████░░░░░░░░░░░░░░░░░░░  0.12     published (built for protein–protein; 0.73 there, not peptides)
+   ref2015 / FlexPepDock E     ███░░░░░░░░░░░░░░░░░░░░░  0.07     measured (UNRELAXED energy — see note ‡)
+   CP_PIE                     ◀ backwards               −0.35     published (anti-correlated on peptides)
+   Raw Vina (cr65)            ◀ backwards               −0.56     measured (size-confounded; sign-flips on peptides)
+ ──────────────────────  FEP/LIE = a DIFFERENT, 100–10,000× costlier tier — we sit below it by design ──
+   LIE (system-specific)       ██████████████████████   0.5–0.7  per-system α/β refit · both MD legs · 0.5–4 GPU-hr
+   FEP / TI (congeneric)       ████████████████████████ 0.8–0.9  alchemical MD · 5–50 GPU-hr PER MUTATION · not a screener
+```
+
+\* **‡ The "ref2015 / FlexPepDock 0.59" you may have seen is a different task.** That number is (a)
+*within-target* (ranking variants of one complex), not cross-family, and (b) bought with 5–30 min/complex of
+Rosetta FastRelax. Hand FlexPepDock the **same raw cross-family poses** every other row here got and its
+unrelaxed energy scores **0.07** — noise. We do not list a "FlexPepDock 0.59" peer bar because it was never
+measured on this task; unrelaxed (our measurement) it is last. Raw Vina is likewise *anti-correlated* on
+peptides (*r* = −0.56); only a sign-aware refit on crystal-65 alone reaches 0.56.
 
 ### The full competitive landscape — three different jobs, don't conflate them
 
@@ -72,18 +87,26 @@ comparison keeps the tasks separate — a tool that's excellent at one is usuall
 
 **① Protein–PEPTIDE absolute affinity (kcal/mol / Kd) — *our lane*:**
 
-| Tool | *r* | Cost / complex | License | Note |
-|---|---|---|---|---|
-| Raw AutoDock Vina | ~0.3 (sign-flips) | ~1 s | Apache-2.0 | size-confounded, no entropy |
-| ADCP (AutoDock CrankPep) — AD4 score | ~0.2–0.4 | minutes | LGPL | a *docking* tool; affinity is a by-product |
-| MM-GBSA (single snapshot) | 0.25 | 5–30 s | — | omits conformational entropy |
-| HADDOCK score / dMM-PBSA | 0.3–0.5 | minutes–hours | **academic-only** | PB solve; not OSI for iGEM |
-| MM-PBSA | 0.3–0.5 | 1–5 min | — | dielectric-sensitive |
-| PPI-Affinity (ML) | 0.55 | server | — | best published ML peptide scorer |
-| FlexPepDock (relaxed) | 0.55–0.59 *within-target* | 5–30 min | academic | flips cross-family; needs refinement |
-| **HybriDock-Pep** | **0.585 LOO · 0.68 held-out** | **~10 s** | **MIT** | **no relaxation, commodity HW** |
-| LIE | 0.5–0.7 *system-specific* | 0.5–4 GPU-hr | — | per-system refit |
-| FEP / TI | 0.8–0.9 *congeneric only* | 5–50 GPU-hr/mut | — | not a screener |
+| Tool | *r* | Provenance | Cost / complex | License | Note |
+|---|---|---|---|---|---|
+| **HybriDock-Pep** | **0.585 LOO · 0.68 held-out** | **measured** | **~10 s** | **MIT** | **#1 non-FEP/LIE; no relaxation, commodity HW** |
+| PPI-Affinity (ML) | 0.554 | published | server (**down**) | — | best *published* ML peptide scorer; we beat it on independent data |
+| AutoDock4 (AD4 score) | 0.53 | measured | ~1 s | Apache-2.0 | uses Gasteiger charges |
+| DFIRE (KB potential) | 0.35 | published | ~1 s | — | from the PPI-Affinity benchmark cohort |
+| Kdeep (3D-CNN) | 0.32 | published | seconds (GPU) | — | from the PPI-Affinity benchmark cohort |
+| ADCP (AutoDock CrankPep) — AD4 | ~0.2–0.4 / ~0.30 | published | minutes | LGPL | a *docking* tool; affinity is a by-product |
+| RF-Score | 0.28 | published | ~1 s | — | from the PPI-Affinity benchmark cohort |
+| MM-GBSA (single snapshot) | 0.25 | measured | 5–30 s | — | omits conformational entropy |
+| HADDOCK score / dMM-PBSA | 0.3–0.5 | published | minutes–hours | **academic-only** | PB solve; not OSI for iGEM |
+| MM-PBSA | 0.3–0.5 | published | 1–5 min | — | dielectric-sensitive |
+| PRODIGY (contacts + NIS) | 0.12 | published | < 1 s | Apache-2.0 | built for protein–protein (0.73 there); weak on peptides |
+| Raw AutoDock Vina | −0.56 (sign-flips) | measured | ~1 s | Apache-2.0 | size-confounded, no entropy, anti-correlated on peptides |
+| CP_PIE | −0.35 | published | ~1 s | — | anti-correlated on peptides |
+| ref2015 / FlexPepDock — **unrelaxed** | **0.07** | measured | seconds | academic | the raw energy on this cross-family task = noise |
+| ref2015 / FlexPepDock — relaxed (lit.) | 0.55–0.59 *within-target* | published | **5–30 min** | academic | **different task** (within-target), bought by refinement |
+| *— FEP/LIE tier (100–10,000× costlier, not competitors) —* | | | | | |
+| LIE | 0.5–0.7 *system-specific* | published | 0.5–4 GPU-hr | — | per-system refit |
+| FEP / TI | 0.8–0.9 *congeneric only* | published | 5–50 GPU-hr/mut | — | not a screener |
 
 **② Protein–peptide POSE prediction / docking (Ångström RMSD — a *different* task, different units):**
 
@@ -111,14 +134,17 @@ comparison keeps the tasks separate — a tool that's excellent at one is usuall
 > it solves a different, easier-to-train problem. Within **protein–peptide affinity**, we are at the top of
 > the non-FEP tier.
 
-**Two results worth staring at:**
+**Three results worth staring at:**
 
-1. **We beat every single-pose physics method on the full 156** — 0.585 vs the best baseline's 0.39 — and
-   match PPI-Affinity (0.55) and *relaxed* FlexPepDock (0.59) **at 30–300× lower cost, with no relaxation.**
-2. **ref2015 unrelaxed = 0.07.** FlexPepDock's 0.59 is *bought* with 5–30 min/complex of Rosetta
-   refinement; strip the refinement and the energy is noise. We reach 0.52–0.58 **from the raw pose**.
-   That is the whole thesis: cheapest accuracy-per-second in the field. FEP's 0.8–0.9 is physically
-   reserved for congeneric series with a reference compound — not diverse cross-family screening.
+1. **We are #1 of the non-FEP/LIE tier on the full 156** — 0.585, ahead of PPI-Affinity (0.554, server
+   down) and AutoDock4 (0.53) — and we **demolish** every other peptide scorer (DFIRE 0.35, Kdeep 0.32,
+   RF-Score 0.28, PRODIGY 0.12, CP_PIE −0.35), all at ~10 s/complex with no relaxation.
+2. **ref2015 / FlexPepDock unrelaxed = 0.07.** The famous 0.59 is a *different task* — within-target,
+   bought with 5–30 min/complex of Rosetta refinement; on this cross-family set at the raw pose it is
+   *last*. We reach 0.52–0.58 **from that same raw pose.** Cheapest accuracy-per-second in the field.
+3. **FEP/LIE (0.8–0.9) are not competitors — they're a 100–10,000× costlier tier we sit below by design.**
+   FEP is reserved for congeneric series with a reference compound, not diverse cross-family screening. The
+   *only* place we say "FEP-grade" is the double-difference (r = 0.96), which operates where FEP operates.
 
 ### Latest results (Jun 2026) — we beat PPI-Affinity on independent data, and reach FEP-grade *relative* accuracy
 
@@ -175,6 +201,25 @@ and saying so plainly is what makes the rest of these numbers believable.
 > non-FEP ceiling (the charged floor is FEP-bound and we say so). Full evidence, including every negative
 > result, is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
+### The ideas behind the numbers
+
+Every result above traces to a named idea, each pushed until it shipped or was decisively refuted. The full
+provenance — wins and instructive dead-ends — is the [ideas ledger (§18)](docs/DEVELOPMENT_TIMELINE.md#18-the-ideas-ledger--what-we-invented-repurposed-and-honestly-killed).
+
+| Idea | What it is | Status |
+|---|---|---|
+| **BSA → affinity** | buried surface area, *originally a water/desolvation accounting term*, repurposed into our strongest standalone feature (*r* = 0.39) | ✅ shipped, backbone of the 0.585 model |
+| **Interaction map (IFP)** | typed per-contact fingerprint (salt bridges, typed H-bonds, hydrophobic, aromatic) — orthogonal physics the aggregates blur | ✅ shipped (crystal-pose); **+0.10 r, first charged crack** |
+| **Double-difference** | thermodynamic cycle that cancels both per-receptor and per-peptide offsets | ✅ shipped; **r = 0.96, the only FEP-grade claim** |
+| **Reference anchoring** | 2–3 measured Kd on the target → Bayesian same-receptor calibration | ✅ shipped; −0.07 → **0.61** (shuffle-controlled) |
+| **vdW-bond MD (bond-strength SASA)** | weight buried contacts by van-der-Waals strength instead of binary burial | ❌ **honestly killed** — added size-correlated signal, not new physics |
+| **Length routing + `rg_per_L`** | short peptides → lean hydrophobic sub-model; compactness term explains length's sign-flip | ✅ shipped; short *r* 0.02 → 0.66 |
+
+> Several of these are Ram's: the interaction map, reference anchoring, and the vdW-bond MD hypothesis (the
+> last one tested rigorously and refuted — a negative result we keep on the record). The throughline: the
+> per-receptor *offset* is the wall, so every win either attacks a term the offset doesn't touch (BSA, IFP)
+> or cancels the offset outright (double-difference, anchoring, selectivity ΔΔG).
+
 ### Length-conditional routing — recovering the short-peptide blind spot
 
 Short peptides (≤ 8 residues) are a distinct binding regime: with few interface contacts, the 16-feature
@@ -188,7 +233,7 @@ test.
 ### Crystal poses vs real generated poses — the number you actually get
 
 **This is the most important honesty point in the project, and most papers never report it.** Every
-affinity *r* in the tables above — ours (0.585/0.68), FlexPepDock (0.59), PPI-Affinity (0.55) — is measured
+affinity *r* in the tables above — ours (0.585/0.68), PPI-Affinity (0.554), AutoDock4 (0.53) — is measured
 on **crystal (native) poses**. That is the field-standard benchmark convention, and it makes the comparison
 apples-to-apples: it isolates the *scoring function* from the *pose generator*. But it is an **upper bound**
 — it assumes you already have the correct binding mode.

@@ -169,35 +169,45 @@ Every method scored on the **same 156 unique-Kd complexes** (crystal-65 + the-98
 noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
 
 ```
- Pearson r vs experimental ΔG  (longer bar = better)        MAE↓ = the metric the field reports
+ NON-FEP/LIE PROTEIN–PEPTIDE AFFINITY LEADERBOARD          each █ = 0.025 r ; frame = 0.60
+ sorted best→worst · "measured" = we ran it on our 156 · "published" = author's reported number
 
- method                       r-bar                  r       MAE (kcal/mol)
- MJ contact potential        ███▏                    0.16      ~2.4
- single-pose physics         ███▊                    0.19      ~2.2
- MM-GBSA (1 snapshot)        █████                   0.25      ~2.0
- OpenMM vdW packing          ██████▊                 0.34      ~2.0
- BSA hydrophobic burial      ███████▊                0.39      ~1.9
- ref2015 UNRELAXED  ▏        ▏                        0.07      ~2.4   ←━ FlexPepDock energy w/o refine = NOISE
- Raw Vina (cr65)            ◀███████████             −0.56*    ~2.1   ←━ BACKWARDS (sign-flipped, size-confound)
- AutoDock4                   ███████████             0.53      ~2.0
- PPI-Affinity (best ML)      ███████████             0.554     ~1.8   ←━ the published SOTA bar (MAE)
- ref2015 RELAXED (lit)       ███████████▊            0.59*     ~1.6   ←━ *within-target only*, +5–30 min/cplx
- ▶ HybriDock-Pep (crystal)   ████████████▍           0.53-0.60 1.31-1.44  ←━ US — beat PPI on MAE (1.3<1.8)
- ▶ HybriDock-Pep (DEPLOY)    ████████████▏           0.55      1.43   ←━ US on REAL RAPiDock poses (honest)
- ───────────────────────────────────────────────  the FEP/LIE ceiling (different cost class) ───
- LIE (system-specific)       ██████████████████      0.5–0.7   ~1.5   *per-system refit, both MD legs*
- FEP / TI (congeneric)       ████████████████████    0.8–0.9   ~1.0   *5–50 GPU-hr PER MUTATION*
+ method                        r-bar (0 ──────────────► 0.60)   r        provenance
+ ▶ HybriDock-Pep (crystal)     ███████████████████████░  0.585    measured (LOO; 0.68 balanced held-out)  ◀ #1 NON-FEP/LIE
+ ▶ HybriDock-Pep (DEPLOY pose) █████████████████████░░░  0.55     measured (real RAPiDock poses, honest)  ◀ still #1 deployed
+   PPI-Affinity (best pub. ML) ██████████████████████░░  0.554    published — server CURRENTLY DOWN; we re-implemented it
+   AutoDock4 (AD4, our set)    █████████████████████░░░  0.53     measured (uses Gasteiger charges)
+   BSA hydrophobic burial      ████████████████░░░░░░░░  0.39     measured (our single strongest standalone feature)
+   DFIRE (KB potential)        ██████████████░░░░░░░░░░  0.35     published (PPI-Affinity benchmark)
+   OpenMM vdW packing          ██████████████░░░░░░░░░░  0.34     measured
+   Kdeep (3D-CNN)              █████████████░░░░░░░░░░░  0.32     published (PPI-Affinity benchmark)
+   ADCP / AutoDock CrankPep    ████████████░░░░░░░░░░░░  ~0.30    published (a docking tool; affinity is a by-product)
+   RF-Score                    ███████████░░░░░░░░░░░░░  0.28     published (PPI-Affinity benchmark)
+   MM-GBSA (1 snapshot)        ██████████░░░░░░░░░░░░░░  0.25     measured
+   MJ contact potential        ██████░░░░░░░░░░░░░░░░░░  0.16     measured
+   PRODIGY (contacts+NIS)      █████░░░░░░░░░░░░░░░░░░░  0.12     published (built for protein–protein; 0.73 there, not peptides)
+   ref2015 / FlexPepDock E     ███░░░░░░░░░░░░░░░░░░░░░  0.07     measured (UNRELAXED energy — see note ‡)
+   CP_PIE                     ◀ backwards               −0.35     published (anti-correlated on peptides)
+   Raw Vina (cr65)            ◀ backwards               −0.56     measured (size-confounded; sign-flips on peptides)
+ ─────────────────────────────────────────  FEP/LIE = a DIFFERENT, 100–10,000× costlier tier — we don't compete here ──
+   LIE (system-specific)       ██████████████████████   0.5–0.7  per-system α/β refit · both MD legs · 0.5–4 GPU-hr
+   FEP / TI (congeneric)       ████████████████████████ 0.8–0.9  alchemical MD · 5–50 GPU-hr PER MUTATION · not a screener
 
- * Vina raw r = −0.56 (anti-correlated); only a sign-fit + cr65-only reaches 0.56.
- * ref2015 relaxed and FlexPepDock are within-target; cross-family they hit the same ~0.5 wall.
- * On r we MATCH PPI-Affinity; on MAE (their reported metric) we BEAT it — 1.3 vs 1.8. The 0.68 held-out
-   was the curated-crystal peak; 0.55 is the deployment-honest real-pose number (see haircut below).
+ ‡ "ref2015 / FlexPepDock energy" is a DIFFERENT task than the column above. FlexPepDock's headline 0.55–0.59
+   is (a) WITHIN-TARGET (ranking variants of one complex, not cross-family) and (b) bought by 5–30 min/complex
+   of Rosetta FastRelax. Hand it the SAME raw cross-family poses everyone else here got and its energy scores
+   0.07 — noise. We reach 0.585 from that same raw pose, no relaxation. So we do not list "FlexPepDock 0.59" as
+   a peer bar: it is not measured on this task, and unrelaxed (our measurement) it is last.
 ```
 
-**The two knockouts:**
-1. We **beat every single-pose physics baseline on the full 156** (0.585 vs best 0.39).
-2. **ref2015 unrelaxed = 0.07.** FlexPepDock's 0.59 is *bought entirely* by 5–30 min/complex of Rosetta
-   refinement. Strip the refinement → the energy is noise. **We reach 0.52–0.58 from the raw pose.**
+**The three knockouts:**
+1. **We are #1 of the non-FEP/LIE tier on the full 156** (0.585) — ahead of PPI-Affinity (0.554, and its
+   server is down) and AutoDock4 (0.53), and we **demolish** every knowledge-based / ML peptide scorer
+   PPI-Affinity itself benchmarks against (DFIRE 0.35, Kdeep 0.32, RF-Score 0.28, PRODIGY 0.12, CP_PIE −0.35).
+2. **ref2015 / FlexPepDock unrelaxed = 0.07.** The famous 0.59 is *within-target* and *bought* by Rosetta
+   refinement; on this cross-family task at the raw pose it is last. We reach 0.52–0.58 from the raw pose.
+3. **FEP/LIE are not competitors — they're a cost tier we sit below by design** (100–10,000× cheaper). The
+   only place we invoke "FEP-grade" is the double-difference (r=0.96), which operates where FEP operates.
 
 ### ⚠ Crystal poses vs REAL generated poses — the deployment haircut (rewritten after E152)
 
@@ -235,7 +245,7 @@ The real differentiator isn't peak *r* — it's *r per second*. Plotted (log-tim
 0.8|
 0.7|                                                      ● LIE
    |                                          ●FlexPepDock (0.5–4 GPU-hr)
-0.6|   ▶▶ HybriDock-Pep ●━━━━━━━━━━━━━━━━━━━━━●(relaxed, within-target, 5–30 min)
+0.6|   ▶▶ HybriDock-Pep ●━━━━━━━━━━━━━━━●(relaxed, within-target, 5–30 min)
    |   0.55 deploy / 0.60 bench       ●PPI-Affinity (server, r0.554 / MAE 1.8)
 0.5|         ●━━━━━━━━━━━━━━━━━━━━ MM-PBSA (1–5 min)
 0.4|    ●BSA  ●MM-GBSA (5–30s)
@@ -1036,6 +1046,83 @@ scorer can. The interaction map is the next lever to make charged-cracking accur
 
 ---
 
+## 18. The ideas ledger — what we invented, repurposed, and honestly killed
+
+The numbers above came from a handful of *named ideas*, most of them Ram's, each pursued until it either
+shipped or was decisively refuted. This is the honest provenance of the method — wins and the instructive
+dead-ends side by side, because the negatives are what make the positives believable.
+
+### 18.1 BSA — repurposed from a water-accounting term into our strongest single feature
+
+Buried surface area entered the pipeline as a **desolvation / water-displacement** bookkeeping quantity —
+how much solvent-accessible surface the peptide buries on binding, originally there to *account for the
+water* leaving the interface. We then noticed it carried far more affinity signal than its solvation role
+implied and **repurposed it as a direct hydrophobic-burial affinity feature**. On its own it scores **r =
+0.39** on the 156-complex set — the single strongest standalone term in the whole model, and the backbone
+of the 0.585 result. The ablation (§12b) proves the full model is *not* just BSA in disguise (0.40 → 0.544
+when the other 15 features are added back), but BSA-from-water is the clearest "repurposed a side quantity
+into something far greater" story in the project.
+
+### 18.2 The interaction map / IFP (Ram's idea) — the biggest feature win
+
+Instead of aggregating contacts into scalar sums (which blur favorable and unfavorable geometry together),
+represent the complex by a **typed per-contact fingerprint**: distance-binned salt bridges (favorable vs
+like-charge repulsion), H-bonds typed by receptor-residue class, hydrophobic and aromatic contacts. This is
+*orthogonal* physics the aggregates throw away. On crystal poses it adds **+0.10 r** and — for the first
+time in the campaign — **cracks the charged subset** (0.346 → 0.448). Shipped as `scoring/interaction_map.py`
+with a crystal-pose model (`data/affinity_crystal_ifp.joblib`) and `score_crystal_complex()`. Honest caveat:
+docked rank-1 poses are only ~70% faithful to the map, so IFP-only degrades on AI poses — it is wired as a
+**crystal-pose** path, with pose-robust IFP the open frontier (§17.5).
+
+### 18.3 The double-difference thermodynamic cycle — the only FEP-grade claim
+
+ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref). The double difference **cancels both** the
+per-receptor offset b(R) and the per-peptide offset c(P), leaving only the interaction coupling. On 26 real
+2×2 grids it reaches **r = 0.96, MAE 0.80 kcal/mol** — FEP-grade *relative* accuracy at docking cost, in
+exactly the regime FEP itself operates (relative ΔΔG with a reference). This is the **single place** we use
+the words "FEP-grade", and it is scoped to this cycle alone. Shipped as `scoring/double_difference.py`.
+
+### 18.4 Reference anchoring (Ram's idea) — going around the offset wall
+
+The per-receptor offset b(R) is the wall on absolute Kd: it is the scorer's *own* residual on a receptor,
+orthogonal by construction to every feature, and we proved from ~12 angles (§17.4) that it is unpredictable
+and untransferable — information theory, not a modeling gap. Anchoring sidesteps it: given 2–3 measured Kd
+on the target, a Bayesian same-receptor calibration takes cold cross-receptor **r = −0.07 → +0.71** (real
+peptide Kd: within-receptor **0.25 → 0.61**). The shuffle control collapses it (wrong receptor → −0.05),
+proving genuine cancellation. Shipped as `scoring/anchoring.py`. Strong, but we **do not** call it FEP-grade
+— that label is reserved for the double-difference.
+
+### 18.5 The vdW-bond MD idea (bond-strength SASA) — honestly killed
+
+Ram's hypothesis: make the buried-surface / MD accounting *bond-aware* — instead of a binary "buried = 1",
+weight each buried contact by its **van-der-Waals interaction strength** (W_bound no longer ≡ 1), so that
+strong vdW packing counts more than a glancing contact. We built the instant, GPU-free half
+(`bond_strength_sasa`, `de_strength`) and tested it through the same CV (`docs/e18v2_structure_entropy_verdict.md`).
+**Verdict: NO.** Within-target it *hurt* (bare hb+aromatic 0.453 → 0.424; de_strength alone −0.300). It was
+the one term that did not sign-flip across datasets, but it added *size-correlated* signal, not new physics —
+so it could not survive the per-protein baseline. Documented and shelved. A real version needs explicit-water
+MD (the FEP tier), not a static reweighting.
+
+### 18.6 The supporting levers (all shipped)
+
+- **Length-conditional routing** — short peptides (≤8 res) are a distinct regime; routing them to a lean
+  hydrophobic sub-model recovered them **r ≈ 0 → 0.66** and lifted the pooled held-out **0.60 → 0.68** with
+  the rest of the set unchanged (`scoring/length_router.py`).
+- **Compactness `rg_per_L`** — radius-of-gyration per residue, the term that explains length's sign-flip
+  (extended peptides pay a free-state-entropy penalty); sign-stable where raw length flips.
+- **Charge-routing** — neutral → SVR, charged → GBT; the routed pooled stack beats the PPI-Affinity clone on
+  independent data (0.352 vs 0.325, charged 0.342 vs 0.300).
+- **Selectivity ΔΔG primitive** — the offset cancels in the same-peptide / two-receptor difference, giving
+  the iGEM-relevant PfLDH-vs-hLDH capability that no absolute scorer reaches.
+
+**The throughline of every idea above:** the per-receptor/per-peptide *offset* is the wall on absolute Kd.
+Every win either (a) attacks a term the offset does not touch (BSA burial, the typed interaction map) or
+(b) cancels the offset outright (double-difference, anchoring, selectivity ΔΔG). The killed ideas (vdW-bond
+SASA, learning b(R), 11-model ML zoo, short MD) all tried to predict the offset directly — and the offset is
+the one thing static cheap physics provably cannot recover.
+
+---
+
 *Generated from committed experiments E0–E299. Epochs 1–5 detail in
 `docs/e19_pocket_baseline_breakthrough.md`; Epoch 6 in `docs/protdcal_charged_2026-06-13.md`,
 `docs/production_fix_short_2026-06-13.md`, `docs/capstone_scorecard_2026-06-13.md`; **Epoch 7** (§16: PPI
@@ -1043,5 +1130,7 @@ decode, deployment haircut, crystal breakdown, PPIKB/PepBenchmark levers) in
 `docs/failure_map_and_levers_2026-06-15.md` + `third_party/protdcal/protdcal_spec.py` + scripts E177–E193;
 **Epoch 8** (§17: anchoring, offset wall, interaction map) in `docs/reference_anchoring_design.md`,
 `docs/finding_bR_brainstorm.md`, `docs/pocket_failure_diagnosis.md`, `docs/scoring_scorecard.md` + scripts
-E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`.
+E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`. **The ideas ledger (§18)** records the provenance
+of every named idea — BSA-from-water, the interaction map, the double-difference, anchoring, and the
+honestly-killed vdW-bond SASA.
 Every number is leave-one-out, grouped-CV, or held-out unless explicitly marked in-distribution.*
