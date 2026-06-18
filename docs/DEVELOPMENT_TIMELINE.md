@@ -23,9 +23,10 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 > - **The offset `b(R)` is the wall — and it's FEP-bound, not a missing feature.** Proven from ~12 angles
 >   (homolog/peptide/pocket transfer, learn-b(R), 11-model ML zoo, short MD — all fail). *Identifiability
 >   theorem:* `b(R)` needs ≥1 measured Kd on that receptor; off-R complexes give zero constraints.
-> - **Reference anchoring = FEP-grade relative accuracy at docking cost** (Ram's idea, validated,
->   shuffle-controlled): within-receptor r **0.25 → 0.61**; the **double-difference** thermodynamic cycle
->   hits **r = 0.96**. These cancel the offset exactly — capabilities PPI structurally cannot run.
+> - **Reference anchoring + double-difference cancel the offset exactly** (Ram's idea, validated,
+>   shuffle-controlled): anchoring within-receptor r **0.25 → 0.61** (strong, not FEP-grade); the
+>   **double-difference** thermodynamic cycle hits **r = 0.96** — **FEP-grade *relative*-ΔΔG** (the one
+>   place we claim FEP-level). Capabilities PPI structurally cannot run.
 > - **The interaction map (Ram's idea) is the biggest feature win of the campaign** — typed per-contact
 >   fingerprint adds **+0.10** (charged +0.103, the first charged crack), 7× within-receptor ranking. Caveat:
 >   needs crystal-quality pose; docked-pose deployment is open work.
