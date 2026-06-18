@@ -371,10 +371,19 @@ Honest read: cross-target absolute-Kd prediction with a single global formula hi
 ## Testing
 
 ```bash
+pip install -e ".[dev]"          # installs pytest + dev tools (the runtime install omits them)
 pytest                           # 370+ unit tests
 pytest -m slow                   # + integration tests on MDM2/p53 + 11 PepSet families (~30 min)
 pytest --cov=hybridock_pep       # coverage report
 ```
+
+> **WSL2 / CUDA note.** The MM-GBSA test runs a real OpenMM computation. On WSL2, export the CUDA library
+> path first so OpenMM finds the GPU and doesn't stall on context creation:
+> ```bash
+> export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+> ```
+> (Native Linux/macOS don't need this.) Single-thread BLAS — `OMP_NUM_THREADS=1` — also keeps the
+> sklearn-heavy scoring tests fast on WSL2.
 
 ---
 
