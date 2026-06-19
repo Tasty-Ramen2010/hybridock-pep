@@ -121,9 +121,19 @@ def minimize_pose(
                 heavy_atom_indices.append(atom.index)
         system.addForce(restraint)
 
-        # Step 4: Minimise with restraints
+        # Step 4: Minimise with restraints on the fastest available backend
+        # (CUDA → HIP → OpenCL → thread-pinned CPU; centralized in hardware.py).
+        # On GPU-context failure, fall back to OpenMM's default platform so a
+        # quirky driver never breaks Stage 1.5.
         integrator = openmm.VerletIntegrator(0.001 * unit.picoseconds)
-        ctx = openmm.Context(system, integrator)
+        from hybridock_pep.hardware import openmm_platform  # noqa: PLC0415
+        try:
+            platform, props = openmm_platform()
+            ctx = openmm.Context(system, integrator, platform, props)
+        except Exception as exc:  # noqa: BLE001 — driver/precision quirk → default platform
+            logger.debug("minimize_pose: platform %s failed (%s); using default", exc, exc)
+            integrator = openmm.VerletIntegrator(0.001 * unit.picoseconds)
+            ctx = openmm.Context(system, integrator)
         ctx.setPositions(start_positions)
         openmm.LocalEnergyMinimizer.minimize(
             ctx,

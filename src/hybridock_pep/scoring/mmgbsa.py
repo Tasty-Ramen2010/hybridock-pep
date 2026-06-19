@@ -97,33 +97,14 @@ def _get_platform(force_cpu: bool):
         Tuple of (openmm.Platform, dict) where dict holds platform properties
         (e.g. {'Precision': 'mixed'} for CUDA).
     """
-    import os
-
-    import openmm
-
-    # CPU platform threads: pin to physical cores (os.cpu_count() is logical).
-    n_logical = os.cpu_count() or 1
-    cpu_props = {"Threads": str(max(1, n_logical // 2) if n_logical > 2 else n_logical)}
+    # Backend selection + tuning is centralized in hybridock_pep.hardware:
+    # CUDA (NVIDIA) → HIP (AMD ROCm) → OpenCL (Intel/Apple GPU) → thread-pinned CPU,
+    # mixed precision on the CUDA/HIP fast paths.
+    from hybridock_pep.hardware import openmm_platform  # noqa: PLC0415
 
     if force_cpu:
         logger.debug("MM-GBSA: using CPU platform (--mmgbsa-cpu-only)")
-        return openmm.Platform.getPlatformByName("CPU"), cpu_props
-
-    # CUDA → NVIDIA; OpenCL → AMD, Intel GPU, and Apple (OpenMM has no Metal
-    # backend, so Apple Silicon runs the GPU leg through OpenCL).
-    for name, props in [
-        ("CUDA", {"DeviceIndex": "0", "Precision": "mixed"}),
-        ("OpenCL", {"DeviceIndex": "0", "Precision": "single"}),
-    ]:
-        try:
-            platform = openmm.Platform.getPlatformByName(name)
-            logger.debug("MM-GBSA: selected %s platform", name)
-            return platform, props
-        except Exception:
-            continue
-
-    logger.debug("MM-GBSA: GPU unavailable, using CPU platform")
-    return openmm.Platform.getPlatformByName("CPU"), cpu_props
+    return openmm_platform(force_cpu)
 
 
 def _make_integrator(temperature_k: float = _TEMPERATURE_K):
@@ -186,7 +167,7 @@ def _context_energy_kcal(
     try:
         ctx = openmm.Context(system, integrator, platform, platform_props)
     except Exception as exc:
-        if platform.getName() in ("CUDA", "OpenCL"):
+        if platform.getName() in ("CUDA", "HIP", "OpenCL"):
             logger.warning(
                 "MM-GBSA: %s context failed (%s); falling back to CPU",
                 platform.getName(), exc,

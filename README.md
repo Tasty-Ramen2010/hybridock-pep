@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-409%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-416%20passing-brightgreen.svg)](#testing)
 
 HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
 receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
@@ -81,29 +81,53 @@ Full evidence and every negative result:
 
 ---
 
-## Pipeline
+## Pipeline — the full workflow
+
+The diagram below is the *actual* code path (`driver.py::run_dock`), with the two distinct relaxation steps
+called out explicitly — a restrained **clash-relief** minimization on every pose, and a full **MM-GBSA
+relaxation** on the top cluster representatives.
 
 ```
   Peptide sequence + Receptor PDB
-           │
-  ┌────────▼──────────────────────────────────────────────┐
-  │  Stage 1 — Diffusion sampling (RAPiDock-Reloaded)     │
-  │  N stochastic SE(3)-equivariant passes → pose PDBs    │
-  │  (~3 min for N=100 on an RTX 5070; CPU fallback)      │
-  └────────┬──────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────┐
-  │  Stage 2 — OpenMM clash relief + Vina/AD4 scoring     │
-  └────────┬──────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────┐
-  │  Stage 3 — Calibrated ΔG (entropy + geometry,         │
-  │  length-routed; short peptides → hydrophobic model)   │
-  └────────┬──────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────┐
-  │  Stage 4 — Cα-RMSD clustering + optional MM-GBSA      │
-  └────────┬──────────────────────────────────────────────┘
+           │   (receptor cleaned with PDBFixer first)
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 1 — Diffusion sampling (RAPiDock-Reloaded)                           │
+  │   N stochastic SE(3)-equivariant passes → N all-atom pose PDBs             │
+  │   (~3 min for N=100 on an RTX 5070; or --input-poses to skip Stage 1)      │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 1.5 — RELAX #1: restrained clash-relief minimization (OpenMM)        │
+  │   heavy-atom harmonic restraints (k=50 000) → relieve intra-pose clashes   │
+  │   that otherwise blow up AD4; poses moving >Å threshold are reverted       │
+  │ STAGE 1.7 — drop off-pocket poses · auto-expand search box if needed       │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 2 — Physics rescoring per pose                                       │
+  │   receptor→PDBQT + AD4 grids · ligand→PDBQT · Vina --score_only            │
+  │   (+ optional AD4 charge term) · backbone-entropy correction               │
+  │   · BSA-fit + ML pose rankers (predicted native RMSD)                      │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 3 — Cα-RMSD agglomerative clustering → cluster representatives       │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 3.5 — RELAX #2: MM-GBSA on the top-K cluster reps (--refine-topk)    │
+  │   minimize each complex in AMBER ff14SB + GBn2 implicit solvent, then      │
+  │   ΔG_bind = E(complex) − E(receptor) − E(peptide)   ← the accurate ΔG      │
+  │ STAGE 3.6 — calibrated geometry+Vina ensemble ΔG (length-routed;          │
+  │   short peptides → lean hydrophobic sub-model; optional free-state entropy)│
+  └────────┬──────────────────────────────────────────────────────────────────┘
            ▼
-  ranked_poses.csv · best_pose.pdb · cluster_summary.csv · run_metadata.json
+  ranked_poses.csv · best_pose.pdb · cluster_summary.csv · convergence.png ·
+  dendrogram.png · run_metadata.json   (git SHA, seeds, versions, input hashes)
 ```
+
+**Yes — `--refine-topk K` actually relaxes the top poses.** Stage 3.5 takes one representative per cluster
+(best hybrid score), keeps the top *K* by cluster mean, and **energy-minimizes each receptor+peptide complex
+in GBn2 implicit solvent** before reading ΔG — that minimization *is* the relaxation, and the MM-GBSA ΔG is
+the pipeline's most accurate affinity number. `--mmgbsa-3traj` additionally relaxes the unbound receptor and
+peptide to capture reorganization energy. (Stage 1.5 is a *separate*, lighter, restrained relax that only
+relieves clashes without changing the binding mode.)
 
 ---
 
@@ -213,13 +237,23 @@ hybridock-pep benchmark \
     --report benchmark_report.md
 ```
 
-### Cross-platform (CUDA · Apple MPS · Intel · AMD · CPU)
+### Cross-platform & accelerator tuning (CUDA · ROCm · oneAPI · Metal · CPU)
 
-Backend selection and per-device tuning are **automatic** (priority CUDA/ROCm → Intel XPU → Apple MPS → CPU):
-TF32 fast path on NVIDIA/AMD, ipex on Intel XPU, MPS op-fallback on Apple, thread-pinned CPU otherwise.
-Stages 2–4 (Vina, AD4, geometry, calibrated ΔG) are **pure-CPU and identical on every platform** — only
-Stage 1 sampling and optional MM-GBSA change speed with hardware. No NVIDIA GPU? Sample Stage 1 elsewhere
-(or on CPU) and run scoring locally with `dock --input-poses poses_dir/`.
+Backend selection and per-device tuning are **automatic** — no flags. Each compute path is routed to the
+fastest silicon available and tuned for it, centralized in `hybridock_pep/hardware.py` (OpenMM) and
+`sampling/run_rapidock.py::_optimize_backends` (torch):
+
+| Stage (engine) | NVIDIA (CUDA) | AMD (ROCm) | Intel (oneAPI) | Apple (Metal) | CPU |
+|---|---|---|---|---|---|
+| **Stage 1 — RAPiDock (torch)** | TF32 fast path (`matmul_precision('high')`, `allow_tf32`) | ROCm via the CUDA API, same TF32 path | XPU + `intel-extension-for-pytorch` (ipex) | MPS + op-fallback | physical-core threads |
+| **Stage 1.5 / 3.5 — OpenMM** | CUDA, mixed precision | **HIP**, mixed precision | OpenCL | OpenCL | thread-pinned CPU |
+| **Stage 2 — Vina / AD4** | CPU (`cpu=`physical cores) | CPU | CPU | CPU | CPU |
+
+OpenMM platform priority is **CUDA → HIP → OpenCL → CPU** (HIP beats OpenCL on AMD; OpenCL covers Intel and
+Apple GPUs, which have no native OpenMM backend); mixed precision gives near-double accuracy at near-single
+speed. Vina/AD4, the geometry model, and the calibrated ΔG are **pure-CPU and identical on every platform** —
+only Stage 1 sampling and the OpenMM relaxations change speed with hardware. No local NVIDIA GPU? Sample
+Stage 1 elsewhere (or on CPU) and run scoring locally with `dock --input-poses poses_dir/`.
 
 ### Outputs
 
@@ -233,7 +267,7 @@ versions, input hashes — everything needed to reproduce the run).
 
 ```bash
 pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
-pytest                           # 409 fast unit tests
+pytest                           # 416 fast unit tests
 pytest -m slow                   # + integration tests (MDM2/p53, ~30 min)
 pytest --cov=hybridock_pep       # coverage
 ```
@@ -272,7 +306,7 @@ idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 Built for the **iGEM 2026 Best Software Tool** award by the Denmark High School Dry Lab team. Target-agnostic;
 the initial test case is a malaria rapid-diagnostic peptide selectivity check (PfLDH vs hLDH). Stable,
-MIT-licensed, 409 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
+MIT-licensed, 416 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
 pipeline spec.
 
 ## Citations
