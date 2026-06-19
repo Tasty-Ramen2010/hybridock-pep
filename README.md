@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-416%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-418%20passing-brightgreen.svg)](#testing)
 
 HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
 receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
@@ -293,7 +293,7 @@ versions, input hashes — everything needed to reproduce the run).
 
 ```bash
 pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
-pytest                           # 416 fast unit tests
+pytest                           # 418 fast unit tests
 pytest -m slow                   # + integration tests (MDM2/p53, ~30 min)
 pytest --cov=hybridock_pep       # coverage
 ```
@@ -332,7 +332,7 @@ idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 Built for the **iGEM 2026 Best Software Tool** award by the Denmark High School Dry Lab team. Target-agnostic;
 the initial test case is a malaria rapid-diagnostic peptide selectivity check (PfLDH vs hLDH). Stable,
-MIT-licensed, 416 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
+MIT-licensed, 418 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
 pipeline spec.
 
 ## Citations

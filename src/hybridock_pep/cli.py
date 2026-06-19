@@ -627,12 +627,24 @@ def _run_crystal_score(args: argparse.Namespace, parser: argparse.ArgumentParser
     if not seq or not seq.isalpha():
         parser.error("--peptide must be a non-empty single-letter amino-acid sequence")
 
+    # Guard the common footgun: a PDBQT-derived pose (e.g. dock's best_pose.pdb, written from
+    # the Vina-optimized PDBQT) labels residues UNK, which the geometry/IFP featurizer can't read.
+    n_unk = sum(1 for ln in peptide_pdb.open() if ln.startswith(("ATOM", "HETATM")) and ln[17:20].strip() == "UNK")
+    if n_unk:
+        parser.error(
+            f"--peptide-pdb has {n_unk} UNK-labelled atoms ({peptide_pdb.name}). crystal-score "
+            "needs standard residue names. If this is dock's best_pose.pdb, re-score the original "
+            "RAPiDock pose instead (see the 'pose_filename' column in ranked_poses.csv, "
+            "e.g. <output-dir>/poses/pose_N.pdb)."
+        )
+
     kwargs = {"artifact": args.artifact} if args.artifact else {}
     dg = score_crystal_complex(str(receptor), str(peptide_pdb), seq, **kwargs)
     if dg is None:
         parser.error(
-            "Crystal scoring failed (model artifact missing/unloadable, or features "
-            "could not be computed for this complex). See logs with -v."
+            f"Crystal scoring failed for {peptide_pdb.name}. Either the model artifact is "
+            "missing/unloadable, or geometry features couldn't be computed (check the pose has "
+            "standard residue names and a real receptor interface). Re-run with -v for details."
         )
     print(f"Crystal ΔG = {dg:.2f} kcal/mol  ({receptor.name} + {peptide_pdb.name}, {len(seq)}-mer)")
 

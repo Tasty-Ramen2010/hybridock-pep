@@ -35,6 +35,26 @@ class TestSubcommands:
             cli.main()
         assert exc.value.code == 0
 
+    def test_crystal_score_subcommand_exists(self) -> None:
+        from hybridock_pep import cli
+        with pytest.raises(SystemExit) as exc:
+            sys.argv = ["hybridock-pep", "crystal-score", "--help"]
+            cli.main()
+        assert exc.value.code == 0
+
+    def test_crystal_score_rejects_unk_pose(self, tmp_path: Path) -> None:
+        """A PDBQT-derived (UNK-labelled) pose is rejected with a clear, actionable error."""
+        from hybridock_pep import cli
+        rec = tmp_path / "rec.pdb"
+        rec.write_text("ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\n")
+        pep = tmp_path / "unk.pdb"
+        pep.write_text("ATOM      1  CA  UNK A   1       3.000   0.000   0.000  1.00  0.00           C\n")
+        with pytest.raises(SystemExit) as exc:
+            sys.argv = ["hybridock-pep", "crystal-score", "--receptor", str(rec),
+                        "--peptide-pdb", str(pep), "--peptide", "A"]
+            cli.main()
+        assert exc.value.code == 2  # argparse error exit
+
 
 class TestDockSubcommand:
     def test_dock_all_flags_defined(self) -> None:
