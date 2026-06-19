@@ -1121,7 +1121,7 @@ Grounded in the PyTorch Performance Tuning Guide: `run_rapidock.py::_optimize_ba
 selected device — CUDA/ROCm TF32 fast path (`set_float32_matmul_precision('high')` + `allow_tf32`, ~3× FP32
 matmuls, verified on the RTX 5070 / torch 2.7.0+cu128), Intel XPU ipex, Apple MPS op-fallback, CPU
 physical-core thread pinning. OpenMM MM-GBSA now thread-pins the CPU leg (CUDA → OpenCL → CPU already covers
-NVIDIA/AMD/Intel/Apple). 409 fast tests stay green.
+NVIDIA/AMD/Intel/Apple). 416 fast tests stay green.
 
 ### 18.6 Where Epoch 9 leaves us
 

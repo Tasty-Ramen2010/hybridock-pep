@@ -426,7 +426,7 @@ class TestGetPlatform:
         assert props.get("Precision") == "mixed"
 
     def test_opencl_fallback_when_cuda_fails(self) -> None:
-        """If CUDA raises, should fall through to OpenCL."""
+        """If CUDA and HIP raise, should fall through to OpenCL (Intel/Apple GPU)."""
         from hybridock_pep.scoring.mmgbsa import _get_platform
 
         mock_openmm = MagicMock()
@@ -434,8 +434,8 @@ class TestGetPlatform:
         opencl_platform.getName.return_value = "OpenCL"
 
         def _get_platform_side_effect(name):
-            if name == "CUDA":
-                raise RuntimeError("CUDA not available")
+            if name in ("CUDA", "HIP"):
+                raise RuntimeError(f"{name} not available")
             if name == "OpenCL":
                 return opencl_platform
             # CPU fallback
@@ -452,7 +452,7 @@ class TestGetPlatform:
         assert props.get("Precision") == "single"
 
     def test_cpu_fallback_when_all_gpu_fail(self) -> None:
-        """If both CUDA and OpenCL raise, must fall back to CPU with thread-pinned props."""
+        """If CUDA, HIP, and OpenCL all raise, must fall back to CPU with thread-pinned props."""
         from hybridock_pep.scoring.mmgbsa import _get_platform
 
         mock_openmm = MagicMock()
@@ -460,7 +460,7 @@ class TestGetPlatform:
         cpu_platform.getName.return_value = "CPU"
 
         def _get_platform_side_effect(name):
-            if name in ("CUDA", "OpenCL"):
+            if name in ("CUDA", "HIP", "OpenCL"):
                 raise RuntimeError(f"{name} not available")
             return cpu_platform
 

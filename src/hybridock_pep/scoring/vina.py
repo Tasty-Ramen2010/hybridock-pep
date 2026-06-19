@@ -200,7 +200,9 @@ def score_vina_batch(
         )
 
     # --- One instance; receptor loaded once; maps computed once before loop ---
-    v = Vina(sf_name="vina", verbosity=verbosity)
+    # cpu=physical cores parallelizes grid-map computation (the bulk of score_only cost).
+    from hybridock_pep.hardware import cpu_threads  # noqa: PLC0415
+    v = Vina(sf_name="vina", cpu=cpu_threads(), verbosity=verbosity)
     v.set_receptor(str(receptor_pdbqt))
     v.compute_vina_maps(
         center=list(config.site_coords),
