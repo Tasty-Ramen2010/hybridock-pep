@@ -1,6 +1,6 @@
 # HybriDock-Pep
 
-**A general protein–peptide docking and scoring tool: AI diffusion sampling + physics-based rescoring + calibrated free-energy correction — fused into a single CLI, MIT-licensed, cross-platform.**
+**A general protein–peptide docking and scoring tool: AI diffusion sampling + a learned-geometry affinity model (+ optional MM-GBSA) — fused into a single CLI, MIT-licensed, cross-platform.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
@@ -24,7 +24,7 @@ The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plai
 
 ---
 
-## Why HybriDock-Pep — two conclusive tests
+## Why HybriDock-Pep — three conclusive tests
 
 **① We beat PPI-Affinity (the best published ML peptide scorer) on independent, leakage-free data.**
 Both methods, same complexes, leave-receptor-out CV (no homology leak in either direction):
@@ -98,7 +98,7 @@ relaxation** on the top cluster representatives.
   ┌────────▼──────────────────────────────────────────────────────────────────┐
   │ STAGE 1.5 — RELAX #1: restrained clash-relief minimization (OpenMM)        │
   │   heavy-atom harmonic restraints (k=50 000) → relieve intra-pose clashes   │
-  │   that otherwise blow up AD4; poses moving >Å threshold are reverted       │
+  │   that hurt downstream scoring; poses moving >Å threshold are reverted     │
   │ STAGE 1.7 — drop off-pocket poses · auto-expand search box if needed       │
   └────────┬──────────────────────────────────────────────────────────────────┘
   ┌────────▼──────────────────────────────────────────────────────────────────┐
