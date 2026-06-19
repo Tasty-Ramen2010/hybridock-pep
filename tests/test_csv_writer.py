@@ -193,6 +193,21 @@ class TestWriteBestPosePdb:
         assert result.exists(), "best_pose.pdb must be created"
         assert result.stat().st_size > 0, "best_pose.pdb must not be empty"
 
+    def test_write_best_pose_pdb_preserves_residue_names(self, tmp_path: Path) -> None:
+        """best_pose.pdb must carry real residue names (re-scoreable by crystal-score), not UNK."""
+        from hybridock_pep.output.csv_writer import write_best_pose_pdb
+
+        poses_dir = tmp_path / "out" / "poses"
+        poses_dir.mkdir(parents=True)
+        config = _make_config(tmp_path, output_dir=tmp_path / "out")
+        cluster_result = self._make_cluster_result(tmp_path, poses_dir)
+        scored_poses = self._make_scored_poses(poses_dir)
+
+        write_best_pose_pdb(cluster_result, config, scored_poses)
+        content = (tmp_path / "out" / "best_pose.pdb").read_text()
+        assert "ALA" in content, "best_pose.pdb must preserve standard residue names"
+        assert "UNK" not in content, "best_pose.pdb must NOT contain UNK (would break crystal-score)"
+
     def test_write_best_pose_pdb_selects_best_cluster(self, tmp_path: Path) -> None:
         from hybridock_pep.output.csv_writer import write_best_pose_pdb
 
