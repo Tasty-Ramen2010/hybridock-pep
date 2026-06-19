@@ -14,15 +14,18 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 > most projects hide: when a big new dataset (PDBbind, 925 complexes) and a real-deployment test arrived,
 > the number DROPPED, we found out why, and we earned it back on harder, more honest ground.**
 
-> **How to read this document.** Epochs run **chronologically, oldest → newest** (§8 Epochs 1–5, §15
-> Epoch 6, §16 Epoch 7, §17 Epoch 8, §18 Epoch 9). The most recent work is at the **bottom** ([§18 — Epoch 9:
-> IFP at scale](#18-epoch-9--the-interaction-map-at-scale-train-ifp-on-everything-e300e304-2026-06-18)),
-> where the current standing is summarised. Every ASCII chart below is drawn to the committed numbers.
+> **How to read this document.** Start with **[§0 — Current honest standing](#0-current-honest-standing-read-this-first--supersedes-earlier-epoch-numbers)**:
+> it is the single source of truth, and when an early-epoch number disagrees with it, §0 wins. After that the
+> epochs run **chronologically, oldest → newest** (§8 Epochs 1–5, §15 Epoch 6, §16 Epoch 7, §17 Epoch 8,
+> §18 Epoch 9, §19 Epoch 10). The most recent work is at the **bottom** ([§19 — Epoch 10: production scoring
+> architecture](#19-epoch-10--production-scoring-architecture-ai-default-crystal-score-cli--cross-backend-tuning-2026-06-19)).
+> Every ASCII chart below is drawn to the committed numbers.
 
 ---
 
 ## Table of contents
 
+0. [**Current honest standing — read this first**](#0-current-honest-standing-read-this-first--supersedes-earlier-epoch-numbers) *(single source of truth)*
 1. [The arc in one chart](#1-the-arc-in-one-chart)
 2. [The full r-evolution ledger](#2-the-full-r-evolution-ledger)
 3. [Where we rank — head-to-head on 156 complexes](#3-where-we-rank--head-to-head-on-156-complexes)
@@ -32,12 +35,46 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 7. [The charged floor — fully dissected](#7-the-charged-floor)
 8. [The five epochs, experiment by experiment](#8-the-five-epochs)
 9. [The three capabilities we actually ship](#9-the-three-capabilities)
-10. [Lessons — the method that made it real](#10-lessons)
+10. [Lessons — the method that made it real](#10-lessons--the-method-that-made-it-real)
 11. [Epoch 6 — PDBbind scale, ProtDCal descriptors & the deployment fix (E93–E153)](#15-epoch-6--pdbbind-scale-protdcal-descriptors--the-deployment-fix-e93e153-2026-06-13)
 12. [Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E193)](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15)
 13. [Epoch 8 — anchoring, the offset wall & the interaction map (E260–E299)](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)
-14. [**Epoch 9 — the interaction map at scale: train IFP on everything (E300–E304)**](#18-epoch-9--the-interaction-map-at-scale-train-ifp-on-everything-e300e304-2026-06-18) *(latest, at bottom)*
-15. [The ideas ledger — what we invented, repurposed, and honestly killed](#19-the-ideas-ledger--what-we-invented-repurposed-and-honestly-killed)
+14. [Epoch 9 — the interaction map at scale: train IFP on everything (E300–E304)](#18-epoch-9--the-interaction-map-at-scale-train-ifp-on-everything-e300e304-2026-06-18)
+15. [**Epoch 10 — production scoring architecture: AI default, crystal-score CLI & cross-backend tuning (E-prod)**](#19-epoch-10--production-scoring-architecture-ai-default-crystal-score-cli--cross-backend-tuning-2026-06-19) *(latest, at bottom)*
+16. [The ideas ledger — what we invented, repurposed, and honestly killed](#20-the-ideas-ledger--what-we-invented-repurposed-and-honestly-killed)
+
+---
+
+## 0. Current honest standing (read this first — supersedes earlier-epoch numbers)
+
+> **The single source of truth.** Epochs 1–7 (below) were written *as we learned*, and several of their
+> headline numbers (the ~0.55 "deploy", the 0.585/0.68 "we match PPI 0.554") were later shown by **Epoch 8's
+> honest leave-receptor-out CV to be homology-inflated** — the field's standard random-split benchmarks leak
+> homologs into training. The same PPIKB model scores **0.608 random-KFold vs 0.259 leave-receptor-out**;
+> *everyone's* quoted ~0.55–0.63 (PPI-Affinity included) is that mirage. The honest, current numbers:
+
+```
+  WHAT                         HONEST NUMBER (leave-receptor-out / measured)        SOURCE
+  ─────────────────────────────────────────────────────────────────────────────────────────
+  Absolute Kd, independent     ours 0.352  vs  PPI-Affinity 0.325        ◀ WE WIN   E294 / §17.2
+  Crystal + interaction map    ours 0.480  vs  PPI-clone   0.291         ◀ CRUSH    E298 / §17.2
+    (PDBbind n=865)              charged: 0.401 vs 0.146                             (cracks charged)
+  PPI's OWN T100 (its turf)    PPI 0.549   vs  ours cold   0.225 (IFP rescues 5×)   E300 / §18.1
+  IFP trained on everything    geom 0.364 → +IFP 0.437 (973 clean crystals)         E302 / §18.3
+  Double-difference ΔΔG        r = 0.96  (FEP-grade relative, ~docking cost)        E287 / §17.3
+  Same-receptor anchoring      −0.07 cold → 0.61 anchored (shuffle 0.16)            E264 / §17.3
+  Selectivity ΔΔG              r ≈ 0.30–0.45 (per-receptor bias cancels)            §16/§17
+  Pose accuracy                2.49 Å best-of-top-25 · hit@5 91% · 1YCR 0.80 Å      §9 / benchmarks
+  Real-pose deploy affinity    0.486 geometry → 0.53 with interaction features      E93/E106
+  ─────────────────────────────────────────────────────────────────────────────────────────
+  THE WALL: absolute charged Kd is FEP-bound (honest ceiling ≈0.35 for everyone); we go AROUND
+  it via anchoring / double-difference / selectivity, not through it. PPI leads ONLY on its own
+  training-overlapped T100; on every unbiased test, we lead.
+```
+
+The chronological epochs below are kept verbatim (negative results and all) for the honest record — but
+**when an early number disagrees with this box, this box wins.** Production scoring architecture (the AI-pose
+model as the default scorer, Vina demoted to clash-relief) is documented in [§20](#19-epoch-10--production-scoring-architecture-ai-default-crystal-score-cli--cross-backend-tuning-2026-06-19).
 
 ---
 
@@ -76,8 +113,10 @@ new dataset + real-pose deployment test arrived (Epoch 6), and the earned recove
    short fixed (−0.30→0.55), and a **real-pose-trained model** that takes *no* haircut. Plus the metric
    reframe — on **MAE** (what the field reports) we lead at **1.3 vs PPI's 1.8** the whole time.
 
-The 0.68 was real but fragile. The 0.55 real-pose / MAE-1.3 is **the number a user actually gets on RAPiDock
-output** — lower-looking, but honest and deployment-true.
+The 0.68 was real but fragile. The 0.55 real-pose / MAE-1.3 was Epoch 6's best-honest estimate — but
+**Epoch 8 later showed even the ~0.55 was homology-inflated**: on leave-*receptor*-out CV the honest number
+is ~0.35 (where we still beat PPI, 0.352 vs 0.325 — see [§0](#0-current-honest-standing-read-this-first--supersedes-earlier-epoch-numbers)).
+The arc is real; the final altitude was revised down to the leakage-free floor.
 
 **Epoch 7 (2026-06-15) splits the comparison into the TWO regimes that matter — and they tell opposite
 stories. Two separate charts, because they are two separate questions (E191, E183):**
@@ -166,6 +205,12 @@ And on **MAE** — the metric the field actually reports — we led the whole ti
 ---
 
 ## 3. Where we rank — head-to-head on 156 complexes
+
+> **⚠ Epoch-6 framing.** The leaderboard below ranks methods on 156 complexes with mixed CV; its ~0.55
+> numbers (ours 0.585, PPI 0.554) are **homology-inflated** and were superseded by Epoch 8's leave-receptor-out
+> CV — see [§0](#0-current-honest-standing-read-this-first--supersedes-earlier-epoch-numbers) and §17.2 for the
+> honest head-to-head (ours 0.352 vs PPI 0.325 on independent data). Kept here for the relative ordering of
+> the cheap-physics baselines, which still holds.
 
 Every method scored on the **same 156 unique-Kd complexes** (crystal-65 + the-98), **no relaxation unless
 noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
@@ -453,9 +498,9 @@ HybriDock-Pep scores **three distinct quantities**, validated independently:
  ┌─────────────────────┬──────────────────────────┬─────────────────┬──────────────────────┐
  │ Capability          │ What it ranks            │ Pearson r       │ vs the field         │
  ├─────────────────────┼──────────────────────────┼─────────────────┼──────────────────────┤
- │ ① Absolute ΔG       │ any peptide × any         │ 0.55 real-pose  │ MAE 1.3 BEATS PPI    │
- │                     │ receptor                  │ 0.598 benchmark │ (1.8); = PPI on r;   │
- │                     │ (deploy = real poses)     │ MAE 1.31–1.44   │ 30–300× less cost    │
+ │ ① Absolute ΔG       │ any peptide × any         │ 0.352 honest CV │ BEATS PPI (0.325)    │
+ │   (honest, §0/§17)  │ receptor                  │ 0.480 crystal+  │ on independent data; │
+ │                     │ (independent, no leak)    │ IFP (n=865)     │ ~0.55 = leakage      │
  ├─────────────────────┼──────────────────────────┼─────────────────┼──────────────────────┤
  │ ② Selectivity ΔΔG   │ one peptide × two         │ 0.30–0.45       │ floor CANCELS —      │
  │                     │ receptors                 │                 │ sidesteps FEP wall   │
@@ -1135,13 +1180,82 @@ NVIDIA/AMD/Intel/Apple). 416 fast tests stay green.
 
 ---
 
-## 19. The ideas ledger — what we invented, repurposed, and honestly killed
+## 19. Epoch 10 — production scoring architecture: AI default, crystal-score CLI & cross-backend tuning (2026-06-19)
+
+Epochs 1–9 figured out *what* scores best; Epoch 10 wired it into the product so a user gets it by default.
+The central decision: **the affinity number a `dock` run reports is the learned AI-pose model, not Vina.**
+
+### 19.1 The AI-pose model is now the default ΔG (Vina demoted to clash relief)
+
+The production ridge had given `w_vina = 0` for epochs (Vina carried no marginal signal over geometry +
+N_contact), but the AI-pose model (`data/affinity_ai_nofix.joblib`, geometry features, NO Vina/AD4) was
+still gated behind `--ensemble`, and the `delta_g` column echoed the legacy hybrid. Fixed:
+
+```
+  BEFORE                                   AFTER
+  delta_g = legacy hybrid (w_vina=0 +      delta_g = AI-pose model ΔG (the default scorer)
+            entropy + intercept)           Vina = CLASH RELIEF only (rescues clashing RAPiDock
+  AI model only if --ensemble              poses; its score is raw telemetry, never the affinity)
+  AD4 off by default                       AD4 still off (research telemetry via --scoring vina,ad4)
+```
+
+Verified end-to-end on a real RTX 5070 dock (MDM2/p53): `Stage 3.6: AI-pose affinity ΔG on 16/16 poses`;
+`Best pose ΔG = −9.3 kcal/mol [AI-pose model]`; CSV `delta_g == pooled_affinity_dg`, separate from
+`vina_score`. The full pipeline (Stage 1 sample → 1.5 clash-relief min → 2 score → 3 cluster → 3.5 MM-GBSA →
+3.6 AI ΔG) runs clean.
+
+### 19.2 Two scoring functions, both shipped: AI-pose (default) + crystal (CLI)
+
+Same design, separately tuned. The crystal model is exposed as a standalone command for when you already
+have a crystal-quality bound pose and want its ΔG with no docking:
+
+```
+  hybridock-pep crystal-score --receptor R.pdb --peptide-pdb pose.pdb --peptide SEQ
+    → geometry + interaction-map crystal model (data/affinity_crystal_ifp.joblib)
+    verified: −10.07 kcal/mol on a real T100 crystal; −7.92 on a dock's clean rank-1 pose
+```
+
+`best_pose.pdb` now keeps **standard residue names** (was reconstructed from the Vina-optimized PDBQT, which
+labelled everything `UNK` and showed a geometry different from the scored one) — so it is directly
+re-scoreable by `crystal-score`. The Vina clash-relieved geometry is emitted separately as
+`best_pose_vina_relaxed.pdb` for visualization.
+
+### 19.3 Cross-backend accelerator tuning (all five families)
+
+Centralized in `hybridock_pep/hardware.py` (OpenMM) and `sampling/run_rapidock.py::_optimize_backends`
+(torch), grounded in the PyTorch Performance Tuning Guide and the OpenMM Platform guide:
+
+```
+  ENGINE / STAGE          NVIDIA          AMD             Intel           Apple        CPU
+  ────────────────────────────────────────────────────────────────────────────────────────────
+  RAPiDock (torch)        TF32 fast path  ROCm (cuda API) XPU + ipex      MPS+fallback threads
+  OpenMM (1.5 min/3.5 GB) CUDA mixed-prec HIP mixed-prec  OpenCL          OpenCL       thread-pinned
+  Vina / AD4              cpu=phys cores  cpu=phys cores  cpu=phys cores  cpu          cpu
+```
+
+OpenMM priority **CUDA → HIP → OpenCL → CPU** (HIP beats OpenCL on AMD; mixed precision = near-double
+accuracy at near-single speed). Stage 1.5 minimization previously used **no** platform (default); now it uses
+the tuned one with a safe fallback. Verified live: selects CUDA/mixed on the 5070.
+
+### 19.4 Where Epoch 10 leaves us
+
+```
+  DEFAULT SCORER : AI-pose learned-geometry model (no Vina/AD4); Vina = clash relief only
+  TWO FUNCTIONS  : AI-pose (dock default) + crystal (crystal-score CLI), same design, separate tuning
+  OUTPUT         : best_pose.pdb is the scored geometry with real residue names → re-scoreable
+  HARDWARE       : auto-tuned + verified across CUDA/HIP/OpenCL/CPU; no external API calls (fully offline)
+  TESTS          : 419 fast unit tests green; full GPU e2e dock verified end-to-end
+```
+
+---
+
+## 20. The ideas ledger — what we invented, repurposed, and honestly killed
 
 The numbers above came from a handful of *named ideas*, most of them Ram's, each pursued until it either
 shipped or was decisively refuted. This is the honest provenance of the method — wins and the instructive
 dead-ends side by side, because the negatives are what make the positives believable.
 
-### 19.1 BSA — repurposed from a water-accounting term into our strongest single feature
+### 20.1 BSA — repurposed from a water-accounting term into our strongest single feature
 
 Buried surface area entered the pipeline as a **desolvation / water-displacement** bookkeeping quantity —
 how much solvent-accessible surface the peptide buries on binding, originally there to *account for the
@@ -1152,7 +1266,7 @@ of the 0.585 result. The ablation (§12b) proves the full model is *not* just BS
 when the other 15 features are added back), but BSA-from-water is the clearest "repurposed a side quantity
 into something far greater" story in the project.
 
-### 19.2 The interaction map / IFP (Ram's idea) — the biggest feature win
+### 20.2 The interaction map / IFP (Ram's idea) — the biggest feature win
 
 Instead of aggregating contacts into scalar sums (which blur favorable and unfavorable geometry together),
 represent the complex by a **typed per-contact fingerprint**: distance-binned salt bridges (favorable vs
@@ -1224,7 +1338,7 @@ restores it (+0.066). So "train on everything" only helps if "everything" is cle
 IFP (and the T100 toward PPI's 0.549); more noisy data cancels it.** Not a bug — IFP vectors on the new
 PPIKB are sane (8.5 H-bonds, 114 contacts vs PDBbind 11.8/141.5), just lower-fidelity.
 
-### 19.3 The double-difference thermodynamic cycle — the only FEP-grade claim
+### 20.3 The double-difference thermodynamic cycle — the only FEP-grade claim
 
 ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref). The double difference **cancels both** the
 per-receptor offset b(R) and the per-peptide offset c(P), leaving only the interaction coupling. On 26 real
@@ -1232,7 +1346,7 @@ per-receptor offset b(R) and the per-peptide offset c(P), leaving only the inter
 exactly the regime FEP itself operates (relative ΔΔG with a reference). This is the **single place** we use
 the words "FEP-grade", and it is scoped to this cycle alone. Shipped as `scoring/double_difference.py`.
 
-### 19.4 Reference anchoring (Ram's idea) — going around the offset wall
+### 20.4 Reference anchoring (Ram's idea) — going around the offset wall
 
 The per-receptor offset b(R) is the wall on absolute Kd: it is the scorer's *own* residual on a receptor,
 orthogonal by construction to every feature, and we proved from ~12 angles (§17.4) that it is unpredictable
@@ -1242,7 +1356,7 @@ peptide Kd: within-receptor **0.25 → 0.61**). The shuffle control collapses it
 proving genuine cancellation. Shipped as `scoring/anchoring.py`. Strong, but we **do not** call it FEP-grade
 — that label is reserved for the double-difference.
 
-### 19.5 The vdW-bond MD idea (bond-strength SASA) — honestly killed
+### 20.5 The vdW-bond MD idea (bond-strength SASA) — honestly killed
 
 Ram's hypothesis: make the buried-surface / MD accounting *bond-aware* — instead of a binary "buried = 1",
 weight each buried contact by its **van-der-Waals interaction strength** (W_bound no longer ≡ 1), so that
@@ -1253,7 +1367,7 @@ the one term that did not sign-flip across datasets, but it added *size-correlat
 so it could not survive the per-protein baseline. Documented and shelved. A real version needs explicit-water
 MD (the FEP tier), not a static reweighting.
 
-### 19.6 The supporting levers (all shipped)
+### 20.6 The supporting levers (all shipped)
 
 - **Length-conditional routing** — short peptides (≤8 res) are a distinct regime; routing them to a lean
   hydrophobic sub-model recovered them **r ≈ 0 → 0.66** and lifted the pooled held-out **0.60 → 0.68** with
@@ -1280,7 +1394,7 @@ decode, deployment haircut, crystal breakdown, PPIKB/PepBenchmark levers) in
 `docs/failure_map_and_levers_2026-06-15.md` + `third_party/protdcal/protdcal_spec.py` + scripts E177–E193;
 **Epoch 8** (§17: anchoring, offset wall, interaction map) in `docs/reference_anchoring_design.md`,
 `docs/finding_bR_brainstorm.md`, `docs/pocket_failure_diagnosis.md`, `docs/scoring_scorecard.md` + scripts
-E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`. **The ideas ledger (§19)** records the provenance
+E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`. **The ideas ledger (§20)** records the provenance
 of every named idea — BSA-from-water, the interaction map, the double-difference, anchoring, and the
 honestly-killed vdW-bond SASA.
 Every number is leave-one-out, grouped-CV, or held-out unless explicitly marked in-distribution.*
