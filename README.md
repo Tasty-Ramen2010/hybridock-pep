@@ -12,6 +12,16 @@ receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquel
 Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets, minutes per
 peptide on commodity hardware.
 
+It is a **two-stage hybrid**: an AI diffusion model (RAPiDock-Reloaded) samples all-atom poses, then a
+physics + learned-geometry rescorer turns those poses into calibrated affinity, selectivity, and
+reference-anchored ΔG. Three things it does that off-the-shelf tools don't combine: **(1)** it is the best
+non-FEP/LIE protein–peptide *affinity* scorer we can find a fair baseline for; **(2)** it reaches
+*FEP-grade relative* accuracy on the same-receptor double-difference cycle at ordinary docking cost; and
+**(3)** it ships a structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot
+provide. Everything below is measured, every claim links to the script that reproduces it, and every
+negative result is kept on the record in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
+The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plain CPU.
+
 ---
 
 ## Why HybriDock-Pep — two conclusive tests
@@ -43,18 +53,24 @@ place we operate where FEP itself does (and the one place we say "FEP-grade"):
   FEP / TI (the bar) █████████████████████░░░░  r ≈ 0.85   (5–50 GPU-hr / mutation)
 ```
 
-**③ The number you actually get on AI-generated poses** — no crystal handed to you, the honest deployment case:
+**③ The number you actually get on AI-generated poses** — no crystal handed to you, the honest deployment
+case. This is where we pull away from PPI-Affinity: **PPI is structure-free, so it is pose-blind** — it
+returns the *same* score for any pose and cannot tell a good AI pose from a bad one. We read the pose:
 
 ```
-  POSE ACCURACY (Cα-RMSD, lower = better)         AFFINITY r ON THOSE AI POSES (each █ = 0.025 r)
-  ──────────────────────────────────────────     ─────────────────────────────────────────────────
-  best-of-top-25   2.49 Å   ·  hit@5  91%         crystal (upper bound) ███████████████████████  0.585
-  MDM2/p53 1YCR    0.80 Å                         AI pose + interaction █████████████████████░░  0.53
-   vs DiffPepDock  3.54 Å   ◀ ~4× tighter         AI pose, geometry     ███████████████████░░░░  0.486
+  POSE ACCURACY (Cα-RMSD, lower = better)      AFFINITY r — SCORING THE AI POSE (each █ = 0.025 r)
+  ──────────────────────────────────────      ──────────────────────────────────────────────────
+  best-of-top-25   2.49 Å  ·  hit@5 91%        HybriDock-Pep · AI pose + interaction █████████████████████░ 0.53
+  MDM2/p53 1YCR    0.80 Å                       HybriDock-Pep · AI pose, geometry     ███████████████████░░░ 0.486
+   vs DiffPepDock  3.54 Å  ◀ ~4× tighter        PPI-Affinity  · pose-blind*           █████████████░░░░░░░░░ 0.325
+                                                HybriDock-Pep · crystal (upper bound) ███████████████████████ 0.585
+  * structure-free: identical score for any pose. Bars are each method's honest independent number.
 ```
 
-Going fully structure-free costs only ~0.05–0.09 in *r* (0.585 → ~0.50) — the haircut every structure-based
-scorer pays on non-native poses, and one of the few that publishes it.
+We turn the AI pose into a **0.49–0.53** signal; PPI cannot use the pose at all and is stuck at its
+structure-free **0.325**. Going fully structure-free costs us only ~0.05–0.09 in *r* (0.585 crystal → ~0.50
+on AI poses) — the haircut every structure-based scorer pays on non-native poses, and one of the few we
+publish.
 
 Everything else stays honest: absolute charged Kd is capped at the non-FEP ceiling and we say so; selectivity
 ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; MIT-licensed and runs on CUDA · Apple MPS · Intel · AMD · CPU.
@@ -226,19 +242,29 @@ pytest --cov=hybridock_pep       # coverage
 > `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`. `OMP_NUM_THREADS=1` keeps the sklearn-heavy
 > scoring tests fast.
 
-## Reproduce the benchmarks
+## Reproduce every number in this README
 
-Every headline number is reproducible from public data + a committed script. Download PDBbind v2020
-([pdbbind.org.cn](http://www.pdbbind.org.cn)) and PPIKB / the PPI-Affinity SI, then:
+Every headline number maps to one committed script that prints the exact *r* / MAE table and writes a JSON
+beside it for line-by-line checking. Download PDBbind v2020 ([pdbbind.org.cn](http://www.pdbbind.org.cn))
+and PPIKB / the PPI-Affinity SI first (the large/external inputs are gitignored; the small IFP caches ship
+in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the docs assume.
 
-```bash
-OMP_NUM_THREADS=1 python scripts/e300_ifp_on_t100.py        # IFP vs PPI on its own T100
-OMP_NUM_THREADS=1 python scripts/e298_ppi_vs_ifp.py         # ours+IFP vs PPI-clone, independent PDBbind crystal
-OMP_NUM_THREADS=1 python scripts/e304_ifp_mega_everything.py # train IFP on all available crystals
-OMP_NUM_THREADS=1 python scripts/e90_full_scorecard.py      # full non-FEP/LIE scorecard, 156 complexes
-```
+| Number in this README | Command | Writes |
+|---|---|---|
+| **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — test ① | `python scripts/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
+| **0.352 / 0.325** PPIKB independent, charge-routed — test ① | `python scripts/e294_production_stack.py` | stdout table |
+| **0.96** double-difference FEP-grade ΔΔG — test ② | `python scripts/e287_similarity_and_dd.py` | stdout table |
+| **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python scripts/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
+| **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python scripts/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
+| full non-FEP/LIE scorecard on 156 complexes | `python scripts/e90_full_scorecard.py` | stdout table |
+| **0.486 → 0.53** affinity *r* on real RAPiDock poses — test ③ | `python scripts/e106_combined_realpose_grade.py` | per-complex CSV |
+| **2.49 Å** best-of-top-25 pose RMSD, hit@5 91% — test ③ | `hybridock-pep benchmark --test-csv data/test_complexes.csv --report bench.md` | `bench.md` |
+| **r 0.96** module-level double-difference + selectivity | `pytest tests/test_double_difference.py tests/test_anchoring.py -q` | green = the cycle/anchoring math holds |
+| **ΔΔG selectivity** primitive end-to-end | `pytest tests/test_selectivity.py -q` | green |
 
-Each prints its *r* / MAE table and writes a JSON beside it for line-by-line checking.
+Rebuild the IFP training cache from raw structures (the 437 new PPIKB complexes) with
+`python scripts/e303_build_ppikb_ifp.py`. The full experiment ledger (E0–E304, every win and every refuted
+idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 ---
 

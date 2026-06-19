@@ -15,8 +15,8 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 > the number DROPPED, we found out why, and we earned it back on harder, more honest ground.**
 
 > **How to read this document.** Epochs run **chronologically, oldest → newest** (§8 Epochs 1–5, §15
-> Epoch 6, §16 Epoch 7, §17 Epoch 8). The most recent work is at the **bottom** ([§17 — Epoch 8: anchoring,
-> the offset wall & the interaction map](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)),
+> Epoch 6, §16 Epoch 7, §17 Epoch 8, §18 Epoch 9). The most recent work is at the **bottom** ([§18 — Epoch 9:
+> IFP at scale](#18-epoch-9--the-interaction-map-at-scale-train-ifp-on-everything-e300e304-2026-06-18)),
 > where the current standing is summarised. Every ASCII chart below is drawn to the committed numbers.
 
 ---
@@ -35,7 +35,9 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 10. [Lessons — the method that made it real](#10-lessons)
 11. [Epoch 6 — PDBbind scale, ProtDCal descriptors & the deployment fix (E93–E153)](#15-epoch-6--pdbbind-scale-protdcal-descriptors--the-deployment-fix-e93e153-2026-06-13)
 12. [Epoch 7 — decoding PPI-Affinity, the deployment haircut & the selectivity lever (E177–E193)](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15)
-13. [**Epoch 8 — anchoring, the offset wall & the interaction map (E260–E299)**](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17) *(latest, at bottom)*
+13. [Epoch 8 — anchoring, the offset wall & the interaction map (E260–E299)](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)
+14. [**Epoch 9 — the interaction map at scale: train IFP on everything (E300–E304)**](#18-epoch-9--the-interaction-map-at-scale-train-ifp-on-everything-e300e304-2026-06-18) *(latest, at bottom)*
+15. [The ideas ledger — what we invented, repurposed, and honestly killed](#19-the-ideas-ledger--what-we-invented-repurposed-and-honestly-killed)
 
 ---
 
@@ -1046,13 +1048,100 @@ scorer can. The interaction map is the next lever to make charged-cracking accur
 
 ---
 
-## 18. The ideas ledger — what we invented, repurposed, and honestly killed
+## 18. Epoch 9 — the interaction map at scale: "train IFP on everything" (E300–E304, 2026-06-18)
+
+Epoch 8 closed with the interaction map (IFP) as the biggest feature win — but only validated on PDBbind-925
+crystal. Epoch 9 stress-tested it: *does IFP scale, does it transfer to PPI-Affinity's own turf, and what
+happens if we train it on every crystal we can get our hands on?* The answer is a clean, honest "real but
+quality-gated," and it came with a 2× expansion of the IFP training data and full cross-backend GPU tuning.
+
+### 18.1 IFP on PPI-Affinity's own T100 — the apples-to-apples test (E300)
+
+We trained geom+IFP on the 925 PDBbind crystals (disjoint from the T100, 0 overlap) and predicted PPI's
+*own published* T100 test set cold, against the authors' SI-File-6 predictions (n=48):
+
+```
+  T100, n=48                r_all    note
+  PPI-Affinity              0.549    their HOME TURF — the T100 overlaps their training distribution
+  DFIRE / Kdeep / RF-Score  0.44 / 0.40 / 0.39   (authors' published preds)
+  OURS geom+IFP (cold)      0.225    ◀ IFP RESCUES us 5× from geom-only 0.045 — biggest single lever
+  OURS geom only (cold)     0.045
+```
+
+Honest read: on the T100 we trail PPI (0.225 vs 0.549) — but **not apples-to-apples**. PPI's number is
+*in-distribution* (homology overlap); ours is *strict cold transfer*. IFP does the heavy lifting (5× the
+geom number). On a level field — independent data, no homology boost for either side — we win (PPIKB 0.352
+vs 0.325; PDBbind crystal+IFP 0.480 vs 0.291). **PPI leads only where the benchmark overlaps its training.**
+
+### 18.2 IFP on PPIKB-with-structures — a dead heat, and the data-hungry tell (E301)
+
+PPIKB ships as sequence/pocket descriptors only — no crystal splits, so IFP can't run on the raw fresh-305.
+But 360 PPIKB complexes overlap PDBbind (we have their IFP). Leave-receptor-out CV on those 360:
+
+```
+  PPIKB-with-structures, n=360   r_all   r_charged
+  OURS geom only                 0.290   0.361     ← best of ours here
+  PPI-clone (desc3d)             0.271   0.389     ← TIE overall; wins charged
+  OURS geom+IFP                  0.269   0.278     ← IFP adds NOTHING on this small subset
+```
+
+We **tie** PPI-clone, and IFP *hurts* slightly (0.290 → 0.269) — the opposite of PDBbind-925's +0.10. First
+sign that IFP's 19 extra features are **data-hungry**: they overfit on 360 but pay off on 925.
+
+### 18.3 Train IFP on EVERYTHING — the hypothesis, settled (E302–E304)
+
+We built IFP for **437 NEW PPIKB complexes** by splitting raw RCSB structures (`e303`, peptide chain chosen
+by sequence identity and *asserted*, median identity 1.00), after verifying the whole pipeline to machine
+precision (`compute_ifp` == e296 cache, max|Δ|=0; T100 geom == `compute_geometry_features`, 0/16 keys differ).
+Pooled leave-receptor-out CV:
+
+```
+  pool                                geom    geom+IFP   IFP gain
+  973  (PDBbind 925 + T100 48)        0.364   0.437      +0.073   ← IFP clearly helps at scale
+  1405 (+ 432 raw-split PPIKB)        0.387   0.399      +0.012   ← gain WASHED OUT by noisy PPIKB
+  1203 (CLEAN: Kd-only, id≥0.9)       0.358   0.424      +0.066   ← gain RESTORED by dropping the noise
+  ── per-source within the 1405 pool ──────────────────────────────────────────────
+  PDBbind 925                         0.383   0.445      +0.062
+  T100 48 (held out by receptor)      0.256   0.342      +0.086   ← 0.342 ≫ cold-OOS 0.225; more data lifts it
+  PPIKB-new 432 (raw split)           0.403   0.356      −0.047   ← IFP HURTS (22% IC50/Ki + truncated peptides)
+```
+
+### 18.4 The verdict — IFP is real but quality-gated
+
+IFP genuinely scales with **clean** structural data (+0.06–0.09 on Kd crystals, and the held-out T100 climbs
+0.225 cold → 0.277 at n=973 → 0.342 at n=1405). But dumping in lower-fidelity data — 22% IC50/Ki labels,
+crystallographically truncated peptides (~20% fewer resolved contacts) — *dilutes* the pooled gain to noise
+(+0.012); filtering back to clean Kd/good-split data restores it (+0.066). Not a bug (the new-PPIKB IFP
+vectors are sane: 8.5 H-bonds, 114 contacts vs PDBbind's 11.8/141.5) — a genuine data-quality effect. **The
+lever to push the T100 past 0.342 toward PPI's 0.549 is more *clean* Kd crystals, not more raw structures.**
+
+### 18.5 Cross-backend GPU optimization (shipped this epoch)
+
+Grounded in the PyTorch Performance Tuning Guide: `run_rapidock.py::_optimize_backends()` auto-tunes the
+selected device — CUDA/ROCm TF32 fast path (`set_float32_matmul_precision('high')` + `allow_tf32`, ~3× FP32
+matmuls, verified on the RTX 5070 / torch 2.7.0+cu128), Intel XPU ipex, Apple MPS op-fallback, CPU
+physical-core thread pinning. OpenMM MM-GBSA now thread-pins the CPU leg (CUDA → OpenCL → CPU already covers
+NVIDIA/AMD/Intel/Apple). 409 fast tests stay green.
+
+### 18.6 Where Epoch 9 leaves us
+
+```
+  IFP            : real but QUALITY-GATED — +0.06–0.09 on clean Kd crystals, ~0 on noisy raw splits
+  IFP TRAIN DATA : 925 → 1405 IFP-computable crystals (437 new PPIKB built + verified)
+  T100 (AI turf) : 0.225 cold → 0.342 with all clean data; gap to PPI's 0.549 = MORE CLEAN Kd, not model
+  HARDWARE       : auto-tuned across CUDA · ROCm · XPU · MPS · CPU
+  NEXT LEVER     : curate clean Kd peptide crystals (the data door), not new features
+```
+
+---
+
+## 19. The ideas ledger — what we invented, repurposed, and honestly killed
 
 The numbers above came from a handful of *named ideas*, most of them Ram's, each pursued until it either
 shipped or was decisively refuted. This is the honest provenance of the method — wins and the instructive
 dead-ends side by side, because the negatives are what make the positives believable.
 
-### 18.1 BSA — repurposed from a water-accounting term into our strongest single feature
+### 19.1 BSA — repurposed from a water-accounting term into our strongest single feature
 
 Buried surface area entered the pipeline as a **desolvation / water-displacement** bookkeeping quantity —
 how much solvent-accessible surface the peptide buries on binding, originally there to *account for the
@@ -1063,7 +1152,7 @@ of the 0.585 result. The ablation (§12b) proves the full model is *not* just BS
 when the other 15 features are added back), but BSA-from-water is the clearest "repurposed a side quantity
 into something far greater" story in the project.
 
-### 18.2 The interaction map / IFP (Ram's idea) — the biggest feature win
+### 19.2 The interaction map / IFP (Ram's idea) — the biggest feature win
 
 Instead of aggregating contacts into scalar sums (which blur favorable and unfavorable geometry together),
 represent the complex by a **typed per-contact fingerprint**: distance-binned salt bridges (favorable vs
@@ -1135,7 +1224,7 @@ restores it (+0.066). So "train on everything" only helps if "everything" is cle
 IFP (and the T100 toward PPI's 0.549); more noisy data cancels it.** Not a bug — IFP vectors on the new
 PPIKB are sane (8.5 H-bonds, 114 contacts vs PDBbind 11.8/141.5), just lower-fidelity.
 
-### 18.3 The double-difference thermodynamic cycle — the only FEP-grade claim
+### 19.3 The double-difference thermodynamic cycle — the only FEP-grade claim
 
 ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref). The double difference **cancels both** the
 per-receptor offset b(R) and the per-peptide offset c(P), leaving only the interaction coupling. On 26 real
@@ -1143,7 +1232,7 @@ per-receptor offset b(R) and the per-peptide offset c(P), leaving only the inter
 exactly the regime FEP itself operates (relative ΔΔG with a reference). This is the **single place** we use
 the words "FEP-grade", and it is scoped to this cycle alone. Shipped as `scoring/double_difference.py`.
 
-### 18.4 Reference anchoring (Ram's idea) — going around the offset wall
+### 19.4 Reference anchoring (Ram's idea) — going around the offset wall
 
 The per-receptor offset b(R) is the wall on absolute Kd: it is the scorer's *own* residual on a receptor,
 orthogonal by construction to every feature, and we proved from ~12 angles (§17.4) that it is unpredictable
@@ -1153,7 +1242,7 @@ peptide Kd: within-receptor **0.25 → 0.61**). The shuffle control collapses it
 proving genuine cancellation. Shipped as `scoring/anchoring.py`. Strong, but we **do not** call it FEP-grade
 — that label is reserved for the double-difference.
 
-### 18.5 The vdW-bond MD idea (bond-strength SASA) — honestly killed
+### 19.5 The vdW-bond MD idea (bond-strength SASA) — honestly killed
 
 Ram's hypothesis: make the buried-surface / MD accounting *bond-aware* — instead of a binary "buried = 1",
 weight each buried contact by its **van-der-Waals interaction strength** (W_bound no longer ≡ 1), so that
@@ -1164,7 +1253,7 @@ the one term that did not sign-flip across datasets, but it added *size-correlat
 so it could not survive the per-protein baseline. Documented and shelved. A real version needs explicit-water
 MD (the FEP tier), not a static reweighting.
 
-### 18.6 The supporting levers (all shipped)
+### 19.6 The supporting levers (all shipped)
 
 - **Length-conditional routing** — short peptides (≤8 res) are a distinct regime; routing them to a lean
   hydrophobic sub-model recovered them **r ≈ 0 → 0.66** and lifted the pooled held-out **0.60 → 0.68** with
@@ -1191,7 +1280,7 @@ decode, deployment haircut, crystal breakdown, PPIKB/PepBenchmark levers) in
 `docs/failure_map_and_levers_2026-06-15.md` + `third_party/protdcal/protdcal_spec.py` + scripts E177–E193;
 **Epoch 8** (§17: anchoring, offset wall, interaction map) in `docs/reference_anchoring_design.md`,
 `docs/finding_bR_brainstorm.md`, `docs/pocket_failure_diagnosis.md`, `docs/scoring_scorecard.md` + scripts
-E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`. **The ideas ledger (§18)** records the provenance
+E260–E299; head-to-head in `docs/SCORING_COMPARISON.md`. **The ideas ledger (§19)** records the provenance
 of every named idea — BSA-from-water, the interaction map, the double-difference, anchoring, and the
 honestly-killed vdW-bond SASA.
 Every number is leave-one-out, grouped-CV, or held-out unless explicitly marked in-distribution.*
