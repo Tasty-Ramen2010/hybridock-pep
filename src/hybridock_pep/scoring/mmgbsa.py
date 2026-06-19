@@ -97,12 +97,20 @@ def _get_platform(force_cpu: bool):
         Tuple of (openmm.Platform, dict) where dict holds platform properties
         (e.g. {'Precision': 'mixed'} for CUDA).
     """
+    import os
+
     import openmm
+
+    # CPU platform threads: pin to physical cores (os.cpu_count() is logical).
+    n_logical = os.cpu_count() or 1
+    cpu_props = {"Threads": str(max(1, n_logical // 2) if n_logical > 2 else n_logical)}
 
     if force_cpu:
         logger.debug("MM-GBSA: using CPU platform (--mmgbsa-cpu-only)")
-        return openmm.Platform.getPlatformByName("CPU"), {}
+        return openmm.Platform.getPlatformByName("CPU"), cpu_props
 
+    # CUDA → NVIDIA; OpenCL → AMD, Intel GPU, and Apple (OpenMM has no Metal
+    # backend, so Apple Silicon runs the GPU leg through OpenCL).
     for name, props in [
         ("CUDA", {"DeviceIndex": "0", "Precision": "mixed"}),
         ("OpenCL", {"DeviceIndex": "0", "Precision": "single"}),
@@ -115,7 +123,7 @@ def _get_platform(force_cpu: bool):
             continue
 
     logger.debug("MM-GBSA: GPU unavailable, using CPU platform")
-    return openmm.Platform.getPlatformByName("CPU"), {}
+    return openmm.Platform.getPlatformByName("CPU"), cpu_props
 
 
 def _make_integrator(temperature_k: float = _TEMPERATURE_K):

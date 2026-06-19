@@ -405,7 +405,8 @@ class TestGetPlatform:
             platform, props = _get_platform(force_cpu=True)
 
         mock_openmm.Platform.getPlatformByName.assert_called_once_with("CPU")
-        assert props == {}
+        # CPU path now pins thread count for throughput (optimization).
+        assert "Threads" in props and int(props["Threads"]) >= 1
 
     def test_cuda_selected_when_available(self) -> None:
         """When CUDA platform is found, it should be returned with precision=mixed."""
@@ -451,7 +452,7 @@ class TestGetPlatform:
         assert props.get("Precision") == "single"
 
     def test_cpu_fallback_when_all_gpu_fail(self) -> None:
-        """If both CUDA and OpenCL raise, must fall back to CPU with empty props."""
+        """If both CUDA and OpenCL raise, must fall back to CPU with thread-pinned props."""
         from hybridock_pep.scoring.mmgbsa import _get_platform
 
         mock_openmm = MagicMock()
@@ -469,7 +470,8 @@ class TestGetPlatform:
             platform, props = _get_platform(force_cpu=False)
 
         assert platform is cpu_platform
-        assert props == {}
+        # CPU fallback now pins thread count for throughput (optimization).
+        assert "Threads" in props and int(props["Threads"]) >= 1
 
 
 # ---------------------------------------------------------------------------
