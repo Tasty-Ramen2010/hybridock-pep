@@ -1110,6 +1110,31 @@ features are **data-hungry**: they pay off trained on the full 925 but slightly 
 IFP win is therefore **specific to large structure-rich training sets**, not universal — recorded so no one
 over-claims it. (These 360 are the PDBbind-overlapping PPIKB slice, NOT the independent fresh-305.)
 
+**E302–E304 — "train IFP on EVERYTHING we have" (the data-hungry hypothesis, settled).** We assembled every
+IFP-computable crystal under one production pipeline (verified to machine precision: `compute_ifp` ==
+e296 cache max|Δ|=0; T100 geom == `compute_geometry_features` 0/16 keys differ), then built IFP for **437
+NEW PPIKB complexes** by splitting raw RCSB structures (`scripts/e303_build_ppikb_ifp.py`, peptide chain
+chosen by sequence identity and *asserted*, median identity 1.00). Pooled leave-receptor-out CV:
+
+```
+  pool                                geom    geom+IFP   IFP gain   note
+  973  (PDBbind 925 + T100 48)        0.364   0.437      +0.073     E302 — IFP clearly helps at scale
+  1405 (+ 432 raw-split PPIKB)        0.387   0.399      +0.012     E304 — gain WASHED OUT by noisy PPIKB
+  1203 (CLEAN: Kd-only, id≥0.9)       0.358   0.424      +0.066     gain RESTORED by dropping noise
+  ── per-source within the 1405 pool ─────────────────────────────────────────────────
+  PDBbind 925                         0.383   0.445      +0.062     IFP helps (clean Kd crystals)
+  T100 48 (held out by receptor)      0.256   0.342      +0.086     IFP helps; 0.342 ≫ cold-OOS 0.225 (E300)
+  PPIKB-new 432 (raw split)           0.403   0.356      −0.047     IFP HURTS (22% IC50/Ki labels + truncated peptides)
+```
+
+**Verdict (settled):** IFP is **real but quality-gated**. On clean Kd crystals it adds ~+0.06–0.09 and the
+gain *grows* with data (the held-out T100 climbs 0.225 cold → 0.277 at n=973 → 0.342 at n=1405). But dumping
+in lower-fidelity data — 22% IC50/Ki labels, crystallographically truncated peptides (≈20% fewer resolved
+contacts) — *dilutes* the pooled gain to noise (+0.012), and filtering back to clean Kd/good-split data
+restores it (+0.066). So "train on everything" only helps if "everything" is clean: **more good data lifts
+IFP (and the T100 toward PPI's 0.549); more noisy data cancels it.** Not a bug — IFP vectors on the new
+PPIKB are sane (8.5 H-bonds, 114 contacts vs PDBbind 11.8/141.5), just lower-fidelity.
+
 ### 18.3 The double-difference thermodynamic cycle — the only FEP-grade claim
 
 ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref). The double difference **cancels both** the
