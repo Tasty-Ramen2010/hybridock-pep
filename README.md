@@ -102,10 +102,9 @@ relaxation** on the top cluster representatives.
   │ STAGE 1.7 — drop off-pocket poses · auto-expand search box if needed       │
   └────────┬──────────────────────────────────────────────────────────────────┘
   ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 2 — Physics rescoring per pose                                       │
-  │   receptor→PDBQT + AD4 grids · ligand→PDBQT · Vina --score_only            │
-  │   (+ optional AD4 charge term) · backbone-entropy correction               │
-  │   · BSA-fit + ML pose rankers (predicted native RMSD)                      │
+  │ STAGE 2 — Pose prep + structural ranking                                   │
+  │   receptor→PDBQT · ligand→PDBQT · Vina = CLASH RELIEF only (not the score) │
+  │   · BSA-fit + ML pose rankers (predicted native RMSD)  [AD4 off; research] │
   └────────┬──────────────────────────────────────────────────────────────────┘
   ┌────────▼──────────────────────────────────────────────────────────────────┐
   │ STAGE 3 — Cα-RMSD agglomerative clustering → cluster representatives       │
@@ -113,14 +112,21 @@ relaxation** on the top cluster representatives.
   ┌────────▼──────────────────────────────────────────────────────────────────┐
   │ STAGE 3.5 — RELAX #2: MM-GBSA on the top-K cluster reps (--refine-topk)    │
   │   minimize each complex in AMBER ff14SB + GBn2 implicit solvent, then      │
-  │   ΔG_bind = E(complex) − E(receptor) − E(peptide)   ← the accurate ΔG      │
-  │ STAGE 3.6 — calibrated geometry+Vina ensemble ΔG (length-routed;          │
-  │   short peptides → lean hydrophobic sub-model; optional free-state entropy)│
+  │   ΔG_bind = E(complex) − E(receptor) − E(peptide)   ← most accurate ΔG     │
+  │ STAGE 3.6 — PRIMARY ΔG: AI-pose affinity model (geometry features, NO      │
+  │   Vina/AD4; length-routed, short peptides → hydrophobic sub-model)         │
   └────────┬──────────────────────────────────────────────────────────────────┘
            ▼
   ranked_poses.csv · best_pose.pdb · cluster_summary.csv · convergence.png ·
   dendrogram.png · run_metadata.json   (git SHA, seeds, versions, input hashes)
 ```
+
+**The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with the
+geometry-feature model tuned on real RAPiDock/AI poses (`data/affinity_ai_nofix.joblib`); that value is the
+`delta_g` column and the reported "Best pose ΔG". **Vina is retained only for clash relief** (Stage 2 —
+rescuing RAPiDock's clashing poses); its score is raw telemetry, never the affinity. **AD4 is off by
+default.** For a crystal-quality pose, the sibling crystal-tuned model is exposed as a standalone command —
+see [`crystal-score`](#crystal-score--score-an-existing-crystal-pose).
 
 **Yes — `--refine-topk K` actually relaxes the top poses.** Stage 3.5 takes one representative per cluster
 (best hybrid score), keeps the top *K* by cluster mean, and **energy-minimizes each receptor+peptide complex
@@ -169,11 +175,13 @@ hybridock-pep dock \
 
 Key options:
 
+The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-relief only, AD4 is off.
+
 | Flag | What it does |
 |---|---|
-| `--scoring vina,ad4` | which rescoring backends to run (default `vina`; `ad4` adds the charge-aware term) |
+| `--scoring vina,ad4` | force-field backends to run (default `vina` = clash relief; add `ad4` for research telemetry). Neither is the headline ΔG. |
 | `--refine-topk K` | **most accurate ΔG** — MM-GBSA (AMBER ff14SB + GBn2) on the top-K cluster reps. Use it unless screening hundreds. |
-| `--ensemble` | add the geometry+Vina ensemble ΔG column (the calibrated best-accuracy number) |
+| `--ensemble` | also emit the optional geometry+Vina ensemble ΔG column (research/telemetry; not the default scorer) |
 | `--free-entropy` | add the free-state conformational-entropy feature (helps long/floppy peptides) |
 | `--input-poses DIR` | **skip Stage 1** and score pre-generated poses (e.g. sampled on a remote CUDA box) |
 | `--seed N` | deterministic run (modulo CUDA nondeterminism; logged to `run_metadata.json`) |
@@ -207,6 +215,24 @@ hybridock-pep reproducibility \
 
 Runs the pipeline once per seed and reports the Cα-centroid agreement across runs — the honest stochastic
 stability of the sampler on your target.
+
+### `crystal-score` — score an existing crystal pose
+
+HybriDock-Pep ships **two scoring functions of the same design, separately tuned**: the **AI-pose model**
+(the default inside `dock`, calibrated on RAPiDock/AI poses) and the **crystal model** (calibrated on
+crystal/native poses). When you already have a crystal-quality bound pose and just want its ΔG — no docking —
+call the crystal scorer directly:
+
+```bash
+hybridock-pep crystal-score \
+    --receptor receptors/mdm2.pdb \
+    --peptide-pdb poses/native_peptide.pdb \
+    --peptide ETFSDLWKLLPE
+# → Crystal ΔG = -10.07 kcal/mol  (geometry + interaction map, crystal-tuned model)
+```
+
+No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crystal model
+(`data/affinity_crystal_ifp.joblib`, override with `--artifact`) on the pose you give it.
 
 ### `prep` — pre-build a receptor PDBQT
 

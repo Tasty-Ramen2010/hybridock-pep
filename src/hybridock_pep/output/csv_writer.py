@@ -73,7 +73,9 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
 
     Sorts all scored_poses by hybrid_score ascending (most negative = best first),
     formats floats to 4 decimal places, and writes atomically.
-    delta_g is identical to hybrid_score per D-04 (same number, scientific label).
+    delta_g is the AI-pose affinity model's ΔG (the default scorer, no Vina/AD4) when
+    present, falling back to hybrid_score only if that artifact is missing. Vina is
+    clash-relief only; vina_score/ad4_score columns are raw telemetry, not the headline.
 
     All poses are written (no truncation) so users can inspect the full
     score distribution and clustering results.
@@ -90,6 +92,9 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
     rows: list[dict[str, Any]] = []
     for rank, pose in enumerate(sorted_poses, start=1):
         hs = pose.hybrid_score if pose.hybrid_score is not None else float("nan")
+        # Headline ΔG = the AI-pose affinity model (the default scorer, no Vina/AD4) when
+        # available; legacy hybrid_score only as a fallback if that artifact is missing.
+        dg_primary = pose.pooled_affinity_dg if pose.pooled_affinity_dg is not None else hs
         rows.append(
             {
                 "rank": rank,
@@ -109,7 +114,7 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
                     if pose.entropy_correction is not None
                     else ""
                 ),
-                "delta_g": f"{hs:.4f}",  # D-04: same value as hybrid_score
+                "delta_g": f"{dg_primary:.4f}",  # AI-pose model when present, else hybrid_score
                 "mmgbsa_dg": (
                     f"{pose.mmgbsa_dg:.4f}" if pose.mmgbsa_dg is not None else ""
                 ),
@@ -242,10 +247,19 @@ def write_best_pose_pdb(
         shutil.copy2(selected.pdb_path, dest)
     src = selected.pdb_path
     selected_pose = pose_by_idx[best_pose_idx]
-    score_val = selected_pose.mmgbsa_dg if selected_pose.mmgbsa_dg is not None else selected_pose.hybrid_score
+    # Headline ΔG priority: MM-GBSA (most accurate, --refine-topk) → AI-pose affinity model
+    # (the default scorer, no Vina/AD4) → legacy hybrid_score (fallback only if the AI model
+    # artifact is missing). Vina is clash-relief only and never the reported affinity.
+    if selected_pose.mmgbsa_dg is not None:
+        score_val, src_label = selected_pose.mmgbsa_dg, "MM-GBSA"
+    elif selected_pose.pooled_affinity_dg is not None:
+        score_val, src_label = selected_pose.pooled_affinity_dg, "AI-pose model"
+    else:
+        score_val, src_label = selected_pose.hybrid_score, "hybrid (fallback)"
     logger.info(
-        "Best pose: ΔG = %.1f kcal/mol (cluster %s, %s)",
+        "Best pose: ΔG = %.1f kcal/mol [%s] (cluster %s, %s)",
         score_val if score_val is not None else float("nan"),
+        src_label,
         selected_pose.cluster_id,
         src.name,
     )

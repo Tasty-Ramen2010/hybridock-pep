@@ -71,11 +71,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default="vina",
         metavar="BACKENDS",
         help=(
-            "Comma-separated scoring backends: vina, ad4 (default: vina). "
-            "AD4 was the historical default but is no longer used by the "
-            "production calibration (ridge fit gives w_ad4=0; AD4 carries no "
-            "signal independent of Vina + N_contact). Pass --scoring vina,ad4 "
-            "to run autogrid4 + AD4 scoring for telemetry or research."
+            "Force-field backends to run (default: vina). The headline ΔG comes from "
+            "the AI-pose affinity model, NOT from Vina/AD4 — Vina is retained only for "
+            "clash relief on RAPiDock poses, and its score is raw telemetry. AD4 is "
+            "off by default (production ridge gives w_ad4=0). Pass --scoring vina,ad4 "
+            "to additionally run autogrid4 + AD4 for research/telemetry."
         ),
     )
     p_dock.add_argument(
@@ -349,6 +349,21 @@ def _build_parser() -> argparse.ArgumentParser:
                             "else Vina. The entropy-corrected hybrid is a poor selectivity "
                             "signal (it cancels in ΔΔG) and is only allowed if forced.")
 
+    # ----- crystal-score: score an EXISTING crystal complex (no docking) -----
+    p_cry = sub.add_parser(
+        "crystal-score",
+        help="Score a crystal-quality pose with the crystal-tuned model (geometry + interaction map).",
+    )
+    p_cry.add_argument("--receptor", required=True, metavar="PDB",
+                       help="Receptor PDB (protein only).")
+    p_cry.add_argument("--peptide-pdb", required=True, metavar="PDB",
+                       help="Peptide pose PDB (the bound peptide; a crystal/native pose).")
+    p_cry.add_argument("--peptide", required=True, metavar="SEQ",
+                       help="Peptide sequence (single-letter codes).")
+    p_cry.add_argument("--artifact", default=None, metavar="JOBLIB",
+                       help="Override the crystal-IFP model artifact "
+                            "(default: data/affinity_crystal_ifp.joblib).")
+
     return parser
 
 
@@ -592,6 +607,36 @@ def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     benchmark.main(ns)
 
 
+def _run_crystal_score(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Score a single crystal-quality complex with the crystal-tuned IFP model (no docking).
+
+    This is the standalone crystal scorer: the sibling of the AI-pose model, calibrated on
+    crystal/native poses. Use it when you already have a high-quality bound pose (a crystal
+    structure or an equivalently accurate model) and want the crystal-grade ΔG directly.
+    """
+    from pathlib import Path
+
+    from hybridock_pep.scoring.interaction_map import score_crystal_complex
+
+    receptor = Path(args.receptor)
+    peptide_pdb = Path(args.peptide_pdb)
+    for label, path in (("receptor", receptor), ("peptide-pdb", peptide_pdb)):
+        if not path.is_file():
+            parser.error(f"--{label} not found: {path}")
+    seq = args.peptide.strip().upper()
+    if not seq or not seq.isalpha():
+        parser.error("--peptide must be a non-empty single-letter amino-acid sequence")
+
+    kwargs = {"artifact": args.artifact} if args.artifact else {}
+    dg = score_crystal_complex(str(receptor), str(peptide_pdb), seq, **kwargs)
+    if dg is None:
+        parser.error(
+            "Crystal scoring failed (model artifact missing/unloadable, or features "
+            "could not be computed for this complex). See logs with -v."
+        )
+    print(f"Crystal ΔG = {dg:.2f} kcal/mol  ({receptor.name} + {peptide_pdb.name}, {len(seq)}-mer)")
+
+
 def main() -> None:
     """hybridock-pep CLI entry point.
 
@@ -615,6 +660,7 @@ def main() -> None:
         "benchmark": _run_benchmark,
         "selectivity": _run_selectivity,
         "reproducibility": _run_reproducibility,
+        "crystal-score": _run_crystal_score,
     }
     if args.command is None:
         parser.print_help()
