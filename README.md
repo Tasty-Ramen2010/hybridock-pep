@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-418%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-419%20passing-brightgreen.svg)](#testing)
 
 HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
 receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
@@ -287,13 +287,18 @@ Every run writes to `--output-dir`: `ranked_poses.csv` (per-pose scores + calibr
 `cluster_summary.csv`, `convergence.png`, `dendrogram.png`, and `run_metadata.json` (git SHA, seeds, software
 versions, input hashes — everything needed to reproduce the run).
 
+`best_pose.pdb` is the exact geometry the headline ΔG was computed on, **with standard residue names** — so
+you can re-score it directly: `hybridock-pep crystal-score --receptor R.pdb --peptide-pdb <out>/best_pose.pdb
+--peptide SEQ`. (A `best_pose_vina_relaxed.pdb` with the Vina clash-relieved geometry is also written for
+visualization; it is ligand-format and not meant for re-scoring.)
+
 ---
 
 ## Testing
 
 ```bash
 pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
-pytest                           # 418 fast unit tests
+pytest                           # 419 fast unit tests
 pytest -m slow                   # + integration tests (MDM2/p53, ~30 min)
 pytest --cov=hybridock_pep       # coverage
 ```
@@ -332,7 +337,7 @@ idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 Built for the **iGEM 2026 Best Software Tool** award by the Denmark High School Dry Lab team. Target-agnostic;
 the initial test case is a malaria rapid-diagnostic peptide selectivity check (PfLDH vs hLDH). Stable,
-MIT-licensed, 418 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
+MIT-licensed, 419 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
 pipeline spec.
 
 ## Citations

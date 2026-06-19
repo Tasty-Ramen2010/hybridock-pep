@@ -211,40 +211,32 @@ def write_best_pose_pdb(
     dest = config.output_dir / "best_pose.pdb"
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    # Prefer the Vina-optimized geometry when one exists. Vina's clash-relief
-    # `v.optimize()` is more aggressive than the OpenMM minimization (it can
-    # move atoms beyond the 0.5 Å displacement cap), so the PDBQT it writes is
-    # the geometry that produced the reported Vina score. Visualizing the
-    # original poses_minimized/ PDB shows the *pre*-Vina-optimize geometry,
-    # which can look clashed even when Vina settled to a clean negative score.
+    # best_pose.pdb = the EXACT geometry that produced the reported ΔG, with standard
+    # residue names — so it is directly re-scoreable (e.g. by `hybridock-pep crystal-score`).
+    # `selected.pdb_path` is the pose the AI-pose scorer actually scored in Stage 3.6 (the
+    # Stage 1.5-minimized pose, or the original RAPiDock pose when minimization was reverted);
+    # both carry real residue names. We deliberately do NOT reconstruct from the Vina PDBQT:
+    # affinity no longer comes from Vina (it is clash-relief only), and the PDBQT roundtrip
+    # both loses residue names (prepare_ligand labels the peptide UNK) and shows a geometry
+    # that differs from the one the headline ΔG was computed on.
+    if not selected.pdb_path.exists():
+        raise FileNotFoundError(f"Source pose PDB not found: {selected.pdb_path}")
+    shutil.copy2(selected.pdb_path, dest)
+    logger.debug("best_pose.pdb written from scored pose %s (residue names preserved)",
+                 selected.pdb_path.name)
+
+    # Also emit the Vina clash-relieved geometry (UNK-labelled, for visualization only) when
+    # available — separate file so it never shadows the re-scoreable best_pose.pdb.
     pdbqt_path = selected.pdbqt_path
     if pdbqt_path is not None and pdbqt_path.exists():
-        # Convert PDBQT → PDB via openbabel (already required for the pipeline).
         try:
             import subprocess as _sp
             _sp.run(
-                ["obabel", str(pdbqt_path), "-O", str(dest)],
+                ["obabel", str(pdbqt_path), "-O", str(config.output_dir / "best_pose_vina_relaxed.pdb")],
                 check=True, capture_output=True, timeout=30,
             )
-            logger.debug(
-                "best_pose.pdb written from Vina-optimized PDBQT %s",
-                pdbqt_path,
-            )
         except (FileNotFoundError, _sp.CalledProcessError, _sp.TimeoutExpired) as exc:
-            logger.warning(
-                "PDBQT→PDB conversion failed (%s); falling back to "
-                "pre-optimize pose PDB. The output geometry will reflect "
-                "Stage 1.5 minimization only, not Vina clash relief.",
-                exc,
-            )
-            shutil.copy2(selected.pdb_path, dest)
-    else:
-        # Legacy path / no PDBQT available — copy the pose PDB as-is.
-        if not selected.pdb_path.exists():
-            raise FileNotFoundError(
-                f"Source pose PDB not found: {selected.pdb_path}"
-            )
-        shutil.copy2(selected.pdb_path, dest)
+            logger.debug("best_pose_vina_relaxed.pdb (optional) skipped: %s", exc)
     src = selected.pdb_path
     selected_pose = pose_by_idx[best_pose_idx]
     # Headline ΔG priority: MM-GBSA (most accurate, --refine-topk) → AI-pose affinity model
