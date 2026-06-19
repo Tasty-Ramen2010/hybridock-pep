@@ -173,46 +173,59 @@ def _auto_expand_box_for_poses(
     return config.model_copy(update={"box_size": float(new_edge)})
 
 
-def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> None:
-    """Populate pose.ensemble_dg with the geometry+Vina ensemble ΔG (kcal/mol).
+def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
+    """Score every pose with the AI-pose affinity model (the primary, default ΔG).
 
-    Computes pocket+interface+MJ per-contact-energy features per pose and z-blends the
-    geometry linear model with the pose's Vina score using a saved EnsembleCalibration.
-    Poses without a Vina score or a usable interface are left as None. Failures are logged,
-    never raised — the ensemble is an additive annotation, not a hard pipeline dependency.
+    Computes pocket+interface+MJ geometry features per pose and predicts ΔG with the
+    AI-pose-trained model (``data/affinity_ai_nofix.joblib`` via ``predict_affinity`` —
+    the scoring function tuned for RAPiDock/AI-generated poses; NO Vina, NO AD4). This
+    runs by DEFAULT and is the headline affinity number. Vina is retained upstream only
+    for clash relief; AD4 is not used.
+
+    When ``--ensemble`` is set, ALSO computes the optional geometry+Vina ensemble blend
+    (``ensemble_dg``) for research/telemetry. Failures are logged, never raised — affinity
+    is an additive annotation, not a hard pipeline dependency.
     """
-    from hybridock_pep.scoring.ensemble import EnsembleCalibration, score as ensemble_score
+    from hybridock_pep.scoring.affinity_model import predict_affinity  # noqa: PLC0415
     from hybridock_pep.scoring.geometry_features import compute_geometry_features
 
-    cal_path = config.ensemble_calibration or (
-        Path(__file__).resolve().parents[2] / "data" / "ensemble_calibration.json"
-    )
-    if not cal_path.exists():
-        logger.warning("Ensemble: calibration not found at %s — skipping", cal_path)
-        return
-    cal = EnsembleCalibration.load(cal_path)
     receptor = config.receptor_path.resolve()
-    # Length router: short peptides (<= router.short_max_len) score via a lean hydrophobic
-    # sub-model instead of the full ensemble (the 16-feature model collapses to r~0 on them;
-    # docs E85-E87, scoring/length_router.py). Optional — absent calibration = no routing.
-    router_cal = None
     pep_len = len(config.peptide_sequence)
-    router_path = Path(__file__).resolve().parents[2] / "data" / "calibration_length_router.json"
-    if router_path.exists():
-        from hybridock_pep.scoring.length_router import (  # noqa: PLC0415
-            LengthRouterCalibration, route_score,
+
+    # Optional geometry+Vina ensemble blend (opt-in via --ensemble). Loaded only when wanted.
+    cal = router_cal = ensemble_score = route_score = None  # type: ignore[assignment]
+    want_entropy = False
+    if config.compute_ensemble:
+        from hybridock_pep.scoring.ensemble import EnsembleCalibration  # noqa: PLC0415
+        from hybridock_pep.scoring.ensemble import score as ensemble_score  # noqa: PLC0415
+        cal_path = config.ensemble_calibration or (
+            Path(__file__).resolve().parents[2] / "data" / "ensemble_calibration.json"
         )
-        try:
-            router_cal = LengthRouterCalibration.load(router_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Length router: failed to load %s (%s) — disabled", router_path.name, exc)
-    want_entropy = config.compute_free_entropy and "s_free_bur" in cal.feature_names
-    if config.compute_free_entropy and not want_entropy:
-        logger.info("Free-entropy requested but calibration lacks s_free_bur — skipping MD.")
+        if cal_path.exists():
+            cal = EnsembleCalibration.load(cal_path)
+            # Length router: short peptides (<= router.short_max_len) score via a lean hydrophobic
+            # sub-model instead of the full ensemble (docs E85-E87, scoring/length_router.py).
+            router_path = (
+                Path(__file__).resolve().parents[2] / "data" / "calibration_length_router.json"
+            )
+            if router_path.exists():
+                from hybridock_pep.scoring.length_router import (  # noqa: PLC0415
+                    LengthRouterCalibration,
+                )
+                from hybridock_pep.scoring.length_router import route_score  # noqa: PLC0415
+                try:
+                    router_cal = LengthRouterCalibration.load(router_path)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Length router: failed to load %s (%s) — disabled",
+                                   router_path.name, exc)
+            want_entropy = config.compute_free_entropy and "s_free_bur" in cal.feature_names
+            if config.compute_free_entropy and not want_entropy:
+                logger.info("Free-entropy requested but calibration lacks s_free_bur — skipping MD.")
+        else:
+            logger.warning("Ensemble: calibration not found at %s — skipping blend", cal_path)
+
     n_ok = 0
     for pose in scored_poses:
-        if pose.vina_score is None:
-            continue
         try:
             feats = compute_geometry_features(pose.pdb_path, receptor)
             if feats is None:
@@ -237,24 +250,22 @@ def _apply_ensemble_dg(scored_poses: list[ScoredPose], config: DockConfig) -> No
                     s_free_buried(ent["s_free"], feats.get("f_hyd_iface", 0.5))
                     if ent else 0.0
                 )
-            if router_cal is not None and pep_len <= router_cal.short_max_len:
-                pose.ensemble_dg = route_score(
-                    feats, pose.vina_score, pep_len, router_cal, cal,
-                )
-            else:
-                pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
-            # Pooled data-driven ΔG (length-conditioned GBT + sequence descriptors). Optional
-            # annotation: graceful no-op if the artifact is absent (returns None).
-            from hybridock_pep.scoring.affinity_model import predict_affinity  # noqa: PLC0415
+            # PRIMARY affinity: the AI-pose model (no Vina/AD4). Always computed.
             pose.pooled_affinity_dg = predict_affinity(feats, config.peptide_sequence)
+            # Optional geometry+Vina ensemble blend (--ensemble; needs a Vina score for the pose).
+            if cal is not None and pose.vina_score is not None:
+                if router_cal is not None and pep_len <= router_cal.short_max_len:
+                    pose.ensemble_dg = route_score(
+                        feats, pose.vina_score, pep_len, router_cal, cal,
+                    )
+                else:
+                    pose.ensemble_dg = ensemble_score(feats, pose.vina_score, cal)
             n_ok += 1
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Pose %d: ensemble ΔG failed (%s)", pose.pose_idx, exc)
-    routed = router_cal is not None and pep_len <= router_cal.short_max_len
-    logger.info("Stage 3.6: geometry+Vina ensemble ΔG on %d/%d poses (calibration %s%s%s)",
-                n_ok, len(scored_poses), cal_path.name,
-                ", +free-entropy" if want_entropy else "",
-                f", short-peptide router (len={pep_len})" if routed else "")
+            logger.warning("Pose %d: affinity scoring failed (%s)", pose.pose_idx, exc)
+    logger.info("Stage 3.6: AI-pose affinity ΔG on %d/%d poses%s",
+                n_ok, len(scored_poses),
+                " (+ geometry+Vina ensemble blend)" if cal is not None else "")
 
 
 def run_dock(
@@ -675,11 +686,9 @@ def run_dock(
         n_refined = sum(1 for p in scored_poses if p.mmgbsa_dg is not None)
         logger.info("Stage 3.5 complete: %d poses have MM-GBSA ΔG", n_refined)
 
-    # Stage 3.6: Geometry+Vina ensemble ΔG (opt-in via --ensemble). Pocket+interface+MJ
-    # per-contact-energy linear model z-blended with Vina (scoring/ensemble.py). Validated
-    # to clear the guess-the-mean baseline and beat Vina-alone on real poses (docs E22/E24).
-    if config.compute_ensemble:
-        _apply_ensemble_dg(scored_poses, config)
+    # Stage 3.6: PRIMARY affinity = the AI-pose model (always; the headline ΔG, no Vina/AD4).
+    # The optional geometry+Vina ensemble blend is computed inside when --ensemble is set.
+    _apply_affinity(scored_poses, config)
 
     # Finalize metadata AFTER scoring
     finalize_metadata(metadata_path, poses_generated=len(records))
