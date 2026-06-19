@@ -43,9 +43,22 @@ place we operate where FEP itself does (and the one place we say "FEP-grade"):
   FEP / TI (the bar) █████████████████████░░░░  r ≈ 0.85   (5–50 GPU-hr / mutation)
 ```
 
+**③ The number you actually get on AI-generated poses** — no crystal handed to you, the honest deployment case:
+
+```
+  POSE ACCURACY (Cα-RMSD, lower = better)         AFFINITY r ON THOSE AI POSES (each █ = 0.025 r)
+  ──────────────────────────────────────────     ─────────────────────────────────────────────────
+  best-of-top-25   2.49 Å   ·  hit@5  91%         crystal (upper bound) ███████████████████████  0.585
+  MDM2/p53 1YCR    0.80 Å                         AI pose + interaction █████████████████████░░  0.53
+   vs DiffPepDock  3.54 Å   ◀ ~4× tighter         AI pose, geometry     ███████████████████░░░░  0.486
+```
+
+Going fully structure-free costs only ~0.05–0.09 in *r* (0.585 → ~0.50) — the haircut every structure-based
+scorer pays on non-native poses, and one of the few that publishes it.
+
 Everything else stays honest: absolute charged Kd is capped at the non-FEP ceiling and we say so; selectivity
-ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; pose accuracy is 0.8–2.1 Å best-of-top-25; MIT-licensed and
-runs on CUDA · Apple MPS · Intel · AMD · CPU. Full evidence and every negative result:
+ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; MIT-licensed and runs on CUDA · Apple MPS · Intel · AMD · CPU.
+Full evidence and every negative result:
 [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md) ·
 [`docs/SCORING_COMPARISON.md`](docs/SCORING_COMPARISON.md) · reproduce them in
 [Reproduce the benchmarks](#reproduce-the-benchmarks).
