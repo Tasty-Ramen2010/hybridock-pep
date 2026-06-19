@@ -1093,6 +1093,23 @@ heavy lifting (5× the geom number). On the level field — independent data whe
 boost — we win: PPIKB n=305 ours 0.352 vs PPI 0.325; PDBbind crystal+IFP ours 0.480 vs PPI-clone 0.291.
 **The lesson stands: PPI leads only where the benchmark overlaps its training; everywhere unbiased, we lead.**
 
+**E301 — IFP on PPIKB (honest negative, `scripts/e301_ifp_on_ppikb.py`).** PPIKB itself has no crystal
+splits, so IFP can't run on the raw fresh-305. But 360 PPIKB complexes overlap PDBbind (we have their IFP).
+Leave-receptor-out CV on those 360 vs PPIKB labels:
+
+```
+  method (PPIKB-with-structures, n=360)   r_all   r_charged   note
+  OURS geom only (17)                     0.290   0.361       best of ours here
+  PPI-clone desc3d (37)                   0.271   0.389       TIE overall; wins charged
+  OURS geom+IFP (36)                      0.269   0.278       IFP does NOT help on this subset
+```
+
+Two honest findings: **(1) we tie PPI-clone** (0.269 vs 0.271 overall); **(2) IFP adds nothing here** —
+geom-only (0.290) edges geom+IFP (0.269), the opposite of PDBbind-925's +0.10. Most likely IFP's 19 extra
+features are **data-hungry**: they pay off trained on the full 925 but slightly overfit on only 360. The
+IFP win is therefore **specific to large structure-rich training sets**, not universal — recorded so no one
+over-claims it. (These 360 are the PDBbind-overlapping PPIKB slice, NOT the independent fresh-305.)
+
 ### 18.3 The double-difference thermodynamic cycle — the only FEP-grade claim
 
 ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref). The double difference **cancels both** the
