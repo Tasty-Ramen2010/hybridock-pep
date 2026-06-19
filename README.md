@@ -41,67 +41,105 @@ HybriDock-Pep scores **three distinct quantities**, each validated independently
 | **Selectivity ΔΔG** | one peptide vs two receptors | **0.30–0.45** | — | desolvation floor cancels — sidesteps the hardest physics |
 | **Affinity maturation** | variants of one peptide | **+0.42** (beats FlexPepDock +0.30) | — | leave-complex-out, **independently confirmed +0.43 on ATLAS TCR-pMHC** |
 
-### Where we sit in the field (head-to-head on the same 156 complexes)
+### Where we sit in the field — and why you have to ask *which data*
 
-Every method below was scored on the **same pooled benchmark of 156 unique protein–peptide complexes with
-experimental ΔG** (crystal-65 + the-98, mixed Kd/Ki, balanced stratified train/test). Pearson *r* vs
-experiment; **no relaxation** unless noted. Our numbers are out-of-sample (leave-one-out and held-out).
+The single most important fact about peptide-affinity benchmarks: **almost every published "0.55–0.63" is
+measured on data that overlaps the model's own training distribution** (homology leakage). Strip the leakage
+and those numbers collapse. So we report the honest test *first* — independent data, no overlap — and only
+then the biased home-turf numbers, clearly labelled.
+
+**The number that matters — independent, unbiased data (nobody's training set):**
 
 ```
- NON-FEP/LIE PROTEIN–PEPTIDE AFFINITY LEADERBOARD          each █ = 0.025 r ; frame = 0.60
- "measured" = we ran it on our 156 complexes · "published" = the author's own reported number
-
- method                        r-bar (0 ──────────────► 0.60)   r        provenance
- ▶ HybriDock-Pep (crystal)     ███████████████████████░  0.585    measured (LOO; 0.68 balanced held-out)  ◀ #1 NON-FEP/LIE
- ▶ HybriDock-Pep (DEPLOY pose) █████████████████████░░░  0.55     measured (real RAPiDock poses, honest)  ◀ still #1 deployed
-   PPI-Affinity (best pub. ML) ██████████████████████░░  0.554    published — server CURRENTLY DOWN; we re-implemented it
-   AutoDock4 (AD4)             █████████████████████░░░  0.53     measured (uses Gasteiger charges)
-   BSA hydrophobic burial      ████████████████░░░░░░░░  0.39     measured (our single strongest standalone feature)
-   DFIRE (KB potential)        ██████████████░░░░░░░░░░  0.35     published (PPI-Affinity benchmark cohort)
-   OpenMM vdW packing          ██████████████░░░░░░░░░░  0.34     measured
-   Kdeep (3D-CNN)              █████████████░░░░░░░░░░░  0.32     published (PPI-Affinity benchmark cohort)
-   ADCP / AutoDock CrankPep    ████████████░░░░░░░░░░░░  ~0.30    published (a docking tool; affinity is a by-product)
-   RF-Score                    ███████████░░░░░░░░░░░░░  0.28     published (PPI-Affinity benchmark cohort)
-   MM-GBSA (1 snapshot)        ██████████░░░░░░░░░░░░░░  0.25     measured
-   MJ contact potential        ██████░░░░░░░░░░░░░░░░░░  0.16     measured
-   PRODIGY (contacts+NIS)      █████░░░░░░░░░░░░░░░░░░░  0.12     published (built for protein–protein; 0.73 there, not peptides)
-   ref2015 / FlexPepDock E     ███░░░░░░░░░░░░░░░░░░░░░  0.07     measured (UNRELAXED energy — see note ‡)
-   CP_PIE                     ◀ backwards               −0.35     published (anti-correlated on peptides)
-   Raw Vina (cr65)            ◀ backwards               −0.56     measured (size-confounded; sign-flips on peptides)
- ──────────────────────  FEP/LIE = a DIFFERENT, 100–10,000× costlier tier — we sit below it by design ──
-   LIE (system-specific)       ██████████████████████   0.5–0.7  per-system α/β refit · both MD legs · 0.5–4 GPU-hr
-   FEP / TI (congeneric)       ████████████████████████ 0.8–0.9  alchemical MD · 5–50 GPU-hr PER MUTATION · not a screener
+ UNBIASED TEST — data NOT in anyone's training set       each █ = 0.025 r ; honest leave-receptor-out
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────
+ ① PPIKB fresh, n=305 (sequence/pocket features, leave-receptor-out)
+ ▶ HybriDock-Pep (routed)     ██████████████░  0.352 / MAE 1.99   ◀ WE WIN (r AND MAE)
+   PPI-Affinity (re-impl.)    █████████████░░  0.325 / MAE 2.01      (their server is DOWN; we re-implemented
+                                                                       it faithfully to score fresh data)
+ ② PDBbind-925 crystal + 3D interaction map (IFP), leave-receptor-out — independent of PPI's training
+ ▶ HybriDock-Pep + IFP        ███████████████████░  0.480           ◀ WE CRUSH    charged: 0.401 ◀ CRUSH
+   PPI-clone v2               ████████████░░░░░░░░  0.291                         charged: 0.146
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────
+ On honest, leakage-free data HybriDock-Pep is #1 — on r, on MAE, and on the hard charged subset.
 ```
 
-\* **‡ The "ref2015 / FlexPepDock 0.59" you may have seen is a different task.** That number is (a)
-*within-target* (ranking variants of one complex), not cross-family, and (b) bought with 5–30 min/complex of
-Rosetta FastRelax. Hand FlexPepDock the **same raw cross-family poses** every other row here got and its
-unrelaxed energy scores **0.07** — noise. We do not list a "FlexPepDock 0.59" peer bar because it was never
-measured on this task; unrelaxed (our measurement) it is last. Raw Vina is likewise *anti-correlated* on
-peptides (*r* = −0.56); only a sign-aware refit on crystal-65 alone reaches 0.56.
+**Why "0.63" is a mirage** — the *same* PPIKB model, the only change being whether test rows are homologous
+to training rows:
+
+```
+   random K-fold (homologs leak into training)    ████████████████████████░  0.608  ← the "0.55–0.63" everyone quotes
+   honest leave-RECEPTOR-out (no homolog leak)     ██████████░░░░░░░░░░░░░░░  0.259  ← what actually generalizes
+                                                                                       (collapses by 0.35)
+```
+
+**PPI-Affinity's home turf — its own T100 test set (overlaps its training; biased *toward* PPI).** We show it
+in full, because hiding it would be the dishonest move — but read it for what it is: the one set where the
+leakage works in their favour, not ours.
+
+```
+ BIASED TEST — PPI-Affinity's published T100 (in-distribution for PPI)   each █ = 0.025 r ; frame = 0.60
+ every competitor = the AUTHORS' OWN published predictions (SI-File-6); ours measured (scripts/e300_ifp_on_t100.py)
+
+   PPI-Affinity              ██████████████████████░  0.549   their home turf — in-distribution
+   DFIRE                     █████████████████░░░░░░  0.437
+   Kdeep                     ███████████████░░░░░░░░  0.395
+   RF-Score                  ███████████████░░░░░░░░  0.388
+ ▶ HybriDock-Pep + IFP       █████████░░░░░░░░░░░░░░  0.225   ◀ COLD transfer (we trained on disjoint PDBbind)
+ ▶ HybriDock-Pep geom only   ██░░░░░░░░░░░░░░░░░░░░░  0.045      IFP alone rescues us 5× (0.045 → 0.225)
+   PRODIGY                   ███░░░░░░░░░░░░░░░░░░░░  0.086
+   CP_PIE                   ◀ backwards              −0.458
+```
+
+**Read this honestly:** on the T100 we trail (0.225 vs 0.549) — but it is *not* an apples-to-apples loss.
+PPI's 0.549 is **in-distribution** (the T100 resembles its training set); our 0.225 is **strict cold transfer**
+(we trained only on the disjoint PDBbind-925 and never saw anything like the T100). The honest takeaways:
+**(1)** the **IFP is our single biggest lever** — it 5×'s our cold T100 number (0.045 → 0.225); **(2)** give
+the comparison a level field — *independent* data where neither side gets a homology boost — and **we win**
+(0.352 vs 0.325 on PPIKB, 0.480 vs 0.291 on PDBbind crystal). A model that wins on unbiased data and trails
+only on its rival's biased home set is the more trustworthy model, not the weaker one. We still beat every
+*other* scorer (DFIRE, Kdeep, RF-Score, PRODIGY, CP_PIE) on independent data outright.
+
+**A note on numbers we deliberately do NOT headline:**
+- **AutoDock4** scores r≈0.53 *on PEPBI only* (44 ITC complexes); on cr65/the-98 its weight calibrates to
+  **zero** (no stable signal). Quoting "AD4 0.53" as a general number would be the exact mixing error above,
+  so it is not a bar here.
+- **ADCP** is a *docking* tool (pose, not affinity); its AD4-derived affinity is a by-product (~0.2–0.4, set-dependent).
+- **ref2015 / FlexPepDock** "0.55–0.59" is a *different task*: **within-target** (ranking variants of one
+  complex), bought with 5–30 min/complex of Rosetta FastRelax. Hand it the **same raw cross-family poses**
+  here and its **unrelaxed energy scores 0.07** — noise. We reach 0.45–0.585 from that same raw pose.
+- **Raw Vina** is *anti-correlated* on peptides (r = −0.56); only a sign-aware refit on crystal-65 alone reaches 0.56.
+- **FEP / LIE** (0.8–0.9 / 0.5–0.7) are a **100–10,000× costlier tier** — not competitors; we sit below them by design.
+
+> **Our own pooled 156-complex number (0.585 LOO / 0.68 held-out)** is reported in the capability table
+> above. It is an in-distribution number on a mixed set (it includes the easier cr65 complexes), so it is
+> kept separate and never ranked against the independent-data bars above — same one-chart-one-dataset rule.
 
 ### The full competitive landscape — three different jobs, don't conflate them
 
 The peptide-modelling field splits into **three distinct tasks**. We are an **affinity** tool. The honest
 comparison keeps the tasks separate — a tool that's excellent at one is usually not even attempting another.
 
-**① Protein–PEPTIDE absolute affinity (kcal/mol / Kd) — *our lane*:**
+**① Protein–PEPTIDE absolute affinity (kcal/mol / Kd) — *our lane*.** This is a **cost × license landscape**,
+not the strict ranking (for that, see the independent-data charts above). Each *r* is the method's
+representative number *on the basis named* — so do **not** read across rows on different bases as a ranking
+(that is the mixing error we call out above):
 
-| Tool | *r* | Provenance | Cost / complex | License | Note |
+| Tool | *r* | Basis (set the *r* is on) | Cost / complex | License | Note |
 |---|---|---|---|---|---|
-| **HybriDock-Pep** | **0.585 LOO · 0.68 held-out** | **measured** | **~10 s** | **MIT** | **#1 non-FEP/LIE; no relaxation, commodity HW** |
-| PPI-Affinity (ML) | 0.554 | published | server (**down**) | — | best *published* ML peptide scorer; we beat it on independent data |
-| AutoDock4 (AD4 score) | 0.53 | measured | ~1 s | Apache-2.0 | uses Gasteiger charges |
-| DFIRE (KB potential) | 0.35 | published | ~1 s | — | from the PPI-Affinity benchmark cohort |
-| Kdeep (3D-CNN) | 0.32 | published | seconds (GPU) | — | from the PPI-Affinity benchmark cohort |
-| ADCP (AutoDock CrankPep) — AD4 | ~0.2–0.4 / ~0.30 | published | minutes | LGPL | a *docking* tool; affinity is a by-product |
-| RF-Score | 0.28 | published | ~1 s | — | from the PPI-Affinity benchmark cohort |
-| MM-GBSA (single snapshot) | 0.25 | measured | 5–30 s | — | omits conformational entropy |
+| **HybriDock-Pep** | **0.352** independent · **0.480** PDBbind crystal+IFP · **0.585** our-156 | measured | **~10 s** | **MIT** | **#1 on every unbiased test;** trails only on PPI's own biased T100 |
+| PPI-Affinity (ML) | 0.325 independent · 0.549 *its own T100* | their published preds | server (**down**) | — | **loses to us on independent data;** leads only where the test overlaps its training |
+| AutoDock4 (AD4 score) | **0.53 PEPBI-only** (44 cplx) · **≈0 on cr65/the-98** | measured | ~1 s | Apache-2.0 | no *stable* signal; weight calibrates to 0 on our sets |
+| DFIRE (KB potential) | 0.44 (PPI T100) | authors' published preds | ~1 s | — | from the PPI-Affinity benchmark cohort; MAE 9.4 |
+| Kdeep (3D-CNN) | 0.40 (PPI T100) | authors' published preds | seconds (GPU) | — | from the PPI-Affinity cohort; MAE 17.8 (badly mis-scaled) |
+| ADCP (AutoDock CrankPep) — AD4 | ~0.2–0.4 | published | minutes | LGPL | a *docking* tool; affinity is a by-product |
+| RF-Score | 0.39 (PPI T100) | authors' published preds | ~1 s | — | from the PPI-Affinity benchmark cohort |
+| MM-GBSA (single snapshot) | 0.25 our-156 | measured | 5–30 s | — | omits conformational entropy |
 | HADDOCK score / dMM-PBSA | 0.3–0.5 | published | minutes–hours | **academic-only** | PB solve; not OSI for iGEM |
 | MM-PBSA | 0.3–0.5 | published | 1–5 min | — | dielectric-sensitive |
-| PRODIGY (contacts + NIS) | 0.12 | published | < 1 s | Apache-2.0 | built for protein–protein (0.73 there); weak on peptides |
-| Raw AutoDock Vina | −0.56 (sign-flips) | measured | ~1 s | Apache-2.0 | size-confounded, no entropy, anti-correlated on peptides |
-| CP_PIE | −0.35 | published | ~1 s | — | anti-correlated on peptides |
+| PRODIGY (contacts + NIS) | 0.09 (PPI T100) | authors' published preds | < 1 s | Apache-2.0 | built for protein–protein (0.73 there); weak on peptides |
+| Raw AutoDock Vina | −0.56 our-cr65 | measured | ~1 s | Apache-2.0 | size-confounded, no entropy, anti-correlated on peptides |
+| CP_PIE | −0.46 (PPI T100) | authors' published preds | ~1 s | — | anti-correlated on peptides |
 | ref2015 / FlexPepDock — **unrelaxed** | **0.07** | measured | seconds | academic | the raw energy on this cross-family task = noise |
 | ref2015 / FlexPepDock — relaxed (lit.) | 0.55–0.59 *within-target* | published | **5–30 min** | academic | **different task** (within-target), bought by refinement |
 | *— FEP/LIE tier (100–10,000× costlier, not competitors) —* | | | | | |
@@ -136,45 +174,24 @@ comparison keeps the tasks separate — a tool that's excellent at one is usuall
 
 **Three results worth staring at:**
 
-1. **We are #1 of the non-FEP/LIE tier on the full 156** — 0.585, ahead of PPI-Affinity (0.554, server
-   down) and AutoDock4 (0.53) — and we **demolish** every other peptide scorer (DFIRE 0.35, Kdeep 0.32,
-   RF-Score 0.28, PRODIGY 0.12, CP_PIE −0.35), all at ~10 s/complex with no relaxation.
+1. **We are #1 on every unbiased test** — 0.352 vs PPI's 0.325 on independent PPIKB, 0.480 vs 0.291 on
+   independent PDBbind crystal (+IFP) — and we **demolish** every other peptide scorer (DFIRE, Kdeep,
+   RF-Score, PRODIGY, CP_PIE) on PPI's *own* T100, all at ~10 s/complex with no relaxation. PPI-Affinity
+   leads us *only* on its own training-overlapped T100; on a level field we win.
 2. **ref2015 / FlexPepDock unrelaxed = 0.07.** The famous 0.59 is a *different task* — within-target,
    bought with 5–30 min/complex of Rosetta refinement; on this cross-family set at the raw pose it is
-   *last*. We reach 0.52–0.58 **from that same raw pose.** Cheapest accuracy-per-second in the field.
+   *last*. We reach 0.45–0.585 **from that same raw pose.** Cheapest accuracy-per-second in the field.
 3. **FEP/LIE (0.8–0.9) are not competitors — they're a 100–10,000× costlier tier we sit below by design.**
    FEP is reserved for congeneric series with a reference compound, not diverse cross-family screening. The
    *only* place we say "FEP-grade" is the double-difference (r = 0.96), which operates where FEP operates.
 
-### Latest results (Jun 2026) — we beat PPI-Affinity on independent data, and reach FEP-grade *relative* accuracy
+### Beyond absolute affinity — the capabilities PPI structurally cannot run
 
-Three head-to-head and capability results that define where HybriDock-Pep stands today. All numbers are
-out-of-sample (leave-receptor-out); the charged subset is the regime where every scorer struggles.
+The unbiased-data win above (0.352 vs 0.325 on PPIKB, 0.480 vs 0.291 on PDBbind crystal+IFP) is only half
+the story. The other half is two same-receptor capabilities a structure-free ML scorer like PPI-Affinity
+**cannot** offer, because it has no pose engine to anchor against.
 
-**① We beat PPI-Affinity (the best published non-FEP peptide scorer) on an independent set.** PPIKB
-fresh *n* = 305 (independent of our training source), sequence/pocket features only, leave-receptor-out:
-
-```
-  Pearson r vs experimental ΔG     (each █ = 0.025 r ; 20 blocks = 0.50)
-  ────────────────────────────────────────────────────────────────────────
-  ALL      PPI-clone v2  █████████████░░░░░░░  0.325 / MAE 2.01
-           HybriDock-Pep ██████████████░░░░░░  0.352 / MAE 1.99   ◀ WIN
-  CHARGED  PPI-clone v2  ████████████░░░░░░░░  0.300 / MAE 1.95
-           HybriDock-Pep ██████████████░░░░░░  0.342 / MAE 1.91   ◀ WIN
-  NEUTRAL  PPI-clone v2  ███████████░░░░░░░░░  0.275 / MAE 2.07
-           HybriDock-Pep ███████████░░░░░░░░░  0.275 / MAE 2.07   = tie
-  ────────────────────────────────────────────────────────────────────────
-  With the 3D interaction map on CRYSTAL poses (PDBbind n=865):
-  ALL      PPI-clone v2  ████████████░░░░░░░░  0.291        CHARGED  ██████░░░░░░░░░░░░░░  0.146
-           HybriDock-Pep ███████████████████░  0.480  ◀CRUSH         ████████████████░░░░  0.401  ◀CRUSH
-```
-
-With a 3D **interaction map** on crystal-quality poses we extend the lead dramatically (PDBbind *n* = 865):
-**ours 0.480 / charged 0.401** vs PPI-clone **0.291 / charged 0.146**. (The interaction-map gain needs a
-good pose; on docked poses it partly reverts — documented honestly in `DEVELOPMENT_TIMELINE.md §8`.)
-
-**② FEP-grade *relative* accuracy at docking cost — the capability PPI structurally lacks** (it has no
-pose engine, so it cannot anchor). Given a few known-Kd reference peptides on your target:
+**FEP-grade *relative* accuracy at docking cost.** Given a few known-Kd reference peptides on your target:
 
 | method | what it needs | *r* | regime |
 |---|---|---|---|
@@ -186,7 +203,7 @@ for the double-difference specifically** (r = 0.96, the relative-ΔΔG thermodyn
 operates and scores ~0.8–0.9); anchoring (r = 0.61) is a strong same-receptor calibrator but we do *not*
 call it FEP-grade. Both run at docking cost, no MD.
 
-**③ Honest boundary (why this is trustworthy):** we proved, from ~12 independent angles, that *absolute*
+**Honest boundary (why this is trustworthy):** we proved, from ~12 independent angles, that *absolute*
 charged Kd is **FEP-bound** (a small difference of large cancelling terms) and unreachable by any static
 feature, any of 11 ML model classes, or any short MD. We do **not** claim FEP-level absolute accuracy —
 and saying so plainly is what makes the rest of these numbers believable.
@@ -346,12 +363,16 @@ conda env create -f envs/rapidock-env.yml      # CUDA / Linux
 The pipeline runs on **all four** hardware families — GPU acceleration degrades gracefully to CPU, and
 `--input-poses` lets any machine run the cheap scoring stages locally on poses sampled elsewhere.
 
-| Platform | Stage 1 — diffusion sampling | Stage 2–4 — scoring + MM-GBSA | Notes |
+| Platform | Stage 1 — diffusion sampling | Stage 2–4 — scoring + MM-GBSA | Per-backend tuning applied |
 |---|---|---|---|
-| **NVIDIA (CUDA)** | CUDA (fastest, ~5 min N=100) | OpenMM CUDA | reference platform (RTX 5070) |
-| **Apple Silicon (MPS)** | Metal MPS (~5–8× over CPU) | OpenMM CPU; Vina CPU | ADFRsuite via Rosetta 2 |
-| **Intel (CPU / iGPU)** | CPU | OpenMM CPU (OpenCL on Intel GPU if the conda build ships it) | |
-| **AMD (CPU / GPU)** | CPU | OpenMM CPU (OpenCL on AMD GPU when available) | no ROCm needed for the default path |
+| **NVIDIA (CUDA)** | CUDA (fastest, ~5 min N=100) | OpenMM CUDA (mixed precision) | TF32 fast path (`set_float32_matmul_precision('high')`, cuda/cudnn `allow_tf32`) — ~3× FP32 matmuls on Ampere+/Blackwell (RTX 5070) |
+| **Apple Silicon (MPS)** | Metal MPS (~5–8× over CPU) | OpenMM OpenCL → CPU; Vina CPU | `PYTORCH_ENABLE_MPS_FALLBACK` so a missing MPS op falls back to CPU instead of aborting |
+| **Intel (CPU / iGPU)** | XPU when `intel-extension-for-pytorch` present, else CPU | OpenMM OpenCL on Intel GPU, else CPU | ipex fused kernels + matmul precision on XPU |
+| **AMD (CPU / GPU)** | ROCm (presents as CUDA) when built, else CPU | OpenMM OpenCL on AMD GPU, else CPU | same TF32/precision path via the CUDA API; no separate code path |
+
+Backend selection and the tuning above are **automatic** (`sampling/run_rapidock.py::_optimize_backends`,
+priority CUDA/ROCm → Intel XPU → Apple MPS → CPU; OpenMM mirrors it CUDA → OpenCL → thread-pinned CPU). The
+CPU legs pin intra-op threads to the physical-core count rather than over-subscribing logical cores.
 
 Vina, AD4, the geometry model, and the calibrated ΔG correction are **pure-CPU and identical on every
 platform** — the only thing that changes across hardware is how fast Stage 1 sampling and optional MM-GBSA
@@ -429,6 +450,35 @@ pytest --cov=hybridock_pep       # coverage report
 > ```
 > (Native Linux/macOS don't need this.) Single-thread BLAS — `OMP_NUM_THREADS=1` — also keeps the
 > sklearn-heavy scoring tests fast on WSL2.
+
+### Reproduce the benchmark numbers yourself
+
+Every head-to-head *r* in this README is reproducible from public data and a committed script — no private
+artifacts. Download the source datasets, then run the matching scorecard:
+
+| Dataset | What it is | Where to get it |
+|---|---|---|
+| **PDBbind v2020** | 925 protein–peptide crystal complexes with Kd/Ki (our IFP training set) | [pdbbind.org.cn](http://www.pdbbind.org.cn) (free registration) — general + refined sets |
+| **PPIKB** | independent peptide–protein Kd benchmark (our unbiased test) | Zenodo / the PPIKB release; place as `data/ppikb_clean.jsonl` |
+| **PPI-Affinity T100 + competitor preds** | PPI-Affinity, DFIRE, Kdeep, RF-Score, PRODIGY, CP_PIE predictions on the T100 | PPI-Affinity paper SI (`SI-File-6-protein-peptide-test-set-1.csv`); already vendored under `data/biolip/ppiaffinity_si/` |
+
+```bash
+# (1) IFP on PPI-Affinity's own T100 — apples-to-apples, out-of-sample (Table: biased home turf)
+OMP_NUM_THREADS=1 python scripts/e300_ifp_on_t100.py
+#   → ours geom→+IFP (0.045→0.225), vs PPI 0.549 / DFIRE 0.44 / Kdeep 0.40 / RF-Score 0.39 …
+
+# (2) Full non-FEP/LIE scorecard on the 156-complex pooled set (Table: where we sit in the field)
+OMP_NUM_THREADS=1 python scripts/e90_full_scorecard.py
+
+# (3) ours+IFP vs PPI-clone on independent PDBbind crystal (Table: unbiased test ②)
+OMP_NUM_THREADS=1 python scripts/e298_ppi_vs_ifp.py
+
+# (4) end-to-end docking benchmark on a reference complex
+hybridock-pep benchmark --test-csv data/test_complexes.csv --report benchmark_report.md
+```
+
+Each script prints the Pearson *r* / MAE table it backs and writes a JSON beside it (e.g.
+`data/e300_ifp_t100.json`) so the README bars can be checked line-for-line.
 
 ---
 

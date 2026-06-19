@@ -60,6 +60,71 @@ def _seed_everything(seed):
     random.seed(seed)
 
 
+def _optimize_backends():
+    # type: () -> str
+    """Apply per-backend performance knobs for whichever device PyTorch will use.
+
+    Runs AFTER seeding and BEFORE the RAPiDock import, so it tunes the device
+    RAPiDock-Reloaded auto-selects without changing *which* device is chosen or
+    perturbing RNG seeding (TF32 changes matmul mantissa bits, not RNG streams;
+    the project already documents CUDA nondeterminism in run_metadata.json).
+
+    Optimizations (grounded in the PyTorch Performance Tuning Guide):
+    - CUDA (NVIDIA) / ROCm (AMD): enable the TF32 fast path on Ampere+/Blackwell
+      and RDNA — `set_float32_matmul_precision('high')` + cuda/cudnn allow_tf32.
+      ~3x faster FP32 matmuls/convs with negligible accuracy impact; the RTX 5070
+      (Blackwell CC 12.0) and modern AMD cards both benefit.
+    - XPU (Intel GPU): import intel-extension-for-pytorch (ipex) if present, which
+      registers fused kernels and the XPU device; tune matmul precision.
+    - MPS (Apple Silicon): set PYTORCH_ENABLE_MPS_FALLBACK so the rare op MPS
+      lacks falls back to CPU instead of aborting the run.
+    - CPU: pin intra-op threads to the physical core count for steady throughput.
+
+    Returns:
+        Short human-readable label of the backend tuned (for logging).
+    """
+    import os
+
+    import torch
+
+    # MPS op-fallback must be set before the first MPS allocation.
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+    # CUDA (NVIDIA) and ROCm (AMD) both report through torch.cuda.
+    if torch.cuda.is_available():
+        try:
+            torch.set_float32_matmul_precision("high")
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            torch.backends.cudnn.benchmark = True  # autotune convs for fixed shapes
+        except Exception:  # pragma: no cover - knob unavailable on old builds
+            pass
+        return "CUDA/ROCm (TF32 fast path)"
+
+    # Intel XPU — importing ipex registers fused kernels + the xpu device.
+    if hasattr(torch, "xpu") and getattr(torch.xpu, "is_available", lambda: False)():
+        try:
+            import intel_extension_for_pytorch  # type: ignore[import]  # noqa: F401
+        except Exception:  # pragma: no cover - ipex optional
+            pass
+        try:
+            torch.set_float32_matmul_precision("high")
+        except Exception:  # pragma: no cover
+            pass
+        return "XPU (Intel)"
+
+    if getattr(getattr(torch.backends, "mps", None), "is_available", lambda: False)():
+        return "MPS (Apple, op-fallback enabled)"
+
+    # CPU: pin to physical cores (os.cpu_count() counts logical; halve if SMT).
+    try:
+        n = os.cpu_count() or 1
+        torch.set_num_threads(max(1, n // 2) if n > 2 else n)
+    except Exception:  # pragma: no cover
+        pass
+    return "CPU (threads tuned)"
+
+
 def main():
     # type: () -> None
     """Parse CLI args, seed RNGs, and invoke rd_inference.main()."""
@@ -128,6 +193,13 @@ def main():
     # Doing this here ensures ESM embeddings and all diffusion steps are reproducible
     if args.seed is not None:
         _seed_everything(args.seed)
+
+    # Tune the auto-selected backend (CUDA/ROCm/XPU/MPS/CPU) for throughput.
+    try:
+        backend = _optimize_backends()
+        print("[run_rapidock] backend optimization: %s" % backend, file=sys.stderr)
+    except Exception as exc:  # pragma: no cover - never block inference on a knob
+        print("[run_rapidock] backend optimization skipped: %s" % exc, file=sys.stderr)
 
     # Resolve all paths to absolute (conda run has unpredictable cwd)
     receptor_abs = str(Path(args.receptor).resolve())
