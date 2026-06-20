@@ -58,12 +58,12 @@ case. This is where we pull away from PPI-Affinity: **PPI is structure-free, so 
 returns the *same* score for any pose and cannot tell a good AI pose from a bad one. We read the pose:
 
 ```
-  POSE ACCURACY (Cα-RMSD, lower = better)      AFFINITY r — SCORING THE AI POSE (each █ = 0.025 r)
-  ──────────────────────────────────────      ──────────────────────────────────────────────────
-  best-of-top-25   2.49 Å  ·  hit@5 91%        HybriDock-Pep · AI pose + interaction █████████████████████░ 0.53
-  MDM2/p53 1YCR    0.80 Å                       HybriDock-Pep · AI pose, geometry     ███████████████████░░░ 0.486
-   vs DiffPepDock  3.54 Å  ◀ ~4× tighter        PPI-Affinity  · pose-blind*           █████████████░░░░░░░░░ 0.325
-                                                HybriDock-Pep · crystal (upper bound) ███████████████████████ 0.585
+  POSE ACCURACY (Cα-RMSD, lower = better)     AFFINITY r — SCORING THE AI POSE (each █ = 0.025 r, full = 0.60)
+  ────────────────────────────────────────    ─────────────────────────────────────────────────────────────
+  best-of-top-25  2.49 Å · hit@5 91%          HybriDock-Pep · AI pose + interaction █████████████████████░░░ 0.53
+  MDM2/p53 1YCR   0.80 Å                      HybriDock-Pep · AI pose, geometry     ███████████████████░░░░░ 0.486
+   vs DiffPepDock 3.54 Å ◀ ~4× tighter        PPI-Affinity  · pose-blind*           █████████████░░░░░░░░░░░ 0.325
+                                              HybriDock-Pep · crystal (upper bound) ███████████████████████░ 0.585
   * structure-free: identical score for any pose. Bars are each method's honest independent number.
 ```
 
