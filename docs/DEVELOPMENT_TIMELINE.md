@@ -80,27 +80,27 @@ model as the default scorer, Vina demoted to clash-relief) is documented in [§2
 
 ## 1. The arc in one chart
 
-Honest pooled / cross-family *r* over the **entire** campaign — the climb, the peak, **the drop when the big
-new dataset + real-pose deployment test arrived (Epoch 6), and the earned recovery on harder ground:**
+Honest pooled / cross-family *r* across the **whole** campaign — the climb, the curated peak, **the drop when
+PDBbind + the real-pose deployment test arrived (Epoch 6), and the earned recovery.** This first chart is
+**Epochs 1–6**; the Epoch 7–9 continuation (the leakage-free reframe and the T100 rescue) follows below.
 
 ```
  r
-0.70|                                                          ╭●╮ 0.68 held-out (E87, curated+crystal PEAK)
-0.65|                                                         ╱   ╲
-0.60|                                                ●━━━━━━━━     ╲          ╭●  0.598 benchmark (E150, RECOVERED)
-0.58|                                          0.585 (E87 LOO)      ╲        ╱
-0.55|                                     ●━━━━ 0.544 (E69 pooled)   ╲      ╱  ●  0.55 real-pose DEPLOY (E152 fix)
-0.53|                                    ╱                            ●━━━━╱   0.534 pooled-925 (broader/HARDER)
-0.50|                  ●━━━━━━━━━━━━━━━━━╱  0.488 (E40 +MD entropy)   │  ╲
-0.45|            ●━━━━━╱ 0.42 (E31 intensive-only)                    │   ╲
-0.40|        ●━━━╱ 0.40 (E19 pocket pooled)                          │    ●  0.06 ← THE AI HAIRCUT (E152):
-0.35|       ╱                                                        │       crystal model on REAL RAPiDock
-0.30|   ●━━╱ 0.30 (early NIS/BSA, within-target)                     │       poses = COLLAPSE. Found + FIXED.
-0.25| ● 0.228  ← REALITY CHECK (E28): independent benchmark.         ▼
-0.20|╱                                              the Epoch-6 dip ─┘  (then earned back, harder ground)
-    +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----
-      E0  E13  E19  E24  E28  E31  E40  E46  E58  E69  E80  E87 | E108  E150 E152 E153
-                                                          Epoch 5 peak │  Epoch 6: PDBbind + deployment
+0.70|                                              ╭──● 0.68  curated+crystal PEAK (E87)
+0.65|                                            ╱     ╲
+0.60|                                  ●━━━━━━━━╱  0.585  ╲              ╭● 0.598  benchmark RECOVERED (E150)
+0.55|                          ●━━━━━━╱  (E87 LOO)  0.544  ╲          ╱
+0.50|            ●━━━━━━━━━━━━╱ 0.488 (E40, +MD)     (E69)  ●━━━━━━━╱   0.55 deploy · 0.534 pooled-925 (E152)
+0.45|        ●━━╱ 0.42 (E31, intensive-only)                │    ╲___ earned back on HARDER ground
+0.40|     ●━━╱ 0.40 (E19, pocket pooled)                    │
+0.35|    ╱                                                  │
+0.30| ●━╱ 0.30 (early NIS / BSA, within-target)             │
+0.25|●  0.228  ◀ REALITY CHECK (E28): first independent set │
+0.20|                                                       ▼ 0.06  ◀ THE AI HAIRCUT (E152): crystal model on
+    |                                                         REAL RAPiDock poses = COLLAPSE → found + FIXED
+    +----+----+----+----+----+----+----+----+----+----+----+----+----+----+
+      E0   E13  E19  E24  E28  E31  E40  E58  E69   E87  E108 E150 E152 E153
+            └──────── Epoch 1–5: the climb ───────┘   peak │└─ Epoch 6: PDBbind + deployment ─┘
 ```
 
 **Read the Epoch-6 swing honestly (this is the part nobody else publishes):**
@@ -149,6 +149,41 @@ places the interface roughly right even when the peptide's internal conformation
 We trail PPI where a crystal is handed to you (and even there we TIE on medium and WIN on charged); we
 **beat it ~4×** where no crystal exists — which is every real prospective design. That, plus the charged
 win, is the honest "are we the best?" answer. Full Epoch-7 detail: [section 16](#16-epoch-7--decoding-ppi-affinity-the-deployment-haircut--the-selectivity-lever-e177e193-2026-06-15).
+
+**Epoch 8–9 (2026-06-17/18) — the honest altitude, and the T100 rescue.** Epoch 8 replaced random-KFold with
+leave-*receptor*-out CV, and the whole field's ~0.55 fell to its leakage-free floor (the *same* model: **0.608
+random-KFold → 0.259 leave-receptor-out** on PPIKB — that gap is pure homology leakage). On that level field,
+**we lead:**
+
+```
+ honest, leakage-free (leave-receptor-out CV)   bar = our r (full scale 0.60)
+ ──────────────────────────────────────────────────────────────────────────────
+ ours · PPIKB independent (E294)   ██████████████░░░░░░░░░░  0.352  vs PPI 0.325   ◀ WE WIN
+ ours · PDBbind crystal+IFP (E298) ███████████████████░░░░░  0.480  vs PPI 0.291   ◀ CRUSH
+   └ charged subset only           ████████████████░░░░░░░░  0.401  vs PPI 0.146   ◀ cracks the charged floor
+```
+
+And on **PPI-Affinity's OWN T100** — the one board where it leads — Epoch 9's interaction map (IFP) closes the
+gap fast. Strict cold transfer (train on disjoint PDBbind, predict a T100 the model has *never seen*), then
+keep adding clean Kd crystals:
+
+```
+ T100 cold-transfer r  (train on disjoint PDBbind, predict PPI's own held-out T100)
+ ────────────────────────────────────────────────────────────────────────────────
+ PPI-Affinity  (in-dist home turf) ██████████████████████░░  0.549  ← overlaps its own training
+ ours geom+IFP, n=1405 clean Kd    ██████████████░░░░░░░░░░  0.342  ▲ more clean crystals → still climbing
+ ours geom+IFP, n=973 (E302)       ███████████░░░░░░░░░░░░░  0.277  ▲
+ ours geom+IFP, cold (E300)        █████████░░░░░░░░░░░░░░░  0.225  ◀ IFP RESCUES 5× over geom-only
+ ours geom only, cold              ██░░░░░░░░░░░░░░░░░░░░░░  0.045    (the biggest single-feature lever)
+ ────────────────────────────────────────────────────────────────────────────────
+ gap to 0.549 = a DATA gap (more clean Kd peptide crystals), NOT a model gap — see §18.4.
+```
+
+The T100 IFP jump (0.045 → 0.225 → 0.277 → 0.342) is the largest single-feature gain in the whole campaign,
+and it lands on the *one* benchmark PPI was supposed to own. On every leakage-free test we already lead
+(0.352 vs 0.325; 0.480 vs 0.291); the T100 is the last board, and it is closing with data, not model changes.
+Full Epoch 8–9 detail: [section 17](#17-epoch-8--anchoring-the-offset-wall--the-interaction-map-e260e299-2026-06-17)
+and [section 18](#18-epoch-9--the-interaction-map-at-scale-train-ifp-on-everything-e300e304-2026-06-18).
 
 And the **in-distribution** numbers (crystal-65 LOO — the flattering ones) ran higher and earlier. The whole
 campaign was making the honest pooled number catch up to these:
@@ -1118,20 +1153,43 @@ Honest read: on the T100 we trail PPI (0.225 vs 0.549) — but **not apples-to-a
 geom number). On a level field — independent data, no homology boost for either side — we win (PPIKB 0.352
 vs 0.325; PDBbind crystal+IFP 0.480 vs 0.291). **PPI leads only where the benchmark overlaps its training.**
 
-### 18.2 IFP on PPIKB-with-structures — a dead heat, and the data-hungry tell (E301)
+### 18.2 IFP on PPIKB-with-structures — a dead heat, and *why* IFP can hurt (E301)
 
 PPIKB ships as sequence/pocket descriptors only — no crystal splits, so IFP can't run on the raw fresh-305.
-But 360 PPIKB complexes overlap PDBbind (we have their IFP). Leave-receptor-out CV on those 360:
+But 360 PPIKB complexes overlap PDBbind (we have their crystal IFP). Leave-receptor-out CV on those 360:
 
 ```
   PPIKB-with-structures, n=360   r_all   r_charged
   OURS geom only                 0.290   0.361     ← best of ours here
   PPI-clone (desc3d)             0.271   0.389     ← TIE overall; wins charged
-  OURS geom+IFP                  0.269   0.278     ← IFP adds NOTHING on this small subset
+  OURS geom+IFP                  0.269   0.278     ← IFP HURTS — esp. charged (0.361 → 0.278)
 ```
 
-We **tie** PPI-clone, and IFP *hurts* slightly (0.290 → 0.269) — the opposite of PDBbind-925's +0.10. First
-sign that IFP's 19 extra features are **data-hungry**: they overfit on 360 but pay off on 925.
+IFP *hurts* here (0.290 → 0.269; charged 0.361 → 0.278) — the **opposite** of PDBbind-925's +0.10. Our first
+guess was "IFP is data-hungry; 360 is too small." **That guess is wrong**, and the clean experiment that
+settles it is a *label swap on the identical 360 complexes* — same crystals, same 19 IFP features, same CV,
+same receptor groups; the **only** thing that changes is which database's affinity we regress against:
+
+```
+  identical 360 complexes · identical IFP features · only the LABEL differs
+  ─────────────────────────────────────────────────────────────────────────────────
+  regressed on PDBbind Kd    geom 0.325 → +IFP 0.453   ΔIFP +0.128   (charged +0.120)  ✔ IFP HELPS
+  regressed on PPIKB Kd      geom 0.290 → +IFP 0.269   ΔIFP −0.021   (charged −0.083)  ✘ IFP HURTS
+  ─────────────────────────────────────────────────────────────────────────────────
+  the two "Kd" label sets, SAME complexes:  r = 0.712  ·  std(disagreement) = 1.74 kcal/mol (~1.3 log units)
+  (composition is 94% Kd / 6% IC50-Ki — so this is NOT assay-type contamination; the pure-Kd subset still
+   only agrees at r = 0.727. It is genuine cross-DATABASE curation noise: PDBbind and PPIKB sourced the same
+   crystal's affinity from different primary papers / conditions.)
+```
+
+So n=360 is **plenty** for IFP — it adds +0.128 here *when the label is clean*. What kills it is **label
+noise**: PPIKB's affinities for these complexes disagree with PDBbind's by 1.74 kcal/mol. Geometry's 17
+**coarse** features (gross burial/contact) ride through that jitter; IFP's 19 **fine** enthalpic features
+encode precision that only pays off against an internally-consistent label, and against a 1.74-kcal/mol-noisy
+one they just fit noise — dragging the charged number down hardest (charged binding is where the fine
+electrostatic detail lives, so it has the most precision to lose). The lesson isn't "more complexes," it's
+**more *consistent* labels** — which reframes §18.4's verdict: IFP is quality-gated on label *fidelity*, not
+label *count*.
 
 ### 18.3 Train IFP on EVERYTHING — the hypothesis, settled (E302–E304)
 
