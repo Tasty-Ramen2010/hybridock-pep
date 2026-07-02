@@ -20,7 +20,7 @@ scoring = [
     "vina>=1.2.5",
     "scipy>=1.11",
     "biopython>=1.81",
-    "scikit-learn>=1.4",
+    "scikit-learn>=1.8,<1.9",
 ]
 mmgbsa = [
     "openmm>=8.1",
