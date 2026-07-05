@@ -1,4 +1,4 @@
-# HybriDock-Pep Scoring — Development Atlas (E0 → E190)
+# HybriDock-Pep Scoring — Development Atlas (E0 → E304 + production architecture)
 
 The complete, honest development record of the affinity-scoring function: how the idea evolved, the real
 Pearson *r* at every milestone, the feature-correlation behaviour across datasets, the head-to-head against
@@ -760,7 +760,9 @@ collapse.
  E134–35  hydrophobic complementarity (+0.026 ship)    E150    ProtDCal 220-desc (charged 0.29→0.46)
  E137–39  GIST pocket-water (dead, non-reproducible)   E152    AI HAIRCUT + real-pose fix (0.06→0.551)
  (metric reframe: MAE 1.3 beats PPI 1.8)               E153    PfLDH/hLDH selectivity ΔΔG −0.87
- E154–55  RAPiDock N=100 real-pose campaign (running, expand real-pose training past 156)
+ E154–55  RAPiDock N=100 real-pose campaign — COMPLETE: 188 new real-pose complexes (156→344);
+          learning curve flat (r stayed 0.51–0.57, no gain past 156) — real-pose model was already
+          data-saturated at n=156, the bottleneck was features/labels (§15), not more poses
 ```
 
 ---
@@ -1445,7 +1447,8 @@ the one thing static cheap physics provably cannot recover.
 
 ---
 
-*Generated from committed experiments E0–E299. Epochs 1–5 detail in
+*Generated from committed experiments E0–E304, plus the (unnumbered) Epoch 10 production-architecture work
+(2026-06-19). Epochs 1–5 detail in
 `docs/e19_pocket_baseline_breakthrough.md`; Epoch 6 in `docs/protdcal_charged_2026-06-13.md`,
 `docs/production_fix_short_2026-06-13.md`, `docs/capstone_scorecard_2026-06-13.md`; **Epoch 7** (§16: PPI
 decode, deployment haircut, crystal breakdown, PPIKB/PepBenchmark levers) in
