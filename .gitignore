@@ -179,3 +179,4 @@ venv/
 data/e225_fpocket.jsonl
 data/misato/
 data/anchor_library.json
+coverage.json
