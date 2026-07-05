@@ -43,5 +43,6 @@ dependencies:
       - "opt-einsum"
       - "PeptideBuilder"
       - "sympy"
+      - "pyyaml"
       # PyTorch + PyG: install via pip AFTER env creation (see header above).
       # RAPiDock-Reloaded: bundled at third_party/RAPiDock/ — import directly.
