@@ -363,6 +363,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cry.add_argument("--artifact", default=None, metavar="JOBLIB",
                        help="Override the crystal-IFP model artifact "
                             "(default: data/affinity_crystal_ifp.joblib).")
+    p_cry.add_argument("--allow-clashes", action="store_true",
+                       help="Score even if the pose sterically clashes with the receptor. By default a "
+                            "physically invalid (overlapping) pose is refused, because the featurizer "
+                            "scores atom overlaps as strong contacts and would return a confident but "
+                            "meaningless ΔG.")
 
     return parser
 
@@ -639,7 +644,12 @@ def _run_crystal_score(args: argparse.Namespace, parser: argparse.ArgumentParser
         )
 
     kwargs = {"artifact": args.artifact} if args.artifact else {}
-    dg = score_crystal_complex(str(receptor), str(peptide_pdb), seq, **kwargs)
+    try:
+        dg = score_crystal_complex(
+            str(receptor), str(peptide_pdb), seq, allow_clashes=args.allow_clashes, **kwargs
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
     if dg is None:
         parser.error(
             f"Crystal scoring failed for {peptide_pdb.name}. Either the model artifact is "

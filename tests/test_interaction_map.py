@@ -2,14 +2,28 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from hybridock_pep.scoring.interaction_map import (
     IFP_FEATURE_ORDER,
+    clash_metrics,
     compute_ifp,
     interaction_fingerprint,
     ifp_vector,
     receptor_atoms,
+    score_crystal_complex,
 )
+
+
+def _write_pdb(path, coords, resname="ALA", chain="A", element="C") -> None:
+    """Write heavy atoms at ``coords`` (list of xyz) to a minimal PDB."""
+    lines = []
+    for i, (x, y, z) in enumerate(coords, start=1):
+        lines.append(
+            f"ATOM  {i:>5}  CA  {resname} {chain}{i:>4}    "
+            f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00          {element:>2}"
+        )
+    path.write_text("\n".join(lines) + "\n")
 
 
 def test_feature_order_is_19() -> None:
@@ -77,3 +91,43 @@ def test_compute_ifp_roundtrip_from_pdb(tmp_path) -> None:
     assert len(receptor_atoms(rec_pdb)) == 1
     f = compute_ifp(rec_pdb, pep_pdb)
     assert f["sb_fav"] == 1.0
+
+
+def test_clash_metrics_zero_for_separated(tmp_path) -> None:
+    """A peptide 5 Å from the receptor has no clashing atoms."""
+    rec = tmp_path / "rec.pdb"
+    pep = tmp_path / "pep.pdb"
+    _write_pdb(rec, [(0.0, 0.0, 0.0), (1.5, 0.0, 0.0)])
+    _write_pdb(pep, [(5.0, 0.0, 0.0), (6.5, 0.0, 0.0)], chain="B")
+    n_clash, n_pep, frac = clash_metrics(rec, pep)
+    assert n_clash == 0 and n_pep == 2 and frac == 0.0
+
+
+def test_clash_metrics_counts_overlaps(tmp_path) -> None:
+    """Peptide atoms sitting on top of receptor atoms (<2 Å) count as clashes."""
+    rec = tmp_path / "rec.pdb"
+    pep = tmp_path / "pep.pdb"
+    _write_pdb(rec, [(0.0, 0.0, 0.0), (3.0, 0.0, 0.0)])
+    _write_pdb(pep, [(0.5, 0.0, 0.0), (3.2, 0.0, 0.0)], chain="B")  # both within 2 Å
+    n_clash, n_pep, frac = clash_metrics(rec, pep)
+    assert n_clash == 2 and frac == 1.0
+
+
+def test_score_crystal_complex_refuses_clashing_pose(tmp_path) -> None:
+    """A physically impossible (overlapping) pose is refused before it can be scored."""
+    rec = tmp_path / "rec.pdb"
+    pep = tmp_path / "pep.pdb"
+    _write_pdb(rec, [(float(i), 0.0, 0.0) for i in range(10)])
+    _write_pdb(pep, [(float(i) + 0.3, 0.0, 0.0) for i in range(10)], chain="B")  # fully overlapping
+    with pytest.raises(ValueError, match="clashing"):
+        score_crystal_complex(str(rec), str(pep), "AAAAAAAAAA")
+
+
+def test_allow_clashes_bypasses_guard(tmp_path) -> None:
+    """allow_clashes=True skips the guard (returns a value or None, but does not raise ValueError)."""
+    rec = tmp_path / "rec.pdb"
+    pep = tmp_path / "pep.pdb"
+    _write_pdb(rec, [(float(i), 0.0, 0.0) for i in range(10)])
+    _write_pdb(pep, [(float(i) + 0.3, 0.0, 0.0) for i in range(10)], chain="B")
+    # Must not raise the clash ValueError; geometry may be unavailable on this toy input -> None.
+    score_crystal_complex(str(rec), str(pep), "AAAAAAAAAA", allow_clashes=True)
