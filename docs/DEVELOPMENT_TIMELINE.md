@@ -93,12 +93,52 @@ receptor ranking Spearman (leave-receptor-out, 24 targets split by median |q|):
   geometry+IFP         +0.25                    +0.50
 ```
 
-IFP-only ranks charged targets WORSE than geometry (+0.20 < +0.40); mixing IFP in drags charged ranking down
-(0.40→0.25). Mechanism: IFP contact counts scale with interface size/burial, which varies more pose-to-pose
-than affinity within one target, so IFP adds burial noise faster than charge signal. **Absolute r and within-
-target ranking want different features** (matches [[project_poseinvariant_pocket_jun14]]). Rule: geometry-only
-for ranking, geometry+IFP for absolute ΔG. The individual n=4-5 literature panels (MDM2, BH3) are too noisy to
-route on (Spearman sign flips on one swapped pair). Do NOT re-propose a charged-IFP ranking router.
+By **median Spearman** IFP-only ranks charged targets worse than geometry (+0.20 < +0.40) and mixing IFP in
+drags charged Spearman down (0.40→0.25) — which first looked like "geometry-only is the better ranker." **E308
+CORRECTS THIS: the metric flips the verdict.** By **pooled pairwise accuracy** (all resolvable candidate
+pairs, the screening-relevant metric) IFP *helps* charged (+13 pts) and *hurts* neutral (−8 pts):
+
+```
+  metric \ model      geom   geom+IFP        geom   geom+IFP
+                      ── CHARGED targets ──   ── NEUTRAL targets ──
+  median Spearman     +0.40    +0.25          +0.50    +0.50
+  pooled pairwise     52.8%    66.0%          70.5%    60.7%
+```
+
+Median-Spearman and pooled-pairwise **disagree on charged** (n=11 targets). At this sample size the metric
+choice decides the answer, so **no routing rule is stable enough to ship.** The honest, robust facts: (1)
+geom+IFP is the better ranker *overall* (pooled pairwise 64.5% vs geom-only 57.7%) — keep it as the single
+ranker; (2) the charged↔neutral routing does not survive a metric change; (3) the n=4-5 literature panels
+(MDM2, BH3) are far too noisy to route on. Do NOT re-propose a charged-IFP ranking router, and do NOT claim
+"geometry-only for ranking" — that was a median-Spearman artifact.
+
+**E308 — probe battery: what the scorer actually reads.** Small tests on the 865-set + fresh crystals:
+- **Screening success = pooled pairwise 64.5%** (geom+IFP, resolvable pairs, |Δ ΔG|≥0.5). The honest,
+  interpretable "is candidate A better than B?" number — clearly above coin-flip, not great.
+- **Perturbation radius ≈ 0.5 Å**: score stable for near-native poses (−9.28→−9.22 out to 0.5 Å translation),
+  drifts ~0.7 kcal by 1.5 Å. Small pose errors do not wreck the score.
+- **Side-chain identity barely read (the big one):** relabeling all of PMI's residues to poly-ALA (coords
+  unchanged) moved the score **0.07 kcal** (−9.67→−9.60). The scorer is dominated by coordinate-derived
+  **shape/burial**, not side-chain chemistry. This is the UNIFYING mechanism behind the compression, the
+  sub-10 nM saturation, and the BH3 ranking failure: near-identical grooves/backbones score alike regardless
+  of the side-chain chemistry that actually sets affinity. Matches [[project_poseinvariant_pocket_jun14]]
+  (pose-robust = shape features). Reproduce: `scripts/e308_probe_battery.py`.
+
+**E309 — WIN: a separate IFP calibration for RANKING vs SCORING (Ram's two-model idea, confirmed).** E308
+showed raw IFP *counts* scale with interface size/burial — real cross-target signal (helps absolute ΔG) but
+within-target *noise* (hurts ranking). Fix: a ranking-specific **composition-normalized IFP** (each channel ÷
+total contacts) that encodes *which* contact types dominate, size-independent. 865-set, leave-receptor-out:
+
+```
+  IFP variant            within-target ranking (pooled pairwise)   absolute Pearson r
+  raw counts (SCORING)        64.5%   (chg 66 / neu 61)                 0.480   ← keep for ΔG (beats PPI)
+  composition (RANKING)       70.5%   (chg 73 / neu 64)                 0.393   ← +6 pts pairwise, both classes
+```
+
+So ship **two calibrations of the same design**: raw-count IFP for absolute ΔG (the PPI-beating 0.480),
+composition IFP for within-target ranking (70.5% pairwise, +6 pts, helps charged AND neutral). Model saved
+`data/affinity_rank_ifp.joblib`. Reproduce: `scripts/e309_ranking_ifp.py`. **Next:** wire a `rank_score`
+column / `--rank` path so `dock` emits the composition-IFP ordering alongside the ΔG.
 
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
