@@ -374,6 +374,12 @@ Every run writes to `--output-dir`: `ranked_poses.csv` (per-pose scores + calibr
 `cluster_summary.csv`, `convergence.png`, `dendrogram.png`, and `run_metadata.json` (git SHA, seeds, software
 versions, input hashes — everything needed to reproduce the run).
 
+`ranked_poses.csv` includes a **`rank_score`** column — the composition-IFP ranking model (E309). To screen a
+peptide panel, dock each candidate against the same receptor and compare their **best-pose `rank_score`**
+(lower = predicted stronger); it ranks within-target candidates better than the absolute ΔG (70.5% vs 64.5%
+pooled-pairwise) because it is size-normalized. It is *not* an absolute ΔG (use `delta_g`) and *not* a
+within-run pose ranker (that ordering is the CSV row order).
+
 `best_pose.pdb` is the exact geometry the headline ΔG was computed on, **with standard residue names** — so
 you can re-score it directly: `hybridock-pep crystal-score --receptor R.pdb --peptide-pdb <out>/best_pose.pdb
 --peptide SEQ`. (A `best_pose_vina_relaxed.pdb` with the Vina clash-relieved geometry is also written for
