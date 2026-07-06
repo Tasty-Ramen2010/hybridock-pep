@@ -155,6 +155,12 @@ class ScoredPose(PoseRecord):
     # 16 geometry + 29 sequence descriptors + charge-complementarity, trained on 1076 pooled
     # complexes. Matches PPI-Affinity on r, beats it on MAE. Populated when --ensemble is set.
     pooled_affinity_dg: float | None = None
+    # Composition-IFP RANKING score (E309; scoring/interaction_map.py). Same design as the crystal
+    # scorer but the IFP is normalized to contact-type composition (size-independent), which ranks
+    # within-target better (70.5% vs 64.5% pairwise). Meaning: compare the best-pose rank_score ACROSS
+    # peptides on the SAME receptor to prioritise a candidate panel (lower = predicted stronger). It is
+    # NOT an absolute ΔG and NOT a within-run pose ranker (use pose_ranker_ml for that).
+    rank_score: float | None = None
     # BSA-fit pose ranker (replaces ref2015): lower = tighter/cleaner fit.
     # bsa = interface buried surface area (Å²); n_clash = overlapping peptide atoms.
     bsa_fit_score: float | None = None

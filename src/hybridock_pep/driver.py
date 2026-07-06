@@ -252,6 +252,15 @@ def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
                 )
             # PRIMARY affinity: the AI-pose model (no Vina/AD4). Always computed.
             pose.pooled_affinity_dg = predict_affinity(feats, config.peptide_sequence)
+            # Composition-IFP RANKING score (E309): for cross-peptide screening on the same receptor.
+            # Reuses the geometry dict; only the (cheap) IFP is recomputed. Optional — logged, never raised.
+            try:
+                from hybridock_pep.scoring.interaction_map import rank_score_complex  # noqa: PLC0415
+                pose.rank_score = rank_score_complex(
+                    receptor, pose.pdb_path, config.peptide_sequence, geometry=feats,
+                )
+            except Exception as exc:  # noqa: BLE001 — rank score is an optional enrichment
+                logger.debug("Pose %d: rank_score skipped (%s)", pose.pose_idx, exc)
             # Optional geometry+Vina ensemble blend (--ensemble; needs a Vina score for the pose).
             if cal is not None and pose.vina_score is not None:
                 if router_cal is not None and pep_len <= router_cal.short_max_len:

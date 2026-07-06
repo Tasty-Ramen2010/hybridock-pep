@@ -93,6 +93,25 @@ def test_compute_ifp_roundtrip_from_pdb(tmp_path) -> None:
     assert f["sb_fav"] == 1.0
 
 
+def test_composition_ifp_sums_to_one() -> None:
+    """The composition-normalized IFP vector sums to 1 when any contacts are present."""
+    from hybridock_pep.scoring.interaction_map import _composition_ifp_vector
+    rec = [("pos", "chg", np.array([0.0, 0.0, 0.0])), ("hyd", "hyd", np.array([10.0, 0.0, 0.0]))]
+    pep = [("neg", np.array([3.0, 0.0, 0.0])), ("hyd", np.array([11.5, 0.0, 0.0]))]
+    f = interaction_fingerprint(rec, pep)
+    v = _composition_ifp_vector(f)
+    assert v.shape == (19,)
+    assert abs(v.sum() - 1.0) < 1e-9
+
+
+def test_composition_ifp_all_zero_stays_zero() -> None:
+    """An empty fingerprint (no contacts) normalizes to all-zero, not a divide-by-zero."""
+    from hybridock_pep.scoring.interaction_map import _composition_ifp_vector
+    f = {k: 0.0 for k in IFP_FEATURE_ORDER}
+    v = _composition_ifp_vector(f)
+    assert np.all(v == 0.0)
+
+
 def test_clash_metrics_zero_for_separated(tmp_path) -> None:
     """A peptide 5 Å from the receptor has no clashing atoms."""
     rec = tmp_path / "rec.pdb"

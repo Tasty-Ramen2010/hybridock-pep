@@ -284,12 +284,76 @@ _CRYSTAL_GEOM_ORDER: tuple[str, ...] = (
     "sasa_hb", "sasa_sb", "strength_bur",
 )
 _DEFAULT_ARTIFACT = "data/affinity_crystal_ifp.joblib"
+_RANK_ARTIFACT = "data/affinity_rank_ifp.joblib"
 _CRYSTAL_MODEL_CACHE: dict[str, object] = {}
+_RANK_MODEL_CACHE: dict[str, object] = {}
 
 
 def _geom17(geometry: dict[str, float], seq: str) -> list[float]:
     return [float(len(seq)) if k == "length" else float(geometry.get(k, 0.0))
             for k in _CRYSTAL_GEOM_ORDER]
+
+
+def _composition_ifp_vector(ifp: dict[str, float]) -> np.ndarray:
+    """IFP vector normalized to contact-type composition (each channel / total contacts).
+
+    This is the size-independent ranking feature (E309): it encodes *which* contact types dominate
+    regardless of how many, removing the interface-size scaling that adds within-target ranking noise.
+    """
+    v = ifp_vector(ifp)
+    total = float(v.sum())
+    return v / total if total > 0 else v
+
+
+def rank_score_complex(
+    receptor_pdb: str | Path,
+    peptide_pdb: str | Path,
+    seq: str,
+    *,
+    geometry: dict[str, float] | None = None,
+    artifact: str | Path = _RANK_ARTIFACT,
+) -> float | None:
+    """Composition-IFP RANKING score for cross-peptide screening on ONE receptor (E309).
+
+    Same design as :func:`score_crystal_complex` but the IFP is composition-normalized, which ranks
+    within-target candidates better (70.5% vs 64.5% pooled pairwise, 865-set). **Use it to prioritise a
+    peptide panel:** compare the best-pose ``rank_score`` ACROSS peptides docked to the *same* receptor —
+    lower = predicted stronger. It is **not** an absolute ΔG (that is the affinity model / crystal-score)
+    and **not** a within-run pose ranker (that is ``pose_ranker_ml``).
+
+    Args:
+        receptor_pdb: receptor PDB (or full complex).
+        peptide_pdb: peptide pose PDB.
+        seq: peptide one-letter sequence.
+        geometry: precomputed geometry-feature dict (from ``compute_geometry_features``) to avoid a
+            redundant recompute; if None it is computed here.
+        artifact: trained composition-IFP ranking joblib bundle. Defaults to the shipped artifact.
+
+    Returns:
+        The ranking score (kcal/mol-scaled), or ``None`` if the artifact or geometry is unavailable.
+    """
+    import joblib  # local import: keep module import light
+
+    from hybridock_pep.scoring.geometry_features import compute_geometry_features
+
+    path = Path(artifact)
+    if not path.exists():
+        logger.warning("rank-IFP artifact not found: %s", path)
+        return None
+    bundle = _RANK_MODEL_CACHE.get(str(path))
+    if bundle is None:
+        bundle = joblib.load(path)
+        _RANK_MODEL_CACHE[str(path)] = bundle
+
+    if geometry is None:
+        geometry = compute_geometry_features(Path(peptide_pdb), Path(receptor_pdb))
+    if geometry is None:
+        logger.warning("rank-IFP: geometry features unavailable for %s", peptide_pdb)
+        return None
+    ifp = compute_ifp(receptor_pdb, peptide_pdb)
+    vec = np.array(_geom17(geometry, seq) + list(_composition_ifp_vector(ifp)), dtype=float).reshape(1, -1)
+    vec = np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
+    return float(bundle["model"].predict(vec)[0])
 
 
 def score_crystal_complex(
