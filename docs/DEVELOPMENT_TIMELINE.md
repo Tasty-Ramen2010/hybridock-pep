@@ -23,6 +23,55 @@ research log (`docs/e19_pocket_baseline_breakthrough.md`) — nothing rounded up
 
 ---
 
+## Release re-verification — 2026-07-06 (publication pass)
+
+Before publishing the two headline claims, every number below was **re-run live** in `score-env`
+(leave-receptor-out CV, `OMP_NUM_THREADS`-pinned) and the runtime was measured, not assumed:
+
+```
+  CLAIM / NUMBER                       RE-RUN RESULT (this date)                       SCRIPT
+  ──────────────────────────────────────────────────────────────────────────────────────────────
+  Absolute Kd, independent (n=305)     ours 0.352  vs PPI-clone v2 0.325   ✓ reproduced  e294
+                                        charged 0.342 vs 0.300
+  Crystal + interaction map (n=865)    ours+IFP 0.480 vs PPI-clone 0.291   ✓ reproduced  e298
+                                        charged 0.401 vs 0.146
+  AI/RAPiDock-pose affinity model      stored grouped-CV cv_r = 0.492      ◐ stored only  (e204 build
+                                        (affinity_ai_nofix.joblib, n=633)     dep e158 missing → not re-run)
+  Scoring throughput                   100 poses in 282 s = 2.82 s/pose    ✓ measured    hybridock-pep dock
+                                        crystal-score = ~0.9 s/pose                        --input-poses
+  ──────────────────────────────────────────────────────────────────────────────────────────────
+```
+
+**Runtime claim corrected.** The "~3 min" figure is Stage-1 RAPiDock **generation of all 100 poses**, not
+per-pose scoring. Measured Stage-2 scoring is **2.82 s/pose** end-to-end (prep + Vina clash-relief + geometry
+model; 84/100 poses survived clash-relief on MDM2/p53). Field anchor: HPEPDOCK = 29.8 min for one global
+docking (Martins et al., *J. Comput. Chem.* 47:5, 2026).
+
+**Fresh out-of-training spot-check** (blind `crystal-score` on deposited structures, none in any training split):
+
+```
+  system            PDB    peptide         pred ΔG    reference           regime
+  ──────────────────────────────────────────────────────────────────────────────────
+  MDM2 / p53        1YCR   ETFSDLWKLLPE     −9.28      −8.5  exp           control, close
+  MDM2 / PMI        3EQS   TSFAEYWNLLS      −9.67      −12.7 exp           underpredicts (saturation)
+  importin-α / NLS  3VE6   EGPSAKKPKKEA     −9.77      −4.8 FEP/−5…−10 exp  overpredicts (entropic/water)
+```
+
+Honest read: predictions land within a few kcal/mol of reference but **compress the −4.8…−12.7 range into
+−9.3…−9.8** — the documented blind-absolute ceiling (§7, §0 "THE WALL"). Confirms the headline must be the
+*leakage-free ranking* win and *selectivity*, not blind-absolute kcal/mol.
+
+**Competitive field (verified 2025–2026 literature).** PPI-Affinity (prior best published peptide scorer)
+unmaintained since 2022, real leakage-free r ≈ 0.325. Boltz-2 (2025) is not a peptide-affinity replacement:
+a fine-tune underperforms sequence methods on affinity (arXiv:2512.06592, Dec 2025) and a reliability audit
+finds wrong bond lengths/chirality/non-planar aromatics with structure-independent affinities
+(arXiv:2603.05532, Mar 2026). The 2026 review of 14 peptide-docking tools reports no benchmarked
+absolute-affinity capability among them.
+
+**Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
+
+---
+
 ## Table of contents
 
 0. [**Current honest standing — read this first**](#0-current-honest-standing-read-this-first--supersedes-earlier-epoch-numbers) *(single source of truth)*
