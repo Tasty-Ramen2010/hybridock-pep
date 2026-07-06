@@ -158,6 +158,14 @@ So, concretely, HybriDock-Pep can contribute to another project in three honest 
 If your project needs a *calibrated absolute* number, add 2–3 measured references on your own target and use
 reference-anchoring (r 0.25 → 0.61) — that cancels the per-receptor offset the blind-absolute mode can't.
 
+**Two live examples on fresh literature panels** (none in training; full write-up in
+[`docs/external_validation_2026-07-06.md`](docs/external_validation_2026-07-06.md)): an **MDM2 inhibitor
+panel** (p53 wt → PMI → pDIQ, 160× affinity range) ranks at **ρ = +0.56** — it correctly separates
+wild-type from optimised binders. A **Bcl-xL/BH3 panel** ranks at **ρ = −0.63 (backwards)** — BH3 helices are
+electrostatically driven, which the geometry features miss. Ranking is **target-dependent**: strong on
+aromatic/hydrophobic pockets, unreliable on helical/electrostatic ones. We publish both rather than
+cherry-pick the win.
+
 ---
 
 ## Pipeline — the full workflow
