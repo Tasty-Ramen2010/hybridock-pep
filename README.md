@@ -10,7 +10,7 @@ HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a p
 receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
 **selectivity primitive** (ΔΔG with bootstrap CI) for "does this peptide prefer target A over off-target B".
 Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets, minutes per
-peptide on commodity hardware.
+peptide on commodity hardware. Made by Choppa Purandhar Ram, 15 year old.
 
 It is a **two-stage hybrid**: an AI diffusion model (RAPiDock-Reloaded) samples all-atom poses, then a
 physics + learned-geometry rescorer turns those poses into calibrated affinity, selectivity, and
