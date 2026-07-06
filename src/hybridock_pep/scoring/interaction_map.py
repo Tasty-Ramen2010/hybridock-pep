@@ -192,6 +192,60 @@ def interaction_fingerprint(
     return {k: float(f.get(k, 0.0)) for k in IFP_FEATURE_ORDER}
 
 
+def _heavy_atom_coords(pdb_path: str | Path) -> np.ndarray:
+    """Parse all non-hydrogen atom coordinates from a PDB.
+
+    Args:
+        pdb_path: Path to a PDB file (receptor or peptide pose).
+
+    Returns:
+        ``(N, 3)`` float array of heavy-atom coordinates; ``(0, 3)`` if none parse.
+    """
+    coords: list[list[float]] = []
+    for ln in Path(pdb_path).read_text().splitlines():
+        if not ln.startswith(("ATOM", "HETATM")):
+            continue
+        name = ln[12:16].strip()
+        element = ln[76:78].strip() or (name.lstrip("0123456789")[:1] if name else "")
+        if element.upper() == "H":
+            continue
+        try:
+            coords.append([float(ln[30:38]), float(ln[38:46]), float(ln[46:54])])
+        except ValueError:
+            continue
+    return np.array(coords, dtype=float) if coords else np.zeros((0, 3))
+
+
+def clash_metrics(
+    receptor_pdb: str | Path,
+    peptide_pdb: str | Path,
+    clash_dist: float = 2.0,
+) -> tuple[int, int, float]:
+    """Count peptide heavy atoms sterically clashing with the receptor.
+
+    A receptor–peptide heavy-atom pair closer than ``clash_dist`` is a steric overlap: the two molecules
+    are not covalently bonded, so no such pair is physically possible in a real bound pose (the closest
+    legitimate contact, a hydrogen bond, is ~2.6–3.0 Å heavy-atom-to-heavy-atom). This is the cheap sanity
+    gate the geometry/IFP featurizer lacks — its contact loop *skips* pairs below 1.5 Å and scores 1.5–2.0 Å
+    overlaps as ultra-strong contacts, so a physically impossible pose reads as a great binder.
+
+    Args:
+        receptor_pdb: Receptor PDB (protein only, or full complex).
+        peptide_pdb: Peptide pose PDB.
+        clash_dist: Heavy-atom overlap distance in Å below which a pair counts as a clash.
+
+    Returns:
+        ``(n_clashing_peptide_atoms, n_peptide_atoms, clash_fraction)``. ``clash_fraction`` is 0.0 when
+        the peptide has no heavy atoms.
+    """
+    rec = _heavy_atom_coords(receptor_pdb)
+    pep = _heavy_atom_coords(peptide_pdb)
+    if len(rec) == 0 or len(pep) == 0:
+        return 0, len(pep), 0.0
+    n_clash = int(sum(1 for xp in pep if np.any(np.linalg.norm(rec - xp, axis=1) < clash_dist)))
+    return n_clash, len(pep), n_clash / len(pep)
+
+
 def compute_ifp(receptor_pdb: str | Path, peptide_structure: str | Path) -> dict[str, float]:
     """Compute the interaction fingerprint for a crystal complex.
 
@@ -244,6 +298,9 @@ def score_crystal_complex(
     seq: str,
     *,
     artifact: str | Path = _DEFAULT_ARTIFACT,
+    allow_clashes: bool = False,
+    clash_dist: float = 2.0,
+    max_clash_fraction: float = 0.05,
 ) -> float | None:
     """Predict ΔG (kcal/mol) for a CRYSTAL complex using geometry + interaction map.
 
@@ -256,13 +313,34 @@ def score_crystal_complex(
         peptide_pdb: crystal peptide structure (``.pdb`` or ``.mol2``).
         seq: peptide one-letter sequence.
         artifact: trained crystal-IFP joblib bundle. Defaults to the shipped artifact.
+        allow_clashes: if False (default), raise ``ValueError`` when the pose has too many steric
+            clashes with the receptor. The featurizer scores overlapping atoms as strong contacts, so a
+            physically impossible pose otherwise gets a confident (meaningless) ΔG.
+        clash_dist: heavy-atom overlap distance (Å) counted as a clash by :func:`clash_metrics`.
+        max_clash_fraction: refuse the pose when this fraction of peptide heavy atoms clash. Valid
+            crystal poses measure 0.0; displaced/embedded poses measure ≥0.19 empirically.
 
     Returns:
         Predicted ΔG in kcal/mol, or ``None`` if the artifact or geometry features are unavailable.
+
+    Raises:
+        ValueError: if the pose clashes with the receptor above ``max_clash_fraction`` and
+            ``allow_clashes`` is False.
     """
     import joblib  # local import: keep module import light
 
     from hybridock_pep.scoring.geometry_features import compute_geometry_features
+
+    if not allow_clashes:
+        n_clash, n_pep, frac = clash_metrics(receptor_pdb, peptide_pdb, clash_dist)
+        if frac > max_clash_fraction:
+            raise ValueError(
+                f"pose has {n_clash}/{n_pep} peptide heavy atoms sterically clashing (<{clash_dist} Å) "
+                f"with the receptor — {frac:.0%} of the peptide, over the {max_clash_fraction:.0%} limit. "
+                "This is a physically invalid pose; the geometry/IFP featurizer scores atom overlaps as "
+                "strong contacts, so the ΔG would look confident but be meaningless. Re-dock or fix the "
+                "pose, or pass allow_clashes=True (CLI: --allow-clashes) to score it anyway."
+            )
 
     path = Path(artifact)
     if not path.exists():
