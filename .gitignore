@@ -180,3 +180,6 @@ data/e225_fpocket.jsonl
 data/misato/
 data/anchor_library.json
 coverage.json
+
+# Large receptor PDB — not distributed (see INSTALL.md)
+pfldh.pdb

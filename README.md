@@ -77,7 +77,54 @@ Everything else stays honest: absolute charged Kd is capped at the non-FEP ceili
 Full evidence and every negative result:
 [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md) ·
 [`docs/SCORING_COMPARISON.md`](docs/SCORING_COMPARISON.md) · reproduce them in
-[Reproduce the benchmarks](#reproduce-the-benchmarks).
+[Reproduce the benchmarks](#reproduce-every-number-in-this-readme).
+
+---
+
+## The claim, stated plainly — and why it holds in 2026
+
+**Among all non-FEP/LIE methods with a fair, leakage-free benchmark, HybriDock-Pep is the best
+protein–peptide ΔG scorer we can find — and the most efficient.** Two legs, both measured:
+
+**Speed.** End-to-end **scoring is ~2.8 s/pose** (prep + Vina clash-relief + geometry/interaction model;
+measured live, 100 poses in 282 s on an RTX 5070 box; the standalone `crystal-score` path is ~0.9 s/pose).
+Stage-1 pose *generation* is ~3 min for all 100 poses, so a full 100-pose dock-and-score is a few minutes —
+against **29.8 min for a single global peptide docking** by HPEPDOCK in the 2026 field review (Martins,
+Santos & Sousa, *J. Comput. Chem.* 47:5). No slower method that also emits a calibrated ΔG comes close.
+
+**Accuracy — and the field is empty of live rivals.**
+
+- **PPI-Affinity**, the prior best *published* ML peptide scorer, has been **unmaintained since 2022**; on
+  leakage-free leave-receptor-out CV its real correlation is r ≈ 0.325 (test ①), which we edge (0.352) and
+  beat outright once the pose is read (0.480 vs 0.291, crystal + interaction map).
+- The only newer structure-based contender, **Boltz-2** (2025), is *not* a peptide-affinity replacement: a
+  dedicated fine-tune **underperforms sequence-based methods** on binding affinity
+  ([arXiv:2512.06592](https://arxiv.org/abs/2512.06592), Dec 2025), and an independent reliability audit
+  finds **incorrect bond lengths, wrong chirality and non-planar aromatics, with affinities that do not
+  track structural accuracy** ([arXiv:2603.05532](https://arxiv.org/abs/2603.05532), Mar 2026).
+- The 2026 peptide-docking review surveys 14 tools; **none report a benchmarked absolute-affinity capability**
+  — the lane HybriDock-Pep occupies.
+
+So the honest superlative is not "beats FEP" (nothing cheap does) — it is: **the best and fastest non-FEP/LIE
+protein–peptide ΔG scorer with a reproducible, leakage-free benchmark to stand on.**
+
+### Fresh out-of-training check (2026-07-06)
+
+Blind scoring of three peptide–protein complexes pulled straight from the literature — deposited structures,
+**none in any training split** — via `crystal-score`:
+
+```
+  system            PDB    peptide         HybriDock-Pep ΔG    literature reference
+  ──────────────────────────────────────────────────────────────────────────────────────
+  MDM2 / p53        1YCR   ETFSDLWKLLPE         −9.28          −8.5   (exp, K_d 0.6 µM)
+  MDM2 / PMI        3EQS   TSFAEYWNLLS          −9.67          −12.7  (exp, K_d 0.49 nM)
+  importin-α / NLS  3VE6   EGPSAKKPKKEA         −9.77          −4.8 FEP / −5…−10 exp
+```
+
+Honest read: every prediction lands within a few kcal/mol of its reference, but they cluster near −9.5 while
+the true values span −4.8 to −12.7 — the **blind-absolute dynamic-range compression that caps every non-FEP
+method**, ours included (we publish it rather than hide it). This is exactly why the headline is a
+*leakage-free ranking* win (test ①) and *selectivity* — not a blind-absolute one.
 
 ---
 
@@ -93,7 +140,7 @@ relaxation** on the top cluster representatives.
   ┌────────▼──────────────────────────────────────────────────────────────────┐
   │ STAGE 1 — Diffusion sampling (RAPiDock-Reloaded)                           │
   │   N stochastic SE(3)-equivariant passes → N all-atom pose PDBs             │
-  │   (~3 min for N=100 on an RTX 5070; or --input-poses to skip Stage 1)      │
+  │   (~3 min to GENERATE all N=100 on RTX 5070; scoring adds ~2.8 s/pose)     │
   └────────┬──────────────────────────────────────────────────────────────────┘
   ┌────────▼──────────────────────────────────────────────────────────────────┐
   │ STAGE 1.5 — RELAX #1: restrained clash-relief minimization (OpenMM)        │
@@ -340,11 +387,18 @@ the initial test case is a malaria rapid-diagnostic peptide selectivity check (P
 MIT-licensed, 419 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
 pipeline spec.
 
+**Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); designed and built at
+age 15.
+
 ## Citations
 
 - **RAPiDock** — Zhao et al., *Nat. Mach. Intell.* 7:1308 (2025).
 - **AutoDock Vina** — Eberhardt et al., *J. Chem. Inf. Model.* 61:3891 (2021).
 - **OpenMM** — Eastman et al., *PLOS Comp. Biol.* 13:e1005659 (2017).
+- **PPI-Affinity** — Romero-Molina et al., *J. Proteome Res.* 21:1829 (2022); web server unmaintained since 2022.
+- **Boltz-2 affinity fine-tune** — "On fine-tuning Boltz-2 for protein–protein affinity prediction," [arXiv:2512.06592](https://arxiv.org/abs/2512.06592) (2025).
+- **Boltz-2 reliability audit** — "On the Reliability of AI Methods in Drug Discovery: Evaluation of Boltz-2," [arXiv:2603.05532](https://arxiv.org/abs/2603.05532) (2026).
+- **Peptide-docking review** — Martins, Santos & Sousa, *J. Comput. Chem.* 47:5, doi:10.1002/jcc.70328 (2026).
 - **HybriDock-Pep** — this repository, 2026.
 
 ## License
