@@ -46,3 +46,22 @@ compressed near −9 for both series regardless of the true −7 to −12.6 rang
 weak-vs-optimised split, but confirm the tight tail in the wet lab, and add 2–3 measured references on your
 own target (reference-anchoring, r 0.25→0.61) when you need calibrated numbers. Do not trust a single
 absolute ΔG.
+
+## Live `dock` confirmation of the `rank_score` column (E309, wired)
+
+Ran the MDM2 series through the **full `dock` pipeline** (`--input-poses` = each crystal pose) and read the
+emitted `rank_score` column vs the default `delta_g`:
+
+| peptide | K_d | `delta_g` | `rank_score` |
+|---|---|---|---|
+| p53 wt (1YCR) | 160 nM | −9.82 | −9.24 |
+| p53 wt (4HFZ) | 160 nM | −9.23 | −9.53 |
+| PMI-N8A (3LNZ) | 50 nM | −8.52 | −9.99 |
+| PMI (3EQS) | 3.3 nM | −8.38 | −9.76 |
+| pDIQ (3JZS) | 1 nM | −9.10 | −9.90 |
+
+**Spearman vs experimental ΔG (n=5): `rank_score` +0.667 (correct) vs `delta_g` −0.667 (backwards).** In the
+live pipeline the default `delta_g` (AI-pose affinity model) ranks this crystal-pose panel backwards; the
+`rank_score` column rescues it and correctly places both wild-type p53 peptides below the optimised
+inhibitors. n=5 and the sub-10 nM tail is still unranked (saturation), but the wired column reproduces the
+E309 ranking signal end-to-end. Screening path validated; RAPiDock pose generation not exercised here.
