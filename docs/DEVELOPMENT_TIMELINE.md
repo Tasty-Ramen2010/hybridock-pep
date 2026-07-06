@@ -82,6 +82,24 @@ Better than the old harshest-critic ~0.05 (honest_competitive §7) because the I
 the defensible "another team can prioritise a peptide panel" claim — ranking, not blind absolute.
 Reproduce: `python scripts/e306_within_target_ranking.py`.
 
+**E307 — REFUTED: routing IFP to charged targets for within-target ranking.** Hypothesis: BH3 (electrostatic)
+ranking fails because geometry misses charge, so route charged targets to an IFP-driven ranker. Tested per-
+receptor ranking Spearman (leave-receptor-out, 24 targets split by median |q|):
+
+```
+  model          CHARGED targets (n=11)   NEUTRAL targets (n=13)
+  geometry-only        +0.40                    +0.50            ← best/tied everywhere
+  IFP-only             +0.20                    −0.50
+  geometry+IFP         +0.25                    +0.50
+```
+
+IFP-only ranks charged targets WORSE than geometry (+0.20 < +0.40); mixing IFP in drags charged ranking down
+(0.40→0.25). Mechanism: IFP contact counts scale with interface size/burial, which varies more pose-to-pose
+than affinity within one target, so IFP adds burial noise faster than charge signal. **Absolute r and within-
+target ranking want different features** (matches [[project_poseinvariant_pocket_jun14]]). Rule: geometry-only
+for ranking, geometry+IFP for absolute ΔG. The individual n=4-5 literature panels (MDM2, BH3) are too noisy to
+route on (Spearman sign flips on one swapped pair). Do NOT re-propose a charged-IFP ranking router.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
