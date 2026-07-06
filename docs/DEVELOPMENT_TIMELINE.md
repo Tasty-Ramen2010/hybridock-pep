@@ -68,6 +68,20 @@ finds wrong bond lengths/chirality/non-planar aromatics with structure-independe
 (arXiv:2603.05532, Mar 2026). The 2026 review of 14 peptide-docking tools reports no benchmarked
 absolute-affinity capability among them.
 
+**Contribution to other projects — within-target ranking (E306, 865 peptides, leave-receptor-out).** The
+"screen candidate peptides against my target" use case. Per receptor with ≥k candidate peptides, Spearman of
+predicted vs measured ΔG:
+
+```
+  ≥3 peptides/receptor   n=24 targets, 109 peptides   median ρ=0.50  71% right-direction
+  ≥4 peptides/receptor   n=10 targets,  67 peptides   median ρ=0.45  80% right-direction
+  ≥5 peptides/receptor   n= 6 targets,  51 peptides   median ρ=0.45  83% right-direction
+```
+
+Better than the old harshest-critic ~0.05 (honest_competitive §7) because the IFP model improved it. This is
+the defensible "another team can prioritise a peptide panel" claim — ranking, not blind absolute.
+Reproduce: `python scripts/e306_within_target_ranking.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---

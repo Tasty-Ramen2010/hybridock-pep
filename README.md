@@ -128,6 +128,38 @@ method**, ours included (we publish it rather than hide it). This is exactly why
 
 ---
 
+## What another project actually gets — screening candidate peptides
+
+The common ask from another team is: *"I have one target and a handful of candidate peptides — which should
+I put in the wet lab?"* That is **within-target ranking**, and it is where the tool earns its keep. Measured
+on **865 peptide–protein complexes** (honest leave-receptor-out CV — the model never sees the query receptor
+in training), grouped by receptor:
+
+```
+  Screen candidates against ONE target — within-target ranking (Spearman ρ of predicted vs measured ΔG)
+  ───────────────────────────────────────────────────────────────────────────────────────────────────
+  receptors with ≥3 candidate peptides   n=24 targets, 109 peptides   median ρ = 0.50   71% right direction
+  receptors with ≥4 candidate peptides   n=10 targets,  67 peptides   median ρ = 0.45   80% right direction
+  receptors with ≥5 candidate peptides   n= 6 targets,  51 peptides   median ρ = 0.45   83% right direction
+  ───────────────────────────────────────────────────────────────────────────────────────────────────
+  reproduce: python scripts/e306_within_target_ranking.py
+```
+
+So, concretely, HybriDock-Pep can contribute to another project in three honest ways:
+
+1. **Prioritise a peptide panel against your target** — median Spearman ≈ 0.5 and the correct direction
+   4-out-of-5 times once you have ≥4 candidates. It won't give you a trustworthy *absolute* K_d (nothing
+   cheap does — see the fresh-check above), but it reliably tells you *which* candidates to test first.
+2. **Selectivity between two targets** — the `selectivity` command returns ΔΔG (target vs off-target) with a
+   bootstrap CI. A sequence-only scorer structurally cannot do this; it needs the pose, which we read.
+3. **Rank the poses of a single peptide** — the pose ranker (τ ≈ 0.41) orders docked poses so you dock once
+   and trust the top cluster, at ~2.8 s/pose.
+
+If your project needs a *calibrated absolute* number, add 2–3 measured references on your own target and use
+reference-anchoring (r 0.25 → 0.61) — that cancels the per-receptor offset the blind-absolute mode can't.
+
+---
+
 ## Pipeline — the full workflow
 
 The diagram below is the *actual* code path (`driver.py::run_dock`), with the two distinct relaxation steps
