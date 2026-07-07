@@ -15,17 +15,22 @@ Ram: option 4 (NNP) is appealing — research it, draft what truly went wrong, a
 | E336 | scorer_neutral + FEP on 2jqk | −14.65 vs −4.63 | unvalidated FEP term ⇒ decomposition worse than raw |
 | **E337** | 6-case accuracy map | see below | **MM FEP is not systematically off — it's qualitatively unreliable for charged interface mutations** |
 
-**E337 map (calc vs exp, isosteric charge mutations):**
+**E337 map (calc vs exp, isosteric charge mutations) — FINAL:**
 ```
- 1K8R D38N   calc +0.64  exp +1.97   under by 1.3
- 1E96 D38N   calc +0.22  exp +2.16   under by 1.9
+ 1K8R D38N   calc +0.64  exp +1.97   under 1.3
+ 1E96 D38N   calc +0.22  exp +2.16   under 1.9
  1IAR E9Q    calc −6.12  exp +3.11   WRONG SIGN, off 9.2
- 2O3B E24Q   calc  ....   exp +5.40   (pending)
- 2O3B D75N   calc +1.49  exp +5.90   under by 4.4
+ 2O3B E24Q   calc +3.68  exp +5.40   under 1.7
+ 2O3B D75N   calc +3.13  exp +5.90   under 2.8
+ ───────────────────────────────────────────────
+ n=5  Pearson(calc,exp)=+0.54   mean signed err −3.40 (systematic UNDER)   MAE 3.40
 ```
-The under-estimates would fit a polarization story; **1IAR's wrong sign kills the "clean systematic offset →
-empirical correction" idea** (option 1). You cannot patch a wrong-sign error with a burial term. The MM
-Hamiltonian is not merely *scaled* wrong for charged interfaces — it is *unreliable*.
+Two failure modes, both disqualifying: (1) **1IAR wrong sign** (calc says the charge HELPS binding by 6, exp says
+it HURTS by 3) → **kills the "clean offset → empirical correction" idea** (option 1); you cannot patch a sign flip
+with a burial term. (2) **Not even reproducible:** D75N gave +1.07 (E334), +1.49 (E335), **+3.13 (E337)** for the
+*identical* mutation — a ~2 kcal run-to-run spread that the ±0.5 per-run error bars completely hide. So the
+celebrated "precision" (±0.73 on 2jqk) is itself optimistic; real reproducibility is ~±2 kcal. The MM Hamiltonian
+is not merely *scaled* wrong for charged interfaces — it is *unreliable and irreproducible* there.
 
 **Root cause (three-way confirmed):** fixed-charge amber14 lacks **electronic polarization**, which is essential
 for buried/interfacial ion pairs (JACS 2022: a buried Glu–Lys pair was ">40 kcal/mol" too unstable without it).
