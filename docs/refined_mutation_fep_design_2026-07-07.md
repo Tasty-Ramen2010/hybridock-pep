@@ -67,14 +67,22 @@ why our cheap surrogates were doomed — even the real MD needs a correction the
  6. MBAR the lot → ΔG_charged; final ΔG = scorer(shape) + ΔG_charged
 ```
 
-### One correction to the `--ultra` framing
-`--ultra` is *cheap variance reduction* — randomised smoothing that averages jittered copies to sharpen
-**ranking**; it adds **no physical signal** and costs milliseconds. The charged path above is **GPU-hours of
-explicit-water MD** — a fundamentally different computation. Conceptually they rhyme ("make copies") but they are
-not the same operation, and folding MD into `--ultra` would mislead users about cost. So it belongs behind a
-separate, clearly-expensive flag (`--charged-refine` / the milestone's `--fep-refine`), reserved for the final
-2–3 candidates, not the whole panel. Your instinct to *branch behaviour on charge* is right; it's just two
-different tools on the two branches.
+### `--ultra` as a TIERED verification mode (Ram's design intent)
+`--ultra` is defined as *"spend more compute to verify a score to lab-grade certainty."* Under that definition
+the explicit-water charged refinement belongs **inside** `--ultra` as its heaviest tier — not a separate flag.
+The one honest guardrail: each tier must **advertise its runtime**, so a user choosing "maximum certainty" knows
+whether that means seconds or GPU-hours. Proposed ladder (cost climbs, certainty climbs):
+
+| `--ultra` tier | what it does | adds | cost |
+|---|---|---|---|
+| **1 — smoothing** (current) | K feature-jittered evals, averaged | tighter *ranking*, variance ↓ | ms |
+| **2 — ensemble physics** | Vina/AD4 rescore + geometry over more poses | modest ΔG tightening | seconds |
+| **3 — charged MD refine** | explicit-water charging leg (MSλD, both legs, Rocklin corr.) on charged top-K | the *charged ΔG* no static term can give | **GPU-hours** |
+
+So: branch on charge (your instinct) — a neutral peptide tops out at Tier 1–2 (nothing to gain from the charged
+leg); a charged peptide escalates to Tier 3 for the final candidates. Same flag, honest cost labels, exactly the
+"expensive high-certainty verification" you designed. (Internally Tier 3 = the milestone's `--fep-refine` engine;
+`--ultra` is just the user-facing "verify harder" name for it.)
 
 ## Why this is the ONLY thing left that can work
 Every cheap route died for one reason (E305–E327): the charged term is the **reorganisation of water and the
