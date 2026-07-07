@@ -65,3 +65,33 @@ live pipeline the default `delta_g` (AI-pose affinity model) ranks this crystal-
 `rank_score` column rescues it and correctly places both wild-type p53 peptides below the optimised
 inhibitors. n=5 and the sub-10 nM tail is still unranked (saturation), but the wired column reproduces the
 E309 ranking signal end-to-end. Screening path validated; RAPiDock pose generation not exercised here.
+
+## Independent panels — SH3 and PDZ (leave-receptor-out `rank_score`)
+
+Two more real multi-peptide panels from the PDBbind crystal set, scored with the composition-IFP
+`rank_score` **leave-receptor-out** (the model never trains on that target — a true-novel simulation):
+
+| target | family | n peptides | Spearman | pairwise | verdict |
+|---|---|---|---|---|---|
+| Sem-5 / Grb2 SH3 (1prm/1prl/1qwe…) | proline-rich PxxP | 6 | **+0.91** | **92%** | strong |
+| PDZ domain (4e34/4joj/4k6y…) | C-terminal motif | 8 | +0.26 | 62% | modest |
+
+**SH3 is the strongest single-panel result yet** (+0.91) — proline-rich peptides bind by hydrophobic PxxP
+packing, the shape-driven regime `rank_score` reads well (like MDM2). **PDZ is modest** (+0.26): its peptides
+differ by single residues (SR**W**/**F**/**V**/**A**QTSII) and PDZ affinity is set by that side-chain readout,
+exactly what the shape-dominated scorer under-reads (E308) — the tightest binder (ANSRWPTSII, −8.20) lands
+mid-pack.
+
+## Consolidated picture — `rank_score` is target-dependent, predictably
+
+| panel | Spearman | binding driver |
+|---|---|---|
+| SH3 (Sem-5) | +0.91 | hydrophobic / proline packing ✅ |
+| MDM2 inhibitors | +0.67 | hydrophobic Phe-Trp-Leu pocket ✅ |
+| PDZ | +0.26 | single-residue C-terminal side-chain ◐ |
+| Bcl-xL / BH3 | −0.63 | amphipathic-helix electrostatics ✗ |
+
+The verdict tracks the binding mechanism, not chance: `rank_score` is reliable on shape/hydrophobic-driven
+grooves (SH3, MDM2) and weak-to-backwards where affinity comes from side-chain chemistry the scorer under-reads
+(PDZ, BH3). Use it to prioritise panels on hydrophobic/aromatic targets; treat charged/electrostatic helical
+targets with caution and confirm in the wet lab.
