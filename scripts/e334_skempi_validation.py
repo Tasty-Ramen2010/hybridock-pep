@@ -46,9 +46,13 @@ def build(tag, mut, kind):
     from openmm import app, unit
     from pdbfixer import PDBFixer
     pdb = tag.split("_")[0]
-    groups = "".join(tag.split("_")[1:])          # e.g. "AB"
+    grouplist = tag.split("_")[1:]                # e.g. ["AB","C"]
     mut_chain, resid = mut[1], int(mut[2:-1])
-    chains = groups if kind == "bound" else mut_chain
+    if kind == "bound":
+        chains = "".join(grouplist)               # whole complex
+    else:
+        # free = the WHOLE partner group that carries the mutation (not just the single chain)
+        chains = next((g for g in grouplist if mut_chain in g), mut_chain)
     st = PDBParser(QUIET=True).get_structure(pdb, fetch(pdb))
     tmp = tempfile.mktemp(suffix=".pdb")
     io = PDBIO(); io.set_structure(st); io.save(tmp, ChainSel(chains))
