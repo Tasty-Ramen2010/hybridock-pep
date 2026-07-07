@@ -262,6 +262,14 @@ def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
                 )
             except Exception as exc:  # noqa: BLE001 — rank score is an optional enrichment
                 logger.debug("Pose %d: rank_score skipped (%s)", pose.pose_idx, exc)
+            # Charged-confidence triage flag (E321, N5): does this charged complex likely need the FEP leg?
+            try:
+                from hybridock_pep.scoring.interaction_map import charged_confidence  # noqa: PLC0415
+                pose.charged_confidence, pose.charged_frustration = charged_confidence(
+                    receptor, pose.pdb_path, config.peptide_sequence,
+                )
+            except Exception as exc:  # noqa: BLE001 — triage flag is an optional enrichment
+                logger.debug("Pose %d: charged_confidence skipped (%s)", pose.pose_idx, exc)
             # Optional geometry+Vina ensemble blend (--ensemble; needs a Vina score for the pose).
             if cal is not None and pose.vina_score is not None:
                 if router_cal is not None and pep_len <= router_cal.short_max_len:
