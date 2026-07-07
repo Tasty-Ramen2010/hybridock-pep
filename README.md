@@ -49,7 +49,7 @@ place we operate where FEP itself does (and the one place we say "FEP-grade"):
 ```
   ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref)    cancels the per-receptor bias exactly
   ──────────────────────────────────────────────────────────  each █ = 0.04 r
-  double-difference  ████████████████████████░  r = 0.96   ← FEP-grade, no MD, ~docking cost
+  double-difference  ████████████████████████░  r = 0.96   ← FEP-grade, no MD, ~docking cost (n=26 grids)
   FEP / TI (the bar) █████████████████████░░░░  r ≈ 0.85   (5–50 GPU-hr / mutation)
 ```
 
@@ -417,7 +417,7 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 |---|---|---|
 | **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — test ① | `python scripts/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
 | **0.352 / 0.325** PPIKB independent, charge-routed — test ① | `python scripts/e294_production_stack.py` | stdout table |
-| **0.96** double-difference FEP-grade ΔΔG — test ② | `python scripts/e287_similarity_and_dd.py` | stdout table |
+| **0.96** double-difference FEP-grade ΔΔG (n=26 grids) — test ② | `python scripts/e288_clean_similarity.py` | stdout table |
 | **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python scripts/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
 | **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python scripts/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
 | full non-FEP/LIE scorecard on 156 complexes | `python scripts/e90_full_scorecard.py` | stdout table |
