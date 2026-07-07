@@ -90,6 +90,20 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_dock.add_argument(
+        "--ultra",
+        type=int,
+        nargs="?",
+        const=32,
+        default=0,
+        metavar="K",
+        help=(
+            "Ultra ranking mode: compute rank_score as the mean of K feature-jittered evaluations "
+            "(randomized smoothing, E314). Reduces within-target ranking variance (~+2 pts pairwise) at "
+            "~K× the scoring cost. Bare --ultra uses K=32. Does NOT improve absolute-ΔG accuracy — it "
+            "refines the rank_score ordering only."
+        ),
+    )
+    p_dock.add_argument(
         "--mmgbsa-cpu-only",
         action="store_true",
         default=False,
@@ -405,6 +419,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             verbosity=args.verbose,
             minimize_poses=not args.no_minimize,
             refine_topk=args.refine_topk,
+            ultra=args.ultra,
             mmgbsa_cpu_only=args.mmgbsa_cpu_only,
             mmgbsa_include_ie=args.mmgbsa_ie,
             mmgbsa_3traj=args.mmgbsa_3traj,

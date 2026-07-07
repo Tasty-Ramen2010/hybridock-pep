@@ -73,10 +73,14 @@ for tag, M in [("raw-IFP (scoring)", np.hstack([X, IFP])), ("fraction-IFP (ranki
     print(f"  {tag:24s}: pairwise {pw:.1%} (n_pairs={T}; chg {ch:.1%} neu {ne:.1%})  absolute r={pearsonr(y, p)[0]:.3f}")
 
 # fit + save the ranking model on ALL data
+Xtrain = np.hstack([X, IFP_frac])
 rank_model = HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05,
-                                           l2_regularization=1.0, random_state=0).fit(np.hstack([X, IFP_frac]), y)
+                                           l2_regularization=1.0, random_state=0).fit(Xtrain, y)
+# per-feature std of the training matrix — the scale used by --ultra randomized smoothing (E314).
+feature_std = Xtrain.std(axis=0).tolist()
 joblib.dump({"model": rank_model, "ifp_normalization": "fraction_of_total_contacts",
              "note": "RANKING model — composition-normalized IFP; use for within-target ranking, NOT absolute ΔG",
-             "trained_on": "pdbbind_peptides_crystal", "n_train": len(y)},
+             "trained_on": "pdbbind_peptides_crystal", "n_train": len(y),
+             "feature_std": feature_std},
             os.path.join(ROOT, "data/affinity_rank_ifp.joblib"))
-print("\nsaved data/affinity_rank_ifp.joblib (composition-IFP ranking model)")
+print("\nsaved data/affinity_rank_ifp.joblib (composition-IFP ranking model + feature_std for --ultra)")

@@ -93,6 +93,28 @@ def test_compute_ifp_roundtrip_from_pdb(tmp_path) -> None:
     assert f["sb_fav"] == 1.0
 
 
+def test_ultra_smoothing_is_deterministic_and_shifts_score(tmp_path) -> None:
+    """--ultra (ultra_k>1) returns a reproducible, smoothed rank_score that differs from the K=1 value."""
+    from hybridock_pep.scoring.interaction_map import rank_score_complex
+    rec = tmp_path / "rec.pdb"
+    pep = tmp_path / "pep.pdb"
+    rec.write_text(
+        "ATOM      1  NZ  LYS A   1       0.000   0.000   0.000  1.00  0.00           N\n"
+        "ATOM      2  CA  ALA A   2       4.000   0.000   0.000  1.00  0.00           C\n"
+    )
+    pep.write_text(
+        "ATOM      1  OD1 ASP B   1       3.000   0.000   0.000  1.00  0.00           O\n"
+        "ATOM      2  CA  LEU B   2       6.000   0.000   0.000  1.00  0.00           C\n"
+    )
+    base = rank_score_complex(str(rec), str(pep), "DL")
+    if base is None:  # geometry may be unavailable for a 2-atom toy; then the guard below is vacuous
+        return
+    a = rank_score_complex(str(rec), str(pep), "DL", ultra_k=16, ultra_seed=0)
+    b = rank_score_complex(str(rec), str(pep), "DL", ultra_k=16, ultra_seed=0)
+    assert a == b                      # reproducible for a fixed seed
+    assert a != base                   # smoothing shifts the value
+
+
 def test_ranking_confidence_high_when_spread() -> None:
     """A well-spread panel of rank_scores is flagged high-confidence."""
     from hybridock_pep.scoring.interaction_map import ranking_confidence, RANK_CONFIDENCE_SPREAD_THRESHOLD

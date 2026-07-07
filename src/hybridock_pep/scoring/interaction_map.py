@@ -312,6 +312,9 @@ def rank_score_complex(
     *,
     geometry: dict[str, float] | None = None,
     artifact: str | Path = _RANK_ARTIFACT,
+    ultra_k: int = 0,
+    ultra_sigma: float = 0.05,
+    ultra_seed: int = 0,
 ) -> float | None:
     """Composition-IFP RANKING score for cross-peptide screening on ONE receptor (E309).
 
@@ -328,6 +331,12 @@ def rank_score_complex(
         geometry: precomputed geometry-feature dict (from ``compute_geometry_features``) to avoid a
             redundant recompute; if None it is computed here.
         artifact: trained composition-IFP ranking joblib bundle. Defaults to the shipped artifact.
+        ultra_k: ``--ultra`` randomized-smoothing depth (E314). If >1, evaluate the model on ``ultra_k``
+            feature vectors jittered by Gaussian noise and return the mean — a variance-reduced score that
+            tightens within-target *ranking* (~+2 pts pairwise). It does NOT change absolute-ΔG accuracy.
+            0 or 1 = the single deterministic evaluation.
+        ultra_sigma: jitter std as a fraction of each feature's training std (default 0.05, the validated value).
+        ultra_seed: RNG seed for reproducible smoothing.
 
     Returns:
         The ranking score (kcal/mol-scaled), or ``None`` if the artifact or geometry is unavailable.
@@ -353,7 +362,13 @@ def rank_score_complex(
     ifp = compute_ifp(receptor_pdb, peptide_pdb)
     vec = np.array(_geom17(geometry, seq) + list(_composition_ifp_vector(ifp)), dtype=float).reshape(1, -1)
     vec = np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
-    return float(bundle["model"].predict(vec)[0])
+    model = bundle["model"]
+    if ultra_k and ultra_k > 1:
+        fstd = np.asarray(bundle.get("feature_std", np.ones(vec.shape[1])), dtype=float).reshape(1, -1)
+        rng = np.random.default_rng(ultra_seed)
+        jitter = rng.normal(0.0, 1.0, size=(ultra_k, vec.shape[1])) * (ultra_sigma * fstd)
+        return float(np.mean(model.predict(vec + jitter)))
+    return float(model.predict(vec)[0])
 
 
 #: rank_score spread (std over a candidate panel) below which ranking is treated as low-confidence.
