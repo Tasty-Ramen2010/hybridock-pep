@@ -337,6 +337,19 @@ kcal/mol across λ 1→0, a finite/smooth/integrable derivative (∫≈+26 kcal 
 reorganisation signal every static term missed, because this one samples the water. Full design:
 `docs/refined_mutation_fep_design_2026-07-07.md`; `scripts/e328_explicit_water_ti.py`.
 
+**E329 — killed the dead N2 campaign, ran the real charged-FEP G1 spike on the GPU: it RUNS but is unconverged.**
+N2 confirmed null at n=237 (⟨V_elec⟩ r≈+0.07) → killed the cloud campaign (237 clouds kept as data), freed the
+5070. Built the T1-charged spike on **2jqk** (DEEIERQLKALGVD; fast-scorer residual +2.76 kcal; N5 flags it
+"low" charged-confidence — self-consistent): PDBFixer+amber14, explicit TIP3P (bound 20 373 / free 5 331 atoms),
+decharge both legs, ReplicaExchange+MBAR, **on Blackwell CUDA (OpenMM 8.5.1)**. Result: ΔΔG_elec = **−12.4 ±
+39.2 kcal/mol — noise-dominated, unusable**. It surfaced the two real obstacles concretely: (1) catastrophic
+cancellation is *numerical* — two ~+330 kcal legs (full charge annihilation) subtract to ~−12 with ±12–37 noise;
+(2) the free leg is the convergence bottleneck (±37). Converging to ±1 kcal ≈ 1540× more sampling → GPU-days
+unless we add charge-balanced/interaction-only schemes + the Rocklin net-charge correction. Also confirmed
+**Tier-1 `--ultra` cannot fix charged** (moves rank_score <0.1, never touches absolute ΔG) — only this Tier-3
+FEP leg can, and it needs the fixes above to be usable. The path is buildable and runs; a converged ΔΔG is
+genuinely expensive. `docs/MILESTONE_physics_charged.md` G1 updated.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
