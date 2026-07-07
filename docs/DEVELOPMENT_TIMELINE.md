@@ -186,6 +186,37 @@ broken `e287` (missing e158 dep). Test ③ (AI-pose 0.49–0.53) reproduces via 
 Efficiency 2.8 s/pose measured; competitor papers verified. Stale: test-count badge (419; now ~473 collected)
 and a hanging heavy test in the full suite — both flagged, not yet fixed.
 
+**E312 — the r=0.96 "FEP-grade double-difference" is DEBUNKED; README claim ② rewritten.** Ram asked to
+stress-test the 0.96. It does not survive:
+
+```
+  PREDICTOR (what it uses)                        r       MAE
+  double-difference yPRk+yPkR−yPkRk (3 MEASURED)  +0.94   0.91
+  BASELINE nearest measured value   (1 MEASURED)  +0.94   0.75   ← beats the double-difference
+  coupling error ε std = 1.12 kcal/mol ; target ΔG std = 2.66 (r rides between-grid variance)
+```
+
+The "prediction" uses **three experimental ΔGs** to estimate the fourth by additivity — the scorer/features
+are not involved at all — and it is **beaten by the trivial "reuse a nearest measured value" baseline**
+(MAE 0.75 vs 0.91). The r=0.94–0.96 is inflated by between-grid variance (targets span 2.66 std; the real
+coupling error is ~1.1 kcal/mol) on only 20 peptides × 10 receptors. Not FEP-grade, not a scorer capability.
+**README claim ② replaced** with the honest same-receptor win: anchoring. Directly re-verified on the 865-set:
+within-receptor r **0.47 cold → 0.71 (k=2 refs) / 0.69 (k=3)** — subtract a few measured references and the
+offset cancels. (Matches [[project_anchoring_jun16]].)
+
+**E312b — can a cheap "alchemical/physics" trick crack charged the way FEP does? NO (the mechanism, proven).**
+FEP circumvents the charged problem by integrating dG/dλ along an alchemical path so the large solvation terms
+never appear absolutely, only their controlled difference. Two cheap analogues tested:
+- **ML relative ΔΔG** (predict y_i−y_j from feature differences, same receptor): charged r **+0.096** (vs
+  absolute +0.354), sign accuracy 56.9% — feature-differencing amplifies noise, it does not cancel.
+- **Analytical electrostatics** on charged structures (n=17): vacuum Coulomb r+0.14, screened Coulomb
+  (Debye-Hückel) +0.05, Born desolvation +0.16, and **NET = Coulomb − desolvation = −0.04 (pure noise)**.
+The net being noise is the whole point: subtracting two large single-point estimates whose individual errors
+exceed their true difference amplifies error. Only FEP's path-integral avoids computing the large terms
+absolutely. **Charged is FEP-bound; no cheap difference-trick (ML or physics) recovers it** — closing the
+question from the alchemical angle too (with E311's 10 feature ideas, >12 charged ideas now refuted).
+Reproduce: `scripts/e312_double_diff_and_physics.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
