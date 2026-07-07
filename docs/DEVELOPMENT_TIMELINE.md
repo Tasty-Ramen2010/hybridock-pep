@@ -244,6 +244,27 @@ screening), weak on single-residue lead-optimisation. A cheap FEP-analogue needs
 energy (NN potential), i.e. becoming NNP-FEP — no shortcut through a shape-dominated static scorer. Reproduce:
 `scripts/e313_poor_mans_fep.py`.
 
+**E314 — cross-domain brainstorm for the charged/absolute wall (metrology, MC, quantum, surveying, cooking).**
+The unifying math: estimating a difference-of-large-cancelling-terms (or a sub-resolution quantity) is universal.
+Full map in `docs/cross_domain_ideas_2026-07-06.md`. Every trick that helps us is either **reference-subtraction**
+(control variates = anchoring; Wheatstone/interferometry = selectivity; bridge/DiD) → cancels the common term,
+or **variance-reduction** (randomized smoothing = Ram's `--ultra`; loop closure; common-random-numbers) → tightens
+ranking. **None create the missing charged signal** (bias, not variance) — that needs a per-atom differentiable
+energy (perturbation theory/FEP/NNP). Ram's `--ultra` tested (E314, `scripts/e314_ultra_smoothing.py`): randomized-
+smoothing proxy gives **+2 pts within-target pairwise (68.6→70.5%)** — real variance reduction, but the absolute
+charged ceiling (~0.40) is unmoved, and cheap feature-TTA already captures most of it (RAPiDock mutant-folding
+likely not worth the cost). One untested cheap idea worth a spike: **common-random-numbers ΔΔG** (score a pair on
+a shared receptor conformer so pose-noise cancels).
+
+**E315 — desolvation-specific ideas researched + tested (the charged root cause).** 3D-RISM-AI, GIST/WaterMap,
+GB/PB single-point, uncompensated-charge penalty, implicit-solvent ML potentials. Reproduced our 3D-RISM pocket-
+hydration lever: exchem r=−0.35 / max_g r=−0.41 vs receptor mean affinity on e230 (n=49) — real seq-orthogonal
+**offset** lever — but **≈0 on PPIKB** (n=90, doesn't generalize), and the offset is not the charged bottleneck
+(E311). GIST dead, GB/PB net = noise (E312), uncompensated-charge flat (E311). Unifying reason: 3D-RISM/GIST reach
+<1 kcal only by integrating over solvent; any single static descriptor inherits an error larger than the small
+Coulomb−desolvation net. **Desolvation is RISM-integral/FEP-bound; the only live path is a differentiable implicit-
+solvent term inside an NNP energy** (same NNP milestone). Full table in `docs/cross_domain_ideas_2026-07-06.md`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
