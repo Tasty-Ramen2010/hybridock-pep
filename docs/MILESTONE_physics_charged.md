@@ -1,0 +1,78 @@
+# Milestone: physics-based refinement to break the charged/absolute wall
+
+**Status:** scoped + feasibility-proven (E316). **NOT** started as a build. **Scope:** post-iGEM-freeze — this
+is a multi-week engineering + GPU-compute project, not a freeze deliverable. Written honestly: nothing here is
+implemented beyond the feasibility proof-of-concept.
+
+## Why this milestone exists
+Across E305–E315 (>15 ideas), the charged/absolute-ΔG wall is **feature/signal-limited and FEP-bound**: the
+decisive quantity is the small *difference* between a charge's desolvation penalty and the compensating Coulomb,
+hidden inside two large terms. Proven from every cheap angle:
+- static feature engineering (E311, 10 ideas) — flat at r≈0.40;
+- ML relative ΔΔG / feature-differencing (E312) — worse (r 0.10);
+- single-point physics (Coulomb/screened/Born, GB/PB net) (E312) — net = noise;
+- 3D-RISM pocket hydration (E315) — real but a receptor *offset*, doesn't generalize (PPIKB ≈0);
+- stepwise mutation scoring (E313) — single mutations are 51% coin-flip (shape-dominance);
+- `--ultra` / variance reduction (E314) — tightens ranking, cannot add signal.
+
+The **only** path that creates the missing signal is real alchemical sampling: integrate ⟨dU/dλ⟩ so the large
+solvation terms never appear absolutely (the same reason FEP works and cheap methods don't).
+
+## Two tiers
+| tier | engine | new deps | accuracy | cost/ΔΔG | when |
+|---|---|---|---|---|---|
+| **T1 — classical relative-FEP refine** | openmm + openmmtools + pymbar (**already installed**, E316) | none | ~1–1.5 kcal peptide ΔΔG (lit: FEP+ ~1.1) | GPU-hours | this milestone |
+| **T2 — NNP-FEP** | + MACE / TorchANI / AIMNet2 differentiable potential | torch NNP + weights | higher accuracy and/or 10–1000× faster | GPU-min–hr | follow-on |
+
+**Feasibility (E316, proven):** the T1 alchemical pipeline is mechanically buildable in `openmm-env` today — we
+constructed a real `AbsoluteAlchemicalFactory`/`AlchemicalState` and swept `lambda_electrostatics` 1→0 with a
+smooth potential decoupling (−21→+32 kcal/mol = the dU/dλ). **T1 needs no new dependency.** T2 needs an NNP
+(none installed) and is the speed/accuracy optimization, not a prerequisite.
+
+## T1 architecture (the buildable path)
+```
+  dock (fast, current) → top-K candidate poses on the target
+        │  (only the few that matter — FEP is expensive)
+        ▼
+  --fep-refine K :
+    1. solvate + parametrise complex (OpenFF/ff14SB via openmm-forcefields / tleap)
+    2. single-topology alchemical map between candidate peptides (hard part: atom mapping;
+       trivial for point mutations, needs a mapper for diverse panels)
+    3. λ schedule (elec then sterics), replica-exchange (openmmtools ReplicaExchangeSampler)
+    4. run BOTH legs — bound complex AND free peptide (Perses cycle) — MBAR estimate (pymbar)
+    5. ΔΔG = ΔG_transform(bound) − ΔG_transform(free);  cycle-closure correction across the panel
+        ▼
+  fep_ddg column: FEP-grade RELATIVE affinities for the top candidates
+```
+
+## Go/no-go gates (each blocks the next)
+- **G1 — validation:** reproduce a known ΔG_solv (single ion/side-chain analog) to <0.5 kcal, and a published
+  peptide ΔΔG (e.g. an MDM2 or BH3 point mutant) to ~1 kcal. *If G1 fails, classical FEP can't do our peptides
+  → escalate to T2 or stop.* **G1-partial DONE (E316):** the full build→sample→MBAR loop reproduces the
+  *analytical* free energy of a harmonic-oscillator ladder to **0.01 kcal/mol** — the estimator machinery is
+  present and correct. What remains for G1-full: complex solvation/parametrisation + a real peptide ΔΔG.
+- **G2 — the charged proof:** on a charged case where static ranked BACKWARDS (importin/NLS: static −9.77,
+  single-point MM-GBSA −92, both wrong), show FEP ranks it correctly vs a strong binder. *This is the
+  north-star: sampling creates the signal static cannot.*
+- **G3 — cost/benefit:** median ΔΔG error and wall-clock on a 5–10 pair charged benchmark; decide if the
+  GPU-hours/ΔΔG are worth it for the iGEM use case (screening → wet lab). Likely: FEP only for the final 2–3
+  candidates, not the panel.
+
+## Honest risks
+- **Sampling cost:** ns/window × ~12 windows × 2 legs × charged = GPU-hours per ΔΔG; only viable for a handful
+  of final candidates, never a screen. This does not replace `rank_score`; it caps it.
+- **Force-field limits:** fixed-charge FF may itself cap charged accuracy (polarization) — the exact reason T2
+  (NNP/polarizable) exists.
+- **Atom mapping** for diverse (non-point-mutant) panels is a real engineering problem.
+- **Convergence/reproducibility** must be logged like everything else (seeds, λ schedule, overlap).
+
+## What is DONE now (this session)
+- E316 feasibility POC (`scripts/e316_fep_feasibility_poc.py`): (a) T1 alchemical pipeline mechanically
+  buildable, no new deps — charges decouple smoothly with λ; (b) **G1-partial** — the full build→sample→MBAR
+  estimation loop reproduces an analytical free energy to **0.01 kcal/mol**, so the estimator machinery is
+  correct, not just the system construction.
+- Tooling inventory: openmm/openmmtools/pymbar present; no NNP installed.
+- This spec with go/no-go gates. **Nothing else is built.** Next concrete step = G1-full (solvate/parametrise a
+  real complex, reproduce one published peptide ΔΔG) behind an experimental `--fep-refine` flag, clearly
+  labelled non-production until G1/G2 pass. Honest status: the wall is FEP-bound, the FEP path is de-risked and
+  buildable, but a converged peptide ΔΔG is GPU-hours and this is a post-freeze milestone, not a freeze feature.

@@ -265,6 +265,16 @@ hydration lever: exchem r=−0.35 / max_g r=−0.41 vs receptor mean affinity on
 Coulomb−desolvation net. **Desolvation is RISM-integral/FEP-bound; the only live path is a differentiable implicit-
 solvent term inside an NNP energy** (same NNP milestone). Full table in `docs/cross_domain_ideas_2026-07-06.md`.
 
+**E316 — `--ultra` shipped + physics/FEP milestone scoped and de-risked.** (1) Wired `--ultra [K]` into `dock`
+(randomized-smoothing rank_score, +2 pts within-target pairwise, does NOT touch absolute ΔG). (2) The charged
+wall is FEP-bound (E311-E315), so scoped the physics milestone (`docs/MILESTONE_physics_charged.md`): **T1
+classical relative-FEP** (openmm+openmmtools+pymbar — already installed, no new deps) vs **T2 NNP-FEP** (MACE/
+TorchANI — not installed, later). Feasibility PROVEN: built a real alchemical system (charges decouple smoothly
+with λ) and the full build→sample→MBAR loop reproduces an analytical free energy to **0.01 kcal/mol** (G1-
+partial). Remaining = G1-full (real peptide ΔΔG, GPU-hours) → G2 (FEP ranks importin/charged where static went
+backwards) → G3 cost/benefit. Honest: post-freeze milestone, buildable, not built. Reproduce:
+`scripts/e316_fep_feasibility_poc.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
