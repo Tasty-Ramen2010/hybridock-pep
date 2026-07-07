@@ -217,6 +217,33 @@ absolutely. **Charged is FEP-bound; no cheap difference-trick (ML or physics) re
 question from the alchemical angle too (with E311's 10 feature ideas, >12 charged ideas now refuted).
 Reproduce: `scripts/e312_double_diff_and_physics.py`.
 
+**E313 — "poor-man's FEP" (score mutations stepwise like FEP integrates dU/dλ): researched + REFUTED.**
+Ram's idea + a literature pass. FEP does not compute absolute kcal/mol naively — it transforms only the
+differing atoms along an alchemical path (small λ windows) in BOTH bound and free states, integrating the
+well-conditioned derivative ⟨dU/dλ⟩ so it accumulates small increments instead of subtracting large cancelling
+numbers (NAMD/Perses/OpenFE). Field context: cheap-ML ΔΔG is stuck too — Flex-ddG (~1 CPU-hr/mut) still best,
+deep learning lags it once leakage is fixed, experimental ΔΔG exists for <350 interfaces. Decisive test of the
+FEP small-perturbation principle on our scorer (same-receptor charged pairs by edit distance):
+
+```
+  edit dist      n    ΔΔG r   sign acc   mean|ΔΔG|
+  1 (single)   179   +0.14   51% coin     1.08
+  2-3           17   +0.32   67%          0.66
+  4-6           13   +0.71   73%          1.16
+  7+            67   +0.38   63%          1.58
+```
+
+**The OPPOSITE of FEP** — our scorer is WORST at single mutations (51% = coin flip), best at large changes.
+Mechanism (unifies E308 poly-ALA 0.07 kcal, E311, E312): the scorer is shape/burial-dominated and side-chain-
+blind, so a single mutation barely moves the features → ΔΔG ≈ noise. FEP's small step is a physical DERIVATIVE
+(well-conditioned); ours is coarse shape, so a single step is noise and stepwise path-summation of coin-flips
+cannot work. Not a magnitude artifact (single-mut |ΔΔG| 1.08 ≈ 4-6 bin 1.16, yet 51% vs 73%). The only
+untested research lead (Perses free-state cycle correction) can't rescue it — the bound-state single-mutation
+signal is already absent. **Scope takeaway (positive):** strong on DIVERSE candidate panels (4-6 mut r=0.71 →
+screening), weak on single-residue lead-optimisation. A cheap FEP-analogue needs a per-atom differentiable
+energy (NN potential), i.e. becoming NNP-FEP — no shortcut through a shape-dominated static scorer. Reproduce:
+`scripts/e313_poor_mans_fep.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
