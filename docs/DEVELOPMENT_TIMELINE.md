@@ -309,6 +309,20 @@ not a lookup, so the leg must sample. Part B — the charging leg runs (Langevin
 shortcut fails alike, and the two things that moved (N2, N5) are the ensemble-aware ones. Full writeup:
 `docs/n_concepts_results_2026-07-07.md`; reproduce `scripts/e318`–`e322_*`.
 
+**E325/E327 — N2 did NOT replicate at scale; the neutralization double-difference (cheap) is null too.** Two
+honest negatives. (1) **N2 was largely the n=24 fluke** (perm-p was 0.074): on 212 independent charged PDBbind
+generative clouds ⟨V_elec⟩ vs residual is r=+0.06 (perm-p=0.34), vs −0.37 on e93's n=24. The e93 signal is real
+on e93 (V1 reproduces −0.369) but does not generalise. (2) **Ram's relative-FEP-by-neutralization idea**
+(mutate charged→neutral, charged contribution = ΔG_neutralize bound−free) — tested cheaply as V3 = ½⟨V_elec⟩ +
+⟨Born desolvation⟩ over the e93 cloud — is **r=−0.016 on charged (n=24)**: adding the desolvation half *cancels*
+the interaction signal rather than revealing the net (catastrophic-cancellation "net is cleaner" hypothesis
+REFUTED for the proxy). V2 Born alone −0.01, V5 per-residue max mutation cost +0.20 (weak). Reason: real
+ΔG_neutralize is the *reorganization* of water/pocket (a fluctuation, E317's wall), not ½⟨V⟩+burial — a static
+Born term can't see it. **Conclusion: the mutation cycle is thermodynamically correct and IS exactly T1-charged
+(sampled charging leg); every cheap surrogate for it hits the same sampling wall.** Wired N5 charged-confidence
+flag into dock (charged_confidence CSV column). Charged-cloud GPU campaigns e323/e324/e326 still running for the
+Var(V_elec) large-n test + geometry data. Reproduce: `scripts/e325_n2_at_scale.py`, `scripts/e327_neutralization_ddg.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---

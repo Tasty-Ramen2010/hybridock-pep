@@ -19,7 +19,18 @@ FN = os.path.join(ROOT, "data/e323_charged_clouds.jsonl")
 GEOM = ["poc_n", "poc_f_hyd", "poc_f_arom", "poc_net", "poc_eis", "bsa_hyd", "sasa_hb", "sasa_sb",
         "arom_cc", "hb_count", "strength_bur", "mean_burial", "mj_contact", "rg_per_L", "org_density", "cys_frac"]
 
-rows = [json.loads(l) for l in open(FN)] if os.path.exists(FN) else []
+def _load(fn):
+    out = []
+    if os.path.exists(fn):
+        for l in open(fn):
+            try:
+                out.append(json.loads(l))
+            except json.JSONDecodeError:  # tolerate a partial trailing line (campaign still writing)
+                pass
+    return out
+
+
+rows = _load(FN)
 rows = [r for r in rows if r.get("rank1") and np.isfinite(r.get("mean_ve", np.nan))]
 if len(rows) < 15:
     print(f"only {len(rows)} clouds so far — let the e323/e324 campaigns accumulate (need ≥15). "
