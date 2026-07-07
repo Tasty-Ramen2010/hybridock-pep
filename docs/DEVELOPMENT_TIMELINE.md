@@ -350,6 +350,24 @@ unless we add charge-balanced/interaction-only schemes + the Rocklin net-charge 
 FEP leg can, and it needs the fixes above to be usable. The path is buildable and runs; a converged ΔΔG is
 genuinely expensive. `docs/MILESTONE_physics_charged.md` G1 updated.
 
+**E332–E336 — charged FEP tier: PRECISE, self-consistent, but FAILS the experimental accuracy test.** After
+E329 (annihilate, ±39, useless), the decouple fix (E332, +6.26±0.73) and the relative charge-morph (E333,
++7.12±1.50, Ram's difference-of-derivatives) collapsed the error 54× and agreed to 0.86 kcal on 2jqk — looked
+like a breakthrough. But **precision ≠ accuracy**, and two independent checks say the numbers are not yet
+correct: (1) **SKEMPI validation (E334/E335):** on 2O3B D75N (a real Asp75–Lys101 3.1 Å salt bridge,
+exp ΔΔG=+5.90), the charge-morph gave +1.07±0.54 (E334, short) and **+1.49±0.25 even after NPT equilibration +
+11 windows + 10× sampling (E335)** — off by 4.4 kcal, and *more sampling did not help* (+1.07→+1.49) → it is a
+**method/force-field ceiling, not under-sampling**. Likely causes: charge-only morph (misses the full mutation)
+and fixed-charge amber14 systematically under-estimating buried salt bridges (no polarisation). (2)
+**Decomposition (E336):** scorer_neutral + FEP_charged on 2jqk = −14.65 vs true −4.63 (off 10 kcal, *worse* than
+raw scorer 2.73) — the FEP term even had the wrong sign vs what the data needs (net−3 peptide charges HURT
+binding ~+3.8; FEP said −6.26 favorable). **Honest verdict: the charged wall is NOT cheaply broken by classical
+FEP as we can practically build it.** The tier is a genuine engineering achievement (real explicit-water FEP on
+Blackwell, fast, precise, two routes agree) but is not a validated charged scorer. To reach accuracy needs a
+FULL mutation FEP (vdW+atoms via pmx/perses) and/or a polarisable FF / NNP (the T2 tier) — a much bigger build.
+Engine is external (OpenMM/openmmtools/amber14); ours is the wiring. Scripts e332–e336; docs
+`MILESTONE_physics_charged.md`, `refined_mutation_fep_design_2026-07-07.md`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
