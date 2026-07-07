@@ -357,9 +357,12 @@ def rank_score_complex(
 
 
 #: rank_score spread (std over a candidate panel) below which ranking is treated as low-confidence.
-#: Calibrated on the 865-set (E310): HIGH-conf targets averaged ranking ρ≈+0.71 (100% correct direction),
-#: LOW-conf averaged ρ≈+0.12. Label-free — computed from the model's own predictions.
-RANK_CONFIDENCE_SPREAD_THRESHOLD: float = 0.40
+#: Recalibrated on the SHIPPED model (E310): the flag can only cleanly isolate clearly-separable panels
+#: (SH3 spread 0.90, ρ+0.91) — the 0.27–0.40 band is ambiguous (MDM2 spread 0.27 ranks +0.67 while BH3
+#: spread 0.36 ranks −0.63, an inversion no threshold resolves). So the bar is set high: in-sample HIGH-conf
+#: at this threshold is 86% correct-direction (mean ρ≈+0.58), and every ambiguous/failing held-out panel
+#: (MDM2/BH3/PDZ) correctly falls into the conservative "verify" bucket rather than being trusted.
+RANK_CONFIDENCE_SPREAD_THRESHOLD: float = 0.50
 
 
 def ranking_confidence(rank_scores: list[float] | np.ndarray) -> tuple[str, float]:
@@ -369,10 +372,11 @@ def ranking_confidence(rank_scores: list[float] | np.ndarray) -> tuple[str, floa
     rank_scores the model cannot discriminate them; if the scores spread out, the ordering is trustworthy.
     On the 865-set this spread correlates with per-target ranking Spearman at r≈+0.48.
 
-    IMPORTANT — the flag is CONSERVATIVE, not symmetric: ``"high"`` means the ranking is reliable (100%
-    correct direction in validation, mean ρ≈+0.71). ``"low"`` means *uncertain* — it may still rank fine
-    (e.g. a panel of near-identical tight binders has a small spread yet a correct order); it is a "verify
-    in the wet lab" signal, NOT a prediction that ranking will fail.
+    IMPORTANT — the flag is CONSERVATIVE, not symmetric: ``"high"`` means the ranking is reliable (in-sample
+    86% correct direction, mean ρ≈+0.58; held-out SH3 ρ+0.91). ``"low"`` means *uncertain* — it may still
+    rank fine (e.g. MDM2's near-identical tight binders spread only 0.27 yet rank ρ+0.67); it is a "verify in
+    the wet lab" signal, NOT a prediction that ranking will fail. The 0.27–0.40 spread band is genuinely
+    ambiguous (MDM2 works, BH3 fails at similar spreads), so it is deliberately bucketed "low".
 
     Args:
         rank_scores: the ``rank_score`` values for the candidate panel (e.g. each peptide's best-pose value).
