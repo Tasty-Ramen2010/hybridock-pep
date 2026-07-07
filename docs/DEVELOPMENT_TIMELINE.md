@@ -275,6 +275,21 @@ partial). Remaining = G1-full (real peptide ΔΔG, GPU-hours) → G2 (FEP ranks 
 backwards) → G3 cost/benefit. Honest: post-freeze milestone, buildable, not built. Reproduce:
 `scripts/e316_fep_feasibility_poc.py`.
 
+**E317 — partial FEP for charged only: YES, it's the right design + new concepts + the empirical floor.** Ram:
+can we FEP only the charged/desolvation term and let the fast scorer do shape? Answer YES — full ABFE has an
+electrostatics leg and a (slow) sterics leg; our scorer already gets sterics/shape, so run only the
+**electrostatic-decoupling leg** as a correction (`fast_scorer(neutralized peptide) + ΔG_charging_leg`), ~10–50×
+cheaper (linear-response, ~3 windows, no soft-core). Added as milestone tier **T1-charged**. **Empirical floor
+(n=40 charged w/ structures):** every single-structure electrostatics descriptor — incl. the NEW ones (charge-
+scaling dE/dλ, linear-response ½·⟨V⟩ Marcus, distance-dependent dielectric ε=r, frustration) — is **r≈0 vs the
+charged residual**; the signal is the reorganization ½·Var(V_elec), which needs an ENSEMBLE → partial FEP must
+sample, but only the cheap leg. **Bonus lead:** frustration predicts the residual *magnitude* (Spearman −0.55)
+→ a triage flag for which complexes need FEP. Six new (non-ancient) concepts in
+`docs/new_concepts_charged_2026-07-07.md`: N1 error-structure-defined alchemy (flagship=T1-charged), N2
+fluctuation-from-generative-pose-cloud (testable), N3 learned local dielectric, N4 cycle-closure training loss,
+N5 frustration triage (testable, promising), N6 adiabatic-connection (blocked, documented). Reproduce:
+`scripts/e317_partial_fep_electrostatics.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---

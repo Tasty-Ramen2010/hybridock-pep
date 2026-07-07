@@ -18,11 +18,22 @@ hidden inside two large terms. Proven from every cheap angle:
 The **only** path that creates the missing signal is real alchemical sampling: integrate ⟨dU/dλ⟩ so the large
 solvation terms never appear absolutely (the same reason FEP works and cheap methods don't).
 
-## Two tiers
+## Tiers (T1-charged is the cheaper, sharper first target — Ram's partial-FEP idea)
 | tier | engine | new deps | accuracy | cost/ΔΔG | when |
 |---|---|---|---|---|---|
-| **T1 — classical relative-FEP refine** | openmm + openmmtools + pymbar (**already installed**, E316) | none | ~1–1.5 kcal peptide ΔΔG (lit: FEP+ ~1.1) | GPU-hours | this milestone |
+| **T1-charged — electrostatic-leg-only** | openmm+openmmtools+pymbar (**installed**) | none | targets ONLY the charged term the scorer misses | ~10–50× cheaper than ABFE | **first** |
+| **T1 — classical relative-FEP refine** | same | none | ~1–1.5 kcal peptide ΔΔG (lit: FEP+ ~1.1) | GPU-hours | after T1-charged |
 | **T2 — NNP-FEP** | + MACE / TorchANI / AIMNet2 differentiable potential | torch NNP + weights | higher accuracy and/or 10–1000× faster | GPU-min–hr | follow-on |
+
+**T1-charged (E317, Ram's "partial FEP for charged only"):** full ABFE decouples in two legs — electrostatics
+and sterics; the sterics leg is the expensive slow one, and our scorer *already gets sterics/shape right*. So
+run **only the electrostatic-decoupling leg** as a correction: `ΔG = fast_scorer(charge-neutralized peptide) +
+ΔG_charging_leg`. Charging free energies obey linear response (≈3 λ-windows, no soft-core) → much cheaper.
+**E317 proved it must still SAMPLE:** at n=40 no single-structure electrostatics (incl. charge-scaling
+derivative, linear-response ½ factor, distance-dependent dielectric) correlates with the charged residual
+(all r≈0) — the signal is the reorganization = ½·Var(V_elec), which needs an ensemble. So T1-charged = the
+cheap charging leg *with* a short MD, aimed exactly at the scorer's blind spot (concept N1,
+`docs/new_concepts_charged_2026-07-07.md`).
 
 **Feasibility (E316, proven):** the T1 alchemical pipeline is mechanically buildable in `openmm-env` today — we
 constructed a real `AbsoluteAlchemicalFactory`/`AlchemicalState` and swept `lambda_electrostatics` 1→0 with a
