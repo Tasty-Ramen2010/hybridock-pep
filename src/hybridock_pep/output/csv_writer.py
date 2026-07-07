@@ -28,6 +28,8 @@ FIELDNAMES: list[str] = [
     "ensemble_dg",
     "pooled_affinity_dg",
     "rank_score",
+    "charged_confidence",
+    "charged_frustration",
     "cluster_id",
     "pose_filename",
     "n_contact_residues",
@@ -127,6 +129,10 @@ def write_ranked_csv(scored_poses: list[ScoredPose], config: DockConfig) -> Path
                 ),
                 "rank_score": (
                     f"{pose.rank_score:.4f}" if pose.rank_score is not None else ""
+                ),
+                "charged_confidence": pose.charged_confidence or "",
+                "charged_frustration": (
+                    f"{pose.charged_frustration:.3f}" if pose.charged_frustration is not None else ""
                 ),
                 "cluster_id": pose.cluster_id if pose.cluster_id is not None else "",
                 "pose_filename": pose.pdb_path.name,

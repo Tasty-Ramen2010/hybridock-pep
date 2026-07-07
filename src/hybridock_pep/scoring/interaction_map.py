@@ -407,6 +407,88 @@ def ranking_confidence(rank_scores: list[float] | np.ndarray) -> tuple[str, floa
     return ("high" if spread >= RANK_CONFIDENCE_SPREAD_THRESHOLD else "low"), spread
 
 
+#: Formal side-chain charges used for the charged-confidence frustration flag (same convention as E317/E321).
+_FORMAL_CHARGE: dict[tuple[str, str], float] = {
+    ("LYS", "NZ"): 1.0, ("ARG", "NH1"): 0.5, ("ARG", "NH2"): 0.5,
+    ("ASP", "OD1"): -0.5, ("ASP", "OD2"): -0.5, ("GLU", "OE1"): -0.5, ("GLU", "OE2"): -0.5,
+}
+_PEP_NET_CHARGE: dict[str, int] = {"K": 1, "R": 1, "D": -1, "E": -1}
+#: Only peptides with |net charge| >= this are in the charged regime the flag applies to.
+CHARGED_NET_Q_MIN: int = 2
+#: Median frustration on the n=40 charged benchmark (E321). Below it → ~3.4x the scorer error → "low".
+FRUSTRATION_TRIAGE_THRESHOLD: float = 4.27
+
+
+def _formal_charge_atoms(pdb_path: str | Path) -> list[tuple[float, np.ndarray]]:
+    """Parse (formal_charge, xyz) for charged side-chain tips (Lys/Arg/Asp/Glu) from a PDB."""
+    out: list[tuple[float, np.ndarray]] = []
+    for ln in Path(pdb_path).read_text().splitlines():
+        if not ln.startswith(("ATOM", "HETATM")):
+            continue
+        qc = _FORMAL_CHARGE.get((ln[17:20].strip(), ln[12:16].strip()))
+        if qc is None:
+            continue
+        try:
+            out.append((qc, np.array([float(ln[30:38]), float(ln[38:46]), float(ln[46:54])])))
+        except ValueError:
+            continue
+    return out
+
+
+def charged_frustration(receptor_pdb: str | Path, peptide_pdb: str | Path) -> float:
+    """Charge frustration = |Coulomb| × Born-desolvation for a pose (E321, N5).
+
+    Both quantities use formal side-chain charges (no force field). ``Coulomb = Σ q_i q_j / r_ij`` (r ≥ 1 Å)
+    over peptide×receptor charged tips; ``Born = Σ q_i² · (receptor charged atoms within 8 Å)``. Their product
+    is the empirical predictor of the *magnitude* of the scorer's charged error.
+
+    Returns:
+        The frustration scalar (0.0 if either partner has no charged side-chain tips).
+    """
+    rec = _formal_charge_atoms(receptor_pdb)
+    pep = _formal_charge_atoms(peptide_pdb)
+    if not rec or not pep:
+        return 0.0
+    born = coul = 0.0
+    for qp, xp in pep:
+        born += qp * qp * sum(1 for _, xr in rec if np.linalg.norm(xp - xr) < 8.0)
+        for qr, xr in rec:
+            r = float(np.linalg.norm(xp - xr))
+            if r >= 1.0:
+                coul += qp * qr / r
+    return abs(coul) * born
+
+
+def charged_confidence(receptor_pdb: str | Path, peptide_pdb: str | Path, seq: str) -> tuple[str, float]:
+    """Triage flag: is this charged complex one the fast scorer likely mis-scores? (E321, N5.)
+
+    The charged/absolute-ΔG wall is FEP-bound (E305–E322): for a strongly charged peptide the fast scorer's
+    ΔG carries an uncapturable static-pose error. This flag does not fix that ΔG — it *routes*: on the n=40
+    charged benchmark, complexes with **low** frustration carried ~3.4× the error of high-frustration ones
+    (Spearman −0.545, permutation p≈0, held-out 3.4× separation). So low frustration ⇒ recommend the (future)
+    FEP charging leg / wet-lab verification; high frustration ⇒ the fast ΔG is comparatively trustworthy.
+
+    Only applies to charged peptides (``|net charge| ≥`` :data:`CHARGED_NET_Q_MIN`); neutral peptides return
+    ``("na", 0.0)`` — the flag is meaningless there.
+
+    Caveats (honest): calibrated on n=40 crystal poses; the frustration scale depends on receptor/pocket size,
+    so the absolute threshold is approximate. Treat ``"low"`` as "verify", not "wrong".
+
+    Args:
+        receptor_pdb: receptor (or full complex) PDB.
+        peptide_pdb: peptide pose PDB.
+        seq: peptide one-letter sequence (for the net-charge gate).
+
+    Returns:
+        ``(flag, frustration)`` — flag ∈ {``"ok"``, ``"low"``, ``"na"``}.
+    """
+    netq = abs(sum(_PEP_NET_CHARGE.get(a, 0) for a in seq.upper()))
+    if netq < CHARGED_NET_Q_MIN:
+        return "na", 0.0
+    fr = charged_frustration(receptor_pdb, peptide_pdb)
+    return ("ok" if fr >= FRUSTRATION_TRIAGE_THRESHOLD else "low"), fr
+
+
 def score_crystal_complex(
     receptor_pdb: str | Path,
     peptide_pdb: str | Path,

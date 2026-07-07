@@ -165,6 +165,12 @@ class ScoredPose(PoseRecord):
     # peptides on the SAME receptor to prioritise a candidate panel (lower = predicted stronger). It is
     # NOT an absolute ΔG and NOT a within-run pose ranker (use pose_ranker_ml for that).
     rank_score: float | None = None
+    # Charged-confidence triage flag (E321, N5; scoring/interaction_map.charged_confidence). For strongly
+    # charged peptides (|net q|≥2) only, else "na". "low" = frustration below the calibrated threshold ⇒ the
+    # fast ΔG likely carries a large charged error (~3.4× on the n=40 benchmark) ⇒ recommend FEP/wet-lab
+    # verify; "ok" = comparatively trustworthy. charged_frustration is the raw |Coulomb|·desolvation scalar.
+    charged_confidence: str | None = None
+    charged_frustration: float | None = None
     # BSA-fit pose ranker (replaces ref2015): lower = tighter/cleaner fit.
     # bsa = interface buried surface area (Å²); n_clash = overlapping peptide atoms.
     bsa_fit_score: float | None = None
