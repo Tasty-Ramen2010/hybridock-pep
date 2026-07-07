@@ -73,6 +73,25 @@ def loo_r(X):
 
 r_geom, r_aug = loo_r(G), loo_r(np.column_stack([G, mean_ve, var_ve]))
 print(f"\nLOO r  geometry={r_geom:+.3f}  +ensemble-electrostatics={r_aug:+.3f}  (Δ {r_aug-r_geom:+.3f})")
+
+# CONTROL: neutral clouds (e326) — the ⟨V_elec⟩~residual signal should be SPECIFIC to charged complexes
+NEU = os.path.join(ROOT, "data/e323_neutral_clouds.jsonl")
+if os.path.exists(NEU):
+    nrows = [json.loads(l) for l in open(NEU)]
+    nrows = [r for r in nrows if r.get("rank1") and np.isfinite(r.get("mean_ve", np.nan))]
+    if len(nrows) >= 15:
+        ny = np.array([r["y"] for r in nrows])
+        nG = np.array([[np.mean([p[k] for p in r["top5"]]) for k in GEOM] for r in nrows])
+        nmv = np.array([r["mean_ve"] for r in nrows])
+        ngrp = np.array([int(hashlib.md5(r["pdb"].encode()).hexdigest()[:8], 16) for r in nrows])
+        nres = np.full(len(ny), np.nan)
+        for tr, te in GroupKFold(min(8, len(set(ngrp)))).split(nG, ny, ngrp):
+            m = HistGradientBoostingRegressor(max_iter=300, max_depth=3, learning_rate=0.05,
+                                              l2_regularization=1.0, random_state=0).fit(nG[tr], ny[tr])
+            nres[te] = ny[te] - m.predict(nG[te])
+        print(f"\nCONTROL (neutral, n={len(nrows)}): ⟨V_elec⟩ vs residual r={pearsonr(nmv, nres)[0]:+.3f} "
+              "(should be ≈0 if the signal is charge-specific)")
+
 print("VERDICT: " + ("N2 HOLDS at scale — cheap ensemble ⟨V_elec⟩ is a real charged lever."
                      if (abs(r_mean) > 0.20 and np.mean(np.abs(perm) >= abs(r_mean)) < 0.05)
                      else f"still building / marginal at n={n} — keep accumulating."))
