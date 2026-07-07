@@ -102,7 +102,6 @@ data/e180_protdcal3d.jsonl
 data/e199_compl.jsonl
 data/e224_esm_recep.npz
 data/inference_benchmark_set.csv
-data/pdbbind_peptides.jsonl
 data/pdbs/abcd.pdb
 data/pdbs/pfldh_tetramer_peptide_complex*.pdb
 data/pdbs/poses_raw_graph_v1.pt

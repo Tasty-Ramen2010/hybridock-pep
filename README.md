@@ -6,11 +6,23 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-419%20passing-brightgreen.svg)](#testing)
 
+> ### The two claims, up front
+>
+> **①  The best and fastest non-FEP/LIE protein–peptide ΔG scorer** with a reproducible, leakage-free
+> benchmark to stand on — most accurate *and* most efficient in its lane ([the claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)).
+>
+> **②  It beats PPI-Affinity — the best *published* ML peptide scorer — on independent, leakage-free data**
+> (r 0.352 vs 0.325; 0.480 vs 0.291 once the pose is read) ([test ①](#why-hybridock-pep--three-conclusive-tests)).
+>
+> Every number below is measured and every claim links to the script that reproduces it.
+>
+> **Created by [Choppa Purandhar Ram](#project-status) (age 15)** — Head of Dry Lab, Denmark High School iGEM 2026.
+
 HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
 receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
 **selectivity primitive** (ΔΔG with bootstrap CI) for "does this peptide prefer target A over off-target B".
 Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets, minutes per
-peptide on commodity hardware. Made by Choppa Purandhar Ram, 15 year old.
+peptide on commodity hardware.
 
 It is a **two-stage hybrid**: an AI diffusion model (RAPiDock-Reloaded) samples all-atom poses, then a
 physics + learned-geometry rescorer turns those poses into calibrated affinity, selectivity, and
@@ -130,6 +142,66 @@ Honest read: every prediction lands within a few kcal/mol of its reference, but 
 the true values span −4.8 to −12.7 — the **blind-absolute dynamic-range compression that caps every non-FEP
 method**, ours included (we publish it rather than hide it). This is exactly why the headline is a
 *leakage-free ranking* win (test ①) and *selectivity* — not a blind-absolute one.
+
+---
+
+## Head-to-head vs Rosetta FlexPepDock (2026-07-07)
+
+Rosetta FlexPepDock is the standard physics baseline everyone cites. We ran it against our scorer on
+**918 PDBbind protein–peptide complexes with experimental K_d** (the largest fair peptide-affinity set we
+have), matched complex-for-complex. Three findings, all reproducible from the scripts and datasets below.
+
+**1. On a diverse cross-target set, our scorer wins decisively.** Both scored the same 918 complexes; ours
+is a leakage-free 5-fold cross-validation of the 16 structural features, ref2015 is the training-free
+interface energy on the same poses.
+
+```
+  scorer                                  Pearson r    RMSE (kcal/mol)   MAE
+  ────────────────────────────────────────────────────────────────────────
+  HybriDock-Pep (16-feat, 5-fold CV)        +0.446         1.66         1.32   ◀ WIN
+  Rosetta ref2015 / FlexPepDock, unrelaxed  +0.006          —            —
+  (mean-predictor baseline)                   0.00          1.85         1.47
+```
+
+**2. "But REU isn't kcal/mol" — correct, and here's what that costs.** FlexPepDock's score is in Rosetta
+Energy Units, not kcal/mol, so it has *no native RMSE/MAE*. The only way to get one is an empirical linear
+fit `ΔG = a·REU + b` — but linear rescaling is **correlation-invariant** (it cannot change r), it only sets
+the error scale. Because ref2015's r ≈ 0 on this set, the best-fit slope is ≈ 0 and the calibration
+**collapses onto the mean-predictor**: 5-fold-CV RMSE 1.89 / MAE 1.49 — no better than guessing the average
+for every complex. Naive "1 REU = 1 kcal/mol" is meaningless here (unrelaxed interface energies reach
++23,000 REU from clashes). Our scorer emits calibrated kcal/mol directly and beats that baseline (1.66 / 1.32).
+
+**3. Relaxation helps FlexPepDock — but not enough to catch up.** FlexPepDock's published numbers come from
+*relaxed* poses. Interface-restricted Rosetta FastRelax on a 40-complex spread pulls the clash-inflated
+scores from a mean of +93.6 REU to a physical −32.5 REU, and lifts correlation **r 0.11 → 0.18** (Spearman
+0.00 → 0.21). So relaxation is *necessary* to make ref2015 non-garbage — but on a diverse cross-target set it
+still lands near 0.18, far below our 0.45 and below its own within-target 0.59. This is the extensive /
+size-confounded collapse of Rosetta interface terms on diverse data, measured directly. Reproduce all of
+this: `scripts/e329_ref2015_pdbbind.py` · `scripts/e330_ours_pdbbind.py` · `scripts/e331_relax_pdbbind.py`.
+
+---
+
+## Datasets — download and test for yourself
+
+Everything above is reproducible from data shipped in this repo. All files are small, plain-text, and
+MIT-licensed (derived features + public experimental affinities — no redistributed third-party structures).
+
+| File | What it is | Rows |
+|---|---|---|
+| [`data/pdbbind_peptides.jsonl`](data/pdbbind_peptides.jsonl) | 925 PDBbind protein–peptide complexes with experimental K_d/K_i, our 16 structural features + sequence per complex | 925 |
+| [`data/e329_ref2015_pdbbind.json`](data/e329_ref2015_pdbbind.json) | Rosetta ref2015 / FlexPepDock unrelaxed interface-ΔG (REU) for 918 of those complexes | 918 |
+| [`data/e331_relax_pdbbind.json`](data/e331_relax_pdbbind.json) | Unrelaxed vs interface-relaxed ref2015 interface-ΔG on a 40-complex spread | 40 |
+| [`data/benchmark_crystal.json`](data/benchmark_crystal.json) | The crystal-65 reference set (PDB paths + experimental ΔG) used across the scoring campaign | 65 |
+
+The raw PDBbind structures themselves are **not** redistributed (PDBbind licensing) — register at
+[pdbbind.org.cn](http://www.pdbbind.org.cn/) for the v2020 general set; `scripts/e108_ingest_pdbbind.py`
+rebuilds `pdbbind_peptides.jsonl` from it. To re-score the head-to-head from the shipped features alone
+(no structures needed):
+
+```bash
+conda activate score-env
+python scripts/e330_ours_pdbbind.py     # ours + matched ref2015 head-to-head → r / RMSE / MAE
+```
 
 ---
 
