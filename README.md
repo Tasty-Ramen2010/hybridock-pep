@@ -15,9 +15,9 @@ peptide on commodity hardware. Made by Choppa Purandhar Ram, 15 year old.
 It is a **two-stage hybrid**: an AI diffusion model (RAPiDock-Reloaded) samples all-atom poses, then a
 physics + learned-geometry rescorer turns those poses into calibrated affinity, selectivity, and
 reference-anchored ΔG. Three things it does that off-the-shelf tools don't combine: **(1)** it is the best
-non-FEP/LIE protein–peptide *affinity* scorer we can find a fair baseline for; **(2)** it reaches
-*FEP-grade relative* accuracy on the same-receptor double-difference cycle at ordinary docking cost; and
-**(3)** it ships a structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot
+non-FEP/LIE protein–peptide *affinity* scorer we can find a fair baseline for; **(2)** it lifts within-receptor
+accuracy from *r*≈0.25 to ≈0.55 when anchored to a few measured references on-target (the relative regime FEP
+also works in); and **(3)** it ships a structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot
 provide. Everything below is measured, every claim links to the script that reproduces it, and every
 negative result is kept on the record in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plain CPU.
@@ -43,15 +43,20 @@ Both methods, same complexes, leave-receptor-out CV (no homology leak in either 
   leakage and everyone sits near r≈0.35 — where we are #1.
 ```
 
-**② FEP-grade *relative* accuracy at docking cost** — the double-difference thermodynamic cycle, the one
-place we operate where FEP itself does (and the one place we say "FEP-grade"):
+**② Same-receptor *relative* mode — anchor to a few measured references** (the honest analogue of what FEP
+does: work relative to a reference so the per-receptor bias cancels). When you have ≥2–3 measured affinities
+on your actual target, subtract that offset and the cold within-receptor *r* jumps:
 
 ```
-  ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref)    cancels the per-receptor bias exactly
-  ──────────────────────────────────────────────────────────  each █ = 0.04 r
-  double-difference  ████████████████████████░  r = 0.96   ← FEP-grade, no MD, ~docking cost (n=26 grids)
-  FEP / TI (the bar) █████████████████████░░░░  r ≈ 0.85   (5–50 GPU-hr / mutation)
+  within-receptor absolute (cold, no reference)   r ≈ 0.25 – 0.47   (dataset-dependent)
+  anchored to 2–3 measured references on-target    r ≈ 0.61 – 0.71   ← the same-receptor lever (E264/E280, re-verified)
 ```
+
+Peptide–receptor binding is also largely **additive** — the coupling term in a 2×2 peptide×receptor grid is
+only ~1.1 kcal/mol std — so a thermodynamic-cycle estimate closes to about that error. (We do **not** claim
+"FEP-grade r=0.96" for this: that earlier number was an additivity artifact measured on 3 *experimental*
+corners and is beaten by a nearest-measured baseline — see `docs/DEVELOPMENT_TIMELINE.md` E312. The honest
+same-receptor win is anchoring, above.)
 
 **③ The number you actually get on AI-generated poses** — no crystal handed to you, the honest deployment
 case. This is where we pull away from PPI-Affinity: **PPI is structure-free, so it is pose-blind** — it
@@ -417,13 +422,13 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 |---|---|---|
 | **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — test ① | `python scripts/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
 | **0.352 / 0.325** PPIKB independent, charge-routed — test ① | `python scripts/e294_production_stack.py` | stdout table |
-| **0.96** double-difference FEP-grade ΔΔG (n=26 grids) — test ② | `python scripts/e288_clean_similarity.py` | stdout table |
+| **0.25 → 0.52–0.61** same-receptor anchoring — test ② | `python scripts/e264_ppikb_anchor_fusion.py` | `data/e264_ppikb_results.json` |
 | **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python scripts/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
 | **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python scripts/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
 | full non-FEP/LIE scorecard on 156 complexes | `python scripts/e90_full_scorecard.py` | stdout table |
 | **0.486 → 0.53** affinity *r* on real RAPiDock poses — test ③ | `python scripts/e106_combined_realpose_grade.py` | per-complex CSV |
 | **2.49 Å** best-of-top-25 pose RMSD, hit@5 91% — test ③ | `hybridock-pep benchmark --test-csv data/test_complexes.csv --report bench.md` | `bench.md` |
-| **r 0.96** module-level double-difference + selectivity | `pytest tests/test_double_difference.py tests/test_anchoring.py -q` | green = the cycle/anchoring math holds |
+| double-difference + anchoring **math** (cycle closes; not a prediction claim) | `pytest tests/test_double_difference.py tests/test_anchoring.py -q` | green = the cycle/anchoring math holds |
 | **ΔΔG selectivity** primitive end-to-end | `pytest tests/test_selectivity.py -q` | green |
 
 Rebuild the IFP training cache from raw structures (the 437 new PPIKB complexes) with
