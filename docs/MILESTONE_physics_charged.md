@@ -85,7 +85,19 @@ leg. Shippable as a per-complex "charged-confidence" flag independent of the FEP
   peptide ΔΔG (e.g. an MDM2 or BH3 point mutant) to ~1 kcal. *If G1 fails, classical FEP can't do our peptides
   → escalate to T2 or stop.* **G1-partial DONE (E316):** the full build→sample→MBAR loop reproduces the
   *analytical* free energy of a harmonic-oscillator ladder to **0.01 kcal/mol** — the estimator machinery is
-  present and correct. What remains for G1-full: complex solvation/parametrisation + a real peptide ΔΔG.
+  present and correct.
+  **G1-spike RAN on a real complex (E329, `scripts/e329_g1_charged_spike.py`):** full pipeline works end-to-end
+  on a real charged complex (2jqk) — PDBFixer + amber14 parametrisation, explicit-TIP3P solvation (bound 20 373
+  / free 5 331 atoms), decharge both legs, ReplicaExchange + MBAR, **on the Blackwell GPU** (OpenMM 8.5.1 CUDA
+  works). BUT the naive result is **ΔΔG_elec = −12.4 ± 39.2 kcal/mol — dominated by noise, unusable.** Two hard
+  lessons this surfaced concretely: (1) **catastrophic cancellation is numerical, not just conceptual** — the
+  two legs are ~+325 and ~+337 kcal (full charge annihilation incl. intramolecular self-energy), and subtracting
+  two ~+330 numbers with ±12–37 kcal noise destroys the ~−12 signal; (2) the **free leg is the convergence
+  bottleneck** (±37 kcal — floppy solvated side chains). Reaching ±4/±2/±1 kcal needs ~96×/385×/1540× more
+  sampling → GPU-days per complex *unless* the setup is fixed. **G1-full therefore requires** (a) a charge-
+  balanced / co-alchemical or interaction-only scheme to shrink the ~+330 kcal absolute magnitudes, (b) the
+  Rocklin/Hünenberger net-charge finite-size correction, (c) far more sampling (esp. the free leg). The spike
+  confirms the path is *buildable and runs*, and quantifies exactly why a converged ΔΔG is expensive.
 - **G2 — the charged proof:** on a charged case where static ranked BACKWARDS (importin/NLS: static −9.77,
   single-point MM-GBSA −92, both wrong), show FEP ranks it correctly vs a strong binder. *This is the
   north-star: sampling creates the signal static cannot.*
