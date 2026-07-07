@@ -380,6 +380,12 @@ peptide panel, dock each candidate against the same receptor and compare their *
 pooled-pairwise) because it is size-normalized. It is *not* an absolute ΔG (use `delta_g`) and *not* a
 within-run pose ranker (that ordering is the CSV row order).
 
+`rank_score` is **target-dependent** — reliable on shape/hydrophobic grooves (SH3 ρ=+0.91, MDM2 +0.67), weak
+where affinity is single-residue side-chain chemistry (PDZ +0.26, BH3 −0.63). It **self-reports confidence**:
+`interaction_map.ranking_confidence(best_pose_rank_scores)` returns `high` (reliable — 100% correct direction
+in validation) when the panel's scores spread out, `low` (verify in wet lab) when they cluster. See
+[`docs/external_validation_2026-07-06.md`](docs/external_validation_2026-07-06.md).
+
 `best_pose.pdb` is the exact geometry the headline ΔG was computed on, **with standard residue names** — so
 you can re-score it directly: `hybridock-pep crystal-score --receptor R.pdb --peptide-pdb <out>/best_pose.pdb
 --peptide SEQ`. (A `best_pose_vina_relaxed.pdb` with the Vina clash-relieved geometry is also written for

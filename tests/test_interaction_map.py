@@ -93,6 +93,29 @@ def test_compute_ifp_roundtrip_from_pdb(tmp_path) -> None:
     assert f["sb_fav"] == 1.0
 
 
+def test_ranking_confidence_high_when_spread() -> None:
+    """A well-spread panel of rank_scores is flagged high-confidence."""
+    from hybridock_pep.scoring.interaction_map import ranking_confidence, RANK_CONFIDENCE_SPREAD_THRESHOLD
+    flag, spread = ranking_confidence([-9.0, -8.0, -7.0, -6.0])
+    assert flag == "high"
+    assert spread >= RANK_CONFIDENCE_SPREAD_THRESHOLD
+
+
+def test_ranking_confidence_low_when_clustered() -> None:
+    """Near-identical rank_scores (model can't discriminate) are flagged low-confidence."""
+    from hybridock_pep.scoring.interaction_map import ranking_confidence
+    flag, spread = ranking_confidence([-8.50, -8.49, -8.51, -8.50])
+    assert flag == "low"
+    assert spread < 0.40
+
+
+def test_ranking_confidence_needs_two_scores() -> None:
+    """Fewer than two finite scores cannot be ranked -> low confidence, zero spread."""
+    from hybridock_pep.scoring.interaction_map import ranking_confidence
+    assert ranking_confidence([-8.0]) == ("low", 0.0)
+    assert ranking_confidence([]) == ("low", 0.0)
+
+
 def test_composition_ifp_sums_to_one() -> None:
     """The composition-normalized IFP vector sums to 1 when any contacts are present."""
     from hybridock_pep.scoring.interaction_map import _composition_ifp_vector

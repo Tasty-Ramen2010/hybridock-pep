@@ -137,7 +137,13 @@ total contacts) that encodes *which* contact types dominate, size-independent. 8
 
 So ship **two calibrations of the same design**: raw-count IFP for absolute ΔG (the PPI-beating 0.480),
 composition IFP for within-target ranking (70.5% pairwise, +6 pts, helps charged AND neutral). Model saved
-`data/affinity_rank_ifp.joblib`. Reproduce: `scripts/e309_ranking_ifp.py`. **Next:** wire a `rank_score`
+`data/affinity_rank_ifp.joblib`. Reproduce: `scripts/e309_ranking_ifp.py`.
+
+**E310 — label-free confidence flag for rank_score.** Interface composition does NOT predict per-target
+ranking quality (all |r|<0.18), but the model's prediction SPREAD across a candidate panel does (r=+0.56,
+n≥4 targets): HIGH-conf (spread≥0.40) → mean ranking ρ +0.71 (100% correct direction); LOW-conf → +0.12.
+Exposed as `interaction_map.ranking_confidence()`; CONSERVATIVE (high=reliable, low=verify-not-fail; MDM2
+false-negatives on its tight helix panel). Reproduce: `scripts/e310_ranking_confidence.py`. **Next:** wire a `rank_score`
 column / `--rank` path so `dock` emits the composition-IFP ordering alongside the ΔG.
 
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.

@@ -95,3 +95,25 @@ The verdict tracks the binding mechanism, not chance: `rank_score` is reliable o
 grooves (SH3, MDM2) and weak-to-backwards where affinity comes from side-chain chemistry the scorer under-reads
 (PDZ, BH3). Use it to prioritise panels on hydrophobic/aromatic targets; treat charged/electrostatic helical
 targets with caution and confirm in the wet lab.
+
+## A label-free confidence flag (E310) — `ranking_confidence()`
+
+Can we tell *upfront* whether `rank_score` is trustworthy on a given target, with no measured labels?
+Interface composition (hydrophobic/charged fraction) does **not** predict per-target ranking quality
+(all |r|<0.18). But the model's own **prediction spread** across the candidate panel does — if the candidates
+get near-identical rank_scores the model can't discriminate them; if the scores spread, the order is
+trustworthy. On the 865-set (n≥4-candidate targets) spread correlates with per-target ranking Spearman at
+**r = +0.56**:
+
+| flag | rule | targets | mean ranking ρ | correct direction |
+|---|---|---|---|---|
+| **high** | rank_score spread ≥ 0.40 | 5 | **+0.71** | **100%** |
+| low | rank_score spread < 0.40 | 5 | +0.12 | 60% |
+
+Exposed as `interaction_map.ranking_confidence(best_pose_rank_scores) -> (flag, spread)`. **The flag is
+conservative, not symmetric:** `high` means reliable (100% correct direction in validation); `low` means
+*uncertain* — it may still rank fine and is a "verify in the wet lab" signal, not a failure prediction.
+On the held-out panels the shipped model flags BH3 `low` (spread 0.36; it did fail, ρ=−0.63) correctly, but
+flags MDM2 `low` (spread 0.27) even though it ranked +0.67 — a false-negative caused by MDM2's near-identical
+helices clustering tightly. So: trust a `high` flag; verify a `low` one rather than discarding it.
+Reproduce: `scripts/e310_ranking_confidence.py`.
