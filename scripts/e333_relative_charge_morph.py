@@ -103,7 +103,7 @@ def main():
     dudm_f = np.array([v[0] for v in df]); ef = np.array([v[1] for v in df])
     diff = dudm_b - dudm_f
     diff_err = np.sqrt(eb ** 2 + ef ** 2)
-    _trap = getattr(np, "trapezoid", getattr(np, "trapz"))
+    _trap = getattr(np, "trapezoid", None) or np.trapz  # np>=2.0 renamed trapz→trapezoid
     ddg_raw = float(_trap(diff, morphs))
     # error via trapezoid weights on the per-point errors
     w = np.gradient(np.array(morphs))

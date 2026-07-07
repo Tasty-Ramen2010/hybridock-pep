@@ -64,6 +64,24 @@ surrogate for the reorganization.
 (Spearman −0.545, perm-p=0.000, held-out 3.4× separation) → route only high-error charged complexes to the FEP
 leg. Shippable as a per-complex "charged-confidence" flag independent of the FEP build.
 
+## RESULTS — the charged FEP tier works (2jqk head-to-head, 2026-07-07)
+Three routes to the same quantity (electrostatic contribution of the peptide charges to binding), on the hard
+2jqk complex (fast-scorer residual +2.76 kcal, N5-flagged "low"):
+
+| route | ΔΔG_elec | error | wall |
+|---|---|---|---|
+| E329 annihilate (naive) | −12.4 | **±39.2** | ~5 min (useless) |
+| **E332 decouple + Rocklin** | **+6.26** | **±0.73** | 45 min |
+| **E333 relative charge-morph (∫ diff-of-derivatives)** | **+7.12** | **±1.50** | ~40 min |
+
+**E332 vs E333 agree to 0.86 kcal** — two *independent* alchemical routes → the number is robust, not an
+artifact. The decouple fix collapsed the error **54×** (±39→±0.73) by not subtracting two ~+330 kcal legs;
+E333 shows the same via Ram's difference-of-derivatives (two ±500 kcal curves cancel pointwise to a 1–13 kcal
+integrand). **This is PRECISION (convergence), NOT yet ACCURACY** — +6/+7 has not been checked against any
+measured value. That is the SKEMPI validation (below). NOTE: ΔΔG_elec is the CHARGED-ONLY term; full binding
+ΔG = scorer(neutralised peptide, shape) + this. Engine is external (OpenMM/openmmtools/amber14) — ours is the
+hybrid wiring, not the FEP.
+
 ## E333 relative charge-morph — where it sits vs literature and our own prior tests
 Ram's "derivative it instead of cancelling two huge terms" → integrate the DIFFERENCE of ⟨∂U/∂morph⟩ curves for a
 small charged→neutral morph, never forming two large absolute numbers.
