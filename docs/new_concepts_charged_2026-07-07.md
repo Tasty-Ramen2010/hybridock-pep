@@ -83,3 +83,16 @@ Needs a charge-sensitive base energy first (→ N1/T1-charged). Kept here to clo
 - **Most promising new, testable-now leads:** N2 (fluctuation from pose cloud) and N5 (frustration triage).
 - **Flagship build:** N1 (error-structure-defined alchemy) = the milestone's T1-charged.
 - Reproduce the tests: `scripts/e317_partial_fep_electrostatics.py`.
+
+## RESULTS (2026-07-07, E318–E322) — all five run; see `docs/n_concepts_results_2026-07-07.md`
+- **N1/T1-charged (E322): SOUND + de-risked.** Neutral-calibrated scorer's charged residual = 1.79 kcal, mostly
+  shape-orthogonal (shape-corr 0.09) → clean decomposition; charging leg is linear-response cheap (3-win vs
+  11-win = 0.14 kcal). Residual weakly charge-indexed (r=−0.16) → per-complex, must sample.
+- **N2 (E318): REAL but underpowered — the one positive.** ⟨V_elec⟩ over the generative cloud ~ charged residual
+  r=−0.37 (n=24); LOO 0.501→0.552. Grounded in LIE (β·⟨V_elec⟩ ensemble mean). Scale up charged pose clouds.
+- **N3 (E319): NEGATIVE.** No fixed or learned single-structure dielectric recovers the residual (fixed-ε sweep
+  flat r≈+0.02). MM-PBSA's variable-ε lesson points back to sampling.
+- **N4 (E320): NEGATIVE/vacuous.** Pointwise scorer closes cycles by construction; relative ΔΔG signal ≈0 →
+  closure not the bottleneck.
+- **N5 (E321): SHIPS.** Frustration→|residual| Spearman −0.545, perm-p=0.000, held-out 3.4× → triage router.
+- **N6:** unchanged (blocked).
