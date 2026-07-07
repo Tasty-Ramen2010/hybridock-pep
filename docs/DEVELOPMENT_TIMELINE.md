@@ -148,6 +148,44 @@ panels like SH3 (spread 0.90, ρ+0.91) get 'high'. `interaction_map.ranking_conf
 `RANK_CONFIDENCE_SPREAD_THRESHOLD=0.50`. Reproduce: `scripts/e310_ranking_confidence.py`. **Next:** wire a `rank_score`
 column / `--rank` path so `dock` emits the composition-IFP ordering alongside the ΔG.
 
+**E311 — charged failure is FEATURE/SIGNAL-limited, not reweighting- or offset-fixable (10 ideas refuted).**
+Ram's idea: for charged targets upweight IFP and downweight geometry, scaled by charged-residue fraction and
+charge magnitude. Diagnosis first — on the charged subset (n=399, |q|≥2):
+
+```
+  charged r, RANDOM KFold (leaky, receptor in train+test)   +0.423
+  charged r, leave-receptor-out (honest)                    +0.401   <- gap only 0.022!
+  neutral r, leave-receptor-out (contrast)                  +0.533
+```
+
+The leaky↔honest gap is ~0 on charged (vs a large gap for neutral), so knowing the receptor barely helps —
+**the charged limit is missing WITHIN-target signal, not the receptor offset b(R).** Reweighting can only
+redistribute signal that exists; the diagnosis says it isn't there. Confirmed by a battery (honest
+leave-receptor-out charged r, baseline geom+IFP = 0.401):
+
+```
+  + charge×IFP interaction (Ram idea B)  +0.403      + salt-bridge quality        +0.400
+  charge-gated geom↔IFP blend (Ram A)    +0.331      + unsatisfied buried charge  +0.400
+  charged-specialist (train charged only)+0.336      + elec complementarity       +0.395
+  IFP-only (drop geometry)               +0.333      + raw charge descriptors     +0.383
+                                                      + ALL charge features        +0.388
+```
+
+**Nothing beats 0.401** (best +0.002 = noise; the blend and specialist HURT). Note the model is a gradient-
+boosted tree, so literal feature-weight scaling is a no-op — Ram's idea was implemented faithfully as a
+charge-gated model blend and charge×IFP interaction features; both flat/worse. Mechanism: the missing charged
+signal is the electrostatic desolvation/entropy cancellation (importin: ΔE_elec +6.8 vs −5.4 kcal nearly
+cancel), a difference of large terms only explicit-water FEP resolves — static features hold the contacts but
+not the opposing desolvation, so the net sits under the noise floor. Same FEP-bound charged floor as
+[[project_absolute_kd_ceiling_jun14]], now closed from the reweighting angle too. Reproduce:
+`scripts/e311_charged_ideas.py`.
+
+**README audit (2026-07-06b).** Test ① (0.352/0.480) reproduces live (e294/e298). Test ② (0.96 double-diff)
+reproduces via `e288_clean_similarity.py` = r 0.964/MAE 0.80 on **n=26** grids — README pointer fixed from the
+broken `e287` (missing e158 dep). Test ③ (AI-pose 0.49–0.53) reproduces via `e106` (ML-best-5 r=+0.501).
+Efficiency 2.8 s/pose measured; competitor papers verified. Stale: test-count badge (419; now ~473 collected)
+and a hanging heavy test in the full suite — both flagged, not yet fixed.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
