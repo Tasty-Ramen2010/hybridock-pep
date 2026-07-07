@@ -258,6 +258,7 @@ def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
                 from hybridock_pep.scoring.interaction_map import rank_score_complex  # noqa: PLC0415
                 pose.rank_score = rank_score_complex(
                     receptor, pose.pdb_path, config.peptide_sequence, geometry=feats,
+                    ultra_k=config.ultra,
                 )
             except Exception as exc:  # noqa: BLE001 — rank score is an optional enrichment
                 logger.debug("Pose %d: rank_score skipped (%s)", pose.pose_idx, exc)

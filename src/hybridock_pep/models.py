@@ -50,6 +50,10 @@ class DockConfig(BaseModel):
     verbosity: int = 0
     minimize_poses: bool = True
     refine_topk: int | None = None
+    # --ultra randomized-smoothing depth for rank_score (E314). 0 = off; >1 averages that many
+    # feature-jittered evaluations to reduce ranking variance (~+2 pts within-target pairwise). It does
+    # NOT improve absolute-ΔG accuracy; it makes scoring ~ultra× slower. Opt-in via --ultra.
+    ultra: int = 0
     # Geometry+Vina ensemble ΔG (scoring/ensemble.py). Off by default; opt-in via --ensemble.
     compute_ensemble: bool = False
     ensemble_calibration: Path | None = None
