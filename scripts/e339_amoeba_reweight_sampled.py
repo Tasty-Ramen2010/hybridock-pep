@@ -32,38 +32,55 @@ def build_forces(topology):
 
 
 def amber_dE(system, ctx, alch):
+    """ΔE with Asp75 charge zeroed CONSISTENTLY in Coulomb (NonbondedForce) AND GB solvation (CustomGBForce)."""
     nb = next(system.getForce(i) for i in range(system.getNumForces())
               if system.getForce(i).__class__.__name__ == "NonbondedForce")
+    gb = next(system.getForce(i) for i in range(system.getNumForces())
+              if system.getForce(i).__class__.__name__ == "CustomGBForce")
     e_full = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
-    saved = {}
+    snb, sgb = {}, {}
     for i in alch:
-        q, s, e = nb.getParticleParameters(i); saved[i] = (q, s, e)
+        q, s, e = nb.getParticleParameters(i); snb[i] = (q, s, e)
         nb.setParticleParameters(i, 0.0 * unit.elementary_charge, s, e)
-    nb.updateParametersInContext(ctx)
+        gp = gb.getParticleParameters(i); sgb[i] = list(gp)
+        gp = list(gp); gp[0] = 0.0; gb.setParticleParameters(i, gp)
+    nb.updateParametersInContext(ctx); gb.updateParametersInContext(ctx)
     e_off = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
     for i in alch:
-        nb.setParticleParameters(i, *saved[i])
-    nb.updateParametersInContext(ctx)
+        nb.setParticleParameters(i, *snb[i]); gb.setParticleParameters(i, sgb[i])
+    nb.updateParametersInContext(ctx); gb.updateParametersInContext(ctx)
     return e_full - e_off
 
 
 def amoeba_dE(system, ctx, alch):
+    """ΔE with Asp75 zeroed CONSISTENTLY in multipoles+polarizability AND GK solvation charge."""
     mp = next(system.getForce(i) for i in range(system.getNumForces())
               if system.getForce(i).__class__.__name__ == "AmoebaMultipoleForce")
+    gk = next((system.getForce(i) for i in range(system.getNumForces())
+               if system.getForce(i).__class__.__name__ == "AmoebaGeneralizedKirkwoodForce"), None)
     e_full = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
-    saved = {}
+    smp, sgk = {}, {}
     for i in alch:
-        p = list(mp.getMultipoleParameters(i)); saved[i] = list(p)
+        p = list(mp.getMultipoleParameters(i)); smp[i] = list(p)
         p[0] = 0.0 * unit.elementary_charge
         p[1] = [0, 0, 0] * unit.elementary_charge * unit.nanometer
         p[2] = [0] * 9 * unit.elementary_charge * unit.nanometer ** 2
         p[-1] = 0.0 * unit.nanometer ** 3
         mp.setMultipoleParameters(i, *p)
+        if gk is not None:
+            g = list(gk.getParticleParameters(i)); sgk[i] = list(g)
+            g[0] = 0.0 * unit.elementary_charge; gk.setParticleParameters(i, *g)
     mp.updateParametersInContext(ctx)
+    if gk is not None:
+        gk.updateParametersInContext(ctx)
     e_off = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
     for i in alch:
-        mp.setMultipoleParameters(i, *saved[i])
+        mp.setMultipoleParameters(i, *smp[i])
+        if gk is not None:
+            gk.setParticleParameters(i, *sgk[i])
     mp.updateParametersInContext(ctx)
+    if gk is not None:
+        gk.updateParametersInContext(ctx)
     return e_full - e_off
 
 
