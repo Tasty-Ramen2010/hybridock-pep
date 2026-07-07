@@ -64,6 +64,38 @@ surrogate for the reorganization.
 (Spearman −0.545, perm-p=0.000, held-out 3.4× separation) → route only high-error charged complexes to the FEP
 leg. Shippable as a per-complex "charged-confidence" flag independent of the FEP build.
 
+## E333 relative charge-morph — where it sits vs literature and our own prior tests
+Ram's "derivative it instead of cancelling two huge terms" → integrate the DIFFERENCE of ⟨∂U/∂morph⟩ curves for a
+small charged→neutral morph, never forming two large absolute numbers.
+
+**Vs literature (it is a known, sound idea):**
+- **TI (Kirkwood 1935)** — e333 computes ⟨∂U/∂λ⟩ and integrates; textbook.
+- **Relative FEP / RBFE (FEP+, pmx, perses)** — the whole reason RBFE beats two absolute (ABFE) runs is exactly
+  Ram's point: compute the *difference* directly so common terms cancel and you never subtract two big numbers.
+  e333's charge morph is a relative transformation; Ram independently re-derived the RBFE rationale.
+- **Separated-topology / correlated RBFE (Baumann–Gapsys 2023; Rocklin 2013)** — formalise integrating a coupled
+  difference for variance reduction. e333 is a lightweight cousin (fixed topology, charges only).
+- **Charge/partial-charge alchemy** — morphing partial charges is the electrostatic leg of any mutation FEP.
+- **Rocklin/Hünenberger net-charge correction** — still required (neutralisation changes net charge); applied.
+
+**Honest gaps vs full RBFE:** (1) e333 morphs *charges only on a fixed topology* — it is the ELECTROSTATIC part
+of a Lys→Gln mutation, not the vdW/atom change (a real pmx/perses single-topology mutation adds softcore-mapped
+atoms; we lack those deps). That is fine here because the charged term is exactly what our scorer misses. (2) The
+bound/free legs are still separate sims, so the difference-of-derivatives cancels common terms only insofar as
+peptide↔solvent ∂U/∂m is similar across legs — a *partial* correlated-sampling gain, plus the real win of a
+SMALL neutralisation perturbation vs annihilation. Fully correlated sampling would need shared noise/a coupled
+box.
+
+**Vs our own prior tests (why e333 is the right escalation):**
+- E313 (mutations scored by OUR model) = coin-flip — scorer is charge-blind; e333 uses the MD free energy.
+- E317/E327 (static Coulomb/Born, cheap neutralisation double-difference) = null — no sampling; e333 samples the
+  reorganisation.
+- E329 (annihilate) = −12.4 ± 39.2 — two ~+330 kcal legs; e333 removes the huge magnitude by morphing, not
+  annihilating, and integrates the difference.
+- E332 (decouple) = removes the intramolecular self-energy but still absolute; e333 goes further (relative,
+  neutralise-not-remove, difference-of-derivatives).
+- N2/N5 = the cheap ensemble/triage layer; e333 is the expensive lab-grade tier they route TO.
+
 ## T1 architecture (the buildable path)
 ```
   dock (fast, current) → top-K candidate poses on the target
