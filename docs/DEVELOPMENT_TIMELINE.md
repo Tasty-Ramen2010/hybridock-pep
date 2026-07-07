@@ -290,6 +290,25 @@ fluctuation-from-generative-pose-cloud (testable), N3 learned local dielectric, 
 N5 frustration triage (testable, promising), N6 adiabatic-connection (blocked, documented). Reproduce:
 `scripts/e317_partial_fep_electrostatics.py`.
 
+**E318–E322 — N1–N5 tested + LIE/PB/Hess mined + T1-charged spiked.** Ram: run N1–N5 for real, spike T1-charged
+once (needs a *special calibrated* scorer, wireable under `--ultra`), and adapt LIE/MM-PBSA/Hess.
+**N2 (E318) — the first crack in the single-structure wall:** LIE's electrostatic term is β·⟨V_elec⟩ over an
+*ensemble* (β=0.5 for charged). Computed over RAPiDock's generative pose cloud (no MD) on the 65 real-cloud
+complexes, ⟨V_elec⟩ tracks the charged residual at **r=−0.37** (charged n=24; single structure = r≈0), and lifts
+LOO r **0.501→0.552**. Underpowered (boot95% [−0.71,−0.03], perm-p=0.074) but real — scale up charged clouds.
+**N3 (E319):** MM-PBSA variable-dielectric adapted as a *learned* ε — fixed-ε sweep flat (r≈+0.02 ∀ε), no static
+recovery → confirms the signal is the fluctuation, not a dielectric. **N4 (E320):** Hess cycle-closure loss is
+vacuous for a pointwise scorer (closes by construction) and the relative-ΔΔG signal is itself r≈0 → closure not
+the bottleneck. **N5 (E321) — ships:** frustration=|Coulomb|·desolv predicts the *magnitude* of the charged
+error, Spearman −0.545, **perm-p=0.000**, held-out **3.4×** separation → a which-complex-needs-FEP router.
+**T1-charged (E322):** Part A — neutral-calibrated scorer's charged residual is 1.79 kcal, mostly shape-orthogonal
+(shape-corr 0.09) → `ΔG=scorer_neut+charge_leg` is clean; weakly charge-indexed (r=−0.16 vs |q|) → per-complex,
+not a lookup, so the leg must sample. Part B — the charging leg runs (Langevin+MBAR) and **3 λ-windows agree with
+11 to 0.14 kcal/mol** = linear-response cheap, confirming the ~10–50× saving. Lesson from the ancient methods
+(LIE ⟨⟩, PB needs sampling to set ε, FEP per-edge integral): the charged term is a *fluctuation*; every static
+shortcut fails alike, and the two things that moved (N2, N5) are the ensemble-aware ones. Full writeup:
+`docs/n_concepts_results_2026-07-07.md`; reproduce `scripts/e318`–`e322_*`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---

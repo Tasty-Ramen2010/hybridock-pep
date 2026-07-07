@@ -40,6 +40,30 @@ constructed a real `AbsoluteAlchemicalFactory`/`AlchemicalState` and swept `lamb
 smooth potential decoupling (−21→+32 kcal/mol = the dU/dλ). **T1 needs no new dependency.** T2 needs an NNP
 (none installed) and is the speed/accuracy optimization, not a prerequisite.
 
+**T1-charged charging leg run + linear-response confirmed (E322 Part B, `scripts/e322_t1charged_partB_...`):**
+the electrostatic-decoupling leg runs end-to-end with real Langevin sampling + MBAR in `openmm-env`, and the
+**cheapness claim is now measured, not assumed**: a 3-λ-window schedule agrees with a dense 11-window schedule
+to **0.14 kcal/mol** → linear response holds → ~3 windows suffice for charged-only, the basis of the
+~10–50× saving over full ABFE. (The sampled number annihilates *all* partial charges; reproducing a real
+peptide ΔΔG against explicit water is still G1-full.)
+
+**Decomposition validated (E322 Part A):** a scorer calibrated on neutral complexes (Ram's "special calibrated
+fast_scorer") has a charged residual that is sizeable (1.79 kcal) and mostly shape-orthogonal (mean shape-corr
+0.09) → `ΔG = scorer_neut + charge_leg` is a clean split. The residual is only weakly charge-*indexed*
+(r=−0.16 vs |q|), i.e. it is per-complex, **not** a |q| table — confirming the leg must sample. Architecture:
+run scorer_neut under `--ultra` smoothing, add the sampled charge leg for the top-K only.
+
+**N2 partial win — cheap ensemble already carries some of it (E318):** LIE's electrostatic term is β·⟨V_elec⟩
+over an ensemble. Computed over RAPiDock's generative pose cloud (no MD), ⟨V_elec⟩ tracks the charged residual
+at r=−0.37 (charged subset) and lifts LOO r 0.501→0.552. Underpowered (n=24) but the first signal to beat the
+single-structure floor → **G2-precursor**: before full FEP, test whether a large charged pose-cloud set
+(e93+e95 on disk = 151 clouds; PPIKB would need GPU generation) confirms ⟨V_elec⟩/Var(V_elec) as a no-MD
+surrogate for the reorganization.
+
+**N5 triage flag (E321):** frustration = |Coulomb|·desolvation predicts the *magnitude* of the charged error
+(Spearman −0.545, perm-p=0.000, held-out 3.4× separation) → route only high-error charged complexes to the FEP
+leg. Shippable as a per-complex "charged-confidence" flag independent of the FEP build.
+
 ## T1 architecture (the buildable path)
 ```
   dock (fast, current) → top-K candidate poses on the target
