@@ -323,6 +323,20 @@ Born term can't see it. **Conclusion: the mutation cycle is thermodynamically co
 flag into dock (charged_confidence CSV column). Charged-cloud GPU campaigns e323/e324/e326 still running for the
 Var(V_elec) large-n test + geometry data. Reproduce: `scripts/e325_n2_at_scale.py`, `scripts/e327_neutralization_ddg.py`.
 
+**E328 — Ram's mutation idea refined into a literature-grounded protocol + explicit-water derivative demo.**
+Ram's `--ultra`-for-charged idea (mutate charged↔neutral variants, score, work back from differences; per-mutant
+MD with explicit water; monitor the derivative on the charges; gather all values) maps piece-for-piece onto named
+methods: **TI** (Kirkwood — "the derivative" = ⟨∂U/∂λ⟩), **pmx** nonequilibrium peptide-mutation FEP with TIP3P
+(Gapsys & de Groot), **MSλD** (Knight & Brooks — "make many mutants, gather all values in ONE simulation", 20–50×
+faster, r=0.914 on 32 mutations), **MBAR**, **LIE** (β=0.5). Two corrections: (1) the differences must come from
+the MD, not our charge-blind scorer (E313/E327); (2) charged→neutral changes NET CHARGE → mandatory
+Rocklin/Hünenberger finite-size correction (up to ~4 kcal artifact) or co-alchemical balancing. `--ultra` (cheap
+smoothing, no signal) is the wrong home; the charged path is GPU-hours behind `--charged-refine`/`--fep-refine`.
+**Mechanism demo (E328):** an explicit-TIP3P (2269 atoms, PME) charging leg monitors ⟨∂U/∂λ⟩ = +10.3→+37.5
+kcal/mol across λ 1→0, a finite/smooth/integrable derivative (∫≈+26 kcal charging, short/unconverged) — the
+reorganisation signal every static term missed, because this one samples the water. Full design:
+`docs/refined_mutation_fep_design_2026-07-07.md`; `scripts/e328_explicit_water_ti.py`.
+
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); built at age 15.
 
 ---
