@@ -356,6 +356,38 @@ def rank_score_complex(
     return float(bundle["model"].predict(vec)[0])
 
 
+#: rank_score spread (std over a candidate panel) below which ranking is treated as low-confidence.
+#: Calibrated on the 865-set (E310): HIGH-conf targets averaged ranking ρ≈+0.71 (100% correct direction),
+#: LOW-conf averaged ρ≈+0.12. Label-free — computed from the model's own predictions.
+RANK_CONFIDENCE_SPREAD_THRESHOLD: float = 0.40
+
+
+def ranking_confidence(rank_scores: list[float] | np.ndarray) -> tuple[str, float]:
+    """Label-free confidence that ``rank_score`` can rank a candidate panel on this target (E310).
+
+    The model's prediction *spread* across the panel is the signal: if the candidates get near-identical
+    rank_scores the model cannot discriminate them; if the scores spread out, the ordering is trustworthy.
+    On the 865-set this spread correlates with per-target ranking Spearman at r≈+0.48.
+
+    IMPORTANT — the flag is CONSERVATIVE, not symmetric: ``"high"`` means the ranking is reliable (100%
+    correct direction in validation, mean ρ≈+0.71). ``"low"`` means *uncertain* — it may still rank fine
+    (e.g. a panel of near-identical tight binders has a small spread yet a correct order); it is a "verify
+    in the wet lab" signal, NOT a prediction that ranking will fail.
+
+    Args:
+        rank_scores: the ``rank_score`` values for the candidate panel (e.g. each peptide's best-pose value).
+
+    Returns:
+        ``(flag, spread)`` where flag is ``"high"`` or ``"low"`` and spread is the population std. Fewer than
+        two finite scores returns ``("low", 0.0)`` (nothing to rank).
+    """
+    vals = np.asarray([v for v in rank_scores if v is not None and np.isfinite(v)], dtype=float)
+    if vals.size < 2:
+        return "low", 0.0
+    spread = float(vals.std())
+    return ("high" if spread >= RANK_CONFIDENCE_SPREAD_THRESHOLD else "low"), spread
+
+
 def score_crystal_complex(
     receptor_pdb: str | Path,
     peptide_pdb: str | Path,
