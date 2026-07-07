@@ -25,8 +25,10 @@ PLAT = mm.Platform.getPlatformByName("CUDA")
 
 def build(chains):
     top, pos = prep(chains)
+    # MUTUAL polarization is essential: the buried-ion-pair stabilisation is the self-consistent induced-dipole
+    # response (JACS 2022). 'direct' (one-shot) misses it — E340-direct gave +1.04, an artifact.
     system = app.ForceField("amoeba2018.xml", "amoeba2018_gk.xml").createSystem(
-        top, nonbondedMethod=app.NoCutoff, polarization="direct")   # 'direct' = faster than 'mutual'
+        top, nonbondedMethod=app.NoCutoff, polarization="mutual", mutualInducedTargetEpsilon=1e-5)
     alch = asp_atoms(top)
     mp = next(system.getForce(i) for i in range(system.getNumForces())
               if system.getForce(i).__class__.__name__ == "AmoebaMultipoleForce")
