@@ -87,14 +87,13 @@ def confinement_dG(pdb, pep_chain, rec_chains, kind, n_equil=2000, n_samp=40, n_
     rec_ca = [a.index for a in atoms if a.residue.chain.id != pep_chain and a.name == "CA"]
     if not pep_heavy:
         raise RuntimeError("no peptide heavy atoms")
-    # harmonic restraint toward a per-atom reference (set to the equilibrated mean); global k as a parameter
-    force = mm.CustomExternalForce("0.5*kconf*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-    force.addGlobalParameter("kconf", 0.0)
-    for p in ("x0", "y0", "z0"):
-        force.addPerParticleParameter(p)
+    # RMSD restraint (best-fit → removes rigid-body translation/rotation, so we confine INTERNAL config only).
+    # U_r = 0.5*kconf*rmsd^2 ; integrand ⟨U_r⟩ over the k-ladder → internal configurational confinement free energy.
     p0 = np.array(pos.value_in_unit(unit.nanometer))
-    for i in pep_heavy:
-        force.addParticle(i, [p0[i][0], p0[i][1], p0[i][2]])
+    rmsd = mm.RMSDForce(pos, pep_heavy)
+    force = mm.CustomCVForce("0.5*kconf*rmsd^2")
+    force.addCollectiveVariable("rmsd", rmsd)
+    force.addGlobalParameter("kconf", 0.0)
     system.addForce(force)
     # pin receptor rigidly (strong wall) so 'bound' = peptide fluctuating in a fixed pocket
     if kind == "bound" and rec_ca:
@@ -108,24 +107,21 @@ def confinement_dG(pdb, pep_chain, rec_chains, kind, n_equil=2000, n_samp=40, n_
     integ = mm.LangevinMiddleIntegrator(300 * unit.kelvin, 1 / unit.picosecond, 2 * unit.femtosecond)
     ctx = mm.Context(system, integ, PLAT); ctx.setPositions(pos)
     mm.LocalEnergyMinimizer.minimize(ctx, maxIterations=500)
-    # equilibrate at low k, then set reference to current coords (the state's own basin mean)
+    # TI over ln(k): for a harmonic restraint U_r ∝ k, dU_r/d(ln k) = U_r, so ΔG_conf = ∫⟨U_r⟩ d(ln k).
+    # RMSD auto-aligns → ⟨U_r⟩ reflects INTERNAL fluctuation only (no drift blow-up). Free peptide fluctuates
+    # more internally than the pocket-confined bound peptide → larger ΔG_conf(free) → TΔS_config > 0.
     ctx.setParameter("kconf", KLADDER[0]); integ.step(n_equil)
-    cur = ctx.getState(getPositions=True).getPositions(asNumpy=True).value_in_unit(unit.nanometer)
-    for j, i in enumerate(pep_heavy):
-        force.setParticleParameters(j, i, [cur[i][0], cur[i][1], cur[i][2]])
-    force.updateParametersInContext(ctx)
-    # TI over ln(k): <dU/dln k> = <0.5*k*Σr²> = k*<U_restraint/k>... compute ⟨restraint energy⟩ per k
     lnk, meanU = [], []
     for k in KLADDER:
         ctx.setParameter("kconf", k); integ.step(n_equil // 2)
-        us = []
+        r2 = []
         for _ in range(n_samp):
             integ.step(n_stride)
-            e = ctx.getState(getEnergy=True, groups={force.getForceGroup()}).getPotentialEnergy().value_in_unit(KJ)
-            us.append(e)
-        lnk.append(np.log(k)); meanU.append(np.mean(us))    # ⟨U_r⟩; dU/dlnk = ⟨U_r⟩ for harmonic (U_r ∝ k)
+            rv = force.getCollectiveVariableValues(ctx)[0]     # rmsd in nm (rigid-body-aligned = internal only)
+            r2.append(rv * rv)
+        lnk.append(np.log(k)); meanU.append(0.5 * k * float(np.mean(r2)))   # ⟨U_r⟩ = 0.5 k ⟨rmsd²⟩ (kJ/mol)
     _trap = getattr(np, "trapezoid", None) or np.trapz
-    dG = float(_trap(np.array(meanU), np.array(lnk)))        # ∫⟨U_r⟩ dlnk  (kJ/mol), the confinement free energy
+    dG = float(_trap(np.array(meanU), np.array(lnk)))        # ∫⟨U_r⟩ dlnk (kJ/mol), the confinement free energy
     return dG * KCAL, len(pep_heavy)
 
 
