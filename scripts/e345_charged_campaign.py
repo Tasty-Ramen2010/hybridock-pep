@@ -24,6 +24,7 @@ sys.path.insert(0, "/home/igem/unknown_software/scripts")
 from e334_skempi_validation import build, deriv_curve, fetch
 from e343_ecc_scaling import apply_ecc
 from e332_g1_charged_corrected import rocklin_correction
+from e346_qm_cluster import qm_ddg
 import e344_implicit_charged as gbmod
 from openmm import unit
 
@@ -103,15 +104,24 @@ def gb_case(tag, mut):
 
 
 def metrics(pairs):
-    """pairs = list of (calc, exp). Returns r, MAE, RMSE, n."""
+    """pairs = list of (calc, exp). r/MAE/RMSE raw, plus leave-one-out linearly-calibrated MAE/RMSE (fair across
+    methods with different scales — like LIE's fitted β; a linear map doesn't change Pearson r)."""
     pairs = [(c, e) for c, e in pairs if c is not None and np.isfinite(c)]
     if len(pairs) < 3:
-        return {"n": len(pairs), "r": None, "MAE": None, "RMSE": None}
+        return {"n": len(pairs), "r": None, "MAE": None, "RMSE": None, "MAE_cal": None, "RMSE_cal": None}
     c = np.array([p[0] for p in pairs]); e = np.array([p[1] for p in pairs])
     from scipy.stats import pearsonr
+    loo = []
+    for i in range(len(c)):
+        tr = np.ones(len(c), bool); tr[i] = False
+        a, b = np.polyfit(c[tr], e[tr], 1)          # fit exp ~ a*calc + b on the other n-1
+        loo.append(a * c[i] + b)
+    loo = np.array(loo)
     return {"n": len(pairs), "r": round(float(pearsonr(c, e)[0]), 3),
             "MAE": round(float(np.mean(np.abs(c - e))), 3),
-            "RMSE": round(float(np.sqrt(np.mean((c - e) ** 2))), 3)}
+            "RMSE": round(float(np.sqrt(np.mean((c - e) ** 2))), 3),
+            "MAE_cal": round(float(np.mean(np.abs(loo - e))), 3),
+            "RMSE_cal": round(float(np.sqrt(np.mean((loo - e) ** 2))), 3)}
 
 
 def main():
@@ -126,7 +136,8 @@ def main():
             rec["conf"] = {"ok": False, "reason": f"conf-err:{str(e)[:40]}", "high": False}
         for name, fn in (("explicit", lambda: explicit_pair(tag, mut, False)),
                          ("ecc", lambda: explicit_pair(tag, mut, True)),
-                         ("gb", lambda: gb_case(tag, mut))):
+                         ("gb", lambda: gb_case(tag, mut)),
+                         ("qm", lambda: qm_ddg(tag, mut)[0])):
             t = time.time()
             try:
                 rec[name] = round(fn(), 3)
@@ -142,16 +153,26 @@ def main():
     # metrics
     print(f"\n=== METRICS (wall {(time.time()-t0)/60:.0f} min) ===")
     summary = {}
-    for name in ("explicit", "ecc", "gb"):
+    for name in ("explicit", "ecc", "gb", "qm"):
         allp = [(r.get(name), r["exp"]) for r in results]
         hip = [(r.get(name), r["exp"]) for r in results if r["conf"].get("high")]
         summary[name] = {"all": metrics(allp), "high_conf": metrics(hip)}
-        a, h = summary[name]["all"], summary[name]["high_conf"]
-        print(f"{name:9s} ALL  n={a['n']:2d} r={a['r']}  MAE={a['MAE']}  RMSE={a['RMSE']}   |  "
-              f"HIGH-CONF n={h['n']:2d} r={h['r']}  MAE={h['MAE']}  RMSE={h['RMSE']}")
+        a = summary[name]["all"]
+        print(f"{name:9s} ALL n={a['n']:2d}  r={a['r']}  MAE={a['MAE']} RMSE={a['RMSE']}  |  "
+              f"calibrated MAE={a['MAE_cal']} RMSE={a['RMSE_cal']}")
+    # ECC⊕QM router: salt-bridge cases → ECC; buried/no-cation (1IAR class) → QM. The proposed --ultra-charged.
+    router = []
+    for r in results:
+        pick = r.get("ecc") if r["conf"].get("high") else r.get("qm")
+        if pick is not None:
+            router.append((pick, r["exp"]))
+    summary["router_ecc_qm"] = metrics(router)
+    rt = summary["router_ecc_qm"]
+    print(f"{'ROUTER':9s} ALL n={rt['n']:2d}  r={rt['r']}  MAE={rt['MAE']} RMSE={rt['RMSE']}  |  "
+          f"calibrated MAE={rt['MAE_cal']} RMSE={rt['RMSE_cal']}   (ECC for salt-bridge, QM for buried)")
     json.dump({"results": results, "summary": summary}, open(OUT, "w"), indent=1)
     print(f"\nwrote {OUT}")
-    print("The --ultra-charged engine is ECC-explicit; report its HIGH-CONF row as the validated charged tier.")
+    print("--ultra-charged = ROUTER (ECC-explicit for salt-bridge cases, GFN2-xTB QM for buried/H-bond cases).")
 
 
 if __name__ == "__main__":
