@@ -23,10 +23,12 @@
 
 > ### The claims, up front — measured in kcal/mol, leakage-free
 >
-> **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer.**
-> On absolute cross-target peptide affinity it reaches **MAE ≈ 1.4 kcal/mol** under a rigorous 60%-sequence-identity
-> clustered split (the honest, leakage-free regime) — competitive with FEP/LIE *magnitude* at ~1000× lower cost and
-> with **no reference peptide required** ([the claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)).
+> **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer — with FEP-competitive
+> absolute error.**
+> On absolute cross-target peptide affinity it reaches **MAE ≈ 1.3–1.4 kcal/mol** under a rigorous 60%-sequence-identity
+> clustered split (the honest, leakage-free regime) — squarely inside the **ABFE (absolute FEP) accuracy band of
+> ~1.2–2.5 kcal/mol**, i.e. **FEP-competitive on absolute-ΔG error**, at ~1000× lower cost and with **no reference
+> peptide required** ([the claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)).
 >
 > **②  It beats a faithful clone of PPI-Affinity — the previous best published ML peptide scorer — on the identical
 > leakage-free split**, on *every* metric, with the margin **widening** once leakage is removed:
@@ -174,7 +176,9 @@ Santos & Sousa, *J. Comput. Chem.* 47:5). No slower method that also emits a cal
   — the lane HybriDock-Pep occupies.
 
 So the honest superlative is not "beats FEP" (nothing cheap does) — it is: **the best and fastest non-FEP/LIE
-protein–peptide ΔG scorer with a reproducible, leakage-free benchmark to stand on.**
+protein–peptide ΔG scorer with a reproducible, leakage-free benchmark to stand on — at FEP-competitive absolute
+error** (MAE ~1.3–1.4 kcal/mol, inside the ABFE ~1.2–2.5 kcal/mol band), for ~1000× less compute and with no
+reference peptide required.
 
 ### Why absolute cross-target affinity is hard for everyone (FEP included)
 
