@@ -54,6 +54,10 @@ class DockConfig(BaseModel):
     # feature-jittered evaluations to reduce ranking variance (~+2 pts within-target pairwise). It does
     # NOT improve absolute-ΔG accuracy; it makes scoring ~ultra× slower. Opt-in via --ultra.
     ultra: int = 0
+    # --ultra is the umbrella accuracy mode: when >0 it auto-enables MM-GBSA refine + interaction entropy on the
+    # top poses and (if the peptide carries D/E/K/R) the charged-residue correction below. ultra_charged is set by
+    # auto-detection from the sequence, or forced on via --ultra-charged.
+    ultra_charged: bool = False
     # Geometry+Vina ensemble ΔG (scoring/ensemble.py). Off by default; opt-in via --ensemble.
     compute_ensemble: bool = False
     ensemble_calibration: Path | None = None
