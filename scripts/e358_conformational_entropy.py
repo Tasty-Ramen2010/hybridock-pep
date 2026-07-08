@@ -93,11 +93,16 @@ def _build(pdb, chains, pep_chain, bound):
             if a.residue.chain.id != pep_chain and a.name == "CA":
                 wall.addParticle(a.index, [p0[a.index][0], p0[a.index][1], p0[a.index][2]])
         system.addForce(wall)
-    # index the peptide backbone (φ/ψ) and χ1 atoms
+    # index the peptide backbone (φ/ψ) and χ1 atoms, keyed by peptide-LOCAL ordinal (consistent free vs bound)
+    pep_res_order = []
+    for r in fx.topology.residues():
+        if r.chain.id == pep_chain:
+            pep_res_order.append(r.index)
+    ord_of = {ridx: k for k, ridx in enumerate(pep_res_order)}
     res_atoms = {}
     for a in fx.topology.atoms():
         if a.residue.chain.id == pep_chain:
-            res_atoms.setdefault((a.residue.index, a.residue.name), {})[a.name] = a.index
+            res_atoms.setdefault((ord_of[a.residue.index], a.residue.name), {})[a.name] = a.index
     return ff, fx.topology, fx.positions, system, res_atoms
 
 
@@ -119,7 +124,7 @@ def _dihedral_defs(res_atoms):
     return defs
 
 
-def sample_dihedrals(pdb, chains, pep_chain, bound, n_equil=20000, n_frames=200, n_stride=200):
+def sample_dihedrals(pdb, chains, pep_chain, bound, n_equil=30000, n_frames=300, n_stride=200):
     ff, top, pos, system, res_atoms = _build(pdb, chains, pep_chain, bound)
     defs = _dihedral_defs(res_atoms)
     if not defs:
