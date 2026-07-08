@@ -22,7 +22,25 @@ from pathlib import Path
 from Bio.PDB import PDBParser, PDBIO
 sys.path.insert(0, "/home/igem/unknown_software/scripts")
 from e334_skempi_validation import fetch, ChainSel
-from e230_rism_pilot import parse_exchem
+
+
+def _isnum(t):
+    try:
+        float(t); return True
+    except ValueError:
+        return False
+
+
+def parse_exchem(stdout):
+    """Total excess chemical potential (solvation free energy, kcal/mol) from rism3d.snglpnt stdout."""
+    val = np.nan
+    for line in stdout.splitlines():
+        s = line.strip()
+        if s.startswith("rism_excessChemicalPotential"):
+            toks = [t for t in s.split()[1:] if _isnum(t)]
+            if toks:
+                val = float(toks[0])
+    return val
 
 AMBER = Path("/home/igem/miniconda3/envs/ambertools")
 RISM = AMBER / "bin" / "rism3d.snglpnt"; TLEAP = AMBER / "bin" / "tleap"; PDB4AMBER = AMBER / "bin" / "pdb4amber"
@@ -82,7 +100,7 @@ def state_energy(tag, mut, kind, charged):
                         "--xvv", str(XVV), "--closure", "kh", "--buffer", "10", "--grdspc", "0.5,0.5,0.5",
                         "--tolerance", "1e-4"], env=ENV, capture_output=True, timeout=4000, cwd=wd, text=True)
     exchem = parse_exchem(p.stdout)
-    if exchem is None:
+    if exchem is None or np.isnan(exchem):
         raise RuntimeError(f"RISM failed rc={p.returncode}: {p.stderr[-200:]}")
     return gas_mm(prm, rst) + exchem
 
