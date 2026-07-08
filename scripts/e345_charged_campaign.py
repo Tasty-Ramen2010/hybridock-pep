@@ -31,16 +31,17 @@ MORPHS = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]   # 9 windows (
 OUT = "/home/igem/unknown_software/data/e345_charged_campaign.json"
 _trap = getattr(np, "trapezoid", None) or np.trapz
 
-# (tag, mutation, exp ΔΔG) — 22 clean isosteric charge-neutralizing cases from the SKEMPI scan
+# (tag, mutation, exp ΔΔG) — 22 STRUCTURE-VERIFIED isosteric charge-neutralizing cases (SKEMPI Mutation(s)_PDB
+# numbering — matches PDB author residue IDs; the _cleaned column is renumbered and morphs the wrong residue).
 CASES = [
-    ("1AO7_ABC_DE", "DD93N", 2.46), ("1BD2_ABC_DE", "DD30N", 1.94), ("1BRS_A_D", "EA71Q", 1.45),
-    ("1CHO_EFG_I", "EI16Q", 1.32), ("1E96_A_B", "DA38N", 2.16),   ("1IAR_A_B", "EA9Q", 3.11),
-    ("1K8R_A_B", "DA38N", 1.97),   ("1KTZ_A_B", "DB8N", 2.00),    ("1KTZ_A_B", "EB95Q", 1.63),
-    ("1MAH_A_F", "DA71N", 1.88),   ("1NMB_N_LH", "DH57N", 2.95),  ("1PPF_E_I", "EI19Q", 0.65),
-    ("1R0R_E_I", "EI14Q", 1.26),   ("2JEL_LH_P", "EP5Q", 0.71),   ("2PCB_A_B", "EA32Q", 0.61),
-    ("2PCB_A_B", "EA35Q", 0.68),   ("2PCB_A_B", "DA34N", 0.82),   ("3HFM_HL_Y", "DY101N", 1.49),
-    ("4NKQ_C_AB", "DB176N", 1.80), ("4NM8_ABCDEF_HL", "DB19N", 0.66), ("4RS1_A_B", "EA88Q", 0.86),
-    ("4RS1_A_B", "DA92N", 1.33),
+    ("1AO7_ABC_DE", "DD99N", 2.46), ("1BD2_ABC_DE", "DD30N", 1.94), ("1BRS_A_D", "EA73Q", 1.45),
+    ("1CHO_EFG_I", "EI19Q", 1.32),  ("1E96_A_B", "DA38N", 2.16),    ("1IAR_A_B", "EA9Q", 3.11),
+    ("1K8R_A_B", "DA38N", 1.97),    ("1KTZ_A_B", "DB32N", 2.00),    ("1KTZ_A_B", "EB119Q", 1.63),
+    ("1MAH_A_F", "DA74N", 1.88),    ("1NMB_N_LH", "DH56N", 2.95),   ("1PPF_E_I", "EI19Q", 0.65),
+    ("1R0R_E_I", "EI19Q", 1.26),    ("2JEL_LH_P", "EP5Q", 0.71),    ("2PCB_A_B", "DA34N", 0.82),
+    ("2PCB_A_B", "EA32Q", 0.61),    ("2PCB_A_B", "EA35Q", 0.68),    ("3HFM_HL_Y", "DY101N", 1.49),
+    ("4NKQ_C_AB", "DB281N", 1.80),  ("4NM8_ABCDEF_HL", "DB19N", 0.66), ("4RS1_A_B", "DA112N", 1.33),
+    ("4RS1_A_B", "EA108Q", 0.86),
 ]
 ACID_SIDE = {"D": ("OD1", "OD2"), "E": ("OE1", "OE2")}
 CATION = {"ARG": ("NH1", "NH2", "NE"), "LYS": ("NZ",), "HIS": ("ND1", "NE2")}
@@ -54,13 +55,12 @@ def confidence(tag, mut):
     st = PDBParser(QUIET=True).get_structure(pdb, fetch(pdb))[0]
     if ch not in st:
         return {"ok": False, "reason": "chain-missing", "high": False}
-    try:
-        res = next(r for r in st[ch] if r.id[1] == resid and r.get_resname()[0] == ("A" if wt == "?" else wt))
-    except StopIteration:
-        try:
-            res = next(r for r in st[ch] if r.id[1] == resid)
-        except StopIteration:
-            return {"ok": False, "reason": "resid-missing", "high": False}
+    want = {"D": "ASP", "E": "GLU"}.get(wt)
+    res = next((r for r in st[ch] if r.id[1] == resid and r.get_resname().strip() == want), None)
+    if res is None:
+        res = next((r for r in st[ch] if r.id[1] == resid), None)
+    if res is None:
+        return {"ok": False, "reason": "resid-missing", "high": False}
     carbox = [a for a in res if a.name in ACID_SIDE.get(wt, ())]
     if not carbox:
         return {"ok": False, "reason": "no-carboxylate", "high": False}
