@@ -100,7 +100,7 @@ def features(tag, mut, exp):
         _iso_cache[key] = _iso_chain_sasa(st, ch)
         _sasa_done.add(key)
     sasa_free = _iso_cache[key].get(resid, sasa_cplx)
-    buried = round(1.0 - sasa_cplx / sasa_free, 3) if sasa_free > 1 else 0.0
+    buried = round(float(1.0 - sasa_cplx / sasa_free), 3) if sasa_free > 1 else 0.0
     return {"tag": tag, "mut": mut, "exp": exp,
             "wt_charge": wt_q, "mut_charge": CHARGE.get(mt, 0), "dq": CHARGE.get(mt, 0) - wt_q,
             "d_volume": round(VOL.get(mt, 110) - VOL.get(wt, 110), 1),
