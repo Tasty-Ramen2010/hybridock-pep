@@ -47,22 +47,43 @@ class _Sel(Select):
     def accept_residue(self, r): return r.id[0] == " "
 
 
+def _compo_sim(a, b):
+    """Composition cosine similarity of two sequences (order-independent — robust to cyclic/scrambled numbering)."""
+    from collections import Counter
+    ca, cb = Counter(a), Counter(b)
+    keys = set(ca) | set(cb)
+    va = np.array([ca[k] for k in keys]); vb = np.array([cb[k] for k in keys])
+    d = (np.linalg.norm(va) * np.linalg.norm(vb))
+    return float(va @ vb / d) if d else 0.0
+
+
 def find_chains(pdb, seq):
+    """Peptide chain = best sequence match (positional OR composition, robust to cyclic/scrambled); receptor =
+    all OTHER chains with >=4 residues (excludes lone-residue crystallization artifacts like a free PRO)."""
     st = _P.get_structure(pdb, fetch(pdb))[0]
-    seq = seq.upper(); pep = None
+    seq = seq.upper()
+    chains = []
     for ch in st:
         res = [r for r in ch if r.id[0] == " "]
         try:
             cs = "".join(seq1(r.get_resname()) for r in res)
         except Exception:
+            cs = ""
+        chains.append((ch.id, cs, len(res)))
+    # score each chain as a peptide candidate
+    best, best_score = None, 0.0
+    for cid, cs, nres in chains:
+        if not cs:
             continue
         n = min(len(cs), len(seq))
-        if cs and (seq in cs or cs in seq or (n and sum(cs[i] == seq[i] for i in range(n)) / max(len(cs), len(seq)) > 0.7)):
-            pep = ch.id
-    if pep is None:
+        pos = (sum(cs[i] == seq[i] for i in range(n)) / max(len(cs), len(seq))) if n else 0.0
+        score = max(1.0 if (seq in cs or cs in seq) else 0.0, pos, _compo_sim(cs, seq) if abs(len(cs) - len(seq)) <= 4 else 0.0)
+        if score > best_score:
+            best, best_score = cid, score
+    if best is None or best_score < 0.6:
         return None
-    rec = "".join(sorted(ch.id for ch in st if ch.id != pep and any(r.id[0] == " " for r in ch)))
-    return (pep, rec) if rec else None
+    rec = "".join(sorted(cid for cid, cs, nres in chains if cid != best and nres >= 4))   # drop tiny artifact chains
+    return (best, rec) if rec else None
 
 
 def _dihedral(p):

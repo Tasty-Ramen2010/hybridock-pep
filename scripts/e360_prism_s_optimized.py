@@ -57,14 +57,12 @@ def _build_hmr(pdb, chains, pep_chain, bound):
                              hydrogenMass=4 * unit.amu)          # HMR → 4 fs
     p0 = np.array(fx.positions.value_in_unit(unit.nanometer))
     if bound:
-        wall = mm.CustomExternalForce("0.5*kw*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-        wall.addGlobalParameter("kw", 50000.0)
-        for q in ("x0", "y0", "z0"):
-            wall.addPerParticleParameter(q)
+        # SPEEDUP: freeze the whole receptor (mass=0 → not integrated). Only the peptide moves, so bound MD cost is
+        # ~independent of receptor size. The peptide's dihedral entropy is its flexibility against a fixed pocket —
+        # a rigid-receptor approximation that is consistent free↔bound and gives the large-receptor speedup.
         for a in fx.topology.atoms():
-            if a.residue.chain.id != pep_chain and a.name == "CA":
-                wall.addParticle(a.index, [p0[a.index][0], p0[a.index][1], p0[a.index][2]])
-        system.addForce(wall)
+            if a.residue.chain.id != pep_chain:
+                system.setParticleMass(a.index, 0.0)
     pep_res_order = [r.index for r in fx.topology.residues() if r.chain.id == pep_chain]
     ord_of = {ridx: k for k, ridx in enumerate(pep_res_order)}
     res_atoms = {}
