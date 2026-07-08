@@ -97,10 +97,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="K",
         help=(
-            "Ultra ranking mode: compute rank_score as the mean of K feature-jittered evaluations "
-            "(randomized smoothing, E314). Reduces within-target ranking variance (~+2 pts pairwise) at "
-            "~K× the scoring cost. Bare --ultra uses K=32. Does NOT improve absolute-ΔG accuracy — it "
-            "refines the rank_score ordering only."
+            "Ultra ACCURACY mode (K = smoothing depth, default 32). Runs the full high-certainty stack: "
+            "(1) randomized-smoothing rank (E314, K jittered evals) to pick the best poses, then on those "
+            "poses (2) MM-GBSA refinement + (3) interaction-entropy −TΔS for absolute ΔG, and (4) if the "
+            "peptide carries D/E/K/R, an auto-detected charged-residue correction (ECC-FEP for salt bridges, "
+            "GFN2-xTB QM for buried/H-bonded contacts). Expensive; this is the verification tier. Requires "
+            "OpenMM (and the qm-env xtb binary for charged peptides)."
         ),
     )
     p_dock.add_argument(
@@ -419,6 +421,17 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         )
     n_samples = args.n_samples if args.n_samples is not None else 100
 
+    # --ultra is the umbrella ACCURACY mode: auto-enable MM-GBSA refine (top-K) + interaction entropy, and
+    # auto-detect charged residues → charged-residue correction. Expert flags still work standalone.
+    eff_refine_topk = args.refine_topk
+    eff_mmgbsa_ie = args.mmgbsa_ie
+    peptide_is_charged = any(a in "DEKR" for a in args.peptide.upper())
+    eff_ultra_charged = args.ultra_charged or (args.ultra > 0 and peptide_is_charged)
+    if args.ultra > 0:
+        if eff_refine_topk is None:
+            eff_refine_topk = 10          # default: refine the top-10 cluster reps with MM-GBSA
+        eff_mmgbsa_ie = True              # entropy term is part of the accuracy stack
+
     # DockConfig is the single validation gate — raises ValidationError on bad input
     try:
         config = DockConfig(
@@ -432,10 +445,11 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             output_dir=Path(args.output_dir).resolve(),
             verbosity=args.verbose,
             minimize_poses=not args.no_minimize,
-            refine_topk=args.refine_topk,
+            refine_topk=eff_refine_topk,
             ultra=args.ultra,
+            ultra_charged=eff_ultra_charged,
             mmgbsa_cpu_only=args.mmgbsa_cpu_only,
-            mmgbsa_include_ie=args.mmgbsa_ie,
+            mmgbsa_include_ie=eff_mmgbsa_ie,
             mmgbsa_3traj=args.mmgbsa_3traj,
             mmgbsa_solute_dielectric=args.mmgbsa_dielectric,
             compute_ensemble=args.ensemble,

@@ -323,7 +323,13 @@ def run_dock(
     config.output_dir.resolve().mkdir(parents=True, exist_ok=True)
     write_metadata_skeleton(config, metadata_path)
 
+    # User-facing progress (clean plain-language stages). Enabled at default verbosity; -v users get full logs.
+    from hybridock_pep.output.progress import PipelineProgress, LABELS  # noqa: PLC0415
+    _n_stages = 4 + (1 if config.refine_topk is not None else 0) + (1 if config.ultra_charged else 0) + 1
+    prog = PipelineProgress(enabled=(config.verbosity == 0), total=_n_stages)
+
     # Stage 1: Sampling or bypass
+    prog.step(LABELS["sample"] if input_poses_dir is None else "Loading input poses")
     if input_poses_dir is not None:
         poses_dir = input_poses_dir.resolve()
         logger.info("Stage 1 bypassed: reading poses from %s", poses_dir)
@@ -394,6 +400,7 @@ def run_dock(
     config = _auto_expand_box_for_poses(config, records)
 
     # Stage 2a: Receptor prep (always required for Vina scoring)
+    prog.step(LABELS["prep"])
     receptor_pdbqt = prepare_receptor(config)
     logger.info("Receptor prepared: %s", receptor_pdbqt)
 
@@ -441,6 +448,7 @@ def run_dock(
         )
 
     # Stage 2d: Score Vina → (optional AD4) → entropy (order is mandatory)
+    prog.step(LABELS["score"])
     receptor_pdbqt_abs = receptor_pdbqt.resolve()
     scored_poses, vina_failures = score_vina_batch(
         scored_poses,
@@ -686,6 +694,7 @@ def run_dock(
     cluster_result: ClusterResult | None = None
 
     # Stage 3: Clustering and analysis
+    prog.step(LABELS["cluster"])
     if len(scored_poses) >= 2:
         from hybridock_pep.analysis import cluster_poses
         cluster_result = cluster_poses(scored_poses, config)
@@ -697,15 +706,27 @@ def run_dock(
     else:
         logger.warning("Stage 3 skipped: no scored poses to cluster")
 
-    # Stage 3.5: MM-GBSA refinement (optional, requires --refine-topk)
+    # Stage 3.5: MM-GBSA refinement (auto-enabled by --ultra; or explicit --refine-topk)
     if config.refine_topk is not None and cluster_result is not None:
+        prog.step(LABELS["refine"])
         from hybridock_pep.scoring.mmgbsa import refine_topk_poses  # noqa: PLC0415
         refine_topk_poses(scored_poses, cluster_result, config)
         n_refined = sum(1 for p in scored_poses if p.mmgbsa_dg is not None)
         logger.info("Stage 3.5 complete: %d poses have MM-GBSA ΔG", n_refined)
 
+    # Stage 3.7: charged-residue correction (auto-detected under --ultra when peptide carries D/E/K/R)
+    if config.ultra_charged:
+        prog.step(LABELS["charged"])
+        try:
+            from hybridock_pep.scoring.charged_fep import apply_charged_correction  # noqa: PLC0415
+            n_charged = apply_charged_correction(scored_poses, cluster_result, config)
+            prog.note(f"{n_charged} charged residue(s)")
+        except Exception as exc:  # never break the run on the correction tier
+            logger.warning("Charged correction skipped (%s)", exc)
+
     # Stage 3.6: PRIMARY affinity = the AI-pose model (always; the headline ΔG, no Vina/AD4).
     # The optional geometry+Vina ensemble blend is computed inside when --ensemble is set.
+    prog.step(LABELS["rank"])
     _apply_affinity(scored_poses, config)
 
     # Finalize metadata AFTER scoring
@@ -717,4 +738,5 @@ def run_dock(
     if cluster_result is not None:
         write_best_pose_pdb(cluster_result, config, scored_poses)
 
+    prog.finish()
     return scored_poses, cluster_result
