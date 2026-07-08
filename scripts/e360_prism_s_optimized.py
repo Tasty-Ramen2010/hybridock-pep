@@ -53,16 +53,23 @@ def _build_hmr(pdb, chains, pep_chain, bound):
     fx.findNonstandardResidues(); fx.replaceNonstandardResidues(); fx.removeHeterogens(keepWater=False)
     fx.findMissingAtoms(); fx.addMissingAtoms(); fx.addMissingHydrogens(7.0)
     ff = app.ForceField("amber14-all.xml", "implicit/gbn2.xml")
-    system = ff.createSystem(fx.topology, nonbondedMethod=app.NoCutoff, constraints=app.HBonds,
-                             hydrogenMass=4 * unit.amu)          # HMR → 4 fs
+    # SPEEDUP that actually works: a nonbonded CUTOFF (1.5 nm) cuts the per-step cost from N² to ~N·cutoff — the
+    # real bottleneck for large receptors (freezing atoms doesn't help; forces are still computed). Entropy and the
+    # local Velec are short-ranged, so a 1.5 nm cutoff is fine. + HMR 4 fs.
+    system = ff.createSystem(fx.topology, nonbondedMethod=app.CutoffNonPeriodic,
+                             nonbondedCutoff=1.5 * unit.nanometer, constraints=app.HBonds, hydrogenMass=4 * unit.amu)
     p0 = np.array(fx.positions.value_in_unit(unit.nanometer))
     if bound:
-        # SPEEDUP: freeze the whole receptor (mass=0 → not integrated). Only the peptide moves, so bound MD cost is
-        # ~independent of receptor size. The peptide's dihedral entropy is its flexibility against a fixed pocket —
-        # a rigid-receptor approximation that is consistent free↔bound and gives the large-receptor speedup.
+        # stable Cα-pin (gave sane Velec −90.7): receptor Cα restrained, sidechains mobile → pocket accommodates the
+        # peptide, no clash-walls, no NaN.
+        wall = mm.CustomExternalForce("0.5*kw*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+        wall.addGlobalParameter("kw", 50000.0)
+        for q in ("x0", "y0", "z0"):
+            wall.addPerParticleParameter(q)
         for a in fx.topology.atoms():
-            if a.residue.chain.id != pep_chain:
-                system.setParticleMass(a.index, 0.0)
+            if a.residue.chain.id != pep_chain and a.name == "CA":
+                wall.addParticle(a.index, [p0[a.index][0], p0[a.index][1], p0[a.index][2]])
+        system.addForce(wall)
     pep_res_order = [r.index for r in fx.topology.residues() if r.chain.id == pep_chain]
     ord_of = {ridx: k for k, ridx in enumerate(pep_res_order)}
     res_atoms = {}
@@ -86,10 +93,11 @@ def sample_multiwindow(pdb, chains, pep_chain, bound, windows, ps):
         integ = mm.LangevinMiddleIntegrator(300 * unit.kelvin, 1 / unit.picosecond, 4 * unit.femtosecond)
         ctx = mm.Context(system, integ, PLATFORM, PROPS); ctx.setPositions(pos)
         mm.LocalEnergyMinimizer.minimize(ctx, maxIterations=500)
-        # diversify the start: brief 400 K kick then re-equilibrate at 300 K (basin escape)
-        integ.setTemperature(400 * unit.kelvin); ctx.setVelocitiesToTemperature(400 * unit.kelvin, w + 1)
-        integ.step(2500)
-        integ.setTemperature(300 * unit.kelvin); ctx.setVelocitiesToTemperature(300 * unit.kelvin, w + 7)
+        # diversify windows by independent velocity seeds at 300 K (stable; multi-window independence gives the
+        # basin sampling — no aggressive high-T kick that clashes the peptide into the pocket → no NaN).
+        integ.setTemperature(350 * unit.kelvin); ctx.setVelocitiesToTemperature(350 * unit.kelvin, 7 * w + 1)
+        integ.step(2500)                                    # gentle 350 K warm-up for basin diversity
+        integ.setTemperature(300 * unit.kelvin); ctx.setVelocitiesToTemperature(300 * unit.kelvin, 7 * w + 3)
         integ.step(equil_steps)
         ser = np.zeros((n_frames, len(defs)))
         for f in range(n_frames):
