@@ -40,8 +40,8 @@ def sample_bound_with_velec(pdb, chains, pep_chain, windows, ps):
         integ = mm.LangevinMiddleIntegrator(300 * unit.kelvin, 1 / unit.picosecond, 4 * unit.femtosecond)
         ctx = mm.Context(system, integ, e360.PLATFORM, e360.PROPS); ctx.setPositions(pos)
         mm.LocalEnergyMinimizer.minimize(ctx, maxIterations=500)
-        integ.setTemperature(400 * unit.kelvin); ctx.setVelocitiesToTemperature(400 * unit.kelvin, w + 1); integ.step(2500)
-        integ.setTemperature(300 * unit.kelvin); ctx.setVelocitiesToTemperature(300 * unit.kelvin, w + 7); integ.step(equil)
+        integ.setTemperature(350 * unit.kelvin); ctx.setVelocitiesToTemperature(350 * unit.kelvin, 7 * w + 1); integ.step(2500)
+        integ.setTemperature(300 * unit.kelvin); ctx.setVelocitiesToTemperature(300 * unit.kelvin, 7 * w + 3); integ.step(equil)
         ser = np.zeros((n_frames, len(defs)))
         for f in range(n_frames):
             integ.step(100)
