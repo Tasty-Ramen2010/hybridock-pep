@@ -104,6 +104,20 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_dock.add_argument(
+        "--ultra-charged",
+        action="store_true",
+        default=False,
+        help=(
+            "Ultra-charged mode: add a physics-based correction for the peptide's CHARGED residues, "
+            "which the fast scorer is blind to (the charged-ΔG wall). For each Asp/Glu/Lys/Arg in the "
+            "top pose it runs an ECC-scaled charge-morph FEP (electronic-continuum-corrected, explicit "
+            "TIP3P) for salt-bridge contacts, and a GFN2-xTB cluster QM correction for buried/H-bonded "
+            "contacts (routed by interface geometry). Expensive (~minutes/charged-residue on GPU); this "
+            "is the high-certainty verification tier, not the default. Validated on SKEMPI charge "
+            "mutations (see docs). Requires OpenMM + the qm-env xtb binary."
+        ),
+    )
+    p_dock.add_argument(
         "--mmgbsa-cpu-only",
         action="store_true",
         default=False,
