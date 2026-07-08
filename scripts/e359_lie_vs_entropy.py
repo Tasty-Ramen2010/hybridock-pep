@@ -42,9 +42,13 @@ def _lie_energy(x, pep_idx, rec_idx, q, sig, eps, cutoff=1.2):
     # prune receptor atoms near the peptide
     from scipy.spatial import cKDTree
     tree = cKDTree(xr)
-    near = np.unique(np.concatenate(tree.query_ball_point(xp, cutoff) + [[]]).astype(int)) if len(xp) else np.array([], int)
-    if len(near) == 0:
+    nb_lists = tree.query_ball_point(xp, cutoff)
+    near_set = set()
+    for lst in nb_lists:
+        near_set.update(lst)
+    if not near_set:
         return 0.0, 0.0
+    near = np.array(sorted(near_set), int)
     rj = xr[near]; qj = q[rec_idx][near]; sj = sig[rec_idx][near]; ej = eps[rec_idx][near]
     ve = vv = 0.0
     for a in range(len(pep_idx)):
