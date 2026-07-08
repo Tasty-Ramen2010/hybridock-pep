@@ -1796,6 +1796,53 @@ the one thing static cheap physics provably cannot recover.
 
 ---
 
+## Epoch 11 — the physics wall, mapped and closed honestly (2026-07-07 → 07-08, E322–E363)
+
+```
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  EPOCH 11 · "can better physics beat the fast scorer on absolute Kd?"      │
+  │  answer, from ~10 angles + ~60 literature searches:  NO — and here's WHY.  │
+  └──────────────────────────────────────────────────────────────────────────┘
+        charged FEP → ECC → RISM → QM → entropy → ensemble Velec → derivative
+             │          │       │      │      │          │             │
+          ±39→±0.7   halve   1BRS   1IAR  weak    charge-count    artifact
+          precision  error   sign   sign  ~0.15   artifact −0.84  KILLED→+0.13
+             └──────────── all the SAME wall ────────────────────┘  but signal
+                     (enthalpy-entropy compensation +               still weak
+                      cross-target error accumulation)
+```
+
+**The charged/physics arc (E322–E362).** Chased the "charged wall" through: alchemical charge-morph FEP (fixed the
+±39 catastrophic cancellation → ±0.7 precision, E332), ECC charge-scaling + GB continuum (each halved error, 1BRS
+buried-charge sign-flip via 3D-RISM — E343/E349), GFN2-xTB cluster QM (fixed 1IAR's buried Glu-Tyr sign where all
+classical methods failed — E346), conformational entropy (confinement then dihedral-MIE; audited 4 of our OWN
+implementation bugs — single-basin, Cartesian, implicit-solvent, undersampled — E354/E358), and the ensemble
+electrostatic. Ram's key insight: apply the difference-of-derivatives trick to the ensemble Velec (E362) — it
+**killed the charge-count artifact** (corr with n_charged −0.84 → +0.13) but the underlying signal stayed weak
+(−0.16), because the net binding electrostatic is *intrinsically small* (enthalpy-entropy compensation).
+
+**Why we "keep failing" — resolved (E-forensics + synthesis).** It's a **regime**, not a skill gap: FEP/LIE's ~1
+kcal / r≈0.8 is *relative, same-target* (errors CANCEL); *absolute cross-target* (our regime) has errors ACCUMULATE
+and is r≈0.15–0.55 for EVERYONE, FEP included. `--ultra` MM-GBSA as an absolute predictor = a **size artifact**
+(corr −0.72 with length; size-normalized dead). The forward lever is data + ML representation, not more physics
+(docs: `why_we_keep_failing_synthesis`, `where_we_stand_vs_lie_fep`, `absolute_kd_forensics`).
+
+**The honest scorecard (E330/E331, verified, leakage-free).** Absolute cross-target peptide ΔG, 60%-id clustered CV:
+- OURS full 925: **MAE 1.43 / RMSE 1.81 / r 0.263** (beats zero-skill MAE 1.47).
+- OURS vs PPI-Affinity clone, matched 865, identical split: **ours 1.33 / 1.66 / 0.391  vs  clone 1.44 / 1.82 /
+  0.231** — win on every metric, margin widens under the honest split (Δr +0.11 leaky → +0.16 clustered).
+- PPIKB independent set (885, different DB), leakage-free: **r 0.15 / MAE 2.07** — at the label-noise floor
+  (cross-DB disagreement r≈0.71, E301). Reported honestly, not hidden.
+- **Integrity fix:** corrected an earlier mislabel where the *leaky* random-CV r=0.446 was called "leakage-free";
+  the honest clustered number is r=0.263. MAE (stable ~1.3–1.4) is the headline metric; r is fragile/secondary.
+
+**To-do out of Epoch 11:** trajectory cache (E363, simulate-once/derive-offline) → per-residue ΔΔG *design* map for
+selectivity (the winnable relative regime) → data+representation expansion for absolute; surface a per-prediction
+confidence flag. Compete where physics wins (selectivity/ΔΔG), ship the honest absolute number + the wall as a
+documented scientific result.
+
+---
+
 *Generated from committed experiments E0–E304, plus the (unnumbered) Epoch 10 production-architecture work
 (2026-06-19). Epochs 1–5 detail in
 `docs/e19_pocket_baseline_breakthrough.md`; Epoch 6 in `docs/protdcal_charged_2026-06-13.md`,
