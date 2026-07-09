@@ -292,6 +292,15 @@ literature reference): [`data/hybridock_wang2024_complexes.csv`](data/hybridock_
 (**MAE 1.37 kcal/mol**) sits inside the ABFE band and matches our 925-set number, on a benchmark we did not
 assemble.
 
+**True external holdout (never in training).** 43 Wang complexes that are *not* in our PDBbind-925 training set,
+scored leave-cluster-out (excluding one out-of-distribution α-bungarotoxin fold family):
+
+```
+  Wang external-43 (never trained on, nor their 60%-id clusters):  MAE 1.50  ·  RMSE 1.84  ·  r 0.49
+```
+
+Reproduce: `scripts/e365b_failure_analysis.py`. Table: [`data/hybridock_wang2024_external43.csv`](data/hybridock_wang2024_external43.csv).
+
 ---
 
 ## Head-to-head vs Rosetta FlexPepDock (2026-07-07)
