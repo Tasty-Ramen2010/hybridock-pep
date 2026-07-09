@@ -182,3 +182,7 @@ coverage.json
 
 # Large receptor PDB — not distributed (see INSTALL.md)
 pfldh.pdb
+
+# Terminal / web UI — dev-side only, never committed (per project policy)
+src/hybridock_pep/ui/
+launch_ui.sh
