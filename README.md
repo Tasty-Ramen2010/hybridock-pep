@@ -223,6 +223,36 @@ the true values span −4.8 to −12.7 — the **blind-absolute dynamic-range co
 method**, ours included (we publish it rather than hide it). This is exactly why the headline is a
 *leakage-free ranking* win (test ①) and *selectivity* — not a blind-absolute one.
 
+### Worked examples on real published complexes (blind, leave-cluster-out)
+
+Fifteen **real published peptide–protein structures** — RCSB titles + primary citations pulled live from the PDB,
+scored by a model that never saw each complex's 60%-identity cluster. Full table (with DOIs/PubMed) in
+[`data/hybridock_literature_complexes.csv`](data/hybridock_literature_complexes.csv); reproduce with
+`scripts/e364_blind_demo.py`. Experimental ΔG is the PDBbind-curated value; the citation is the structure's primary
+paper.
+
+```
+  PDB    exp ΔG   our blind pred   |err|   complex (RCSB) · citation
+  ──────────────────────────────────────────────────────────────────────────────────
+  1YCR    -8.50       -9.28        0.78    MDM2 / p53 transactivation domain · Kussie, Science 1996  (not in training)
+  3SO6    -7.35       -7.32        0.03    LDL receptor tail · Dvir, PNAS 2012
+  3T4P    -7.08       -7.26        0.18    O-acetylserine sulfhydrylase · Raj, Acta Cryst D 2012
+  4PRN    -7.71       -8.09        0.37    HLA-B*35:01 peptide-MHC · Liu, J. Biol. Chem. 2014   ← a real pMHC
+  4XYN    -8.03       -7.47        0.55    Ca²⁺-S100B / RSK1 peptide · Jensen, Acta Cryst D 2015
+  5DIF    -8.49       -7.90        0.59    CPEB4 NES / exportin · Fung, eLife 2015
+  1J19   -10.62       -7.77        2.85    radixin FERM / ICAM-2 tail · Hamada, EMBO J 2003
+  1EB1   -14.22       -7.03        7.20    thrombin / tight inhibitor · Friedrich, JMB 2002  (extreme — under-predicted)
+  ...    (15 total, spanning the FULL range −14.2…−3.7; not cherry-picked)
+  ──────────────────────────────────────────────────────────────────────────────────
+  15 literature examples: 53% within 1.0 kcal/mol · 67% within 2.0 kcal/mol
+  AGGREGATE over all 925 such complexes (blind, leave-cluster-out): MAE 1.43 · RMSE 1.81 · r 0.263
+```
+
+The 15-example set deliberately spans the full affinity range (including the hardest tight-binder extremes), so its
+small-sample correlation is not meaningful — the honest, fair number is the **925-complex aggregate: MAE 1.43 /
+RMSE 1.81 kcal/mol**, blind and leakage-free. Notably it includes real **peptide-MHC** complexes (e.g. 4PRN,
+HLA-B*35:01, |err| 0.37) — the applications domain, handled by the same general model.
+
 ---
 
 ## Head-to-head vs Rosetta FlexPepDock (2026-07-07)
