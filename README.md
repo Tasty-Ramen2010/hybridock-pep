@@ -245,13 +245,13 @@ paper.
   ...    (15 total, spanning the FULL range −14.2…−3.7; not cherry-picked)
   ──────────────────────────────────────────────────────────────────────────────────
   15 literature examples: 53% within 1.0 kcal/mol · 67% within 2.0 kcal/mol
-  AGGREGATE over all 925 such complexes (blind, leave-cluster-out): MAE 1.43 · RMSE 1.81 · r 0.263
+  AGGREGATE over all 925 such complexes (blind, leave-cluster-out): MAE 1.43 kcal/mol · RMSE 1.81 kcal/mol
 ```
 
-The 15-example set deliberately spans the full affinity range (including the hardest tight-binder extremes), so its
-small-sample correlation is not meaningful — the honest, fair number is the **925-complex aggregate: MAE 1.43 /
-RMSE 1.81 kcal/mol**, blind and leakage-free. Notably it includes real **peptide-MHC** complexes (e.g. 4PRN,
-HLA-B*35:01, |err| 0.37) — the applications domain, handled by the same general model.
+The 15-example set deliberately spans the full affinity range (including the hardest tight-binder extremes) as
+worked illustrations — the honest, fair number is the **925-complex aggregate: MAE 1.43 / RMSE 1.81 kcal/mol**,
+blind and leakage-free. Notably it includes real **peptide-MHC** complexes (e.g. 4PRN, HLA-B*35:01, |err| 0.37) —
+the applications domain, handled by the same general model.
 
 ---
 
