@@ -253,6 +253,36 @@ worked illustrations — the honest, fair number is the **925-complex aggregate:
 blind and leakage-free. Notably it includes real **peptide-MHC** complexes (e.g. 4PRN, HLA-B*35:01, |err| 0.37) —
 the applications domain, handled by the same general model.
 
+#### 50 complexes from the Zhou et al. (2015) curated peptide-affinity benchmark
+
+To score against an externally-curated, literature-referenced set (not our own selection), we took the
+**Zhou et al. 2015 supplementary tables** (`SM_TableS1.xls` = 353 short, `SM_TableS2.xls` = 102 long
+protein–peptide complexes; each row carries a measured K_d/pK_d and a primary-literature citation — this is the
+data behind the PP/PPI-Affinity server). 155 of these overlap complexes we already hold blind (leave-cluster-out)
+predictions for, and their published pK_d reproduces our ΔG labels to **corr 0.998 / mean |Δ| 0.02 kcal/mol** (an
+independent provenance check). We then drew **50 complexes spanning the full affinity range** (pK_d 2.9…8.5):
+
+```
+  50 Zhou-2015 complexes, blind (leave-cluster-out):   MAE 1.41 kcal/mol · RMSE 1.72 kcal/mol
+  all 155 overlap complexes, blind:                    MAE 1.37 kcal/mol · RMSE 1.63 kcal/mol
+
+  PDB    exp ΔG   our blind pred   |err|   protein · peptide · citation
+  ──────────────────────────────────────────────────────────────────────────────────
+  3JZO   -11.63      -8.55         3.08    Human MDMX · LTFEHYWAQLTS   · Phan, JBC 2010
+  4PG9   -10.63      -8.10         2.53    MHC class I · FAPGNYPAL     · Garstka, PNAS 2015
+  2NM1   -10.19      -9.54         0.65    BoNT/B · EDMFAKLKDKFFNEINK  · Jin, Nature 2006
+  1B05    -9.72      -8.62         1.10    OppA · KCK                  · Sleigh, JMB 1999
+  1MWN    -9.14      -8.45         0.69    · TRTKIDWNKILS              · Barber, JBC 2004
+  2KPL    -9.05      -7.19         1.86    · RSSRTRRETQV               · Charbonnier, JMB 2011
+  ...    (50 total, spanning pKd 2.9…8.5; every row cites its own paper)
+  ──────────────────────────────────────────────────────────────────────────────────
+```
+
+Full downloadable table (PDB, protein, peptide, K_d, pK_d, exp ΔG, our blind pred, |err|, literature reference):
+[`data/hybridock_zhou2015_50complexes.csv`](data/hybridock_zhou2015_50complexes.csv). These are **real,
+independently-published, experimentally-measured** complexes — the aggregate blind error (MAE 1.37–1.41 kcal/mol)
+sits inside the ABFE band and matches our 925-set number, on a set we did not assemble.
+
 ---
 
 ## Head-to-head vs Rosetta FlexPepDock (2026-07-07)
