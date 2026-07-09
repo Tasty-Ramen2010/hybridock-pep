@@ -1,0 +1,411 @@
+{
+ "aggregate": {
+  "n": 925,
+  "MAE": 1.426,
+  "RMSE": 1.808,
+  "r": 0.263,
+  "spearman": 0.247
+ },
+ "fifty": [
+  {
+   "pdb": "1eb1",
+   "seq": "DYEPIPEEAF",
+   "len": 10,
+   "exp": -14.22,
+   "pred": -7.03,
+   "abs_err": 7.2
+  },
+  {
+   "pdb": "6d3z",
+   "seq": "GRNCYCKSRPPIFP",
+   "len": 14,
+   "exp": -12.16,
+   "pred": -8.71,
+   "abs_err": 3.46
+  },
+  {
+   "pdb": "1fzk",
+   "seq": "FAPGNYPAL",
+   "len": 9,
+   "exp": -11.45,
+   "pred": -8.15,
+   "abs_err": 3.3
+  },
+  {
+   "pdb": "6fkq",
+   "seq": "MPTLDMALFDWTDYEDLKP",
+   "len": 19,
+   "exp": -10.91,
+   "pred": -8.24,
+   "abs_err": 2.67
+  },
+  {
+   "pdb": "6om2",
+   "seq": "GRRGDLATIH",
+   "len": 10,
+   "exp": -10.57,
+   "pred": -7.1,
+   "abs_err": 3.47
+  },
+  {
+   "pdb": "5h1e",
+   "seq": "ENALLRYLLD",
+   "len": 10,
+   "exp": -10.28,
+   "pred": -7.69,
+   "abs_err": 2.59
+  },
+  {
+   "pdb": "4rrv",
+   "seq": "MFRDFDYIA",
+   "len": 9,
+   "exp": -10.09,
+   "pred": -9.2,
+   "abs_err": 0.88
+  },
+  {
+   "pdb": "4ery",
+   "seq": "VNPTGCARSEPKMS",
+   "len": 14,
+   "exp": -9.91,
+   "pred": -9.12,
+   "abs_err": 0.79
+  },
+  {
+   "pdb": "1gwq",
+   "seq": "KILHRLLQD",
+   "len": 9,
+   "exp": -9.71,
+   "pred": -8.15,
+   "abs_err": 1.56
+  },
+  {
+   "pdb": "2y6s",
+   "seq": "KLGLITNTIAGVAGL",
+   "len": 15,
+   "exp": -9.53,
+   "pred": -8.72,
+   "abs_err": 0.81
+  },
+  {
+   "pdb": "3n5e",
+   "seq": "LSCQLYQR",
+   "len": 8,
+   "exp": -9.3,
+   "pred": -8.23,
+   "abs_err": 1.07
+  },
+  {
+   "pdb": "2kup",
+   "seq": "LFRLRHFPCGNVNYGYQQQ",
+   "len": 19,
+   "exp": -9.13,
+   "pred": -8.07,
+   "abs_err": 1.06
+  },
+  {
+   "pdb": "2khh",
+   "seq": "DSGFSFGSK",
+   "len": 9,
+   "exp": -8.94,
+   "pred": -7.87,
+   "abs_err": 1.07
+  },
+  {
+   "pdb": "5wbl",
+   "seq": "GGLFVMDE",
+   "len": 8,
+   "exp": -8.79,
+   "pred": -7.57,
+   "abs_err": 1.22
+  },
+  {
+   "pdb": "3wsy",
+   "seq": "LPQDRGFLVVQ",
+   "len": 11,
+   "exp": -8.67,
+   "pred": -8.12,
+   "abs_err": 0.54
+  },
+  {
+   "pdb": "5ybe",
+   "seq": "PKNKARRRTTTQMELLYAD",
+   "len": 19,
+   "exp": -8.5,
+   "pred": -9.66,
+   "abs_err": 1.16
+  },
+  {
+   "pdb": "4m7c",
+   "seq": "SRGLEVSHRLAPW",
+   "len": 13,
+   "exp": -8.35,
+   "pred": -7.99,
+   "abs_err": 0.36
+  },
+  {
+   "pdb": "3shb",
+   "seq": "ARTKQTA",
+   "len": 7,
+   "exp": -8.22,
+   "pred": -7.24,
+   "abs_err": 0.99
+  },
+  {
+   "pdb": "2peh",
+   "seq": "KRKSRWDETP",
+   "len": 10,
+   "exp": -8.12,
+   "pred": -7.33,
+   "abs_err": 0.8
+  },
+  {
+   "pdb": "5vb9",
+   "seq": "CWCVLEYDMFGALHR",
+   "len": 15,
+   "exp": -8.03,
+   "pred": -8.93,
+   "abs_err": 0.9
+  },
+  {
+   "pdb": "3bl2",
+   "seq": "TMENLSRRLKVTGDLFDIM",
+   "len": 19,
+   "exp": -7.91,
+   "pred": -8.11,
+   "abs_err": 0.2
+  },
+  {
+   "pdb": "1h25",
+   "seq": "PKPLKKLRFD",
+   "len": 10,
+   "exp": -7.83,
+   "pred": -7.07,
+   "abs_err": 0.76
+  },
+  {
+   "pdb": "4j8s",
+   "seq": "RRLPIFNRISVS",
+   "len": 12,
+   "exp": -7.77,
+   "pred": -7.93,
+   "abs_err": 0.16
+  },
+  {
+   "pdb": "5zoo",
+   "seq": "HIRGSITQGIPRSY",
+   "len": 14,
+   "exp": -7.71,
+   "pred": -6.92,
+   "abs_err": 0.79
+  },
+  {
+   "pdb": "2olb",
+   "seq": "KKK",
+   "len": 3,
+   "exp": -7.55,
+   "pred": -7.69,
+   "abs_err": 0.14
+  },
+  {
+   "pdb": "4n7h",
+   "seq": "EAPPSYAEV",
+   "len": 9,
+   "exp": -7.47,
+   "pred": -7.33,
+   "abs_err": 0.14
+  },
+  {
+   "pdb": "4fgt",
+   "seq": "CQLY",
+   "len": 4,
+   "exp": -7.37,
+   "pred": -6.75,
+   "abs_err": 0.62
+  },
+  {
+   "pdb": "2ltz",
+   "seq": "ELESPPPPYSRYPMD",
+   "len": 15,
+   "exp": -7.29,
+   "pred": -8.32,
+   "abs_err": 1.03
+  },
+  {
+   "pdb": "2ke1",
+   "seq": "ARTKQTARKS",
+   "len": 10,
+   "exp": -7.23,
+   "pred": -7.27,
+   "abs_err": 0.05
+  },
+  {
+   "pdb": "2xl2",
+   "seq": "DEEVDVTSVD",
+   "len": 10,
+   "exp": -7.16,
+   "pred": -7.12,
+   "abs_err": 0.04
+  },
+  {
+   "pdb": "2mnz",
+   "seq": "ARTKQTARKS",
+   "len": 10,
+   "exp": -7.08,
+   "pred": -7.18,
+   "abs_err": 0.09
+  },
+  {
+   "pdb": "4ezt",
+   "seq": "PRRPVIMRR",
+   "len": 9,
+   "exp": -7.0,
+   "pred": -7.88,
+   "abs_err": 0.88
+  },
+  {
+   "pdb": "2vwf",
+   "seq": "IQPPPVNRNLKPDR",
+   "len": 14,
+   "exp": -6.9,
+   "pred": -7.02,
+   "abs_err": 0.12
+  },
+  {
+   "pdb": "4btb",
+   "seq": "PPPPPPPPP",
+   "len": 9,
+   "exp": -6.83,
+   "pred": -7.05,
+   "abs_err": 0.22
+  },
+  {
+   "pdb": "4apo",
+   "seq": "AEDDVE",
+   "len": 6,
+   "exp": -6.7,
+   "pred": -6.9,
+   "abs_err": 0.2
+  },
+  {
+   "pdb": "4yje",
+   "seq": "LTGCGDIIAE",
+   "len": 10,
+   "exp": -6.6,
+   "pred": -8.57,
+   "abs_err": 1.97
+  },
+  {
+   "pdb": "3nim",
+   "seq": "RRAA",
+   "len": 4,
+   "exp": -6.48,
+   "pred": -6.62,
+   "abs_err": 0.14
+  },
+  {
+   "pdb": "3h1z",
+   "seq": "YFPTDERSWVYSPLH",
+   "len": 15,
+   "exp": -6.35,
+   "pred": -8.55,
+   "abs_err": 2.2
+  },
+  {
+   "pdb": "3iqh",
+   "seq": "YDI",
+   "len": 3,
+   "exp": -6.26,
+   "pred": -7.07,
+   "abs_err": 0.81
+  },
+  {
+   "pdb": "4jfe",
+   "seq": "ELAGIGALTV",
+   "len": 10,
+   "exp": -6.15,
+   "pred": -8.12,
+   "abs_err": 1.98
+  },
+  {
+   "pdb": "5hed",
+   "seq": "KNYKQFSV",
+   "len": 8,
+   "exp": -6.06,
+   "pred": -7.11,
+   "abs_err": 1.05
+  },
+  {
+   "pdb": "1n5z",
+   "seq": "MPPTLPHRDW",
+   "len": 10,
+   "exp": -5.94,
+   "pred": -7.39,
+   "abs_err": 1.45
+  },
+  {
+   "pdb": "3obu",
+   "seq": "PEPTAPPEE",
+   "len": 9,
+   "exp": -5.87,
+   "pred": -7.27,
+   "abs_err": 1.4
+  },
+  {
+   "pdb": "1prl",
+   "seq": "AFAPPLPRR",
+   "len": 9,
+   "exp": -5.77,
+   "pred": -7.78,
+   "abs_err": 2.01
+  },
+  {
+   "pdb": "3d3x",
+   "seq": "RIM",
+   "len": 3,
+   "exp": -5.67,
+   "pred": -6.51,
+   "abs_err": 0.83
+  },
+  {
+   "pdb": "2w0z",
+   "seq": "APPPRPPKP",
+   "len": 9,
+   "exp": -5.49,
+   "pred": -6.68,
+   "abs_err": 1.19
+  },
+  {
+   "pdb": "6mt6",
+   "seq": "FEDLRVLSF",
+   "len": 9,
+   "exp": -5.29,
+   "pred": -6.68,
+   "abs_err": 1.39
+  },
+  {
+   "pdb": "5jer",
+   "seq": "EEFELLISNS",
+   "len": 10,
+   "exp": -5.04,
+   "pred": -8.28,
+   "abs_err": 3.23
+  },
+  {
+   "pdb": "3nik",
+   "seq": "REAA",
+   "len": 4,
+   "exp": -4.7,
+   "pred": -6.81,
+   "abs_err": 2.12
+  },
+  {
+   "pdb": "2krd",
+   "seq": "RISADAMMQALLGARAK",
+   "len": 17,
+   "exp": -3.68,
+   "pred": -7.34,
+   "abs_err": 3.66
+  }
+ ]
+}
