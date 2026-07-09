@@ -74,8 +74,13 @@ def cluster_by_identity(seqs, thresh: float = ID_THRESH):
     aligner.mode = "global"
     aligner.match_score = 1.0
     aligner.mismatch_score = 0.0
-    aligner.open_gap_score = 0.0
-    aligner.extend_gap_score = 0.0
+    # Placement-aware identity (fixed 2026-07-09): gaps are PENALISED so that identity respects residue
+    # position. With free gaps (open/extend = 0) the score degenerated to longest-common-subsequence /
+    # shorter-length, which over-merged short peptides (e.g. GGA vs ACC scored 0.33 from one gapped residue,
+    # GGA vs CGG scored 0.67 despite shifted G's). That collapsed 925 peptides into 21 clusters at 30% id.
+    # Penalising gaps counts aligned matches in a single frame → GGA/ACC→0, GGA/CGG→0.33. See scripts/e367.
+    aligner.open_gap_score = -1.0
+    aligner.extend_gap_score = -0.5
 
     uniq = sorted(set(seqs), key=lambda s: (-len(s), s))
     reps: list[str] = []          # representative sequence per cluster
