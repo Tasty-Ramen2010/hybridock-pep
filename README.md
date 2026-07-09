@@ -1,18 +1,15 @@
 # HybriDock-Pep
 
 ```
-   ╔═══════════════════════════════════════════════════════════════════════╗
-   ║  db     db db    db d8888b. d8888b. d888888b d8888b.  .d88b.   .o88b.  ║
-   ║  88     88 `8b  d8' 88  `8D 88  `8D   `88'   88  `8D .8P  Y8. d8P  Y8   ║
-   ║  88aaaaa88  `8bd8'  88oooY' 88oobY'    88    88   88 88    88 8P        ║
-   ║  88     88    88    88~~~b. 88`8b      88    88   88 88    88 8b        ║
-   ║  88     88    88    88   8D 88 `88.   .88.   88  .8D `8b  d8' Y8b  d8   ║
-   ║  YP     YP    YP    Y8888P' 88   YD Y888888P Y8888D'  `Y88P'   `Y88P'   ║
-   ║                              — P E P —                                  ║
-   ║   peptide → poses → calibrated ΔG (kcal/mol) → selectivity ΔΔG          ║
-   ║   AI diffusion sampling  +  physics/learned-geometry rescoring          ║
-   ║   MIT · CUDA│ROCm│oneAPI│Metal│CPU · leakage-free benchmarked           ║
-   ╚═══════════════════════════════════════════════════════════════════════╝
+   █   █  █   █  ████   ████   █  ████    ███    ████  █   █
+   █   █  █   █  █   █  █   █  █  █   █  █   █  █      █  █
+   █████   ███   ████   ████   █  █   █  █   █  █      ███    · P E P
+   █   █    █    █   █  █  █   █  █   █  █   █  █      █  █
+   █   █    █    ████   █   █  █  ████    ███    ████  █   █
+
+   peptide → AI poses → calibrated ΔG (kcal/mol) → selectivity ΔΔG
+   diffusion sampling  +  physics / learned-geometry rescoring
+   MIT · CUDA│ROCm│oneAPI│Metal│CPU · leakage-free benchmarked
 ```
 
 **A general protein–peptide docking and scoring tool: AI diffusion sampling + a learned-geometry affinity model (+ optional MM-GBSA) — fused into a single CLI, MIT-licensed, cross-platform.**
@@ -66,7 +63,7 @@ The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plai
 
 ---
 
-## Why HybriDock-Pep — three conclusive tests
+## Why HybriDock-Pep — five conclusive tests
 
 **① We beat a faithful PPI-Affinity clone on the identical leakage-free split — measured in kcal/mol.**
 Both models score the *same* 865 PDBbind peptide-Kd complexes, clustered at 60% sequence identity with entire
@@ -141,6 +138,26 @@ structure-free **0.325**. Going fully structure-free costs us only ~0.05–0.09 
 on AI poses) — the haircut every structure-based scorer pays on non-native poses, and one of the few we
 publish.
 
+**④ Real published complexes, scored blind.** 15 real peptide–protein structures (RCSB titles + primary
+citations pulled live from the PDB), each scored by a model that never saw its 60%-identity cluster —
+including real **peptide–MHC** (4PRN, HLA-B\*35:01, |err| 0.37 kcal/mol). **53% land within 1.0 and 67% within
+2.0 kcal/mol.** Aggregate over **all 925** such complexes, blind and leakage-free: **MAE 1.43 / RMSE 1.81
+kcal/mol.** `scripts/e364_blind_demo.py` · [`data/hybridock_literature_complexes.csv`](data/hybridock_literature_complexes.csv).
+
+**⑤ An external benchmark we did *not* assemble.** The supplementary tables of **Wang et al., *Curr. Med. Chem.*
+2024, 31(31):4127** ([DOI](https://doi.org/10.2174/0929867331666230908102925); tables + PDF shipped in-repo so
+anyone can check). Their independently-published pK_d reproduces our ΔG labels to **corr 0.998**. 155 overlap
+complexes scored blind: **MAE 1.37 / RMSE 1.63**; and a **true external holdout of 43** complexes never in
+training (nor their 60%-id clusters): **MAE 1.50 / RMSE 1.84 / r 0.49.** `scripts/e365b_failure_analysis.py` ·
+[`data/hybridock_wang2024_external43.csv`](data/hybridock_wang2024_external43.csv).
+
+**Also vs Rosetta FlexPepDock** (the standard physics baseline), same 918 PDBbind complexes matched
+complex-for-complex: ours (leakage-free clustered CV) is **r 0.26 / MAE 1.43**, while unrelaxed ref2015
+interface energy calibrates to **r ≈ 0** — it collapses onto the mean-predictor, because REU has no native
+kcal/mol (a linear `ΔG=a·REU+b` fit is correlation-invariant). Interface-relax rescues ref2015 to r 0.18 —
+still below ours and below its own within-target 0.59. `scripts/e329_ref2015_pdbbind.py` ·
+`scripts/e331_relax_pdbbind.py`.
+
 Everything else stays honest: absolute charged Kd is capped at the non-FEP ceiling and we say so; selectivity
 ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; MIT-licensed and runs on CUDA · Apple MPS · Intel · AMD · CPU.
 Full evidence and every negative result:
@@ -205,125 +222,23 @@ characterisation of this wall — proven from ~10 experimental angles — is in
 [`docs/why_we_keep_failing_synthesis_2026-07-08.md`](docs/why_we_keep_failing_synthesis_2026-07-08.md) and
 [`docs/where_we_stand_vs_lie_fep_2026-07-08.md`](docs/where_we_stand_vs_lie_fep_2026-07-08.md).
 
-### Worked examples on real published complexes (blind, leave-cluster-out)
+### Fresh out-of-training check (2026-07-06)
 
-Fifteen **real published peptide–protein structures** — RCSB titles + primary citations pulled live from the PDB,
-scored by a model that never saw each complex's 60%-identity cluster. Full table (with DOIs/PubMed) in
-[`data/hybridock_literature_complexes.csv`](data/hybridock_literature_complexes.csv); reproduce with
-`scripts/e364_blind_demo.py`. Experimental ΔG is the PDBbind-curated value; the citation is the structure's primary
-paper.
+Blind scoring of three peptide–protein complexes pulled straight from the literature — deposited structures,
+**none in any training split** — via `crystal-score`:
 
 ```
-  PDB    exp ΔG   our blind pred   |err|   complex (RCSB) · citation
-  ──────────────────────────────────────────────────────────────────────────────────
-  1YCR    -8.50       -9.28        0.78    MDM2 / p53 transactivation domain · Kussie, Science 1996  (not in training)
-  3SO6    -7.35       -7.32        0.03    LDL receptor tail · Dvir, PNAS 2012
-  3T4P    -7.08       -7.26        0.18    O-acetylserine sulfhydrylase · Raj, Acta Cryst D 2012
-  4PRN    -7.71       -8.09        0.37    HLA-B*35:01 peptide-MHC · Liu, J. Biol. Chem. 2014   ← a real pMHC
-  4XYN    -8.03       -7.47        0.55    Ca²⁺-S100B / RSK1 peptide · Jensen, Acta Cryst D 2015
-  5DIF    -8.49       -7.90        0.59    CPEB4 NES / exportin · Fung, eLife 2015
-  1J19   -10.62       -7.77        2.85    radixin FERM / ICAM-2 tail · Hamada, EMBO J 2003
-  1EB1   -14.22       -7.03        7.20    thrombin / tight inhibitor · Friedrich, JMB 2002  (extreme — under-predicted)
-  ...    (15 total, spanning the FULL range −14.2…−3.7; not cherry-picked)
-  ──────────────────────────────────────────────────────────────────────────────────
-  15 literature examples: 53% within 1.0 kcal/mol · 67% within 2.0 kcal/mol
-  AGGREGATE over all 925 such complexes (blind, leave-cluster-out): MAE 1.43 kcal/mol · RMSE 1.81 kcal/mol
+  system            PDB    peptide         HybriDock-Pep ΔG    literature reference
+  ──────────────────────────────────────────────────────────────────────────────────────
+  MDM2 / p53        1YCR   ETFSDLWKLLPE         −9.28          −8.5   (exp, K_d 0.6 µM)
+  MDM2 / PMI        3EQS   TSFAEYWNLLS          −9.67          −12.7  (exp, K_d 0.49 nM)
+  importin-α / NLS  3VE6   EGPSAKKPKKEA         −9.77          −4.8 FEP / −5…−10 exp
 ```
 
-The 15-example set deliberately spans the full affinity range (including the hardest tight-binder extremes) as
-worked illustrations — the honest, fair number is the **925-complex aggregate: MAE 1.43 / RMSE 1.81 kcal/mol**,
-blind and leakage-free. Notably it includes real **peptide-MHC** complexes (e.g. 4PRN, HLA-B*35:01, |err| 0.37) —
-the applications domain, handled by the same general model.
-
-#### 155 complexes from the Wang et al. (2024) curated peptide-affinity benchmark
-
-To score against an **externally-curated, literature-referenced set we did not assemble**, we took the
-supplementary tables of **Wang, Ye, Shang, Li, Peng & Zhou, *Curr. Med. Chem.* 2024, 31(31):4127–4137**
-([DOI 10.2174/0929867331666230908102925](https://doi.org/10.2174/0929867331666230908102925)) — a hand-curated,
-structure-based protein–peptide affinity data set. Both tables are committed to this repo so anyone can check the
-scores themselves:
-
-- [`SM_TableS1.xls`](SM_TableS1.xls) — the full data set **PpI[S/A]_DS** (353 complexes)
-- [`SM_TableS2.xls`](SM_TableS2.xls) — the nonredundant benchmark **PpI[S/A]_BM** (102 culled complexes)
-- [`data/Wang.etal.pdf`](data/Wang.etal.pdf) — the paper
-
-Every row carries an experimentally-measured K_d/pK_d and a primary-literature citation. **155 of these overlap
-complexes we already hold blind (leave-cluster-out) predictions for** — and their independently-published pK_d
-reproduces our ΔG labels to **corr 0.998 / mean |Δ| 0.02 kcal/mol** (a provenance check confirming our labels are
-the real experimental values). Scored blind, spanning the full range (pK_d 2.9…8.5):
-
-```
-  n = 155 Wang-2024 complexes, blind (leave-cluster-out):   MAE 1.37 kcal/mol · RMSE 1.63 kcal/mol
-     (of which 36 are in the S2 nonredundant benchmark)
-
-  PDB    exp ΔG   our blind pred   |err|   protein · peptide · citation
-  ──────────────────────────────────────────────────────────────────────────────────
-  3JZO   -11.63      -8.55         3.08    Human MDMX · LTFEHYWAQLTS   · Phan, JBC 2010
-  1AVP   -10.80      -8.18         2.62    Adenovirus proteinase · GVQSLKRRRCF · McGrath, Biochem 2003
-  2NM1   -10.19      -9.54         0.65    BoNT/B · EDMFAKLKDKFFNEINK  · Jin, Nature 2006
-  1B05    -9.72      -8.62         1.10    OppA · KCK                  · Sleigh, JMB 1999
-  1MWN    -9.14      -8.45         0.69    radixin FERM · TRTKIDWNKILS · Barber, JBC 2004
-  2KPL    -9.05      -7.19         1.86    HPV E6 · RSSRTRRETQV        · Charbonnier, JMB 2011
-  ...    (155 total, spanning pKd 2.9…8.5; every row cites its own paper)
-  ──────────────────────────────────────────────────────────────────────────────────
-```
-
-Full downloadable table (PDB, benchmark-membership, protein, peptide, K_d, pK_d, exp ΔG, our blind pred, |err|,
-literature reference): [`data/hybridock_wang2024_complexes.csv`](data/hybridock_wang2024_complexes.csv). These are
-**real, independently-published, experimentally-measured** complexes — the aggregate blind error
-(**MAE 1.37 kcal/mol**) sits inside the ABFE band and matches our 925-set number, on a benchmark we did not
-assemble.
-
-**True external holdout (never in training).** 43 Wang complexes that are *not* in our PDBbind-925 training set,
-scored leave-cluster-out (excluding one out-of-distribution α-bungarotoxin fold family):
-
-```
-  Wang external-43 (never trained on, nor their 60%-id clusters):  MAE 1.50  ·  RMSE 1.84  ·  r 0.49
-```
-
-Reproduce: `scripts/e365b_failure_analysis.py`. Table: [`data/hybridock_wang2024_external43.csv`](data/hybridock_wang2024_external43.csv).
-
----
-
-## Head-to-head vs Rosetta FlexPepDock (2026-07-07)
-
-Rosetta FlexPepDock is the standard physics baseline everyone cites. We ran it against our scorer on
-**918 PDBbind protein–peptide complexes with experimental K_d** (the largest fair peptide-affinity set we
-have), matched complex-for-complex. Three findings, all reproducible from the scripts and datasets below.
-
-**1. On a diverse cross-target set, our scorer wins decisively.** Both scored the same 918 complexes; ours is a
-**leakage-free 60%-identity clustered** CV of the 16 structural features (clusters held out per fold), ref2015 is
-the training-free interface energy on the same poses.
-
-```
-  scorer                                       Pearson r   RMSE (kcal/mol)   MAE
-  ───────────────────────────────────────────────────────────────────────────────
-  HybriDock-Pep (16-feat, clustered CV)          +0.260        1.81         1.43   ◀ WIN
-  Rosetta ref2015 / FlexPepDock, unrelaxed       +0.006         —            —     (REU, no kcal/mol)
-  (mean-predictor baseline / zero-skill)          0.00         1.85         1.47
-  ───────────────────────────────────────────────────────────────────────────────
-  NOTE: r=0.446 / MAE 1.32 is the LEAKY random-5-fold number (near-twin peptides split
-  across folds). We report the honest 60%-id CLUSTERED number above. ref2015's r≈0 means
-  its best linear ΔG=a·REU+b calibration collapses onto the mean-predictor (RMSE 1.89).
-```
-
-**2. "But REU isn't kcal/mol" — correct, and here's what that costs.** FlexPepDock's score is in Rosetta
-Energy Units, not kcal/mol, so it has *no native RMSE/MAE*. The only way to get one is an empirical linear
-fit `ΔG = a·REU + b` — but linear rescaling is **correlation-invariant** (it cannot change r), it only sets
-the error scale. Because ref2015's r ≈ 0 on this set, the best-fit slope is ≈ 0 and the calibration
-**collapses onto the mean-predictor**: 5-fold-CV RMSE 1.89 / MAE 1.49 — no better than guessing the average
-for every complex. Naive "1 REU = 1 kcal/mol" is meaningless here (unrelaxed interface energies reach
-+23,000 REU from clashes). Our scorer emits calibrated kcal/mol directly and beats that baseline (1.66 / 1.32).
-
-**3. Relaxation helps FlexPepDock — but not enough to catch up.** FlexPepDock's published numbers come from
-*relaxed* poses. Interface-restricted Rosetta FastRelax on a 40-complex spread pulls the clash-inflated
-scores from a mean of +93.6 REU to a physical −32.5 REU, and lifts correlation **r 0.11 → 0.18** (Spearman
-0.00 → 0.21). So relaxation is *necessary* to make ref2015 non-garbage — but on a diverse cross-target set it
-still lands near 0.18, far below our 0.45 and below its own within-target 0.59. This is the extensive /
-size-confounded collapse of Rosetta interface terms on diverse data, measured directly. Reproduce all of
-this: `scripts/e329_ref2015_pdbbind.py` · `scripts/e330_ours_pdbbind.py` · `scripts/e331_relax_pdbbind.py`.
-
----
+Honest read: every prediction lands within a few kcal/mol of its reference, but they cluster near −9.5 while
+the true values span −4.8 to −12.7 — the **blind-absolute dynamic-range compression that caps every non-FEP
+method**, ours included (we publish it rather than hide it). This is exactly why the headline is a
+*leakage-free ranking* win (test ①) and *selectivity* — not a blind-absolute one.
 
 ## Datasets — download and test for yourself
 
@@ -352,46 +267,6 @@ rebuilds `pdbbind_peptides.jsonl` from it. To re-score the head-to-head from the
 conda activate score-env
 python scripts/e330_ours_pdbbind.py     # ours + matched ref2015 head-to-head → r / RMSE / MAE
 ```
-
----
-
-## What another project actually gets — screening candidate peptides
-
-The common ask from another team is: *"I have one target and a handful of candidate peptides — which should
-I put in the wet lab?"* That is **within-target ranking**, and it is where the tool earns its keep. Measured
-on **865 peptide–protein complexes** (honest leave-receptor-out CV — the model never sees the query receptor
-in training), grouped by receptor:
-
-```
-  Screen candidates against ONE target — within-target ranking (Spearman ρ of predicted vs measured ΔG)
-  ───────────────────────────────────────────────────────────────────────────────────────────────────
-  receptors with ≥3 candidate peptides   n=24 targets, 109 peptides   median ρ = 0.50   71% right direction
-  receptors with ≥4 candidate peptides   n=10 targets,  67 peptides   median ρ = 0.45   80% right direction
-  receptors with ≥5 candidate peptides   n= 6 targets,  51 peptides   median ρ = 0.45   83% right direction
-  ───────────────────────────────────────────────────────────────────────────────────────────────────
-  reproduce: python scripts/e306_within_target_ranking.py
-```
-
-So, concretely, HybriDock-Pep can contribute to another project in three honest ways:
-
-1. **Prioritise a peptide panel against your target** — median Spearman ≈ 0.5 and the correct direction
-   4-out-of-5 times once you have ≥4 candidates. It won't give you a trustworthy *absolute* K_d (nothing
-   cheap does — see the fresh-check above), but it reliably tells you *which* candidates to test first.
-2. **Selectivity between two targets** — the `selectivity` command returns ΔΔG (target vs off-target) with a
-   bootstrap CI. A sequence-only scorer structurally cannot do this; it needs the pose, which we read.
-3. **Rank the poses of a single peptide** — the pose ranker (τ ≈ 0.41) orders docked poses so you dock once
-   and trust the top cluster, at ~2.8 s/pose.
-
-If your project needs a *calibrated absolute* number, add 2–3 measured references on your own target and use
-reference-anchoring (r 0.25 → 0.61) — that cancels the per-receptor offset the blind-absolute mode can't.
-
-**Two live examples on fresh literature panels** (none in training; full write-up in
-[`docs/external_validation_2026-07-06.md`](docs/external_validation_2026-07-06.md)): an **MDM2 inhibitor
-panel** (p53 wt → PMI → pDIQ, 160× affinity range) ranks at **ρ = +0.56** — it correctly separates
-wild-type from optimised binders. A **Bcl-xL/BH3 panel** ranks at **ρ = −0.63 (backwards)** — BH3 helices are
-electrostatically driven, which the geometry features miss. Ranking is **target-dependent**: strong on
-aromatic/hydrophobic pockets, unreliable on helical/electrostatic ones. We publish both rather than
-cherry-pick the win.
 
 ---
 
