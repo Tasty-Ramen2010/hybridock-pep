@@ -205,24 +205,6 @@ characterisation of this wall — proven from ~10 experimental angles — is in
 [`docs/why_we_keep_failing_synthesis_2026-07-08.md`](docs/why_we_keep_failing_synthesis_2026-07-08.md) and
 [`docs/where_we_stand_vs_lie_fep_2026-07-08.md`](docs/where_we_stand_vs_lie_fep_2026-07-08.md).
 
-### Fresh out-of-training check (2026-07-06)
-
-Blind scoring of three peptide–protein complexes pulled straight from the literature — deposited structures,
-**none in any training split** — via `crystal-score`:
-
-```
-  system            PDB    peptide         HybriDock-Pep ΔG    literature reference
-  ──────────────────────────────────────────────────────────────────────────────────────
-  MDM2 / p53        1YCR   ETFSDLWKLLPE         −9.28          −8.5   (exp, K_d 0.6 µM)
-  MDM2 / PMI        3EQS   TSFAEYWNLLS          −9.67          −12.7  (exp, K_d 0.49 nM)
-  importin-α / NLS  3VE6   EGPSAKKPKKEA         −9.77          −4.8 FEP / −5…−10 exp
-```
-
-Honest read: every prediction lands within a few kcal/mol of its reference, but they cluster near −9.5 while
-the true values span −4.8 to −12.7 — the **blind-absolute dynamic-range compression that caps every non-FEP
-method**, ours included (we publish it rather than hide it). This is exactly why the headline is a
-*leakage-free ranking* win (test ①) and *selectivity* — not a blind-absolute one.
-
 ### Worked examples on real published complexes (blind, leave-cluster-out)
 
 Fifteen **real published peptide–protein structures** — RCSB titles + primary citations pulled live from the PDB,
