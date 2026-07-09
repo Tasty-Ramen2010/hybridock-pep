@@ -1,0 +1,16 @@
+pdb,structure_title_RCSB,peptide,exp_dG_kcal_mol,our_blind_pred_dG_kcal_mol,abs_error_kcal_mol,first_author,journal,year,doi,pubmed_id,pdb_url
+1YCR,MDM2 BOUND TO THE TRANSACTIVATION DOMAIN OF P53,ETFSDLWKLLPE,-8.5,-9.28,0.78,"Kussie, P.H. et al.",Science,1996,,,https://www.rcsb.org/structure/1YCR
+1EB1,Complex structure of human thrombin with N-methyl-arginine inhibitor,DYEPIPEEAF,-14.22,-7.03,7.2,"Friedrich, R. et al.",J Mol Biology,2002,,,https://www.rcsb.org/structure/1EB1
+1J19,Crystal structure of the radxin FERM domain complexed with the ICAM-2 cytoplasmic peptide,RRRTGTYGVLAAWRRL,-10.62,-7.77,2.85,"Hamada, K. et al.",EMBO J,2003,,,https://www.rcsb.org/structure/1J19
+5KZP,Structure of the HCV1-C1 Antibody-Antigen Complex,CQCLINTNGSWHINK,-9.76,-9.0,0.75,"Pierce, B.G. et al.",J Virol,2017,,,https://www.rcsb.org/structure/5KZP
+1H3H,Structural Basis for Specific Recognition of an RxxK-containing SLP-76 peptide by the Gads C-terminal SH3 domain,APSIDRSTKPA,-9.08,-7.68,1.4,"Liu, Q. et al.",Mol Cell,2003,,,https://www.rcsb.org/structure/1H3H
+5DIF,Crystal Structure of CPEB4 NES Peptide in complex with CRM1-Ran-RanBP1,RTFDMHSLESSLIDI,-8.49,-7.9,0.59,"Fung, H.Y. et al.",Elife,2015,,,https://www.rcsb.org/structure/5DIF
+4XYN,X-ray structure of Ca(2+)-S100B with human RAGE-derived W61 peptide,RTEAWKVLS,-8.03,-7.47,0.55,"Jensen, J.L. et al.",Acta Crystallogr D Biol Crystallogr,2015,,,https://www.rcsb.org/structure/4XYN
+4PRN,Crystal structure of a HLA-B*35:01-HPVG-A4,HPVAEADYFEY,-7.71,-8.09,0.37,"Liu, Y.C. et al.",J Biological Chem,2014,,,https://www.rcsb.org/structure/4PRN
+3SO6,Crystal structure of the LDL receptor tail in complex with autosomal recessive hypercholesterolemia PTB domain,SINFDNPVYQKTT,-7.35,-7.32,0.03,"Dvir, H. et al.",Proc Natl Acad Sci U S A,2012,,,https://www.rcsb.org/structure/3SO6
+3T4P,Crystal structure of O-Acetyl Serine Sulfhydrylase from Leishmania donovani in complex with designed tetrapeptide,DWSI,-7.08,-7.26,0.18,"Raj, I. et al.",Acta Crystallogr D Biol Crystallogr,2012,,,https://www.rcsb.org/structure/3T4P
+1NLT,The crystal structure of Hsp40 Ydj1,GWLYEIS,-6.71,-7.5,0.79,"Li, J. et al.",Structure,2003,,,https://www.rcsb.org/structure/1NLT
+2XS8,Crystal Structure of ALIX in complex with the SIVagmTan-1 AYDPARKLL Late Domain,AYDPARKLL,-6.29,-7.41,1.12,"Zhai, Q. et al.",J Virol,2011,,,https://www.rcsb.org/structure/2XS8
+5YC1,TRAF4_GPIb complex,RLRAR,-5.91,-7.98,2.06,"Kim, C.M. et al.",Proc Natl Acad Sci U S A,2017,,,https://www.rcsb.org/structure/5YC1
+5T70,KIR3DL1 in complex with HLA-B*57:01 presenting TSNLQEQIGW,TSNLQEQIGW,-5.44,-7.91,2.47,"Pymm, P. et al.",Nat Struct Mol Biol,2017,,,https://www.rcsb.org/structure/5T70
+2KRD,Solution Structure of the Regulatory Domain of Human Cardiac Troponin C in Complex with the Switch Region of cardiac Troponin I and W7,RISADAMMQALLGARAK,-3.68,-7.34,3.66,"Oleszczuk, M. et al.",J Mol Cell Cardiol,2010,,,https://www.rcsb.org/structure/2KRD
