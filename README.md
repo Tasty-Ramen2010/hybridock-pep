@@ -195,6 +195,19 @@ Full evidence and every negative result:
 [`docs/SCORING_COMPARISON.md`](docs/SCORING_COMPARISON.md) · reproduce them in
 [Reproduce the benchmarks](#reproduce-every-number-in-this-readme).
 
+### HybriDock-Pep vs FEP — when to use which
+
+Complementary tools, not rivals — a cheap triage layer and a precision layer. FEP is the gold standard where
+it applies; we cover the regime it can't afford to.
+
+| Reach for **FEP** when… | Reach for **HybriDock-Pep** when… |
+|---|---|
+| ranking close variants of a **known** binder on **one** target (RBFE lead-op) — **r ≈ 0.8–0.9, sub-kcal**, its home turf | screening **dozens of diverse candidates** fast — minutes each on one GPU (FEP can't screen; it re-derives per system) |
+| you can spend GPU-days + expert setup for a trusted number | you need **absolute cross-target** ΔG with **no reference** — both land ~1.3–2.5 kcal/mol, we're ~1000× cheaper |
+| lead optimization / final go-no-go affinity | you need **selectivity ΔΔG** or to **score AI-generated poses** — FEP doesn't do these cheaply |
+
+Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61–0.71**) — better than either cold-absolute option.
+
 ---
 
 ## The claim, stated plainly — and why it holds in 2026
