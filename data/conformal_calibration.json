@@ -1,0 +1,14 @@
+{
+  "method": "split_conformal",
+  "calibrated_on": "925 PDBbind peptide-Kd, leave-cluster-out (60%-id) residuals",
+  "note": "marginal-coverage-valid; validated fair across length/charge subgroups (e368). Global interval; adaptive-by-length/charge rejected (length/charge do not predict error).",
+  "n": 925,
+  "mae": 1.399,
+  "rmse": 1.767,
+  "half_width_kcal_per_mol": {
+    "50": 1.22,
+    "80": 2.18,
+    "90": 2.88
+  },
+  "reproduce": "scripts/e368_conformal_intervals.py"
+}
