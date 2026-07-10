@@ -22,7 +22,7 @@
 >
 > **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer — with FEP-competitive
 > absolute error.**
-> On absolute cross-target peptide affinity it reaches **MAE ≈ 1.3–1.4 kcal/mol** under a rigorous 60%-sequence-identity
+> On absolute cross-target peptide affinity it reaches **MAE ≈ 1.3–1.6 kcal/mol** under a rigorous 60%-sequence-identity
 > clustered split (the honest, leakage-free regime) — squarely inside the **ABFE (absolute FEP) accuracy band of
 > ~1.2–2.5 kcal/mol**, i.e. **FEP-competitive on absolute-ΔG error**, at ~1000× lower cost and with **no reference
 > peptide required** ([the claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)).
@@ -153,10 +153,8 @@ on your actual target, subtract that offset and the cold within-receptor *r* jum
 ```
 
 Peptide–receptor binding is also largely **additive** — the coupling term in a 2×2 peptide×receptor grid is
-only ~1.1 kcal/mol std — so a thermodynamic-cycle estimate closes to about that error. (We do **not** claim
-"FEP-grade r=0.96" for this: that earlier number was an additivity artifact measured on 3 *experimental*
-corners and is beaten by a nearest-measured baseline — see `docs/DEVELOPMENT_TIMELINE.md` E312. The honest
-same-receptor win is anchoring, above.)
+only ~1.1 kcal/mol std — so a thermodynamic-cycle estimate closes to about that error. The honest same-receptor
+win is the **anchoring** result above; we make **no relative-correlation claim** beyond it here.
 
 **③ The number you actually get on AI-generated poses** — no crystal handed to you, the honest deployment
 case. This is where we pull away from PPI-Affinity: **PPI is structure-free, so it is pose-blind** — it
@@ -233,7 +231,8 @@ Santos & Sousa, *J. Comput. Chem.* 47:5). No slower method that also emits a cal
 
 So the honest superlative is not "beats FEP" (nothing cheap does) — it is: **the best and fastest non-FEP/LIE
 protein–peptide ΔG scorer with a reproducible, leakage-free benchmark to stand on — at FEP-competitive absolute
-error** (MAE ~1.3–1.4 kcal/mol, inside the ABFE ~1.2–2.5 kcal/mol band), for ~1000× less compute and with no
+error** (MAE ~1.3–1.6 kcal/mol, inside the ~1.2–2.5 kcal/mol error band that absolute FEP itself reaches on
+peptides), for ~1000× less compute and with no
 reference peptide required.
 
 ### Why absolute cross-target affinity is hard for everyone (FEP included)
@@ -567,7 +566,7 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 | full non-FEP/LIE scorecard on 156 complexes | `python scripts/e90_full_scorecard.py` | stdout table |
 | **0.486 → 0.53** affinity *r* on real RAPiDock poses — test ③ | `python scripts/e106_combined_realpose_grade.py` | per-complex CSV |
 | **2.49 Å** best-of-top-25 pose RMSD, hit@5 91% — test ③ | `hybridock-pep benchmark --test-csv data/test_complexes.csv --report bench.md` | `bench.md` |
-| double-difference + anchoring **math** (cycle closes; not a prediction claim) | `pytest tests/test_double_difference.py tests/test_anchoring.py -q` | green = the cycle/anchoring math holds |
+| reference-anchoring **math** (thermodynamic cycle closes by construction; not a prediction claim) | `pytest tests/test_anchoring.py tests/test_double_difference.py -q` | green = the anchoring/cycle math holds |
 | **ΔΔG selectivity** primitive end-to-end | `pytest tests/test_selectivity.py -q` | green |
 
 Rebuild the IFP training cache from raw structures (the 437 new PPIKB complexes) with
@@ -610,7 +609,8 @@ idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 The **benchmarking methodology** of HybriDock-Pep was reviewed by **Prof. David Koes** — Associate Professor of
 Computational & Systems Biology, CPCB Co-Director & Vice Chair for Education, **University of Pittsburgh**, and
 author of the widely-used **smina** and **gnina** molecular-docking tools ([koeslab.org](https://bits.csb.pitt.edu/)).
-His feedback via correspondence directly shaped the evaluation reported here:
+He **reviewed the project and offered advice and insight into improvements**; his feedback via correspondence
+directly shaped the evaluation reported here:
 
 - benchmarks must **control for train/test sequence leakage** → we moved every headline number to leave-cluster-out CV;
 - **30% sequence identity** is the more standard clustering cutoff → now reported alongside our 60% number;
@@ -629,6 +629,8 @@ pipeline spec.
 
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); designed and built at
 age 15.
+
+**Team PI:** **Mary Cartenuto** — Principal Investigator, iGEM Denmark High School; leads the high-school team.
 
 ## Citations
 

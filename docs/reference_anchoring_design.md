@@ -404,10 +404,11 @@ kcal/mol per target, ≈ 1.9 for selectivity. If this is the deliverable, **prio
 reference Kd peptides per LDH** — that is the rate-limiting step, and it is cheap.
 
 **Either way:** the shuffle-controlled e260 result is the proof that anchoring works when needed, and the
-shipped relative scorer handles mode (a) today. The defensible claim is **not** "beat FEP at absolute
-energy" — it is **"FEP-grade relative ranking at docking cost, with cheap experimental anchors turning
-that into calibrated absolute Kd and selectivity, on the charged peptide systems where every global
-model hits a wall."**
+shipped relative scorer handles mode (a) today. The defensible claim is **not** "beat FEP" and **not**
+"FEP-grade" — it is **"strong same-receptor relative ranking at docking cost, with cheap experimental
+anchors turning that into calibrated absolute Kd and selectivity, on the charged peptide systems where
+every global model hits a wall."** (We make no FEP-grade correlation claim; the earlier double-difference
+r=0.96 figure was retracted as an additivity artifact — see DEVELOPMENT_TIMELINE E312.)
 
 ---
 

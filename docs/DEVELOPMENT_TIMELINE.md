@@ -180,8 +180,8 @@ not the opposing desolvation, so the net sits under the noise floor. Same FEP-bo
 [[project_absolute_kd_ceiling_jun14]], now closed from the reweighting angle too. Reproduce:
 `scripts/e311_charged_ideas.py`.
 
-**README audit (2026-07-06b).** Test ① (0.352/0.480) reproduces live (e294/e298). Test ② (0.96 double-diff)
-reproduces via `e288_clean_similarity.py` = r 0.964/MAE 0.80 on **n=26** grids — README pointer fixed from the
+**README audit (2026-07-06b).** Test ① (0.352/0.480) reproduces live (e294/e298). The former Test ② (double-
+difference cycle) numerically reproduced but was later **RETRACTED** (E312, below) as an additivity artifact —
 broken `e287` (missing e158 dep). Test ③ (AI-pose 0.49–0.53) reproduces via `e106` (ML-best-5 r=+0.501).
 Efficiency 2.8 s/pose measured; competitor papers verified. Stale: test-count badge (419; now ~473 collected)
 and a hanging heavy test in the full suite — both flagged, not yet fixed.
@@ -410,7 +410,7 @@ Engine is external (OpenMM/openmmtools/amber14); ours is the wiring. Scripts e33
     (PDBbind n=865)              charged: 0.401 vs 0.146                             (cracks charged)
   PPI's OWN T100 (its turf)    PPI 0.549   vs  ours cold   0.225 (IFP rescues 5×)   E300 / §18.1
   IFP trained on everything    geom 0.364 → +IFP 0.437 (973 clean crystals)         E302 / §18.3
-  Double-difference ΔΔG        r = 0.96  (FEP-grade relative, ~docking cost)        E287 / §17.3
+  Double-difference ΔΔG        RETRACTED — additivity artifact, not FEP-grade (E312/§20.3)
   Same-receptor anchoring      −0.07 cold → 0.61 anchored (shuffle 0.16)            E264 / §17.3
   Selectivity ΔΔG              r ≈ 0.30–0.45 (per-receptor bias cancels)            §16/§17
   Pose accuracy                2.49 Å best-of-top-25 · hit@5 91% · 1YCR 0.80 Å      §9 / benchmarks
@@ -638,7 +638,7 @@ noted**. This is the empirical "are we the best non-FEP scorer" test (E90/E91).
 2. **ref2015 / FlexPepDock unrelaxed = 0.07.** The famous 0.59 is *within-target* and *bought* by Rosetta
    refinement; on this cross-family task at the raw pose it is last. We reach 0.52–0.58 from the raw pose.
 3. **FEP/LIE are not competitors — they're a cost tier we sit below by design** (100–10,000× cheaper). The
-   only place we invoke "FEP-grade" is the double-difference (r=0.96), which operates where FEP operates.
+   We no longer invoke "FEP-grade" anywhere: the former double-difference cycle claim was RETRACTED (§20.3/E312 — additivity artifact, beaten by a nearest-measured baseline).
 
 ### ⚠ Crystal poses vs REAL generated poses — the deployment haircut (rewritten after E152)
 
@@ -1363,13 +1363,13 @@ and selectivity — where sequence models are weakest — is our exclusive struc
 The epoch where we stopped chasing the absolute number and **named the wall, then went around it.** Three
 results that define where the tool stands: (1) we beat PPI-Affinity on honest CV; (2) the per-receptor
 offset `b(R)` is FEP-bound and we proved it from ~12 angles; (3) two ways around it — reference anchoring
-(FEP-grade *relative* accuracy) and the interaction map (the biggest feature win of the whole campaign).
+(strong same-receptor *relative* accuracy — **not** FEP-grade; the earlier double-difference claim was retracted, E312) and the interaction map (the biggest feature win of the whole campaign).
 
 ### 17.1 The three-axis reframe (the conceptual key)
 
 ```
   AXIS 1  ABSOLUTE Kd        shared ~0.35 honest ceiling; charged floor FEP-bound
-  AXIS 2  SAME-RECEPTOR      OUR EXCLUSIVE WIN: anchoring 0.25→0.61, double-diff 0.96
+  AXIS 2  SAME-RECEPTOR      OUR EXCLUSIVE WIN: anchoring 0.25→0.61  (double-difference claim retracted, E312)
   AXIS 3  WITHIN-TARGET RANK offset cancels → SHIPPED (charge-comp, pose-ranker, IFP-alchemy 7×)
 ```
 
@@ -1413,7 +1413,8 @@ the "0.55" everyone quotes (PPI included) is a homology artifact; honest ceiling
 
   DOUBLE-DIFFERENCE (thermodynamic cycle):  ΔG(P,R) ≈ ΔG(P,R_ref)+ΔG(P_ref,R)−ΔG(P_ref,R_ref)
     cancels BOTH b(R) and c(P); residual = coupling ≈ 0.85 kcal/mol
-    on 26 real 2×2 grids:  r = 0.96, MAE 0.80  ← FEP-grade relative, at docking cost
+    on 26 real 2×2 grids the cycle looked strong — but RETRACTED (E312): the apparent correlation was an
+    additivity artifact (between-grid variance); a nearest-measured baseline beats it. NOT a scorer capability.
   Probe-fingerprint deployment: measure 2–3 known Kd on target → r ≈ 0.52; full anchor set → 0.61
 ```
 
@@ -1466,7 +1467,7 @@ IFP-alchemy. Design docs: `reference_anchoring_design.md`, `finding_bR_brainstor
 
 ```
   ABSOLUTE Kd   : honest ~0.35 ceiling; we beat PPI on independent CV (0.352 vs 0.325, charged 0.342 vs 0.300)
-  SAME-RECEPTOR : anchoring 0.61, double-diff 0.96 = FEP-grade RELATIVE at docking cost (PPI can't run it)
+  SAME-RECEPTOR : anchoring 0.61 (double-difference FEP-grade claim retracted — E312 additivity artifact)
   SELECTIVITY   : within-target ranking shipped; IFP-alchemy 7× lever; ΔΔG CLI primitive
   INTERACTION MAP: +0.10 crystal (cracks charged) — deploy on docked poses = the open frontier
   THE WALL      : b(R) FEP-bound, unpredictable/untransferable; cancel it (anchor) or measure it (1 Kd/1 FEP)
@@ -1474,7 +1475,7 @@ IFP-alchemy. Design docs: `reference_anchoring_design.md`, `finding_bR_brainstor
 
 **Strategic close:** we stopped trying to predict the unpredictable and built the tool around what's true.
 On absolute Kd we are the **best non-FEP scorer on honest data**. On same-receptor and selectivity — the
-iGEM deployment frame — we reach **FEP-grade relative accuracy at docking cost**, which no structure-free ML
+iGEM deployment frame — we reach **strong same-receptor relative accuracy via anchoring, at docking cost**, which no structure-free ML
 scorer can. The interaction map is the next lever to make charged-cracking accuracy deployable on AI poses.
 
 ---
@@ -1747,13 +1748,14 @@ restores it (+0.066). So "train on everything" only helps if "everything" is cle
 IFP (and the T100 toward PPI's 0.549); more noisy data cancels it.** Not a bug — IFP vectors on the new
 PPIKB are sane (8.5 H-bonds, 114 contacts vs PDBbind 11.8/141.5), just lower-fidelity.
 
-### 20.3 The double-difference thermodynamic cycle — the only FEP-grade claim
+### 20.3 The double-difference thermodynamic cycle — TESTED AND RETRACTED (E312)
 
 ΔG(P,R) ≈ ΔG(P,R_ref) + ΔG(P_ref,R) − ΔG(P_ref,R_ref). The double difference **cancels both** the
 per-receptor offset b(R) and the per-peptide offset c(P), leaving only the interaction coupling. On 26 real
-2×2 grids it reaches **r = 0.96, MAE 0.80 kcal/mol** — FEP-grade *relative* accuracy at docking cost, in
-exactly the regime FEP itself operates (relative ΔΔG with a reference). This is the **single place** we use
-the words "FEP-grade", and it is scoped to this cycle alone. Shipped as `scoring/double_difference.py`.
+grids it *initially* looked FEP-grade — but E312 debunked it: the apparent correlation was inflated by
+between-grid variance (targets span ~2.66 std), the real coupling error is ~1.1 kcal/mol, and a one-nearest-
+measured baseline beats it. **We make no FEP-grade claim.** The cycle math is shipped (`scoring/double_difference.py`)
+as a utility, but it is not presented as a prediction capability.
 
 ### 20.4 Reference anchoring (Ram's idea) — going around the offset wall
 
@@ -1762,8 +1764,8 @@ orthogonal by construction to every feature, and we proved from ~12 angles (§17
 and untransferable — information theory, not a modeling gap. Anchoring sidesteps it: given 2–3 measured Kd
 on the target, a Bayesian same-receptor calibration takes cold cross-receptor **r = −0.07 → +0.71** (real
 peptide Kd: within-receptor **0.25 → 0.61**). The shuffle control collapses it (wrong receptor → −0.05),
-proving genuine cancellation. Shipped as `scoring/anchoring.py`. Strong, but we **do not** call it FEP-grade
-— that label is reserved for the double-difference.
+proving genuine cancellation. Shipped as `scoring/anchoring.py`. Strong — and we make **no** FEP-grade claim
+for it or for the (retracted) double-difference.
 
 ### 20.5 The vdW-bond MD idea (bond-strength SASA) — honestly killed
 
