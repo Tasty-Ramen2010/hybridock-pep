@@ -6,7 +6,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-419%20passing-brightgreen.svg)](#testing)
+
+> **Tests:** ~429 collected, 419 pass with the full toolchain installed (`pytest`; see [Testing](#testing)).
+> No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
+> with their own licenses (ADFRsuite, AutoDock4, PULCHRA, RAPiDock) — see [`INSTALL.md`](INSTALL.md).
 
 > ### The claims, up front — measured in kcal/mol, leakage-free
 >
@@ -134,6 +137,30 @@ labels are IC50/EC50 (assay-specific, *not* thermodynamic — [JCIM 4c00049](htt
 27% of IC50 pairs disagree by >1 log unit), and identical peptide sequences carry y-values differing by **up to
 10.8 kcal/mol**. Restricting to the curated Kd/Ki-only subset leaves the ranking unchanged (ours 0.333 vs clone
 0.265). Full diagnostic: [`docs/ppikb_diagnostic_2026-07-08.md`](docs/ppikb_diagnostic_2026-07-08.md).
+
+**Where we lose, stated up front: PPI-Affinity's own home test set (T100).** On the 48-complex set PPI-Affinity
+curated and tuned on, the *real published tool* (not our clone) beats us on ranking — this is the honest flip
+side of the leakage argument, and we lead with it rather than bury it (`scripts/e300_ifp_on_t100.py`,
+[`data/e300_ifp_t100.json`](data/e300_ifp_t100.json)):
+
+```
+  PPI-Affinity's OWN T100 set (n=48) — in-distribution for PPI, cold out-of-distribution for us
+  ────────────────────────────────────────────────────────────────────────────────────────────
+  method                          Pearson r    MAE (kcal/mol)
+  PPI-Affinity (real tool)          0.549          1.14         ◀ wins ON ITS HOME TURF
+  DFIRE (2002 potential)            0.437          9.37   ← note the MAE
+  Kdeep                             0.395         17.80   ← note the MAE
+  RF-Score                          0.388          1.85
+  HybriDock-Pep (+IFP, cold OOS)    0.225          1.54         ◀ us: worse rank, 2nd-best MAE
+  PRODIGY                           0.086          2.09
+  ────────────────────────────────────────────────────────────────────────────────────────────
+```
+
+Two honest reads: (1) on a scorer's *own* curated set it wins — which is exactly why in-distribution numbers
+(incl. PPI's published 0.55–0.63) are not comparable across tools, and why our headline uses a **matched
+leakage-free split** where we win (test ① above, Steiger p=0.002). (2) Even losing on rank here, our **MAE 1.54
+is second only to PPI's**, while DFIRE/Kdeep sit at 9–18 kcal/mol — calibrated absolute ΔG is a separate axis we
+hold. We show this table because a reviewer who finds it themselves should find nothing we didn't already report.
 
 **② Same-receptor *relative* mode — anchor to a few measured references** (the honest analogue of what FEP
 does: work relative to a reference so the per-receptor bias cancels). When you have ≥2–3 measured affinities
@@ -662,6 +689,9 @@ age 15.
 - **Boltz-2 affinity fine-tune** — "On fine-tuning Boltz-2 for protein–protein affinity prediction," [arXiv:2512.06592](https://arxiv.org/abs/2512.06592) (2025).
 - **Boltz-2 reliability audit** — "On the Reliability of AI Methods in Drug Discovery: Evaluation of Boltz-2," [arXiv:2603.05532](https://arxiv.org/abs/2603.05532) (2026).
 - **Peptide-docking review** — Martins, Santos & Sousa, *J. Comput. Chem.* 47:5, doi:10.1002/jcc.70328 (2026).
+- **Baselines compared on the T100 set** — DFIRE (Zhou & Zhou, *Protein Sci.* 11:2714, 2002); Kdeep (Jiménez et al.,
+  *J. Chem. Inf. Model.* 58:287, 2018); RF-Score (Ballester & Mitchell, *Bioinformatics* 26:1169, 2010);
+  PRODIGY (Xue et al., *Bioinformatics* 32:3676, 2016).
 - **HybriDock-Pep** — this repository, 2026.
 
 ## License
