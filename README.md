@@ -231,8 +231,9 @@ discussed above. The point of this datapoint is the **efficiency**: no cluster, 
 
 - **PPI-Affinity**, the prior best *published* ML peptide scorer, has been **unmaintained since 2022** (dead web
   server). A faithful clone of its method (ProtDCal-3D + SVR), scored on the *identical* leakage-free split as ours,
-  loses on every metric — **MAE 1.46 vs our 1.35, r 0.210 vs our 0.352** (test ①). Its published 0.55–0.63 is on
-  its own training-overlapped split.
+  loses on every metric — **MAE 1.46 vs our 1.35, r 0.210 vs our 0.352** (test ①; Steiger's Z=3.1, p=0.002, so
+  the gap is statistically significant, not a tie). Its published 0.55–0.63 is on different datasets/splits, so
+  not directly comparable — which is exactly why we benchmark a faithful clone on our *identical* split.
 - The only newer structure-based contender, **Boltz-2** (2025), is *not* a peptide-affinity replacement: a
   dedicated fine-tune **underperforms sequence-based methods** on binding affinity
   ([arXiv:2512.06592](https://arxiv.org/abs/2512.06592), Dec 2025), and an independent reliability audit
@@ -370,7 +371,8 @@ see [`crystal-score`](#crystal-score--score-an-existing-crystal-pose).
 **Yes — `--refine-topk K` actually relaxes the top poses.** Stage 3.5 takes one representative per cluster
 (best hybrid score), keeps the top *K* by cluster mean, and **energy-minimizes each receptor+peptide complex
 in GBn2 implicit solvent** before reading ΔG — that minimization *is* the relaxation, and the MM-GBSA ΔG is
-the pipeline's most accurate affinity number. `--mmgbsa-3traj` additionally relaxes the unbound receptor and
+the pipeline's physically-grounded *absolute*-energy estimate (it does not out-rank the learned scorer — see
+the `--refine-topk` note below). `--mmgbsa-3traj` additionally relaxes the unbound receptor and
 peptide to capture reorganization energy. (Stage 1.5 is a *separate*, lighter, restrained relax that only
 relieves clashes without changing the binding mode.)
 
@@ -419,7 +421,7 @@ The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-
 | Flag | What it does |
 |---|---|
 | `--scoring vina,ad4` | force-field backends to run (default `vina` = clash relief; add `ad4` for research telemetry). Neither is the headline ΔG. |
-| `--refine-topk K` | **most accurate ΔG** — MM-GBSA (AMBER ff14SB + GBn2) on the top-K cluster reps. Use it unless screening hundreds. |
+| `--refine-topk K` | physics **absolute-ΔG** refinement — MM-GBSA (AMBER ff14SB + GBn2) on the top-K cluster reps. Note: MM-GBSA gives a physically-grounded single-snapshot energy but **ranks worse than the learned scorer** on our data (r≈0.25 vs 0.32); use it for an absolute-energy sanity check on final candidates, not for ranking. |
 | `--ultra [K]` | **ultra ranking mode** — compute `rank_score` as the mean of K feature-jittered evaluations (randomized smoothing, default K=32). Tightens within-target ranking ~+2 pts pairwise at ~K× scoring cost; does **not** improve absolute ΔG. |
 | `--ensemble` | also emit the optional geometry+Vina ensemble ΔG column (research/telemetry; not the default scorer) |
 | `--free-entropy` | add the free-state conformational-entropy feature (helps long/floppy peptides) |
