@@ -71,8 +71,10 @@ random-CV r 0.44). `scripts/e331_ours_vs_ppiclone_clustered.py`:
   PPI-clone (ProtDCal-3D + SVR)  1.46     1.84     0.210         0.177
   ──────────────────────────────────────────────────────────────────────────────────────────
   margin holds under the honest split:  leaky random-CV Δr +0.11  →  clustered Δr +0.14
-  PPI-Affinity's published 0.55–0.63 is on its OWN training-overlapped split (and its web
-  server has been unmaintained since 2022). Strip the leakage → r sits near the field ceiling.
+  PPI-Affinity's own paper reports held-out sets (R≈0.5–0.77 on its benchmarks) — on DIFFERENT
+  datasets/splits, so not directly comparable; we therefore benchmark a faithful CLONE of its
+  method on our identical split. Its web server has been down since 2022, so the original cannot
+  be queried. This is a clone-on-our-split comparison, not a claim about their published numbers.
 ```
 
 On the **full 925-complex set**, our leakage-free absolute number is **MAE 1.40 / RMSE 1.77 / r 0.321**
@@ -155,9 +157,10 @@ returns the *same* score for any pose and cannot tell a good AI pose from a bad 
   ────────────────────────────────────────    ─────────────────────────────────────────────────────────────
   best-of-top-25  2.49 Å · hit@5 91%          HybriDock-Pep · AI pose + interaction █████████████████████░░░ 0.53
   MDM2/p53 1YCR   0.80 Å                      HybriDock-Pep · AI pose, geometry     ███████████████████░░░░░ 0.486
-   vs DiffPepDock 3.54 Å ◀ ~4× tighter        PPI-Affinity  · pose-blind*           █████████████░░░░░░░░░░░ 0.325
+   vs DiffPepDock 3.54 Å ◀ ~4× tighter        PPI-clone     · pose-blind*           █████████████░░░░░░░░░░░ 0.325
                                               HybriDock-Pep · crystal (upper bound) ███████████████████████░ 0.585
-  * structure-free: identical score for any pose. Bars are each method's honest independent number.
+  * structure-free method (our faithful clone; the original server is dead): identical score for any pose,
+    so it cannot rank poses at all. Bars are each method's honest independent number.
 ```
 
 We turn the AI pose into a **0.49–0.53** signal; PPI cannot use the pose at all and is stuck at its
@@ -544,6 +547,11 @@ pytest --cov=hybridock_pep       # coverage
 > **WSL2 / CUDA:** the MM-GBSA test runs real OpenMM. Export the WSL CUDA path so it finds the GPU:
 > `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`. `OMP_NUM_THREADS=1` keeps the sklearn-heavy
 > scoring tests fast.
+>
+> **Full disclosure on the count:** ~429 non-slow tests are collected; **419 pass with the full toolchain
+> installed** (ADFRsuite `prepare_receptor` on PATH, the `rapidock` conda env, Meeko). In a bare sandbox
+> without those external binaries, ~30 tests skip/fail on missing-toolchain errors (not logic bugs) — so the
+> "419" number assumes you've built the full stack per [Install](#install).
 
 ## Reproduce every number in this README
 
