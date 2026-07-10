@@ -1827,14 +1827,15 @@ and is r≈0.15–0.55 for EVERYONE, FEP included. `--ultra` MM-GBSA as an absol
 (corr −0.72 with length; size-normalized dead). The forward lever is data + ML representation, not more physics
 (docs: `why_we_keep_failing_synthesis`, `where_we_stand_vs_lie_fep`, `absolute_kd_forensics`).
 
-**The honest scorecard (E330/E331, verified, leakage-free).** Absolute cross-target peptide ΔG, 60%-id clustered CV:
-- OURS full 925: **MAE 1.43 / RMSE 1.81 / r 0.263** (beats zero-skill MAE 1.47).
-- OURS vs PPI-Affinity clone, matched 865, identical split: **ours 1.33 / 1.66 / 0.391  vs  clone 1.44 / 1.82 /
-  0.231** — win on every metric, margin widens under the honest split (Δr +0.11 leaky → +0.16 clustered).
+**The honest scorecard (E330/E331, verified, leakage-free).** Absolute cross-target peptide ΔG, 60%-id clustered CV
+(placement-aware identity, refreshed 2026-07-09):
+- OURS full 925: **MAE 1.40 / RMSE 1.77 / r 0.321** (beats zero-skill MAE 1.47).
+- OURS vs PPI-Affinity clone, matched 865, identical split: **ours 1.35 / 1.69 / 0.352  vs  clone 1.46 / 1.84 /
+  0.210** — win on every metric, margin holds under the honest split (Δr +0.11 leaky → +0.14 clustered).
 - PPIKB independent set (885, different DB), leakage-free: **r 0.15 / MAE 2.07** — at the label-noise floor
   (cross-DB disagreement r≈0.71, E301). Reported honestly, not hidden.
 - **Integrity fix:** corrected an earlier mislabel where the *leaky* random-CV r=0.446 was called "leakage-free";
-  the honest clustered number is r=0.263. MAE (stable ~1.3–1.4) is the headline metric; r is fragile/secondary.
+  the honest clustered number is r=0.321. MAE (stable ~1.3–1.4) is the headline metric; r is fragile/secondary.
 
 **To-do out of Epoch 11:** trajectory cache (E363, simulate-once/derive-offline) → per-residue ΔΔG *design* map for
 selectivity (the winnable relative regime) → data+representation expansion for absolute; surface a per-prediction
