@@ -1,0 +1,37 @@
+{
+  "experiment": "E331 ours vs PPI-Affinity clone, matched leakage-free head-to-head",
+  "n_complexes": 865,
+  "n_clusters": 609,
+  "id_thresh": 0.6,
+  "matched_ids_file": "data/e331_matched_pdbids.json",
+  "ours_16struct_GBT": {
+    "random_leaky": {
+      "r": 0.43727975377720796,
+      "rho": 0.4193318134157886,
+      "rmse": 1.622085923198743,
+      "mae": 1.2837283316029533
+    },
+    "clustered_leakage_free": {
+      "r": 0.3515399785463952,
+      "rho": 0.3380208433014868,
+      "rmse": 1.6936800135023864,
+      "mae": 1.350971845680968
+    }
+  },
+  "ppi_clone_ProtDCal3d_SVR": {
+    "random_leaky": {
+      "r": 0.32956093833445277,
+      "rho": 0.28436691625753513,
+      "rmse": 1.738275284538098,
+      "mae": 1.3542330957661664
+    },
+    "clustered_leakage_free": {
+      "r": 0.20964596417512474,
+      "rho": 0.17701646512094346,
+      "rmse": 1.8390927525600076,
+      "mae": 1.4560166316537912
+    }
+  },
+  "note": "PPI-clone = faithful reimplementation of PPI-Affinity's method (ProtDCal-3D desc + StandardScaler + SVR-rbf, model E236) scored on the IDENTICAL 60%%-id clustered split as ours; the real PPI-Affinity web server has been down since 2022 so the original cannot be queried. The clustered/leakage-free r is the reported number.",
+  "reproduce": "OMP_NUM_THREADS=1 python scripts/e331_ours_vs_ppiclone_clustered.py"
+}

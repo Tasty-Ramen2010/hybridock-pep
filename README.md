@@ -604,7 +604,7 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 
 | Number in this README | Command | Writes |
 |---|---|---|
-| **ours MAE 1.35 / r 0.352  vs  PPI-clone MAE 1.46 / r 0.210** (leakage-free head-to-head, test ①) | `OMP_NUM_THREADS=1 python scripts/e331_ours_vs_ppiclone_clustered.py` | stdout table (random + clustered, both models) |
+| **ours MAE 1.35 / r 0.352  vs  PPI-clone MAE 1.46 / r 0.210** (leakage-free head-to-head, test ①; Steiger p=0.002) | `OMP_NUM_THREADS=1 python scripts/e331_ours_vs_ppiclone_clustered.py` | [`data/e331_ours_vs_ppiclone.json`](data/e331_ours_vs_ppiclone.json) (random + clustered, both models) |
 | **ours full-set leakage-free MAE 1.40 / RMSE 1.77 / r 0.321** + matched ref2015 | `OMP_NUM_THREADS=1 python scripts/e330_ours_pdbbind.py` | stdout table (leaky vs clustered vs length-stratified) |
 | **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — legacy test ① | `python scripts/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
 | **PPIKB independent, leakage-free: ours r 0.333 / MAE 1.94  vs  PPI-clone 0.265 / 1.99** (Kd/Ki-only, full stack) | `OMP_NUM_THREADS=1 python scripts/e332b_ppikb_headtohead.py` | stdout |
