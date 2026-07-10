@@ -62,7 +62,8 @@ def _report(tag, model, X, y, clusters):
     print(f"  {tag}")
     print(f"    random 5-fold  [LEAKY]        : r={rr[0]:+.3f}  rho={rr[1]:+.3f}  RMSE={rr[2]:.2f}  MAE={rr[3]:.2f}")
     print(f"    clustered {n_folds}-fold [LEAKAGE-FREE]: r={rc[0]:+.3f}  rho={rc[1]:+.3f}  RMSE={rc[2]:.2f}  MAE={rc[3]:.2f}")
-    return rc[0]
+    return {"random_leaky": {"r": rr[0], "rho": rr[1], "rmse": rr[2], "mae": rr[3]},
+            "clustered_leakage_free": {"r": rc[0], "rho": rc[1], "rmse": rc[2], "mae": rc[3]}}
 
 
 def main():
@@ -83,13 +84,31 @@ def main():
     X_ours = np.nan_to_num(np.array([[ours[i][k] for k in STRUCT] for i in ids], float))
     X_clone = np.nan_to_num(np.array([clone[i]["desc"] for i in ids], float))
 
-    r_ours = _report("OURS  (16 structural feats, GBT):", new_ours(), X_ours, y, clusters)
+    m_ours = _report("OURS  (16 structural feats, GBT):", new_ours(), X_ours, y, clusters)
     print()
-    r_clone = _report("CLONE (PPI-Affinity ProtDCal-3D, SVR):", new_clone(), X_clone, y, clusters)
+    m_clone = _report("CLONE (PPI-Affinity ProtDCal-3D, SVR):", new_clone(), X_clone, y, clusters)
+    r_ours = m_ours["clustered_leakage_free"]["r"]
+    r_clone = m_clone["clustered_leakage_free"]["r"]
 
     print(f"\n  LEAKAGE-FREE verdict:  ours r={r_ours:+.3f}  vs  PPI-clone r={r_clone:+.3f}  "
           f"(Δ={r_ours - r_clone:+.3f})")
     print("  PPI-Affinity published (their data, their split): r=0.554  [NOT leakage-controlled comparably]")
+
+    receipt = {
+        "experiment": "E331 ours vs PPI-Affinity clone, matched leakage-free head-to-head",
+        "n_complexes": len(ids), "n_clusters": len(set(clusters.tolist())),
+        "id_thresh": ID_THRESH, "matched_ids_file": "data/e331_matched_pdbids.json",
+        "ours_16struct_GBT": m_ours,
+        "ppi_clone_ProtDCal3d_SVR": m_clone,
+        "note": ("PPI-clone = faithful reimplementation of PPI-Affinity's method (ProtDCal-3D desc + StandardScaler "
+                 "+ SVR-rbf, model E236) scored on the IDENTICAL 60%%-id clustered split as ours; the real "
+                 "PPI-Affinity web server has been down since 2022 so the original cannot be queried. "
+                 "The clustered/leakage-free r is the reported number."),
+        "reproduce": "OMP_NUM_THREADS=1 python scripts/e331_ours_vs_ppiclone_clustered.py",
+    }
+    out = ROOT / "data/e331_ours_vs_ppiclone.json"
+    out.write_text(json.dumps(receipt, indent=2))
+    print(f"\n  receipt -> {out}")
 
 
 if __name__ == "__main__":
