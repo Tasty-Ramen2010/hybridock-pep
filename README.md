@@ -215,6 +215,12 @@ Stage-1 pose *generation* is ~3 min for all 100 poses, so a full 100-pose dock-a
 against **29.8 min for a single global peptide docking** by HPEPDOCK in the 2026 field review (Martins,
 Santos & Sousa, *J. Comput. Chem.* 47:5). No slower method that also emits a calibrated ΔG comes close.
 
+**It runs on a laptop, off battery.** Measured end-to-end on a **fanless MacBook Air M3 (16 GB RAM, Apple MPS,
+no discrete GPU)**: a full **100-pose MDM2/p53 dock** (peptide `ETFSDLWKLLPE`) completes in **under 15 minutes**,
+and the best-pose ΔG lands **~0.9 kcal/mol from experiment**. Honest caveat: that complex is a *neutral, short
+12-mer* — a favourable case for absolute accuracy; charged/long peptides sit at the cross-target ceiling
+discussed above. The point of this datapoint is the **efficiency**: no cluster, no CUDA, no discrete GPU.
+
 **Accuracy — and the field is empty of live rivals.**
 
 - **PPI-Affinity**, the prior best *published* ML peptide scorer, has been **unmaintained since 2022** (dead web
@@ -507,7 +513,9 @@ OpenMM platform priority is **CUDA → HIP → OpenCL → CPU** (HIP beats OpenC
 Apple GPUs, which have no native OpenMM backend); mixed precision gives near-double accuracy at near-single
 speed. Vina/AD4, the geometry model, and the calibrated ΔG are **pure-CPU and identical on every platform** —
 only Stage 1 sampling and the OpenMM relaxations change speed with hardware. No local NVIDIA GPU? Sample
-Stage 1 elsewhere (or on CPU) and run scoring locally with `dock --input-poses poses_dir/`.
+Stage 1 elsewhere (or on CPU) and run scoring locally with `dock --input-poses poses_dir/`. **The Apple path is
+not theoretical:** a full 100-pose MDM2/p53 run finishes in **<15 min on a fanless MacBook Air M3 (16 GB, MPS)** —
+see [Speed](#the-claim-stated-plainly--and-why-it-holds-in-2026) above.
 
 ### Outputs
 
