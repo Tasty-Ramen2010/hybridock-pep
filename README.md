@@ -1,16 +1,6 @@
 # HybriDock-Pep
 
-```
-   █   █  █   █  ████   ████   █  ████    ███    ████  █   █
-   █   █  █   █  █   █  █   █  █  █   █  █   █  █      █  █
-   █████   ███   ████   ████   █  █   █  █   █  █      ███    · P E P
-   █   █    █    █   █  █  █   █  █   █  █   █  █      █  █
-   █   █    █    ████   █   █  █  ████    ███    ████  █   █
-
-   peptide → AI poses → calibrated ΔG (kcal/mol) → selectivity ΔΔG
-   diffusion sampling  +  physics / learned-geometry rescoring
-   MIT · CUDA│ROCm│oneAPI│Metal│CPU · leakage-free benchmarked
-```
+> **peptide → AI poses → calibrated ΔG (kcal/mol) → selectivity ΔΔG** · diffusion sampling + physics/learned-geometry rescoring · MIT · CUDA│ROCm│oneAPI│Metal│CPU · leakage-free benchmarked
 
 **A general protein–peptide docking and scoring tool: AI diffusion sampling + a learned-geometry affinity model (+ optional MM-GBSA) — fused into a single CLI, MIT-licensed, cross-platform.**
 
