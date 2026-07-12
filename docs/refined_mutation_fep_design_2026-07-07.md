@@ -97,7 +97,7 @@ described and (b) the net-charge finite-size correction it was missing. Build ga
 peptide ΔΔG, GPU-hours).
 
 ### Mechanism demo — the derivative IS finite and integrable in explicit water (E328)
-`scripts/e328_explicit_water_ti.py` builds a 2269-atom explicit-TIP3P system (PME) and monitors ⟨∂U/∂λ⟩ — the
+`experiments/e328_explicit_water_ti.py` builds a 2269-atom explicit-TIP3P system (PME) and monitors ⟨∂U/∂λ⟩ — the
 exact quantity you wanted to watch — as the solute's charges are scaled:
 
 ```

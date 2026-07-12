@@ -47,7 +47,7 @@ _HPHOBIC_AA = set("AVLIMFWC")
 # ranking blind (W>F>Y>L>I top, Ser bottom). Used as a burial-weighted intensive term that, unlike
 # the size-confounded statistical mj_contact, is sign-consistent across datasets (docs E46:
 # strength_bur −0.283 crystal-65 / −0.124 the-98). Residues absent here (A, C) are skipped, matching
-# the validated feature. data/skempi_v2.csv (gitignored); scripts/e46_skempi_strength.py.
+# the validated feature. data/skempi_v2.csv (gitignored); experiments/e46_skempi_strength.py.
 _SKEMPI_STRENGTH = {
     "W": 2.1636, "F": 1.5713, "Y": 1.5614, "L": 1.2342, "I": 1.1869, "K": 1.1405,
     "D": 1.1343, "R": 1.1273, "H": 1.0038, "G": 0.8263, "M": 0.8222, "E": 0.7864,

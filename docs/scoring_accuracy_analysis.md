@@ -37,7 +37,7 @@ peptide affinity (the mean-predictor already scores 2.25), *not* skill. Absolute
 standalone number.
 
 > **Update 2026-06-10 — the r≈0.45 is the size confound; cross-family is ~0.**
-> A 9-experiment audit (`scripts/e0_*`…`e2_*`, `docs/kcalmol_research_synthesis.md`)
+> A 9-experiment audit (`experiments/e0_*`…`e2_*`, `docs/kcalmol_research_synthesis.md`)
 > showed every cheap feature that reaches r≈0.45–0.55 does so via the interface-
 > **size** confound or a physically-backwards Vina slope — under within-fold
 > length-residualization **+ family-grouped CV**, even BSA flips to −0.50 and the

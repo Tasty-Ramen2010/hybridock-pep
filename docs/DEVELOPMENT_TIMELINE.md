@@ -80,7 +80,7 @@ predicted vs measured ΔG:
 
 Better than the old harshest-critic ~0.05 (honest_competitive §7) because the IFP model improved it. This is
 the defensible "another team can prioritise a peptide panel" claim — ranking, not blind absolute.
-Reproduce: `python scripts/e306_within_target_ranking.py`.
+Reproduce: `python experiments/e306_within_target_ranking.py`.
 
 **E307 — REFUTED: routing IFP to charged targets for within-target ranking.** Hypothesis: BH3 (electrostatic)
 ranking fails because geometry misses charge, so route charged targets to an IFP-driven ranker. Tested per-
@@ -122,7 +122,7 @@ ranker; (2) the charged↔neutral routing does not survive a metric change; (3) 
   **shape/burial**, not side-chain chemistry. This is the UNIFYING mechanism behind the compression, the
   sub-10 nM saturation, and the BH3 ranking failure: near-identical grooves/backbones score alike regardless
   of the side-chain chemistry that actually sets affinity. Matches [[project_poseinvariant_pocket_jun14]]
-  (pose-robust = shape features). Reproduce: `scripts/e308_probe_battery.py`.
+  (pose-robust = shape features). Reproduce: `experiments/e308_probe_battery.py`.
 
 **E309 — WIN: a separate IFP calibration for RANKING vs SCORING (Ram's two-model idea, confirmed).** E308
 showed raw IFP *counts* scale with interface size/burial — real cross-target signal (helps absolute ΔG) but
@@ -137,7 +137,7 @@ total contacts) that encodes *which* contact types dominate, size-independent. 8
 
 So ship **two calibrations of the same design**: raw-count IFP for absolute ΔG (the PPI-beating 0.480),
 composition IFP for within-target ranking (70.5% pairwise, +6 pts, helps charged AND neutral). Model saved
-`data/affinity_rank_ifp.joblib`. Reproduce: `scripts/e309_ranking_ifp.py`.
+`data/affinity_rank_ifp.joblib`. Reproduce: `experiments/e309_ranking_ifp.py`.
 
 **E310 — label-free confidence flag for rank_score.** Interface composition does NOT predict per-target
 ranking quality (all |r|<0.18), but the model's prediction SPREAD across a candidate panel does (r≈+0.5).
@@ -145,7 +145,7 @@ Threshold RECALIBRATED on the shipped model to 0.50: held-out panels invert in t
 spread 0.27→ρ+0.67 but BH3 0.36→ρ−0.63), so the bar is set high — in-sample HIGH-conf 86% correct (mean
 ρ+0.58), and all ambiguous/failing panels fall in the conservative 'verify' bucket; only clearly-separable
 panels like SH3 (spread 0.90, ρ+0.91) get 'high'. `interaction_map.ranking_confidence()`,
-`RANK_CONFIDENCE_SPREAD_THRESHOLD=0.50`. Reproduce: `scripts/e310_ranking_confidence.py`. **Next:** wire a `rank_score`
+`RANK_CONFIDENCE_SPREAD_THRESHOLD=0.50`. Reproduce: `experiments/e310_ranking_confidence.py`. **Next:** wire a `rank_score`
 column / `--rank` path so `dock` emits the composition-IFP ordering alongside the ΔG.
 
 **E311 — charged failure is FEATURE/SIGNAL-limited, not reweighting- or offset-fixable (10 ideas refuted).**
@@ -178,7 +178,7 @@ signal is the electrostatic desolvation/entropy cancellation (importin: ΔE_elec
 cancel), a difference of large terms only explicit-water FEP resolves — static features hold the contacts but
 not the opposing desolvation, so the net sits under the noise floor. Same FEP-bound charged floor as
 [[project_absolute_kd_ceiling_jun14]], now closed from the reweighting angle too. Reproduce:
-`scripts/e311_charged_ideas.py`.
+`experiments/e311_charged_ideas.py`.
 
 **README audit (2026-07-06b).** Test ① (0.352/0.480) reproduces live (e294/e298). The former Test ② (double-
 difference cycle) numerically reproduced but was later **RETRACTED** (E312, below) as an additivity artifact —
@@ -215,7 +215,7 @@ The net being noise is the whole point: subtracting two large single-point estim
 exceed their true difference amplifies error. Only FEP's path-integral avoids computing the large terms
 absolutely. **Charged is FEP-bound; no cheap difference-trick (ML or physics) recovers it** — closing the
 question from the alchemical angle too (with E311's 10 feature ideas, >12 charged ideas now refuted).
-Reproduce: `scripts/e312_double_diff_and_physics.py`.
+Reproduce: `experiments/e312_double_diff_and_physics.py`.
 
 **E313 — "poor-man's FEP" (score mutations stepwise like FEP integrates dU/dλ): researched + REFUTED.**
 Ram's idea + a literature pass. FEP does not compute absolute kcal/mol naively — it transforms only the
@@ -242,7 +242,7 @@ untested research lead (Perses free-state cycle correction) can't rescue it — 
 signal is already absent. **Scope takeaway (positive):** strong on DIVERSE candidate panels (4-6 mut r=0.71 →
 screening), weak on single-residue lead-optimisation. A cheap FEP-analogue needs a per-atom differentiable
 energy (NN potential), i.e. becoming NNP-FEP — no shortcut through a shape-dominated static scorer. Reproduce:
-`scripts/e313_poor_mans_fep.py`.
+`experiments/e313_poor_mans_fep.py`.
 
 **E314 — cross-domain brainstorm for the charged/absolute wall (metrology, MC, quantum, surveying, cooking).**
 The unifying math: estimating a difference-of-large-cancelling-terms (or a sub-resolution quantity) is universal.
@@ -250,7 +250,7 @@ Full map in `docs/cross_domain_ideas_2026-07-06.md`. Every trick that helps us i
 (control variates = anchoring; Wheatstone/interferometry = selectivity; bridge/DiD) → cancels the common term,
 or **variance-reduction** (randomized smoothing = Ram's `--ultra`; loop closure; common-random-numbers) → tightens
 ranking. **None create the missing charged signal** (bias, not variance) — that needs a per-atom differentiable
-energy (perturbation theory/FEP/NNP). Ram's `--ultra` tested (E314, `scripts/e314_ultra_smoothing.py`): randomized-
+energy (perturbation theory/FEP/NNP). Ram's `--ultra` tested (E314, `experiments/e314_ultra_smoothing.py`): randomized-
 smoothing proxy gives **+2 pts within-target pairwise (68.6→70.5%)** — real variance reduction, but the absolute
 charged ceiling (~0.40) is unmoved, and cheap feature-TTA already captures most of it (RAPiDock mutant-folding
 likely not worth the cost). One untested cheap idea worth a spike: **common-random-numbers ΔΔG** (score a pair on
@@ -273,7 +273,7 @@ TorchANI — not installed, later). Feasibility PROVEN: built a real alchemical 
 with λ) and the full build→sample→MBAR loop reproduces an analytical free energy to **0.01 kcal/mol** (G1-
 partial). Remaining = G1-full (real peptide ΔΔG, GPU-hours) → G2 (FEP ranks importin/charged where static went
 backwards) → G3 cost/benefit. Honest: post-freeze milestone, buildable, not built. Reproduce:
-`scripts/e316_fep_feasibility_poc.py`.
+`experiments/e316_fep_feasibility_poc.py`.
 
 **E317 — partial FEP for charged only: YES, it's the right design + new concepts + the empirical floor.** Ram:
 can we FEP only the charged/desolvation term and let the fast scorer do shape? Answer YES — full ABFE has an
@@ -288,7 +288,7 @@ sample, but only the cheap leg. **Bonus lead:** frustration predicts the residua
 `docs/new_concepts_charged_2026-07-07.md`: N1 error-structure-defined alchemy (flagship=T1-charged), N2
 fluctuation-from-generative-pose-cloud (testable), N3 learned local dielectric, N4 cycle-closure training loss,
 N5 frustration triage (testable, promising), N6 adiabatic-connection (blocked, documented). Reproduce:
-`scripts/e317_partial_fep_electrostatics.py`.
+`experiments/e317_partial_fep_electrostatics.py`.
 
 **E318–E322 — N1–N5 tested + LIE/PB/Hess mined + T1-charged spiked.** Ram: run N1–N5 for real, spike T1-charged
 once (needs a *special calibrated* scorer, wireable under `--ultra`), and adapt LIE/MM-PBSA/Hess.
@@ -307,7 +307,7 @@ not a lookup, so the leg must sample. Part B — the charging leg runs (Langevin
 11 to 0.14 kcal/mol** = linear-response cheap, confirming the ~10–50× saving. Lesson from the ancient methods
 (LIE ⟨⟩, PB needs sampling to set ε, FEP per-edge integral): the charged term is a *fluctuation*; every static
 shortcut fails alike, and the two things that moved (N2, N5) are the ensemble-aware ones. Full writeup:
-`docs/n_concepts_results_2026-07-07.md`; reproduce `scripts/e318`–`e322_*`.
+`docs/n_concepts_results_2026-07-07.md`; reproduce `experiments/e318`–`e322_*`.
 
 **E325/E327 — N2 did NOT replicate at scale; the neutralization double-difference (cheap) is null too.** Two
 honest negatives. (1) **N2 was largely the n=24 fluke** (perm-p was 0.074): on 212 independent charged PDBbind
@@ -321,7 +321,7 @@ REFUTED for the proxy). V2 Born alone −0.01, V5 per-residue max mutation cost 
 Born term can't see it. **Conclusion: the mutation cycle is thermodynamically correct and IS exactly T1-charged
 (sampled charging leg); every cheap surrogate for it hits the same sampling wall.** Wired N5 charged-confidence
 flag into dock (charged_confidence CSV column). Charged-cloud GPU campaigns e323/e324/e326 still running for the
-Var(V_elec) large-n test + geometry data. Reproduce: `scripts/e325_n2_at_scale.py`, `scripts/e327_neutralization_ddg.py`.
+Var(V_elec) large-n test + geometry data. Reproduce: `experiments/e325_n2_at_scale.py`, `experiments/e327_neutralization_ddg.py`.
 
 **E328 — Ram's mutation idea refined into a literature-grounded protocol + explicit-water derivative demo.**
 Ram's `--ultra`-for-charged idea (mutate charged↔neutral variants, score, work back from differences; per-mutant
@@ -335,7 +335,7 @@ smoothing, no signal) is the wrong home; the charged path is GPU-hours behind `-
 **Mechanism demo (E328):** an explicit-TIP3P (2269 atoms, PME) charging leg monitors ⟨∂U/∂λ⟩ = +10.3→+37.5
 kcal/mol across λ 1→0, a finite/smooth/integrable derivative (∫≈+26 kcal charging, short/unconverged) — the
 reorganisation signal every static term missed, because this one samples the water. Full design:
-`docs/refined_mutation_fep_design_2026-07-07.md`; `scripts/e328_explicit_water_ti.py`.
+`docs/refined_mutation_fep_design_2026-07-07.md`; `experiments/e328_explicit_water_ti.py`.
 
 **E329 — killed the dead N2 campaign, ran the real charged-FEP G1 spike on the GPU: it RUNS but is unconverged.**
 N2 confirmed null at n=237 (⟨V_elec⟩ r≈+0.07) → killed the cloud campaign (237 clouds kept as data), freed the
@@ -1283,7 +1283,7 @@ bound structure:
 ```
 
 PPI needs a **3D structure**, so on a generated pose it takes a structure-quality haircut just like we do.
-Spec: `third_party/protdcal/protdcal_spec.py`; engine: `scripts/e179_protdcal_3d.py`.
+Spec: `third_party/protdcal/protdcal_spec.py`; engine: `experiments/e179_protdcal_3d.py`.
 
 ### 16.2 Can we clone PPI to beat it on crystal? No — the gap is their private data
 
@@ -1689,7 +1689,7 @@ docked rank-1 poses are only ~70% faithful to the map, so IFP-only degrades on A
 
 **E300 — IFP on PPI-Affinity's own T100 (the honest apples-to-apples test).** We trained geom+IFP on the
 925 PDBbind crystals (disjoint, 0 overlap) and predicted PPI's published T100 cold, against the authors' own
-predictions (`scripts/e300_ifp_on_t100.py`, n=48):
+predictions (`experiments/e300_ifp_on_t100.py`, n=48):
 
 ```
   method (T100, n=48)        r_all   note
@@ -1706,7 +1706,7 @@ heavy lifting (5× the geom number). On the level field — independent data whe
 boost — we win: PPIKB n=305 ours 0.352 vs PPI 0.325; PDBbind crystal+IFP ours 0.480 vs PPI-clone 0.291.
 **The lesson stands: PPI leads only where the benchmark overlaps its training; everywhere unbiased, we lead.**
 
-**E301 — IFP on PPIKB (honest negative, `scripts/e301_ifp_on_ppikb.py`).** PPIKB itself has no crystal
+**E301 — IFP on PPIKB (honest negative, `experiments/e301_ifp_on_ppikb.py`).** PPIKB itself has no crystal
 splits, so IFP can't run on the raw fresh-305. But 360 PPIKB complexes overlap PDBbind (we have their IFP).
 Leave-receptor-out CV on those 360 vs PPIKB labels:
 
@@ -1726,7 +1726,7 @@ over-claims it. (These 360 are the PDBbind-overlapping PPIKB slice, NOT the inde
 **E302–E304 — "train IFP on EVERYTHING we have" (the data-hungry hypothesis, settled).** We assembled every
 IFP-computable crystal under one production pipeline (verified to machine precision: `compute_ifp` ==
 e296 cache max|Δ|=0; T100 geom == `compute_geometry_features` 0/16 keys differ), then built IFP for **437
-NEW PPIKB complexes** by splitting raw RCSB structures (`scripts/e303_build_ppikb_ifp.py`, peptide chain
+NEW PPIKB complexes** by splitting raw RCSB structures (`experiments/e303_build_ppikb_ifp.py`, peptide chain
 chosen by sequence identity and *asserted*, median identity 1.00). Pooled leave-receptor-out CV:
 
 ```

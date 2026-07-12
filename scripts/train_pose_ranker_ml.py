@@ -4,7 +4,7 @@ Learns to predict native Cα-RMSD from computable, OSI-clean pose features (Rama
 RDKit 3D-shape; see src/hybridock_pep/scoring/pose_ranker_ml.py). Training data = real RAPiDock
 poses from the cr65 real-pose campaign (runs/e93_realpose_campaign), with native RMSD computed
 against the crystal peptide reference — exactly the deployment distribution that produced the
-validated leave-one-complex-out τ = 0.406 (≈2× BSA+clash) in scripts/e96_poseranker_validation.py.
+validated leave-one-complex-out τ = 0.406 (≈2× BSA+clash) in experiments/e96_poseranker_validation.py.
 
 The φ/ψ Ramachandran KDEs are fitted here on the pooled training angles and bundled into the
 artifact, so the runtime has NO external dependency. Re-run after adding new campaign poses to

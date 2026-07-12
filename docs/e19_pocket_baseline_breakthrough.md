@@ -187,7 +187,7 @@ a broken test).
 
 ## E24/E25 — per-contact ENERGY (Ram's hotspot idea) + v1.2 driver wiring
 
-**Per-contact chemistry HELPS (Miyazawa-Jernigan contact potential, scripts/e24):**
+**Per-contact chemistry HELPS (Miyazawa-Jernigan contact potential, experiments/e24):**
 Σ MJ residue-residue contact energy over peptide-receptor contacts captures the per-contact
 ENERGY a contact COUNT misses (Trp-Trp ≫ Ala-Ala). All LOO, kcal/mol RMSE:
   - geometry 0.576 / RMSE 1.78  →  geometry+MJ 0.615 / 1.71  (oracle)
@@ -206,7 +206,7 @@ data/ensemble_calibration.json. Tests: tests/test_geometry_features.py (5) + tes
 
 **ESM per-contact (Ram's specific idea — ESM models two touching residues):** per-residue
 ESM-2 embeddings of peptide + pocket; contact features = Σ over contacts of <emb_i,emb_j>.
-Tested vs MJ — see scripts/e25 (result pending full extraction).
+Tested vs MJ — see experiments/e25 (result pending full extraction).
 
 ## E25 result — ESM per-contact: NO (physics MJ wins), PPI-Affinity comparison
 
@@ -277,7 +277,7 @@ loop); flag or refuse OOD (sheet/long/low-burial). Cannot fix without Kd-labeled
 
 Built the balanced labeled set Ram asked for: 98/100 complexes from the PPI-Affinity SI
 (real RCSB structures + experimental ΔG, diverse SS/length, ΔG range −12.6..−4.6 kcal/mol),
-scored on NATIVE poses. data/ppep100_benchmark.csv; scripts/e28_ppep_benchmark.py + e28_eval.py.
+scored on NATIVE poses. data/ppep100_benchmark.csv; experiments/e28_ppep_benchmark.py + e28_eval.py.
 
 | method (same 98 complexes, native poses) | r | RMSE kcal/mol |
 |---|---|---|
@@ -326,7 +326,7 @@ The properly-encoded multivariate set BEATS single-feature on adequate data (0.4
 "one signal carrying everything" was an artifact of covariance-overfitting on 65 points, not a law.
 Old extensive-11 transfer was −0.14; new intensive set generalizes. Full resolution: intensive
 encoding + more diverse data (harvest in progress) = the path. f_hyd_iface is the new best single
-universal feature. scripts/e31_intensive_features.py; /tmp/e31_intensive.json.
+universal feature. experiments/e31_intensive_features.py; /tmp/e31_intensive.json.
 
 ## E33 — single-pose GB desolvation (Ram's cheap-physics idea): WHY it still flips
 
@@ -352,7 +352,7 @@ CONCLUSION of the physics arc: cheap counts flip (miss desolvation); +desolvatio
 (miss entropy); entropy is irreducibly expensive. Two real jumps remain — (1) FULL MM-GBSA with
 entropy (3-traj captures peptide reorganization; proper physics, expensive), (2) ML + diverse
 DATA (PPI-Affinity learns the net ΔH−TΔS implicitly). Cheap universal signal = hydrophobic
-burial + intensive features (~0.4). scripts/e33_desolvation.py; /tmp/e33_{cr,b98}.json.
+burial + intensive features (~0.4). experiments/e33_desolvation.py; /tmp/e33_{cr,b98}.json.
 
 ## E35 — data route: clean data helps, bulk noise hurts (more≠better)
 
@@ -364,7 +364,7 @@ protein-PROTEIN source (SKEMPI/PDBbind/SAbDab); its short chains carry protein-p
 peptide-Kd (163 clean -> 0.421); bulk dilutes. Encoding fix confirmed: train cr+harvest -> predict
 independent 98 = +0.194 (vs old extensive -0.14) — universal intensive features generalize even
 with noisy training. Lever = clean curated data (PpISDS-350, PDBbind peptide subset — gated), not
-volume. scripts/e35_expanded_corpus.py.
+volume. experiments/e35_expanded_corpus.py.
 
 ## E38 — length-modulation hypothesis (Ram): right diagnosis, inverted fix
 
@@ -393,7 +393,7 @@ classes ~0.42 pooled), but supplying the FREE-STATE CONFORMATIONAL ENTROPY from 
 one physical term fundamentally invisible to a static bound pose. A learned disorder/flexibility
 predictor (or ESM) estimating sequence rigidity is the physically-justified ML addition. This is
 the missing term, and it's a free-state property → only sequence/sampling can give it.
-scripts/e38_length_physics.py.
+experiments/e38_length_physics.py.
 
 ## E39/E40 — free-state entropy feature: real signal, too weak to bridge (so far)
 
@@ -428,7 +428,7 @@ is the missing universal term -> sequence proxy too crude -> REAL MD free entrop
 Ram's "physics never lies / missing term" thesis CONFIRMED: free-state conformational entropy is
 the term a static bound pose cannot see, and measuring it properly (cheap free-peptide MD, 8s GPU,
 NOT full MM-GBSA) bridges part of the gap. Cost: 8s/peptide GPU MD of the FREE peptide only.
-Next: add to production as an optional GPU feature; combine with curated data. scripts/e40_md_freestate.py.
+Next: add to production as an optional GPU feature; combine with curated data. experiments/e40_md_freestate.py.
 
 ## E41 — gap analysis WITH entropy: the remaining gap is ELECTROSTATICS
 
@@ -575,7 +575,7 @@ gain on the hotspot/enthalpy axis; entropy still needs sampling. THE concrete ne
 Ram's idea: a real "strength dictionary" — high for Trp/Phe/Leu, low for weak residues — from
 EXPERIMENT not hand-tuning. Built from SKEMPI 2.0 (~7000 interface point mutations): for an
 alanine scan X->A, ΔΔG(X->A)=RT·ln(Kd_mut/Kd_wt) = the experimental binding contribution of X.
-(scripts/e46_skempi_strength.py; data/skempi_v2.csv, gitignored >1MB.)
+(experiments/e46_skempi_strength.py; data/skempi_v2.csv, gitignored >1MB.)
 
 **The dictionary is physically perfect:** W 2.16 > F 1.57 ≈ Y 1.56 > L 1.23 ≈ I 1.19 at the top,
 charged K/D/R ~1.13 mid, S 0.26 lowest. The Bogan-Thorn hot-spot ranking recovered blind from
@@ -603,7 +603,7 @@ the size-confounded `mj_contact` for cross-dataset transfer. Small but safe.
 Ram's thread: FEP/LIE win by ensemble averaging; we already have N=100 diffusion poses — can we
 Boltzmann-average them for a free partial ensemble? Then his two corrections: (1) the poses are
 spread (6Å median CA-RMSD, frac>5Å = 40-95%) so naive averaging eats misdocks; (2) filter by
-RMSD-to-best-pose to keep only the same-mode neighbourhood. (scripts/e47_pose_ensemble.py,
+RMSD-to-best-pose to keep only the same-mode neighbourhood. (experiments/e47_pose_ensemble.py,
 e48_rmsd_filtered_ensemble.py; per-pose cache /tmp/e48_perpose.json.)
 
 **Frame check passed:** pep-rec contact 0.2-0.7Å, centroid spread 0.8-1.2Å — poses share the
@@ -631,7 +631,7 @@ correct engineering — they led cleanly to the floor, not past it.
 ## E49/E50 — ensemble MM-GBSA & complete-LIE: ensemble RANK helps charged, free-leg dead
 
 Ram: "ensemble is all we need" — test ensemble-averaged MM-GBSA (e49) then complete the LIE with the
-free-peptide leg (e50). OpenMM ff14SB+GBn2, GPU (PfLDH dock done). scripts/e49_ensemble_mmgbsa.py,
+free-peptide leg (e50). OpenMM ff14SB+GBn2, GPU (PfLDH dock done). experiments/e49_ensemble_mmgbsa.py,
 e50_lie_complete.py; caches /tmp/e49_ens_mmgbsa.json, /tmp/e50_lie.json.
 
 **METRIC LESSON:** MD produces repulsive-non-binder outliers (5EI3 <E_int>=+518); Pearson collapses

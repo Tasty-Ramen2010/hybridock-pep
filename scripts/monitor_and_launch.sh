@@ -186,7 +186,7 @@ while true; do
             separator
             log "V3B COMPLETE ✓ — launching v4n now"
             log "  Log: $V4N_LOG"
-            nohup bash "$REPO/scripts/chain_training_v4new.sh" \
+            nohup bash "$REPO/experiments/chain_training_v4new.sh" \
                 >> "$V4N_LOG" 2>&1 &
             log "  v4n PID: $!"
         fi
@@ -215,7 +215,7 @@ while true; do
         if ! $v4n_any_active && ! is_complete "$FINETUNED/finetune_peppc_v4n_phase3"; then
             log "WARNING: v4n chain process not found but P3 not complete — may have crashed!"
             log "  Check $V4N_LOG for errors."
-            log "  To resume: nohup bash scripts/chain_training_v4new.sh >> $V4N_LOG 2>&1 &"
+            log "  To resume: nohup bash experiments/chain_training_v4new.sh >> $V4N_LOG 2>&1 &"
         fi
     fi
 
@@ -226,7 +226,7 @@ while true; do
             separator
             log "V4N COMPLETE ✓ — launching v5n now"
             log "  Log: $V5N_LOG"
-            nohup bash "$REPO/scripts/chain_training_v5new.sh" \
+            nohup bash "$REPO/experiments/chain_training_v5new.sh" \
                 >> "$V5N_LOG" 2>&1 &
             log "  v5n PID: $!"
         fi
@@ -255,7 +255,7 @@ while true; do
         if ! $v5n_any_active && ! is_complete "$FINETUNED/finetune_peppc_v5n_phase3"; then
             log "WARNING: v5n chain process not found but P3 not complete — may have crashed!"
             log "  Check $V5N_LOG for errors."
-            log "  To resume: nohup bash scripts/chain_training_v5new.sh >> $V5N_LOG 2>&1 &"
+            log "  To resume: nohup bash experiments/chain_training_v5new.sh >> $V5N_LOG 2>&1 &"
         fi
     fi
 
@@ -271,7 +271,7 @@ while true; do
         if ! $v3b_any_active; then
             log "WARNING: v3b chain process not found but P3 not complete — may have crashed!"
             log "  Check $V3B_LOG for errors."
-            log "  To resume: nohup bash scripts/chain_training_v3b.sh >> $V3B_LOG 2>&1 &"
+            log "  To resume: nohup bash experiments/chain_training_v3b.sh >> $V3B_LOG 2>&1 &"
         fi
     fi
 

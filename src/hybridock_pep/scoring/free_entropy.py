@@ -12,7 +12,7 @@ disulfide) pay little entropy. s_free_bur = S_free × buried_fraction weights it
 the peptide actually freezes at the interface.
 
 Cost: ~8 s/peptide on GPU (60 ps free-peptide MD via OpenMM/GBn2). Opt-in; requires OpenMM.
-Reuses the MD machinery in scripts/e18v2_md.run_free_dynamics (ff14SB + GBn2 implicit solvent).
+Reuses the MD machinery in experiments/e18v2_md.run_free_dynamics (ff14SB + GBn2 implicit solvent).
 """
 from __future__ import annotations
 

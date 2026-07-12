@@ -9,6 +9,6 @@ echo "$(date) === AI-rebuild watcher START (waiting for real-pose campaigns) ===
 # wait until no e176 real-pose queue worker remains
 while pgrep -f "e176_realpose_queue.py" >/dev/null 2>&1; do sleep 120; done
 echo "$(date) campaigns done — rebuilding AI + crystal models (262-feat, pocket-ProtDCal)" >> $LOG
-$PY scripts/e206_build_pocket_models.py >> $LOG 2>&1
+$PY experiments/e206_build_pocket_models.py >> $LOG 2>&1
 echo "$(date) === models rebuilt (affinity_ai_nofix + affinity_crystal_sizefix, 262-feat) ===" >> $LOG
 # also refresh the crystal model is NOT needed (fixed 925); selectivity e193 dock continues separately.
