@@ -2,7 +2,7 @@
 
 **What this is.** The polar/charged composition of a peptide's *non-contacting*
 residues — PRODIGY's non-interacting-surface idea, ported to peptides. Validated
-this session (``scripts/e0_*`` … ``scripts/e2_*``;
+this session (``experiments/e0_*`` … ``experiments/e2_*``;
 ``docs/kcalmol_research_synthesis.md``) as the one correctly-signed, BSA-orthogonal
 feature that tracks binding affinity.
 

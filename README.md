@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
+**New here?** [RESULTS.md](RESULTS.md) — every leakage-free number + how to reproduce it · [MODEL_CARD.md](MODEL_CARD.md) — which of the 10 `data/*.joblib` actually ship & the honest limits · 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/).
+
 > **Tests:** ~429 collected, 419 pass with the full toolchain installed (`pytest`; see [Testing](#testing)).
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
 > with their own licenses (ADFRsuite, AutoDock4, PULCHRA, RAPiDock) — see [`INSTALL.md`](INSTALL.md).
@@ -64,7 +66,7 @@ The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plai
 **① We beat a faithful PPI-Affinity clone on the identical leakage-free split — measured in kcal/mol.**
 Both models score the *same* 865 PDBbind peptide-Kd complexes, clustered at 60% sequence identity (placement-aware
 alignment) with entire clusters held out per fold (CD-HIT-style; verified leakage-free — clustered r 0.35 < leaky
-random-CV r 0.44). `scripts/e331_ours_vs_ppiclone_clustered.py`:
+random-CV r 0.44). `experiments/e331_ours_vs_ppiclone_clustered.py`:
 
 ```
   n=865 matched PDBbind peptide-Kd · MAE/RMSE in kcal/mol · leakage-free 60%-id clustered CV
@@ -81,13 +83,13 @@ random-CV r 0.44). `scripts/e331_ours_vs_ppiclone_clustered.py`:
 ```
 
 On the **full 925-complex set**, our leakage-free absolute number is **MAE 1.40 / RMSE 1.77 / r 0.321**
-(`scripts/e330_ours_pdbbind.py`) — modestly above zero-skill (mean-predictor MAE 1.47) and honest about the cap.
+(`experiments/e330_ours_pdbbind.py`) — modestly above zero-skill (mean-predictor MAE 1.47) and honest about the cap.
 
 **Accuracy vs sequence-identity cutoff — the full trend** (added on the review of [Prof. David Koes](#external-review),
 who noted that 30% identity is the more standard clustering cutoff and that showing the *trend* across thresholds
 is better than a single split — cf. [Runs-and-Poses, bioRxiv 2025.02.03.636309](https://www.biorxiv.org/content/10.1101/2025.02.03.636309v3)).
 Same 925 complexes, same 16-feature GBT, leave-cluster-out CV at each cutoff, using a **placement-aware identity
-metric** (`scripts/e366_identity_threshold_trend.py`, data in [`data/hybridock_identity_trend.csv`](data/hybridock_identity_trend.csv)):
+metric** (`experiments/e366_identity_threshold_trend.py`, data in [`data/hybridock_identity_trend.csv`](data/hybridock_identity_trend.csv)):
 
 ```
   identity   clusters   MAE    RMSE    Pearson r      (kcal/mol; leave-cluster-out CV)
@@ -113,7 +115,7 @@ metric** (`scripts/e366_identity_threshold_trend.py`, data in [`data/hybridock_i
 > from one gapped residue) and collapsed the 925 peptides to just 21 clusters at 30%, giving a spuriously low
 > r≈0.23. We switched to a **placement-aware (gap-penalised)** identity (`GGA`/`ACC`→0, `GGA`/`CGG`→0.33); it
 > yields many more, cleaner clusters (410 at 30%) and a **steadier, slightly higher r (0.32)**. The before/after
-> is reproducible in [`scripts/e367_gap_penalized_trend.py`](scripts/e367_gap_penalized_trend.py). We report the
+> is reproducible in [`experiments/e367_gap_penalized_trend.py`](experiments/e367_gap_penalized_trend.py). We report the
 > corrected numbers and flag the fix rather than bury it.
 
 At the stricter **30% cutoff Koes recommends, the honest numbers are MAE 1.39 / RMSE 1.76 / r 0.32** — inside the
@@ -140,7 +142,7 @@ labels are IC50/EC50 (assay-specific, *not* thermodynamic — [JCIM 4c00049](htt
 
 **Where we lose, stated up front: PPI-Affinity's own home test set (T100).** On the 48-complex set PPI-Affinity
 curated and tuned on, the *real published tool* (not our clone) beats us on ranking — this is the honest flip
-side of the leakage argument, and we lead with it rather than bury it (`scripts/e300_ifp_on_t100.py`,
+side of the leakage argument, and we lead with it rather than bury it (`experiments/e300_ifp_on_t100.py`,
 [`data/e300_ifp_t100.json`](data/e300_ifp_t100.json)):
 
 ```
@@ -199,21 +201,21 @@ publish.
 citations pulled live from the PDB), each scored by a model that never saw its 60%-identity cluster —
 including real **peptide–MHC** (4PRN, HLA-B\*35:01). Aggregate over **all 925** such complexes, blind and
 leakage-free: **MAE 1.40 / RMSE 1.77 kcal/mol** (41% within 1.0, 77% within 2.0 kcal/mol).
-`scripts/e364_blind_demo.py` · [`data/hybridock_literature_complexes.csv`](data/hybridock_literature_complexes.csv).
+`experiments/e364_blind_demo.py` · [`data/hybridock_literature_complexes.csv`](data/hybridock_literature_complexes.csv).
 
 **⑤ An external benchmark we did *not* assemble.** The supplementary tables of **Wang et al., *Curr. Med. Chem.*
 2024, 31(31):4127** ([DOI](https://doi.org/10.2174/0929867331666230908102925); tables + PDF shipped in-repo so
 anyone can check). Their independently-published pK_d reproduces our ΔG labels to **corr 0.998**. 155 overlap
 complexes scored blind: **MAE 1.43 / RMSE 1.68**; and a **true external holdout of 43** complexes never in
-training (nor their 60%-id clusters): **MAE 1.60 / RMSE 1.90 / r 0.44.** `scripts/e365b_failure_analysis.py` ·
+training (nor their 60%-id clusters): **MAE 1.60 / RMSE 1.90 / r 0.44.** `experiments/e365b_failure_analysis.py` ·
 [`data/hybridock_wang2024_external43.csv`](data/hybridock_wang2024_external43.csv).
 
 **Also vs Rosetta FlexPepDock** (the standard physics baseline), same 918 PDBbind complexes matched
 complex-for-complex: ours (leakage-free clustered CV) is **r 0.32 / MAE 1.40**, while unrelaxed ref2015
 interface energy calibrates to **r ≈ 0** — it collapses onto the mean-predictor, because REU has no native
 kcal/mol (a linear `ΔG=a·REU+b` fit is correlation-invariant). Interface-relax rescues ref2015 to r 0.18 —
-still below ours and below its own within-target 0.59. `scripts/e329_ref2015_pdbbind.py` ·
-`scripts/e331_relax_pdbbind.py`.
+still below ours and below its own within-target 0.59. `experiments/e329_ref2015_pdbbind.py` ·
+`experiments/e331_relax_pdbbind.py`.
 
 Everything else stays honest: absolute charged Kd is capped at the non-FEP ceiling and we say so; selectivity
 ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; MIT-licensed and runs on CUDA · Apple MPS · Intel · AMD · CPU.
@@ -337,13 +339,13 @@ clustered into 379 groups at 60% identity) is the fairest peptide-affinity compa
 and the PPI-Affinity clone score every complex, on identical folds.
 
 The raw PDBbind structures themselves are **not** redistributed (PDBbind licensing) — register at
-[pdbbind.org.cn](http://www.pdbbind.org.cn/) for the v2020 general set; `scripts/e108_ingest_pdbbind.py`
+[pdbbind.org.cn](http://www.pdbbind.org.cn/) for the v2020 general set; `experiments/e108_ingest_pdbbind.py`
 rebuilds `pdbbind_peptides.jsonl` from it. To re-score the head-to-head from the shipped features alone
 (no structures needed):
 
 ```bash
 conda activate score-env
-python scripts/e330_ours_pdbbind.py     # ours + matched ref2015 head-to-head → r / RMSE / MAE
+python experiments/e330_ours_pdbbind.py     # ours + matched ref2015 head-to-head → r / RMSE / MAE
 ```
 
 ---
@@ -604,21 +606,21 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 
 | Number in this README | Command | Writes |
 |---|---|---|
-| **ours MAE 1.35 / r 0.352  vs  PPI-clone MAE 1.46 / r 0.210** (leakage-free head-to-head, test ①; Steiger p=0.002) | `OMP_NUM_THREADS=1 python scripts/e331_ours_vs_ppiclone_clustered.py` | [`data/e331_ours_vs_ppiclone.json`](data/e331_ours_vs_ppiclone.json) (random + clustered, both models) |
-| **ours full-set leakage-free MAE 1.40 / RMSE 1.77 / r 0.321** + matched ref2015 | `OMP_NUM_THREADS=1 python scripts/e330_ours_pdbbind.py` | stdout table (leaky vs clustered vs length-stratified) |
-| **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — legacy test ① | `python scripts/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
-| **PPIKB independent, leakage-free: ours r 0.333 / MAE 1.94  vs  PPI-clone 0.265 / 1.99** (Kd/Ki-only, full stack) | `OMP_NUM_THREADS=1 python scripts/e332b_ppikb_headtohead.py` | stdout |
-| **0.25 → 0.52–0.61** same-receptor anchoring — test ② | `python scripts/e264_ppikb_anchor_fusion.py` | `data/e264_ppikb_results.json` |
-| **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python scripts/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
-| **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python scripts/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
-| full non-FEP/LIE scorecard on 156 complexes | `python scripts/e90_full_scorecard.py` | stdout table |
-| **0.486 → 0.53** affinity *r* on real RAPiDock poses — test ③ | `python scripts/e106_combined_realpose_grade.py` | per-complex CSV |
+| **ours MAE 1.35 / r 0.352  vs  PPI-clone MAE 1.46 / r 0.210** (leakage-free head-to-head, test ①; Steiger p=0.002) | `OMP_NUM_THREADS=1 python experiments/e331_ours_vs_ppiclone_clustered.py` | [`data/e331_ours_vs_ppiclone.json`](data/e331_ours_vs_ppiclone.json) (random + clustered, both models) |
+| **ours full-set leakage-free MAE 1.40 / RMSE 1.77 / r 0.321** + matched ref2015 | `OMP_NUM_THREADS=1 python experiments/e330_ours_pdbbind.py` | stdout table (leaky vs clustered vs length-stratified) |
+| **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — legacy test ① | `python experiments/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
+| **PPIKB independent, leakage-free: ours r 0.333 / MAE 1.94  vs  PPI-clone 0.265 / 1.99** (Kd/Ki-only, full stack) | `OMP_NUM_THREADS=1 python experiments/e332b_ppikb_headtohead.py` | stdout |
+| **0.25 → 0.52–0.61** same-receptor anchoring — test ② | `python experiments/e264_ppikb_anchor_fusion.py` | `data/e264_ppikb_results.json` |
+| **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python experiments/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
+| **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python experiments/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
+| full non-FEP/LIE scorecard on 156 complexes | `python experiments/e90_full_scorecard.py` | stdout table |
+| **0.486 → 0.53** affinity *r* on real RAPiDock poses — test ③ | `python experiments/e106_combined_realpose_grade.py` | per-complex CSV |
 | **2.49 Å** best-of-top-25 pose RMSD, hit@5 91% — test ③ | `hybridock-pep benchmark --test-csv data/test_complexes.csv --report bench.md` | `bench.md` |
 | reference-anchoring **math** (thermodynamic cycle closes by construction; not a prediction claim) | `pytest tests/test_anchoring.py tests/test_double_difference.py -q` | green = the anchoring/cycle math holds |
 | **ΔΔG selectivity** primitive end-to-end | `pytest tests/test_selectivity.py -q` | green |
 
 Rebuild the IFP training cache from raw structures (the 437 new PPIKB complexes) with
-`python scripts/e303_build_ppikb_ifp.py`. The full experiment ledger (E0–E304, every win and every refuted
+`python experiments/e303_build_ppikb_ifp.py`. The full experiment ledger (E0–E304, every win and every refuted
 idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 ---

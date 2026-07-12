@@ -82,7 +82,7 @@ Needs a charge-sensitive base energy first (→ N1/T1-charged). Kept here to clo
   statics recovers the residual → the leg must sample, but only the cheap leg.
 - **Most promising new, testable-now leads:** N2 (fluctuation from pose cloud) and N5 (frustration triage).
 - **Flagship build:** N1 (error-structure-defined alchemy) = the milestone's T1-charged.
-- Reproduce the tests: `scripts/e317_partial_fep_electrostatics.py`.
+- Reproduce the tests: `experiments/e317_partial_fep_electrostatics.py`.
 
 ## RESULTS (2026-07-07, E318–E322) — all five run; see `docs/n_concepts_results_2026-07-07.md`
 - **N1/T1-charged (E322): SOUND + de-risked.** Neutral-calibrated scorer's charged residual = 1.79 kcal, mostly

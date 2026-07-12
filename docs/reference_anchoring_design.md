@@ -423,5 +423,5 @@ r=0.96 figure was retracted as an additivity artifact — see DEVELOPMENT_TIMELI
 
 ## 9. Reproduce
 
-`OMP_NUM_THREADS=1 python scripts/e260_anchor_triangulation.py` (score-env) → `data/e260_results.json`.
+`OMP_NUM_THREADS=1 python experiments/e260_anchor_triangulation.py` (score-env) → `data/e260_results.json`.
 (Single-threading is mandatory: WSL2 OpenMP oversubscription makes the HGB fits 1300× slower otherwise.)

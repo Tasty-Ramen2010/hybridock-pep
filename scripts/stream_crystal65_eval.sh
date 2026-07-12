@@ -9,6 +9,6 @@ for target in 35 50 65; do
     sleep 60
   done
   echo "==== eval @ $(grep -c 'best=' logs/crystal65_n100/gen.log) complexes  $(date) ====" >> "$SLOG"
-  $PY scripts/e19_realpose_eval.py 2>/dev/null | grep -vE "processed" >> "$SLOG"
+  $PY experiments/e19_realpose_eval.py 2>/dev/null | grep -vE "processed" >> "$SLOG"
 done
 echo "==== STREAM DONE $(date) ====" >> "$SLOG"

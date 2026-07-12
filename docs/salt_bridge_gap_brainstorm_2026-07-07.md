@@ -59,7 +59,7 @@ estimator.** This is why all our earlier LIE-flavoured ideas (N2 ⟨V_elec⟩) a
 - If neither is in scope for the freeze, the honest deliverable is: the fast scorer + the N5 triage flag (which
   correctly flags these cases), with FEP documented as precise-but-polarization-limited on buried salt bridges.
 
-*E337 (`scripts/e337_skempi_batch.py`, `data/e337_skempi_map.json`) tests whether the gap is the clean systematic
+*E337 (`experiments/e337_skempi_batch.py`, `data/e337_skempi_map.json`) tests whether the gap is the clean systematic
 under-estimate idea #1 needs.* Sources: JACS 2022 buried ion pairs (10.1021/jacs.2c00312); JCTC 2023 charge-change
 guidelines (10.1021/acs.jctc.3c00757); ACS Omega 2020 alchemically-polarized charges (10.1021/acsomega.0c01148);
 charge-changing PPI FEP (PMC6453258).

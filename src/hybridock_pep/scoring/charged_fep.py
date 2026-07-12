@@ -5,7 +5,7 @@ charged residues (Ram's LRA decomposition: ΔG_total = ΔG_neutral[scorer] + Σ 
 charged residue is routed by its interface environment:
   • salt-bridge contact (cationic partner within 4.5 Å)  → ECC-scaled charge-morph FEP (explicit TIP3P, 0.75×)
   • buried / H-bonded to polar-neutral (the 1IAR class)   → GFN2-xTB cluster QM
-This is the validated engine from scripts/e343 (ECC), e344 (GB), e346 (QM); the SKEMPI-scale calibration (slope +
+This is the validated engine from experiments/e343 (ECC), e344 (GB), e346 (QM); the SKEMPI-scale calibration (slope +
 per-route scale) is being fit by the E345 overnight campaign — the numeric leg activates once those constants land
 (CALIBRATION below). Until then this stage runs the structural triage (which residues, which route, confidence)
 so the wiring, progress, and metadata are complete and the compute leg is a drop-in.

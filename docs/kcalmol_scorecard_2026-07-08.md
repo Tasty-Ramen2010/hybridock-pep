@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-08 (numbers refreshed 2026-07-09 to a placement-aware identity metric) · Rigorous
 60%-sequence-identity clustered CV (CD-HIT-style, gap-penalised alignment; entire clusters held out).
-Primary metric = MAE/RMSE in kcal/mol (correct for an absolute-ΔG predictor). Reproduce: `scripts/e330_ours_pdbbind.py`
-(full set) and `scripts/e331_ours_vs_ppiclone_clustered.py` (matched head-to-head).
+Primary metric = MAE/RMSE in kcal/mol (correct for an absolute-ΔG predictor). Reproduce: `experiments/e330_ours_pdbbind.py`
+(full set) and `experiments/e331_ours_vs_ppiclone_clustered.py` (matched head-to-head).
 
 ## Absolute performance — full PDBbind peptide set (n=925)
 | split | MAE (kcal/mol) | RMSE | Pearson r | Spearman ρ |
@@ -29,5 +29,5 @@ We beat the previous-best published approach on every metric; margin WIDENS unde
   the numbers above.
 - "Leakage-free" = 60%-id CD-HIT clustering (placement-aware/gap-penalised alignment — the earlier free-gap
   metric reduced to longest-common-subsequence and over-merged short peptides; fixed 2026-07-09, see
-  scripts/e367_gap_penalized_trend.py), clusters held out per fold; verified (clustered r < leaky r).
+  experiments/e367_gap_penalized_trend.py), clusters held out per fold; verified (clustered r < leaky r).
 - Complexes: data/e331_matched_pdbids.json (865 PDB IDs), 810 Kd + 55 Ki, len 3–19, ΔG −14.2..−3.7.

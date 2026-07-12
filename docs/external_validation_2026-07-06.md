@@ -129,4 +129,4 @@ the conservative "verify" bucket rather than being wrongly trusted. Shipped-mode
 Exposed as `interaction_map.ranking_confidence(best_pose_rank_scores) -> (flag, spread)`, threshold
 `RANK_CONFIDENCE_SPREAD_THRESHOLD = 0.50`. **Conservative, not symmetric:** `high` = trust (86% correct
 in-sample, SH3 +0.91); `low` = *verify in the wet lab*, not a failure prediction (MDM2 is flagged `low` yet
-ranks +0.67 — the price of keeping the BH3 failure out of `high`). Reproduce: `scripts/e310_ranking_confidence.py`.
+ranks +0.67 — the price of keeping the BH3 failure out of `high`). Reproduce: `experiments/e310_ranking_confidence.py`.

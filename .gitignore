@@ -152,7 +152,7 @@ scripts/analyze_very_long_sampling.py
 scripts/analyze_vina_ranking.py
 scripts/build_benchmark30.py
 scripts/build_confidence_training_csv.py
-scripts/chain_training_*.sh
+experiments/chain_training_*.sh
 scripts/compare_rapidock_vs_finetuned.py
 scripts/confidence_exp_e.py
 scripts/confidence_pipeline_orchestrator.py

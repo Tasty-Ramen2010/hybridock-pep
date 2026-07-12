@@ -30,7 +30,7 @@ and still correct.
 
 Sources in `docs/kcalmol_research_synthesis.md`.
 
-## 2. Experiments run tonight (all committed as `scripts/e3*.py`)
+## 2. Experiments run tonight (all committed as `experiments/e3*.py`)
 
 ### E3 — physical per-residue entropy (your core thesis): **NULL cross-family**
 Built sequence-based conformational entropy from published per-AA side-chain +
@@ -166,13 +166,13 @@ single-set 0.5 don't generalize. The within-target (variant-ranking) regime
 remains the only place these features carry usable signal.
 
 ## 4. Files
-- `scripts/e3_physical_entropy.py` — entropy features + one-per-family
-- `scripts/e3b_length_resid_cross_family.py` — length-resid cross-family
-- `scripts/e3c_family_mean.py` — gold-standard family-mean correlation
-- `scripts/e3d_nis_killtests.py` — permutation / threshold / length-leak
-- `scripts/e3f_expand_families.py` — family expansion (extraction caveat noted)
-- `scripts/e7_pepbi_replication.py` — NIS on PEPBI clean structures (does not replicate)
-- `scripts/e8_hbond_crossdataset.py` — H-bond count crystal-65 vs PEPBI (sign flips)
+- `experiments/e3_physical_entropy.py` — entropy features + one-per-family
+- `experiments/e3b_length_resid_cross_family.py` — length-resid cross-family
+- `experiments/e3c_family_mean.py` — gold-standard family-mean correlation
+- `experiments/e3d_nis_killtests.py` — permutation / threshold / length-leak
+- `experiments/e3f_expand_families.py` — family expansion (extraction caveat noted)
+- `experiments/e7_pepbi_replication.py` — NIS on PEPBI clean structures (does not replicate)
+- `experiments/e8_hbond_crossdataset.py` — H-bond count crystal-65 vs PEPBI (sign flips)
 - (E4 SS, E3g disentangle, PEPBI ΔH/TΔS decomposition + RIA-feature significance
   were inline probes; findings captured in §3b)
 - PEPBI source: `doi_10_5061_dryad_wstqjq2wk__v20250617.zip` (329 ITC complexes)

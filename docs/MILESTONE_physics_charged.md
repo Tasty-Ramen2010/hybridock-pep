@@ -40,7 +40,7 @@ constructed a real `AbsoluteAlchemicalFactory`/`AlchemicalState` and swept `lamb
 smooth potential decoupling (−21→+32 kcal/mol = the dU/dλ). **T1 needs no new dependency.** T2 needs an NNP
 (none installed) and is the speed/accuracy optimization, not a prerequisite.
 
-**T1-charged charging leg run + linear-response confirmed (E322 Part B, `scripts/e322_t1charged_partB_...`):**
+**T1-charged charging leg run + linear-response confirmed (E322 Part B, `experiments/e322_t1charged_partB_...`):**
 the electrostatic-decoupling leg runs end-to-end with real Langevin sampling + MBAR in `openmm-env`, and the
 **cheapness claim is now measured, not assumed**: a 3-λ-window schedule agrees with a dense 11-window schedule
 to **0.14 kcal/mol** → linear response holds → ~3 windows suffice for charged-only, the basis of the
@@ -136,7 +136,7 @@ box.
   → escalate to T2 or stop.* **G1-partial DONE (E316):** the full build→sample→MBAR loop reproduces the
   *analytical* free energy of a harmonic-oscillator ladder to **0.01 kcal/mol** — the estimator machinery is
   present and correct.
-  **G1-spike RAN on a real complex (E329, `scripts/e329_g1_charged_spike.py`):** full pipeline works end-to-end
+  **G1-spike RAN on a real complex (E329, `experiments/e329_g1_charged_spike.py`):** full pipeline works end-to-end
   on a real charged complex (2jqk) — PDBFixer + amber14 parametrisation, explicit-TIP3P solvation (bound 20 373
   / free 5 331 atoms), decharge both legs, ReplicaExchange + MBAR, **on the Blackwell GPU** (OpenMM 8.5.1 CUDA
   works). BUT the naive result is **ΔΔG_elec = −12.4 ± 39.2 kcal/mol — dominated by noise, unusable.** Two hard
@@ -164,7 +164,7 @@ box.
 - **Convergence/reproducibility** must be logged like everything else (seeds, λ schedule, overlap).
 
 ## What is DONE now (this session)
-- E316 feasibility POC (`scripts/e316_fep_feasibility_poc.py`): (a) T1 alchemical pipeline mechanically
+- E316 feasibility POC (`experiments/e316_fep_feasibility_poc.py`): (a) T1 alchemical pipeline mechanically
   buildable, no new deps — charges decouple smoothly with λ; (b) **G1-partial** — the full build→sample→MBAR
   estimation loop reproduces an analytical free energy to **0.01 kcal/mol**, so the estimator machinery is
   correct, not just the system construction.

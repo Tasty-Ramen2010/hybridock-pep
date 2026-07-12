@@ -6,7 +6,7 @@ PPIKB itself. Correct call — the first number was an artifact, and PPIKB is ge
 ## The mistake (corrected)
 An initial PPIKB test used only the 22 `pocket_pkf` features → r 0.15 / MAE 2.07 (≈ mean-baseline). That is **not
 our scorer** — our stack is ProtDCal + pocket/physics + IFP. With the full 59-feature stack the result is very
-different. Reproduce: `scripts/e332b_ppikb_headtohead.py`.
+different. Reproduce: `experiments/e332b_ppikb_headtohead.py`.
 
 ## Corrected, leakage-free (60%-id clustered CV), full stack
 | set | model | r | MAE | RMSE |

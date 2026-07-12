@@ -33,5 +33,5 @@
     }
   },
   "note": "PPI-clone = faithful reimplementation of PPI-Affinity's method (ProtDCal-3D desc + StandardScaler + SVR-rbf, model E236) scored on the IDENTICAL 60%%-id clustered split as ours; the real PPI-Affinity web server has been down since 2022 so the original cannot be queried. The clustered/leakage-free r is the reported number.",
-  "reproduce": "OMP_NUM_THREADS=1 python scripts/e331_ours_vs_ppiclone_clustered.py"
+  "reproduce": "OMP_NUM_THREADS=1 python experiments/e331_ours_vs_ppiclone_clustered.py"
 }

@@ -208,7 +208,7 @@ the judges' prospective test case.
 
 All on the 65-complex crystal benchmark, family-grouped GroupKFold.
 
-**E0 (length-residualization gate, `scripts/e0_residualization_gate.py`):** every
+**E0 (length-residualization gate, `experiments/e0_residualization_gate.py`):** every
 legacy feature (vina, mmgbsa, n_contact, bsa, contact-type counts) dies after
 removing length OR survives only as Vina's backwards-sign size artifact. The ONE
 survivor of the raw gate: **NIS composition** (`nis_p_frac`/`nis_c_frac`, PRODIGY's

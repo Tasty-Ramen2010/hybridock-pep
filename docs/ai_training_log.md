@@ -173,9 +173,9 @@ Single-complex 1YCR (MDM2/p53, 12-mer ETFSDLWKLLPE) used for Vina scoring valida
 | `third_party/RAPiDock_finetuned/train_lastlayer.py` | Core training engine |
 | `scripts/chain_training.sh` | v1 chain (original) |
 | `scripts/chain_training_v2.sh` | v2/v2b chains |
-| `scripts/chain_training_v3.sh` | v3 controlled specialization |
-| `scripts/chain_training_v4.sh` | v4 cross-conv ablation |
-| `scripts/chain_training_v5.sh` | v5 ultra-conservative |
+| `experiments/chain_training_v3.sh` | v3 controlled specialization |
+| `experiments/chain_training_v4.sh` | v4 cross-conv ablation |
+| `experiments/chain_training_v5.sh` | v5 ultra-conservative |
 | `scripts/monitor_and_launch.sh` | Automated GPU monitor + chain launcher |
 | `scripts/benchmark_inference_multi.py` | 8-complex benchmark |
 | `scripts/compare_finetuned.py` | 4-model val set comparison |
@@ -347,7 +347,7 @@ Confirms the EMA ep11 and ep16-18 blowup patterns are deterministic (seed-indepe
 ## 8. V3 — Controlled Specialization
 
 **Status**: PENDING (starts after v2 and v2b complete)
-**Chain script**: `scripts/chain_training_v3.sh`
+**Chain script**: `experiments/chain_training_v3.sh`
 **Log** (when running): `logs/chain_training_v3.log`
 
 ### Design rationale
@@ -406,7 +406,7 @@ V3 hypothesis: carefully controlling which layers adapt, combined with:
 ## 9. V4 — Pure Cross-Conv Ablation
 
 **Status**: PENDING
-**Chain script**: `scripts/chain_training_v4.sh`
+**Chain script**: `experiments/chain_training_v4.sh`
 **Log** (when running): `logs/chain_training_v4.log`
 
 ### Design rationale
@@ -443,7 +443,7 @@ regularization overhead.
 ## 10. V5 — Ultra-Conservative Adaptation
 
 **Status**: PENDING
-**Chain script**: `scripts/chain_training_v5.sh`
+**Chain script**: `experiments/chain_training_v5.sh`
 **Log** (when running): `logs/chain_training_v5.log`
 
 ### Design rationale
