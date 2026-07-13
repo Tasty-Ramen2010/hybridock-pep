@@ -1,6 +1,6 @@
-"""E366 — leakage-free accuracy vs sequence-identity clustering threshold (Koes review).
+"""E366 — leakage-free accuracy vs sequence-identity clustering threshold (external methodology feedback).
 
-Prof. David Koes (Pitt; smina/gnina) noted (i) 30% identity is the more standard clustering cutoff, and
+External methodology feedback noted (i) 30% identity is the more standard clustering cutoff, and
 (ii) it is better to show the TREND across thresholds (cf. Runs-and-Poses, bioRxiv 2025.02.03.636309) rather
 than a single split. This does exactly that: the same 925 PDBbind peptide-Kd complexes, the same 16-feature
 GBT, scored under leave-cluster-out CV at a sweep of identity thresholds from random (leaky) down to 30%.
@@ -49,7 +49,7 @@ def main():
         nc = len(set(clusters.tolist()))
         oof = cross_val_predict(mk(), X, y, cv=GroupKFold(min(5, nc)), groups=clusters)
         r, sp, rmse, mae = metrics(y, oof)
-        tag = "   ← Koes: standard cutoff" if abs(th - 0.30) < 1e-9 else ("   ← we reported this" if abs(th - 0.60) < 1e-9 else "")
+        tag = "   ← standard cutoff" if abs(th - 0.30) < 1e-9 else ("   ← we reported this" if abs(th - 0.60) < 1e-9 else "")
         print(f"  {int(th*100):>7}% {nc:>9} {mae:>6.2f} {rmse:>6.2f} {r:>+10.3f} {sp:>+9.3f}{tag}")
         out.append(dict(cutoff=f"{int(th*100)}%", clusters=nc, MAE=round(mae, 3), RMSE=round(rmse, 3),
                         pearson_r=round(r, 3), spearman=round(sp, 3)))

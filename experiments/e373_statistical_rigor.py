@@ -1,4 +1,4 @@
-"""E373 — statistical rigor receipts answering external-review critiques (2026-07-10).
+"""E373 — statistical rigor receipts answering external methodology feedback (2026-07-10).
 
 Three tests reviewers demanded, on the CURRENT headline model (16 STRUCT feats, 60%-id clustered CV, n=925/865):
   (1) BSA/length confound — partial correlation of pred vs exp controlling for buried-surface-area + length.
