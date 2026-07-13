@@ -8,13 +8,13 @@ Three numbers, in increasing order of honesty:
       at >=40% identity). This is the leakage-free number: an entire cluster of
       similar peptides lands wholly in train or wholly in test, so the model is
       always predicting a peptide it has not seen a near-twin of. THIS is the number
-      to report and to send to Koes.
+      to report.
   (C) Length-stratified 5-fold as a robustness check on (A).
 Reports Pearson r, Spearman, RMSE, MAE (kcal/mol). Also prints the ref2015 numbers if
 the e329 cache exists, on the SAME complexes, so the comparison is strictly matched.
 
 Note: clustering is on the PEPTIDE sequence only (that is what the jsonl carries and
-what Koes flagged). Receptor-family grouping is a further tightening tracked separately
+the leakage-control point flagged in external feedback). Receptor-family grouping is a further tightening tracked separately
 (the ATLAS TCR-pMHC selectivity benchmark).
 """
 from __future__ import annotations

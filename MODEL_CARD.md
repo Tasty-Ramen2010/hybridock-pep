@@ -34,8 +34,8 @@ Rank/compare short peptides (3–19 aa) against one or two receptors at iGEM wor
 
 Full numbers, methodology, and reproduce commands: **[RESULTS.md](RESULTS.md)**. Headline:
 absolute cross-target **MAE ≈ 1.40** (60%-id clustered CV, n=925); matched head-to-head
-**1.35 vs PPI-clone 1.46** (n=865, every metric). Evaluation methodology reviewed by
-**Prof. David Koes** (Pitt; smina/gnina) — see the README's *External review* section.
+**1.35 vs PPI-clone 1.46** (n=865, every metric). Methodology follows standard
+leakage-control practice — see the README's *Evaluation methodology* section.
 
 ## Known limitation — read before quoting an absolute Kd
 

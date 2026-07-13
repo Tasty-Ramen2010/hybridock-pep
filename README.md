@@ -37,9 +37,8 @@
 > Every number is measured, links to the script that reproduces it, and uses **MAE/RMSE in kcal/mol** as the
 > primary metric (r is secondary — it is fragile to the test set and capped near the field ceiling for *everyone*,
 > FEP included; see [Why absolute cross-target is hard for all methods](#why-absolute-cross-target-affinity-is-hard-for-everyone-fep-included)).
-> Evaluation methodology reviewed by [Prof. David Koes](#external-review) (Pitt; smina/gnina); we report the full
-> **accuracy-vs-identity-cutoff trend** with a placement-aware identity metric, including the standard 30% cutoff
-> (**MAE 1.39 / r 0.32**).
+> We report the full **accuracy-vs-identity-cutoff trend** with a placement-aware identity metric, including the
+> standard 30% cutoff (**MAE 1.39 / r 0.32**).
 >
 > **Created by [Choppa Purandhar Ram](#project-status) (age 15)** — Head of Dry Lab, Denmark High School iGEM 2026.
 
@@ -85,9 +84,9 @@ random-CV r 0.44). `experiments/e331_ours_vs_ppiclone_clustered.py`:
 On the **full 925-complex set**, our leakage-free absolute number is **MAE 1.40 / RMSE 1.77 / r 0.321**
 (`experiments/e330_ours_pdbbind.py`) — modestly above zero-skill (mean-predictor MAE 1.47) and honest about the cap.
 
-**Accuracy vs sequence-identity cutoff — the full trend** (added on the review of [Prof. David Koes](#external-review),
-who noted that 30% identity is the more standard clustering cutoff and that showing the *trend* across thresholds
-is better than a single split — cf. [Runs-and-Poses, bioRxiv 2025.02.03.636309](https://www.biorxiv.org/content/10.1101/2025.02.03.636309v3)).
+**Accuracy vs sequence-identity cutoff — the full trend.** Because 30% identity is the more standard clustering
+cutoff and the *trend* across thresholds is more informative than any single split (cf. [Runs-and-Poses, bioRxiv
+2025.02.03.636309](https://www.biorxiv.org/content/10.1101/2025.02.03.636309v3)), we report every cutoff.
 Same 925 complexes, same 16-feature GBT, leave-cluster-out CV at each cutoff, using a **placement-aware identity
 metric** (`experiments/e366_identity_threshold_trend.py`, data in [`data/hybridock_identity_trend.csv`](data/hybridock_identity_trend.csv)):
 
@@ -103,7 +102,7 @@ metric** (`experiments/e366_identity_threshold_trend.py`, data in [`data/hybrido
     60%        644      1.40   1.77    +0.321  ███████████     ← we headline this
     50%        592      1.40   1.77    +0.319  ███████████
     40%        532      1.42   1.79    +0.289  ██████████
-    30%        410      1.39   1.76    +0.322  ███████████     ← Koes: the standard cutoff
+    30%        410      1.39   1.76    +0.322  ███████████     ← standard cutoff
   ─────────────────────────────────────────────────────────────────────────────────
   MAE is flat (1.32→1.42 kcal/mol) across the whole sweep; r declines smoothly from 0.45 (leaky) and
   levels off around 0.32 by the 30–70% cutoffs — the honest cross-target ceiling. That stability of the
@@ -118,8 +117,8 @@ metric** (`experiments/e366_identity_threshold_trend.py`, data in [`data/hybrido
 > is reproducible in [`experiments/e367_gap_penalized_trend.py`](experiments/e367_gap_penalized_trend.py). We report the
 > corrected numbers and flag the fix rather than bury it.
 
-At the stricter **30% cutoff Koes recommends, the honest numbers are MAE 1.39 / RMSE 1.76 / r 0.32** — inside the
-cross-target ABFE band, reported alongside our 60% headline rather than instead of it.
+At the stricter **30% cutoff (the standard clustering threshold), the honest numbers are MAE 1.39 / RMSE 1.76 /
+r 0.32** — inside the cross-target ABFE band, reported alongside our 60% headline rather than instead of it.
 
 **Independent-set check (PPIKB, a *different* database — the win generalizes).** Leakage-free (60%-id clustered),
 full feature stack (ProtDCal + pocket/physics), Kd/Ki-only:
@@ -654,21 +653,15 @@ idea) is in [`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
 
 ---
 
-## External review
+## Evaluation methodology
 
-The **benchmarking methodology** of HybriDock-Pep was reviewed by **Prof. David Koes** — Associate Professor of
-Computational & Systems Biology, CPCB Co-Director & Vice Chair for Education, **University of Pittsburgh**, and
-author of the widely-used **smina** and **gnina** molecular-docking tools ([koeslab.org](https://bits.csb.pitt.edu/)).
-He **reviewed the project and offered advice and insight into improvements**; his feedback via correspondence
-directly shaped the evaluation reported here:
+Our benchmarks follow standard leakage-control practice, and we hold ourselves to it explicitly:
 
-- benchmarks must **control for train/test sequence leakage** → we moved every headline number to leave-cluster-out CV;
-- **30% sequence identity** is the more standard clustering cutoff → now reported alongside our 60% number;
-- showing the **accuracy trend across identity thresholds** beats a single split (cf. Runs-and-Poses) → the
+- benchmarks **control for train/test sequence leakage** — every headline number is leave-cluster-out CV;
+- we report the **standard 30% sequence-identity clustering cutoff** alongside our 60% number;
+- we show the **accuracy trend across identity thresholds** rather than a single split (cf.
+  [Runs-and-Poses, bioRxiv 2025.02.03.636309](https://www.biorxiv.org/content/10.1101/2025.02.03.636309v3)) — the
   [identity-threshold sweep](#why-hybridock-pep--five-conclusive-tests) above.
-
-We incorporated all three. *This reflects methodological critique that improved the rigor of our evaluation — it
-is **not** an endorsement of the tool or its results by Prof. Koes or the University of Pittsburgh.*
 
 ## Project status
 
