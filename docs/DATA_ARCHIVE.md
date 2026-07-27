@@ -1,0 +1,42 @@
+# Data archive — everything too large for git
+
+This repo keeps `data/` and `experiments/` small on purpose (nothing over ~1 MB is committed —
+see `CLAUDE.md` §7). Anything bigger lives outside git. This page is the map: what's archived on
+Zenodo, what you re-download yourself, and why some things are deliberately **not** redistributed.
+
+## On Zenodo — our own derived data
+
+**[DOI link — TODO: paste after upload]**
+
+| Archive | Size | Contents |
+|---|---|---|
+| `traj_cache.tar.gz` | 27 MB | `data/traj_cache/*.npz` — cached MD trajectories for the entropy/free-energy work (E363 and downstream). Unpack to `data/traj_cache/` at the repo root. |
+
+This is a small, deliberately narrow bundle: only data we generated ourselves, with no
+third-party redistribution restrictions.
+
+## Not on Zenodo — re-download from the original source
+
+These are excluded because they're either too large to usefully mirror, publicly available
+already, or under a license that forbids redistribution:
+
+| Directory (gitignored) | What it is | How to get it |
+|---|---|---|
+| `data/misato` (~124 GB) | Full copy of the public **MISATO** MD dataset | Download directly from [misato-dataset.github.io](https://misato-dataset.github.io/) — no point mirroring a dataset that's already public and this large |
+| `data/drive_pull` (~20 GB) | PDBbind general-set mirror (`P-L/<year-range>/...` layout) | **Do not redistribute.** PDBbind's license prohibits third-party redistribution — register at [pdbbind.org.cn](http://www.pdbbind.org.cn/) and download it yourself. This is the same restriction already noted in the README's Datasets section. |
+| `datasets/pdb_2024_2026/`, `pdb_2019_2023/`, `pdb_2010_2018/`, `pdb_pre2010/`, `family_targeted/`, `ppii_enriched/`, `ppii_extended/` | RCSB PDB structures used in the RAPiDock fine-tuning / benchmark campaigns | Regenerate with `python scripts/download_from_manifests.py` — reads the committed `datasets/*/manifest.csv` files and re-pulls each structure from RCSB (`files.rcsb.org`) |
+| `datasets/training_formatted_peppc/` (~28 GB) | Formatted PepPC training data | Not redistributed pending confirmation of PepPC's own license terms. Rebuild from `PepPC_raw_data.tar.gz` / `PepPC-F_raw_data.tar.gz` (kept locally, not in git) using the ingestion scripts in `experiments/`. |
+| `datasets/frag_raw_data_final/`, `nat_raw_data_final/` (~1.5 GB) | Processed PDB loop/helix fragment structures | Source database license not yet confirmed — do not redistribute until checked. |
+
+## Scripts
+
+All scripts that produce or consume the above are already in this git repo — nothing script-side
+is held back. Research/experiment scripts: [`experiments/`](../experiments/) (E0–E37x, cited
+throughout [RESULTS.md](../RESULTS.md)). Operational tooling: [`scripts/`](../scripts/).
+
+## Code archive (not the data archive)
+
+The code itself (everything in this git repo) gets a separate, automatic DOI via the
+Zenodo–GitHub integration on every tagged Release — see the badge at the top of the README. That
+covers `src/`, `experiments/`, `scripts/`, `tests/`, and all committed `data/*` files. This page is
+only about the large files that never make it into git in the first place.
