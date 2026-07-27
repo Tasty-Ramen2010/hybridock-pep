@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
-**New here?** [RESULTS.md](RESULTS.md) — every leakage-free number + how to reproduce it · [MODEL_CARD.md](MODEL_CARD.md) — which of the 10 `data/*.joblib` actually ship & the honest limits · 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/).
+**New here?** [RESULTS.md](RESULTS.md) — every leakage-free number + how to reproduce it · [MODEL_CARD.md](MODEL_CARD.md) — which of the 10 `data/*.joblib` actually ship & the honest limits · 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — [Zenodo — TODO: link after upload].
 
 > **Tests:** ~429 collected, 419 pass with the full toolchain installed (`pytest`; see [Testing](#testing)).
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
