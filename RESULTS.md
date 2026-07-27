@@ -27,7 +27,7 @@ Pearson r is secondary and capped near the field ceiling for *all* methods, FEP 
 | **30% cutoff (standard threshold)** | **MAE 1.39 · RMSE 1.76 · r 0.322** | — | 410 clusters | `python e366_identity_threshold_trend.py` |
 | PDBbind crystal + interaction map | r 0.480 (charged 0.401) | PPI-clone 0.291 (0.146) | 865 | `python e298_ppi_vs_ifp.py` |
 | Double-difference ΔΔG (same-receptor) | r ≈ 0.96 | FEP/TI ≈ 0.85 | — | `python e287_similarity_and_dd.py` |
-| Affinity r on real AI poses (geom→+IFP) | 0.486 → 0.53 | PPI pose-blind 0.325 | — | `python e106_combined_realpose_grade.py` |
+| Affinity r on real AI poses (geom→+IFP) | 0.486 → 0.53 · **MAE 1.51–1.54** | PPI pose-blind 0.325 | 151 | `python e106_combined_realpose_grade.py` |
 
 **MAE is flat (1.32→1.42) across the entire 30–100% identity sweep** — that stability of the
 kcal/mol error is the number we stand behind. r declines smoothly from 0.45 (leaky) and

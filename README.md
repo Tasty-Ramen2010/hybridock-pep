@@ -13,7 +13,88 @@
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
 > with their own licenses (ADFRsuite, AutoDock4, PULCHRA, RAPiDock) — see [`INSTALL.md`](INSTALL.md).
 
-> ### The claims, up front — measured in kcal/mol, leakage-free
+## Table of contents
+
+1. [Quick start — run a practice test in 2 minutes](#quick-start--run-a-practice-test-in-2-minutes)
+2. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
+3. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
+4. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
+5. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
+6. [Pipeline — the full workflow](#pipeline--the-full-workflow)
+7. [Install](#install)
+8. [Usage](#usage)
+9. [Repository structure](#repository-structure)
+10. [Testing](#testing)
+11. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
+12. [Roadmap](#roadmap--to-do)
+13. [Evaluation methodology](#evaluation-methodology)
+14. [Project status](#project-status)
+15. [Citations](#citations)
+16. [License](#license)
+
+---
+
+## Quick start — run a practice test in 2 minutes
+
+This gets a new user from a fresh clone to a working, checkable result. The practice test scores
+a **pre-supplied, known-good complex that ships in this repository** — a real, published structure
+(MDM2 bound to a p53-derived peptide, PDB entry `1YCR`). It does **not** need a GPU, a RAPiDock
+install, or Vina — only the base scoring environment.
+
+### Step 1: Install the scoring environment
+
+```bash
+conda env create -f envs/score-env.yml
+conda activate score-env
+pip install -e .
+```
+
+### Step 2: Run the offline sanity check (30 seconds, no data needed)
+
+```bash
+make verify
+```
+
+This runs the math-only tests (double-difference, anchoring, selectivity) and proves the core
+scoring machinery is correct without downloading anything.
+
+### Step 3: Score the shipped practice complex
+
+The receptor and the bound peptide pose for `1YCR` are already in `data/pdbs/`. Score them with
+`crystal-score`:
+
+```bash
+hybridock-pep crystal-score \
+    --receptor data/pdbs/1YCR_mdm2.pdb \
+    --peptide-pdb data/pdbs/1YCR_peptide.pdb \
+    --peptide ETFSDLWKLLPE
+```
+
+### Step 4: Check the result
+
+The command prints one line:
+
+```
+Crystal ΔG = -10.07 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
+```
+
+The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM). A
+result within a few kcal/mol of that number confirms your install works correctly.
+
+**What you just ran:** `crystal-score` scores an existing, already-docked peptide pose. It skips
+pose generation (RAPiDock), clash-relief (Vina), and MM-GBSA entirely — the fastest way to confirm
+the install and to score any bound pose you already have. To generate new poses from a peptide
+sequence alone, run a real end-to-end dock on the same shipped receptor:
+
+```bash
+make demo   # hybridock-pep dock on 1YCR, 20 RAPiDock passes — needs the rapidock env, see below
+```
+
+That needs the second environment (GPU pose sampling) — see [Install](#install).
+
+---
+
+## The claims, up front — measured in kcal/mol, leakage-free
 >
 > **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer — with FEP-competitive
 > absolute error.**
@@ -189,12 +270,21 @@ returns the *same* score for any pose and cannot tell a good AI pose from a bad 
                                               HybriDock-Pep · crystal (upper bound) ███████████████████████░ 0.585
   * structure-free method (our faithful clone; the original server is dead): identical score for any pose,
     so it cannot rank poses at all. Bars are each method's honest independent number.
+
+  AI-POSE MAE (kcal/mol) — pooled 151 real-pose complexes (cr65 + the98), LOCO CV
+  ─────────────────────────────────────────────────────────────────────────────
+  diffusion top-5 aggregation   MAE 1.51   RMSE 1.87   r 0.501
+  ML-best-5 aggregation         MAE 1.53   RMSE 1.87   r 0.501
+  `experiments/e106_combined_realpose_grade.py` (MAE not printed by the script; computed with its
+  own ridge/LOCO/router logic, verified against its printed r/RMSE before reporting here)
 ```
 
 We turn the AI pose into a **0.49–0.53** signal; PPI cannot use the pose at all and is stuck at its
 structure-free **0.325**. Going fully structure-free costs us only ~0.05–0.09 in *r* (0.585 crystal → ~0.50
 on AI poses) — the haircut every structure-based scorer pays on non-native poses, and one of the few we
-publish.
+publish. In absolute terms, scoring our own AI-generated poses (no crystal, the honest deployment case)
+lands **MAE ≈ 1.51–1.54 kcal/mol** — worse than the crystal-pose leakage-free headline (1.35–1.40) by the
+pose-quality tax you'd expect, since RAPiDock poses aren't perfect.
 
 **④ Real published complexes, scored blind.** 15 real peptide–protein structures (RCSB titles + primary
 citations pulled live from the PDB), each scored by a model that never saw its 60%-identity cluster —
@@ -578,6 +668,40 @@ visualization; it is ligand-format and not meant for re-scoring.)
 
 ---
 
+## Repository structure
+
+```
+hybridock-pep/
+├── README.md · RESULTS.md · MODEL_CARD.md   # start here — quickstart, benchmarks, shipped models
+├── CLAUDE.md                      # AI-assistant project instructions
+├── INSTALL.md                     # license-restricted binary setup (ADFRsuite, PULCHRA)
+├── Makefile                       # make install / verify / demo / reproduce / test
+├── LICENSE                        # MIT
+├── pyproject.toml                 # score-env package definition
+├── docs/                          # architecture notes, dev timeline, diagnostics
+├── envs/
+│   ├── score-env.yml
+│   ├── rapidock-env.yml           # Linux/WSL2 + CUDA
+│   └── rapidock-env-macos.yml     # Apple Silicon (MPS)
+├── src/hybridock_pep/
+│   ├── cli.py                     # argparse entry point (6 subcommands + crystal-score)
+│   ├── driver.py                  # orchestrates Stage 1 + Stage 2 across both envs
+│   ├── hardware.py                # per-accelerator backend selection (CUDA/ROCm/oneAPI/MPS/CPU)
+│   ├── prep/                      # receptor + ligand PDBQT preparation
+│   ├── sampling/                  # RAPiDock subprocess wrapper, pose I/O
+│   ├── scoring/                   # Vina, AD4, MM-GBSA, entropy, geometry/affinity models
+│   ├── analysis/                  # RMSD clustering, ensemble statistics, plotting
+│   ├── output/                    # CSV + metadata writers
+│   └── selectivity.py             # ΔΔG selectivity primitive
+├── third_party/RAPiDock/          # RAPiDock-Reloaded submodule
+├── experiments/                   # the E0–E37x research ledger — every script cited in RESULTS.md
+├── scripts/                       # calibration, smoke test, and other operational tooling
+├── tests/                         # pytest suite (fast + `-m slow` integration tests)
+└── data/                          # calibration files, benchmark sets, shipped fixture PDBs
+```
+
+---
+
 ## Testing
 
 ```bash
@@ -613,7 +737,7 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 | **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python experiments/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
 | **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python experiments/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
 | full non-FEP/LIE scorecard on 156 complexes | `python experiments/e90_full_scorecard.py` | stdout table |
-| **0.486 → 0.53** affinity *r* on real RAPiDock poses — test ③ | `python experiments/e106_combined_realpose_grade.py` | per-complex CSV |
+| **0.486 → 0.53** affinity *r* on real RAPiDock poses (MAE 1.51–1.54) — test ③ | `python experiments/e106_combined_realpose_grade.py` | per-complex CSV |
 | **2.49 Å** best-of-top-25 pose RMSD, hit@5 91% — test ③ | `hybridock-pep benchmark --test-csv data/test_complexes.csv --report bench.md` | `bench.md` |
 | reference-anchoring **math** (thermodynamic cycle closes by construction; not a prediction claim) | `pytest tests/test_anchoring.py tests/test_double_difference.py -q` | green = the anchoring/cycle math holds |
 | **ΔΔG selectivity** primitive end-to-end | `pytest tests/test_selectivity.py -q` | green |
