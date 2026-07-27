@@ -182,3 +182,7 @@ coverage.json
 
 # Large receptor PDB — not distributed (see INSTALL.md)
 pfldh.pdb
+
+# MD trajectory cache (e363) — per-file >1 MB, exceeds the in-repo size limit; see the
+# external-archive link in README.md once it's added
+data/traj_cache/

@@ -1,0 +1,25 @@
+{
+ "overall_r": 0.4799239900016566,
+ "overall_mae": 1.2581654152322126,
+ "min3": {
+  "n_receptors": 24,
+  "peptides": 109,
+  "median_spearman": 0.5,
+  "mean_spearman": 0.2960581456134715,
+  "frac_right_direction": 0.7083333333333334
+ },
+ "min4": {
+  "n_receptors": 10,
+  "peptides": 67,
+  "median_spearman": 0.45000000000000007,
+  "mean_spearman": 0.4105395494723316,
+  "frac_right_direction": 0.8
+ },
+ "min5": {
+  "n_receptors": 6,
+  "peptides": 51,
+  "median_spearman": 0.45000000000000007,
+  "mean_spearman": 0.35089924912055276,
+  "frac_right_direction": 0.8333333333333334
+ }
+}
