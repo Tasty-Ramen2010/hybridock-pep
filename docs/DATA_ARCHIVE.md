@@ -6,7 +6,7 @@ Zenodo, what you re-download yourself, and why some things are deliberately **no
 
 ## On Zenodo — our own derived data
 
-**[DOI link — TODO: paste after upload]**
+**DOI: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573)**
 
 | Archive | Size | Contents |
 |---|---|---|
