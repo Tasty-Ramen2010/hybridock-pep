@@ -16,7 +16,7 @@
 
 ## Table of contents
 
-1. [Quick start — run a practice test in 2 minutes](#quick-start--run-a-practice-test-in-2-minutes)
+1. [Quick start — one command](#quick-start--one-command)
 2. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
 3. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
 4. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
@@ -35,12 +35,31 @@
 
 ---
 
-## Quick start — run a practice test in 2 minutes
+## Quick start — one command
 
-This gets a new user from a fresh clone to a working, checkable result. The practice test scores
-a **pre-supplied, known-good complex that ships in this repository** — a real, published structure
-(MDM2 bound to a p53-derived peptide, PDB entry `1YCR`). It does **not** need a GPU, a RAPiDock
-install, or Vina — only the base scoring environment.
+```bash
+git clone --recursive https://github.com/Tasty-Ramen2010/hybridock-pep.git
+cd hybridock-pep
+./install.sh          # Linux / WSL2 / macOS — installs conda if needed, both
+                       # environments, model weights, and runs a smoke test
+# install.bat          # Windows — sets up WSL2, then runs install.sh inside it
+```
+
+That's it for most machines: `install.sh` auto-detects your OS/GPU, creates both conda
+environments with the right PyTorch build, downloads the RAPiDock model weights, and finishes by
+launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. The **one**
+step it can't automate is [ADFRsuite](https://ccsb.scripps.edu/adfrsuite/downloads/) — Scripps
+requires a manual license click-through — the script tells you exactly what to do if it's missing,
+and everything else still works while you get it (see [Install](#install) for what each piece needs).
+
+Prefer to do it by hand, or just want to see what's happening under the hood? The full manual
+walkthrough is in [INSTALL.md](INSTALL.md).
+
+### Practice test — no GPU, no RAPiDock, no Vina needed
+
+Want to check your scoring environment works before touching the GPU stack at all? This scores a
+**pre-supplied, known-good complex that ships in this repository** — a real, published structure
+(MDM2 bound to a p53-derived peptide, PDB entry `1YCR`) — using only the base scoring environment.
 
 ### Step 1: Install the scoring environment
 
@@ -499,6 +518,21 @@ relieves clashes without changing the binding mode.)
 
 ## Install
 
+**Recommended — one command** (see [Quick start](#quick-start--one-command) above):
+
+```bash
+./install.sh      # Linux / WSL2 / macOS
+# install.bat      # Windows (sets up WSL2, then runs install.sh inside it)
+```
+
+It auto-installs conda if missing, auto-detects your OS/GPU (CUDA, ROCm, Intel XPU, Apple
+MPS, or CPU) to pick the right PyTorch build, creates both environments, downloads the RAPiDock
+model weights, and runs the smoke test. Re-running it is safe — it skips anything already set up
+(pass `--force` to recreate an environment from scratch).
+
+**Manual, step by step** — useful if you want control over each step, or `install.sh` doesn't fit
+your setup:
+
 ```bash
 # 1. Scoring + analysis environment (the package itself)
 conda env create -f envs/score-env.yml
@@ -511,7 +545,9 @@ conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
 ```
 
 ADFRsuite + PULCHRA are license-restricted and **not** redistributed here — see
-[INSTALL.md](INSTALL.md) for the one-time download. Verify the install with `bash scripts/smoke_test.sh`.
+[INSTALL.md](INSTALL.md) for the one-time download (this is the one step `install.sh` can't do
+for you). Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for
+a guided walkthrough.
 
 ---
 

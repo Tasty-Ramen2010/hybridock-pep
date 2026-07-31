@@ -252,6 +252,44 @@ def _run(cmd: list[str], dry_run: bool, *, env: dict | None = None) -> None:
             sys.exit(result.returncode)
 
 
+def _env_exists(env_name: str) -> bool:
+    """Return True if a conda environment with this name already exists."""
+    conda_exe = shutil.which("conda")
+    if not conda_exe:
+        return False
+    try:
+        result = subprocess.run(
+            [conda_exe, "env", "list", "--json"],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+    import json
+    try:
+        envs = json.loads(result.stdout).get("envs", [])
+    except json.JSONDecodeError:
+        return False
+    return any(Path(e).name == env_name for e in envs)
+
+
+def _rapidock_stack_ready() -> bool:
+    """Return True if torch + torch_scatter already import cleanly in the rapidock env.
+
+    Read-only check (imports only, no side effects) — safe to run against a live env.
+    """
+    py = _conda_python("rapidock")
+    if not Path(py).exists():
+        return False
+    try:
+        result = subprocess.run(
+            [py, "-c", "import torch, torch_scatter"],
+            capture_output=True, timeout=30,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return result.returncode == 0
+
+
 def _conda_python(env_name: str) -> str:
     """Return abs path to python3 in a conda env."""
     conda_exe = shutil.which("conda") or ""
@@ -284,18 +322,24 @@ def _pip_in(env_name: str) -> list[str]:
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def install_score_env(dry_run: bool) -> None:
-    """Create score-env and install hybridock-pep in editable mode."""
+def install_score_env(dry_run: bool, force: bool) -> None:
+    """Create score-env (if missing) and install hybridock-pep in editable mode."""
     print("\n── score-env (Vina, OpenMM, meeko, scikit-learn) ─────────────────")
     yml = _REPO_ROOT / "envs" / "score-env.yml"
-    _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run)
-    # Editable install of hybridock-pep package
+    exists = not dry_run and _env_exists("score-env")
+    if exists and not force:
+        print("  score-env already exists — skipping creation (use --force to recreate)")
+    else:
+        if exists and force:
+            _run(["conda", "env", "remove", "-n", "score-env", "--yes"], dry_run)
+        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run)
+    # Editable install of hybridock-pep package (safe to re-run; pip no-ops if unchanged)
     _run([*_pip_in("score-env"), "-e", str(_REPO_ROOT)], dry_run)
     print("  ✓ score-env ready — activate with: conda activate score-env")
 
 
-def install_rapidock_env(info: PlatformInfo, dry_run: bool) -> None:
-    """Create rapidock env, then install PyTorch + PyG for the detected backend."""
+def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None:
+    """Create rapidock env (if missing), then install PyTorch + PyG for the detected backend."""
     print(f"\n── rapidock env  [{info.gpu_label}] {'─' * max(0, 45 - len(info.gpu_label))}")
 
     # Choose platform-specific base yml
@@ -304,36 +348,50 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool) -> None:
     else:
         yml = _REPO_ROOT / "envs" / "rapidock-env.yml"
 
-    _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run)
-
-    pip = _pip_in("rapidock")
-
-    # ── PyTorch ──────────────────────────────────────────────────────────
-    torch_cmd = [*pip, info.torch_version, "torchvision", "torchaudio"]
-    if info.torch_index_url:
-        torch_cmd += ["--index-url", info.torch_index_url]
-    _run(torch_cmd, dry_run)
-
-    # ── Intel Extension for PyTorch (XPU backend) ────────────────────────
-    if info.ipex:
-        _run([*pip, "intel-extension-for-pytorch"], dry_run)
-
-    # ── PyG scatter/sparse/cluster ────────────────────────────────────────
-    pyg_pkgs = [
-        "torch-scatter",
-        "torch-sparse",
-        "torch-cluster",
-        "torch-spline-conv",
-    ]
-    if info.pyg_find_url:
-        # CUDA-specific pre-built wheels (fast, no compilation)
-        _run([*pip, *pyg_pkgs, "-f", info.pyg_find_url], dry_run)
+    exists = not dry_run and _env_exists("rapidock")
+    if exists and not force:
+        print("  rapidock env already exists — skipping creation (use --force to recreate)")
     else:
-        # CPU wheels — work for MPS/ROCm/XPU/CPU backends.
-        # ROCm note: torch-scatter message-passing ops fall back to CPU; the
-        # diffusion model forward pass is still GPU-accelerated via the main
-        # graph convolutions which use native torch ops, not torch-scatter.
-        _run([*pip, *pyg_pkgs], dry_run)
+        if exists and force:
+            _run(["conda", "env", "remove", "-n", "rapidock", "--yes"], dry_run)
+        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run)
+
+    # Never touch packages in an env that's already working — reinstalling
+    # torch/PyG into a live env can corrupt an in-progress process using it.
+    # Only install if torch+torch_scatter aren't already importable (covers a
+    # genuinely interrupted first run), or if --force was explicitly passed.
+    torch_ready = exists and not force and not dry_run and _rapidock_stack_ready()
+    if torch_ready:
+        print("  PyTorch + PyG already importable in rapidock env — skipping (use --force to reinstall)")
+    else:
+        pip = _pip_in("rapidock")
+
+        # ── PyTorch ──────────────────────────────────────────────────────
+        torch_cmd = [*pip, info.torch_version, "torchvision", "torchaudio"]
+        if info.torch_index_url:
+            torch_cmd += ["--index-url", info.torch_index_url]
+        _run(torch_cmd, dry_run)
+
+        # ── Intel Extension for PyTorch (XPU backend) ──────────────────────
+        if info.ipex:
+            _run([*pip, "intel-extension-for-pytorch"], dry_run)
+
+        # ── PyG scatter/sparse/cluster ──────────────────────────────────────
+        pyg_pkgs = [
+            "torch-scatter",
+            "torch-sparse",
+            "torch-cluster",
+            "torch-spline-conv",
+        ]
+        if info.pyg_find_url:
+            # CUDA-specific pre-built wheels (fast, no compilation)
+            _run([*pip, *pyg_pkgs, "-f", info.pyg_find_url], dry_run)
+        else:
+            # CPU wheels — work for MPS/ROCm/XPU/CPU backends.
+            # ROCm note: torch-scatter message-passing ops fall back to CPU; the
+            # diffusion model forward pass is still GPU-accelerated via the main
+            # graph convolutions which use native torch ops, not torch-scatter.
+            _run([*pip, *pyg_pkgs], dry_run)
 
     # ── Verify PyTorch sees the expected device ───────────────────────────
     verify_script = _build_verify_script(info.backend)
@@ -494,6 +552,10 @@ def main() -> None:
         choices=["cuda", "rocm", "xpu", "mps", "cpu"],
         help="Force a specific compute backend (overrides GPU auto-detection)",
     )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Remove and recreate envs that already exist (default: skip existing envs)",
+    )
     args = parser.parse_args()
 
     if shutil.which("conda") is None:
@@ -508,10 +570,10 @@ def main() -> None:
         print("  ── DRY RUN — no commands will be executed ──\n")
 
     if not args.skip_scoring:
-        install_score_env(dry_run=args.dry_run)
+        install_score_env(dry_run=args.dry_run, force=args.force)
 
     if not args.skip_rapidock:
-        install_rapidock_env(info, dry_run=args.dry_run)
+        install_rapidock_env(info, dry_run=args.dry_run, force=args.force)
 
     print_next_steps(info)
 

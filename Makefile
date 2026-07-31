@@ -5,13 +5,16 @@
 PY ?= python
 OMP ?= OMP_NUM_THREADS=1
 
-.PHONY: help install install-dev test verify reproduce demo clean
+.PHONY: help setup install install-dev test verify reproduce demo clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-install: ## Editable install of the scoring package (GPU sampling env: see INSTALL.md)
+setup: ## Full one-command install from scratch: conda envs, weights, smoke test (see install.sh)
+	./install.sh
+
+install: ## Editable install of the scoring package into an already-active env (see: make setup)
 	$(PY) -m pip install -e .
 
 install-dev: ## Install with dev extras (pytest, ruff, mypy)
