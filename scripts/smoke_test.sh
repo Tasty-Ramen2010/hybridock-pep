@@ -24,14 +24,43 @@ info() { echo "[INFO] $*"; INFO=$((INFO+1)); }
 PLATFORM="$(uname -s)"
 ARCH="$(uname -m)"
 
+# Locate a conda env's python3 regardless of which conda distro installed it
+# (miniconda3, miniforge3, anaconda3, mambaforge, /opt/conda, ...). Falls back
+# to the already-active `python3` on PATH if it belongs to that env, then to
+# plain `python3` as a last resort.
+find_conda_env_python() {
+    local env_name="$1"
+    if [ -n "${CONDA_PREFIX:-}" ] && [ "$(basename "$CONDA_PREFIX")" = "$env_name" ] \
+        && [ -x "$CONDA_PREFIX/bin/python3" ]; then
+        echo "$CONDA_PREFIX/bin/python3"
+        return
+    fi
+    local conda_exe base
+    conda_exe="$(command -v conda 2>/dev/null || true)"
+    if [ -n "$conda_exe" ]; then
+        base="$(cd "$(dirname "$conda_exe")/.." && pwd)"
+        if [ -x "$base/envs/$env_name/bin/python3" ]; then
+            echo "$base/envs/$env_name/bin/python3"
+            return
+        fi
+    fi
+    for base in "$HOME/miniconda3" "$HOME/miniforge3" "$HOME/anaconda3" \
+                "$HOME/mambaforge" "/opt/conda" "/opt/miniconda3"; do
+        if [ -x "$base/envs/$env_name/bin/python3" ]; then
+            echo "$base/envs/$env_name/bin/python3"
+            return
+        fi
+    done
+    command -v python3 2>/dev/null || true
+}
+
 # ---------------------------------------------------------------------------
 # 1. Device detection
 # ---------------------------------------------------------------------------
 if [ "$PLATFORM" = "Darwin" ]; then
     if [ "$ARCH" = "arm64" ]; then
         # Check MPS availability via Python
-        RAPIDOCK_PY="$HOME/miniconda3/envs/rapidock/bin/python3"
-        [ -x "$RAPIDOCK_PY" ] || RAPIDOCK_PY="$(command -v python3 2>/dev/null || echo '')"
+        RAPIDOCK_PY="$(find_conda_env_python rapidock)"
         if [ -n "$RAPIDOCK_PY" ] && [ -x "$RAPIDOCK_PY" ]; then
             MPS_CHECK=$("$RAPIDOCK_PY" -c "
 import torch, sys
@@ -98,8 +127,7 @@ fi
 # ---------------------------------------------------------------------------
 # 4. Vina Python API >= 1.2.5
 # ---------------------------------------------------------------------------
-SCORE_PY="$HOME/miniconda3/envs/score-env/bin/python3"
-[ -x "$SCORE_PY" ] || SCORE_PY="$(command -v python3 2>/dev/null || echo '')"
+SCORE_PY="$(find_conda_env_python score-env)"
 
 if [ -n "$SCORE_PY" ] && [ -x "$SCORE_PY" ]; then
     VINA_CHECK=$("$SCORE_PY" - <<'PYEOF' 2>&1

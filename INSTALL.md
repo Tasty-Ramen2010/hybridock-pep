@@ -3,6 +3,13 @@
 This document walks you through setting up both conda environments and the
 non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 
+> **Just want it installed?** Run `./install.sh` (Linux/WSL2/macOS) or
+> `install.bat` (Windows) from the repo root — it automates every step below
+> except ADFRsuite (license-gated, see Step 4), and finishes by launching a
+> guided terminal UI. The rest of this document is the manual walkthrough,
+> useful if you want to understand or control each step individually, or if
+> `install.sh` doesn't fit your setup.
+
 > **Platform summary:**
 > | Platform | Stage 1 (RAPiDock) | Stage 2 (scoring/MM-GBSA) |
 > |---|---|---|
