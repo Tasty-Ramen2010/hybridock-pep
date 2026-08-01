@@ -102,6 +102,12 @@ def prepare_receptor(config: DockConfig) -> Path:
             capture_output=True,
             text=True,
         )
+    except FileNotFoundError as exc:
+        raise PrepError(
+            "prepare_receptor not found on PATH — this needs ADFRsuite, the one "
+            "install step that requires a manual license click-through. See "
+            "https://ccsb.scripps.edu/adfrsuite/downloads/ and INSTALL.md Step 4."
+        ) from exc
     finally:
         fixed_pdb_path.unlink(missing_ok=True)
 
