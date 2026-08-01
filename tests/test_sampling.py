@@ -470,9 +470,12 @@ class TestComputeBatchSize:
     3 separate MPS forward passes per step instead of 1 — profiled on an M3
     (8-core GPU) at a 1.84x wall-clock cost (MPS kernel dispatch carries
     real fixed overhead per call: https://github.com/pytorch/pytorch/issues/122123).
-    Fixed to min(n_samples, 32), capped to bound peak memory (measured
-    ~0.27 GB/sample) on large runs. No torch/numpy import needed — this
-    function is pure arithmetic, unlike the rest of this module.
+    The cap is a *memory* limit, not a throughput one, and it is derived
+    from physical RAM rather than fixed. A fixed cap of 32 was measured at
+    398s for --n-samples 100 on a 16 GB M3 versus 62s at batch 16 — 6.4x
+    slower, purely from swapping (+4.8 GB), and worse than the batch of 4
+    this wrapper originally hardcoded. Batching past the RAM budget does not
+    degrade gracefully; it falls off a cliff.
     """
 
     def _import_run_rapidock(self):
@@ -493,21 +496,57 @@ class TestComputeBatchSize:
                 _sys.modules["run_rapidock"] = orig_rr
 
     def test_small_n_uses_single_batch(self) -> None:
-        """A typical exploratory run (n <= 32) gets one batch — the whole
-        speedup fix: previously this would have been split into ceil(n/4)
-        separate MPS forward passes per diffusion step."""
+        """A typical exploratory run gets one batch — the original speedup
+        fix: previously this would have been split into ceil(n/4) separate
+        MPS forward passes per diffusion step."""
         rr = self._import_run_rapidock()
-        assert rr._compute_batch_size(10) == 10
         assert rr._compute_batch_size(1) == 1
-        assert rr._compute_batch_size(32) == 32
+        assert rr._compute_batch_size(10) == 10
 
-    def test_large_n_capped_at_32(self) -> None:
-        """A large production run is capped, not batched unboundedly —
-        memory scales with batch size (~0.27 GB/sample measured), so an
-        uncapped batch_size=100 would risk ~27 GB on a 16 GB machine."""
+    def test_large_n_is_capped(self) -> None:
+        """A large production run is capped, not batched unboundedly."""
         rr = self._import_run_rapidock()
-        assert rr._compute_batch_size(100) == 32
-        assert rr._compute_batch_size(1000) == 32
+        cap = rr._default_batch_cap()
+        assert rr._compute_batch_size(100) == cap
+        assert rr._compute_batch_size(1000) == cap
+        assert cap < 100
+
+    def test_cap_is_derived_from_physical_ram(self) -> None:
+        """The cap tracks RAM and deliberately sits just below the measured
+        optimum, because overshooting costs 640% and undershooting ~15%."""
+        rr = self._import_run_rapidock()
+        orig = rr._total_ram_gb
+        try:
+            rr._total_ram_gb = lambda: 16.0
+            assert rr._default_batch_cap() == 14
+            rr._total_ram_gb = lambda: 8.0
+            assert rr._default_batch_cap() == 7
+            rr._total_ram_gb = lambda: 128.0
+            assert rr._default_batch_cap() == 32   # absolute ceiling
+            rr._total_ram_gb = lambda: 1.0
+            assert rr._default_batch_cap() == 2    # floor, never 0
+        finally:
+            rr._total_ram_gb = orig
+
+    def test_env_override_wins(self) -> None:
+        """HYBRIDOCK_RAPIDOCK_BATCH is the documented escape hatch."""
+        import os
+
+        rr = self._import_run_rapidock()
+        orig = os.environ.get("HYBRIDOCK_RAPIDOCK_BATCH")
+        try:
+            os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = "8"
+            assert rr._compute_batch_size(100) == 8
+            assert rr._compute_batch_size(4) == 4      # still bounded by n
+            os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = "garbage"
+            assert rr._compute_batch_size(100) == rr._default_batch_cap()
+            os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = "0"
+            assert rr._compute_batch_size(100) == rr._default_batch_cap()
+        finally:
+            if orig is None:
+                os.environ.pop("HYBRIDOCK_RAPIDOCK_BATCH", None)
+            else:
+                os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = orig
 
     def test_custom_cap_respected(self) -> None:
         rr = self._import_run_rapidock()

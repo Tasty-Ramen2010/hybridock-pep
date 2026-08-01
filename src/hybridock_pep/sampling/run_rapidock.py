@@ -69,41 +69,83 @@ def _seed_everything(seed):
     random.seed(seed)
 
 
-def _compute_batch_size(n_samples, cap=32):
+def _total_ram_gb():
+    # type: () -> float
+    """Physical RAM in GB, or 16.0 if it cannot be determined."""
+    try:
+        import os as _os
+        return (_os.sysconf("SC_PAGE_SIZE") * _os.sysconf("SC_PHYS_PAGES")) / 1e9
+    except (ValueError, OSError, AttributeError):
+        return 16.0
+
+
+def _default_batch_cap():
+    # type: () -> int
+    """Largest per-step batch that fits in RAM without swapping.
+
+    Batching more poses per denoising step cuts MPS dispatch overhead, but each
+    batched pose costs roughly 0.5 GB of peak working set (GPU-side activations
+    plus the CPU-side graph copies sampling.py holds). Exceed physical RAM and
+    the run does not degrade gracefully -- it falls off a cliff into swap.
+
+    Measured on a 16 GB M3, --n-samples 100, 1YCR/MDM2 + 12-mer:
+
+        batch   4    8   16   20    24    32
+        wall   98s  70s  62s  64s   83s  398s
+        swap  -24M -80M -32M +638M +1.8G +4.8G
+
+    Batch 32 is 6.4x slower than batch 16 purely from paging, and worse than
+    the batch of 4 this wrapper used to hardcode.
+
+    Note how asymmetric that curve is. Undershooting the optimum costs ~15%
+    (batch 8 is 70s against 62s); overshooting costs 640%. The throughput
+    curve is nearly flat from 8 to 20 and then falls off a cliff, so this
+    deliberately aims *below* the measured optimum: budget 45% of physical
+    memory at ~0.5 GB/pose, giving 15 on this 16 GB machine (which reports
+    17.2 GB) against a measured optimum of 16 and first swapping at 20.
+    Guessing low is nearly free; guessing high is not.
+
+    Override with HYBRIDOCK_RAPIDOCK_BATCH if you know your machine.
+    """
+    cap = int((_total_ram_gb() * 0.45) / 0.5)
+    return max(2, min(32, cap))
+
+
+def _compute_batch_size(n_samples, cap=None):
     # type: (int, int) -> int
     """Pick how many poses' diffusion-step forward passes get batched together.
 
-    Diffusion sampling batches ALL requested poses into one (or a few)
-    forward passes per denoising step — sampling.py's own default is 32. This
-    wrapper used to hardcode 4 regardless of --n-samples, forcing e.g. a
+    Diffusion sampling batches poses into forward passes per denoising step.
+    This wrapper used to hardcode 4 regardless of --n-samples, forcing e.g. a
     10-pose run into 3 separate MPS forward passes per step instead of 1.
 
-    Profiled on an M3 (8-core GPU): each MPS kernel dispatch carries real
-    fixed overhead (MPS lacks CUDA-style Tensor Core batching and has
-    documented higher per-op dispatch latency —
-    https://github.com/pytorch/pytorch/issues/122123), so 3 calls of ~3
-    samples cost far more than 1 call of 10. Measured on this machine: n=10
-    samples went from 19.5s (batch_size=4, 3 forward passes) to 10.6s
-    (batch_size=10, 1 pass) — a 1.84x speedup with no change to model
-    weights, math, or the RNG-consumption pattern any differently than
-    switching seeds already does (this pipeline's own docs already note
-    MPS/CUDA sampling isn't bit-reproducible across runs regardless of
-    batching — see _optimize_backends() below).
+    Each MPS kernel dispatch carries real fixed overhead (MPS lacks CUDA-style
+    Tensor Core batching and has documented higher per-op dispatch latency --
+    https://github.com/pytorch/pytorch/issues/122123), so 3 calls of ~3 samples
+    cost far more than 1 call of 10. Measured: n=10 went from 19.5s
+    (batch_size=4) to 10.6s (batch_size=10).
 
-    Capped at 32 (matching upstream's own default) so a large --n-samples
-    doesn't scale batch memory unboundedly: measured ~0.27 GB/sample, so
-    batch_size=32 is ~8.5 GB peak — safe headroom on a 16 GB machine.
-    Smaller counts (the common exploratory-run case) get one single batch
-    and the full speedup; larger counts still split into multiple batches
-    of <=cap, just far fewer than before.
+    The upper bound is a memory limit, not a throughput one -- see
+    :func:`_default_batch_cap` for the measurements behind it. Batching is not
+    free above that point; it is catastrophic.
 
     Args:
         n_samples: The requested --n-samples / rd_args.N value.
-        cap: Maximum poses per batch. Default 32 (see above).
+        cap: Maximum poses per batch. Defaults to the RAM-derived cap.
 
     Returns:
         The batch size to pass as rd_args.batch_size.
     """
+    env = os.environ.get("HYBRIDOCK_RAPIDOCK_BATCH")
+    if env:
+        try:
+            forced = int(env)
+            if forced > 0:
+                return min(n_samples, forced)
+        except ValueError:
+            pass
+    if cap is None:
+        cap = _default_batch_cap()
     return min(n_samples, cap)
 
 
