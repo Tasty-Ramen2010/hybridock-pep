@@ -37,6 +37,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import NamedTuple
 
@@ -68,15 +69,32 @@ def _cmd_ok(*cmd: str) -> bool:
         return False
 
 
+def _nvidia_smi_path() -> str | None:
+    """Locate nvidia-smi, including WSL2's location which isn't always on
+    PATH (it's injected by WSL's own interop layer for login shells; a
+    stripped-down / non-login shell — cron, some services — won't see it)."""
+    found = shutil.which("nvidia-smi")
+    if found:
+        return found
+    for candidate in ("/usr/lib/wsl/lib/nvidia-smi", "/usr/bin/nvidia-smi"):
+        if Path(candidate).exists():
+            return candidate
+    return None
+
+
 def _nvidia_present() -> bool:
-    return shutil.which("nvidia-smi") is not None and _cmd_ok("nvidia-smi")
+    path = _nvidia_smi_path()
+    return path is not None and _cmd_ok(path)
 
 
 def _nvidia_cc() -> str:
     """Return compute capability string like '12.0', or '' on failure."""
+    path = _nvidia_smi_path()
+    if not path:
+        return ""
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+            [path, "--query-gpu=compute_cap", "--format=csv,noheader"],
             capture_output=True, text=True, timeout=10,
         )
         return result.stdout.strip().splitlines()[0].strip()
@@ -239,37 +257,72 @@ def detect_platform(force_backend: str | None = None) -> PlatformInfo:
 # Command helpers
 # ---------------------------------------------------------------------------
 
-def _run(cmd: list[str], dry_run: bool, *, env: dict | None = None) -> None:
-    """Print and optionally execute a shell command."""
+def _run(cmd: list[str], dry_run: bool, *, env: dict | None = None, retries: int = 0) -> None:
+    """Print and optionally execute a shell command.
+
+    retries: extra attempts on failure (total attempts = retries + 1), with a
+    short backoff between them. conda-forge/anaconda.org's CDN is prone to
+    transient `ConnectionResetError` blips mid-solve on some networks —
+    genuinely transient, unrelated to the command itself — so `conda env
+    create` calls pass retries=2 rather than making the whole install fail
+    on a single bad connection.
+    """
     display = " ".join(str(c) for c in cmd)
     print(f"  $ {display}")
-    if not dry_run:
-        merged_env = {**os.environ, **(env or {})}
+    if dry_run:
+        return
+    merged_env = {**os.environ, **(env or {})}
+    attempt = 0
+    while True:
         result = subprocess.run(cmd, env=merged_env)
-        if result.returncode != 0:
+        if result.returncode == 0:
+            return
+        attempt += 1
+        if attempt > retries:
             print(f"\n[ERROR] Command failed (exit {result.returncode}):")
             print(f"  {display}")
             sys.exit(result.returncode)
+        wait_s = 5 * attempt
+        print(f"\n[WARN] Command failed (exit {result.returncode}), retrying "
+              f"in {wait_s}s ({attempt}/{retries})...\n")
+        time.sleep(wait_s)
+
+
+def _conda_base() -> Path | None:
+    """Return the base prefix of the conda on PATH, or one of the common
+    install locations as a fallback (same search order as _conda_python)."""
+    conda_exe = shutil.which("conda")
+    if conda_exe:
+        return Path(conda_exe).resolve().parent.parent
+    for base in [
+        Path.home() / "miniconda3",
+        Path.home() / "miniforge3",
+        Path.home() / "anaconda3",
+        Path("/opt/conda"),
+    ]:
+        if base.exists():
+            return base
+    return None
 
 
 def _env_exists(env_name: str) -> bool:
-    """Return True if a conda environment with this name already exists."""
-    conda_exe = shutil.which("conda")
-    if not conda_exe:
+    """Return True if env_name already exists *under the currently-relevant
+    conda installation*.
+
+    Deliberately does NOT use `conda env list` / `~/.conda/environments.txt`:
+    that registry is shared across every conda install a user has ever had
+    (miniconda, miniforge, anaconda, ...) on the same machine, so a brand
+    new Miniforge install's own `conda env list` still reports envs that
+    live under a completely different, older install — checking by name
+    against that would find e.g. an old ~/miniconda3/envs/rapidock and
+    wrongly conclude the new ~/miniforge3/envs/rapidock already exists,
+    skipping creation of the one that's actually needed.
+    """
+    base = _conda_base()
+    if base is None:
         return False
-    try:
-        result = subprocess.run(
-            [conda_exe, "env", "list", "--json"],
-            capture_output=True, text=True, timeout=30, check=True,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return False
-    import json
-    try:
-        envs = json.loads(result.stdout).get("envs", [])
-    except json.JSONDecodeError:
-        return False
-    return any(Path(e).name == env_name for e in envs)
+    env_dir = base / "envs" / env_name
+    return (env_dir / "conda-meta").is_dir()
 
 
 def _rapidock_stack_ready() -> bool:
@@ -291,19 +344,11 @@ def _rapidock_stack_ready() -> bool:
 
 
 def _conda_python(env_name: str) -> str:
-    """Return abs path to python3 in a conda env."""
-    conda_exe = shutil.which("conda") or ""
-    if conda_exe:
-        base = Path(conda_exe).resolve().parent.parent
-        p = base / "envs" / env_name / "bin" / "python3"
-        if p.exists():
-            return str(p)
-    for base in [
-        Path.home() / "miniconda3",
-        Path.home() / "miniforge3",
-        Path.home() / "anaconda3",
-        Path("/opt/conda"),
-    ]:
+    """Return abs path to python3 in a conda env, scoped to the same conda
+    installation _env_exists checked (see its docstring for why that matters
+    when more than one conda install exists on the same machine)."""
+    base = _conda_base()
+    if base is not None:
         p = base / "envs" / env_name / "bin" / "python3"
         if p.exists():
             return str(p)
@@ -332,7 +377,7 @@ def install_score_env(dry_run: bool, force: bool) -> None:
     else:
         if exists and force:
             _run(["conda", "env", "remove", "-n", "score-env", "--yes"], dry_run)
-        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run)
+        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run, retries=2)
     # Editable install of hybridock-pep package (safe to re-run; pip no-ops if unchanged)
     _run([*_pip_in("score-env"), "-e", str(_REPO_ROOT)], dry_run)
     print("  ✓ score-env ready — activate with: conda activate score-env")
@@ -354,7 +399,7 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None
     else:
         if exists and force:
             _run(["conda", "env", "remove", "-n", "rapidock", "--yes"], dry_run)
-        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run)
+        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run, retries=2)
 
     # Never touch packages in an env that's already working — reinstalling
     # torch/PyG into a live env can corrupt an in-progress process using it.
