@@ -69,7 +69,11 @@ else
            exit 1 ;;
     esac
     MF_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-${MF_OS}-${ARCH}.sh"
-    MF_INSTALLER="$(mktemp)"
+    # Miniforge's installer refuses to run unless invoked as "$0" ending in
+    # .sh (its own guard against being sourced) — plain `mktemp` doesn't add
+    # an extension. Use the template form (portable to both GNU and BSD/macOS
+    # mktemp; --suffix is GNU-only and not available on macOS).
+    MF_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/hdp-miniforge-installer.XXXXXX.sh")"
     curl -fsSL "$MF_URL" -o "$MF_INSTALLER"
     bash "$MF_INSTALLER" -b -p "$HOME/miniforge3"
     rm -f "$MF_INSTALLER"
