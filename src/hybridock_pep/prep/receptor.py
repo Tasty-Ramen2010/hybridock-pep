@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -10,12 +11,13 @@ from pdbfixer import PDBFixer
 
 from hybridock_pep.models import DockConfig
 from hybridock_pep.prep.errors import PrepError
+from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
 
 
 def prepare_receptor(config: DockConfig) -> Path:
-    """Clean a receptor PDB with pdbfixer and convert it to PDBQT via prepare_receptor.
+    """Clean a receptor PDB with pdbfixer and convert it to PDBQT.
 
     Always regenerates the PDBQT — no caching, no mtime checks.
     pdbfixer steps run unconditionally:
@@ -24,8 +26,15 @@ def prepare_receptor(config: DockConfig) -> Path:
       3. Find and add missing atoms.
       4. Add hydrogens at pH 7.4.
 
-    If prepare_receptor exits non-zero, raises PrepError immediately with the
-    full stderr captured. No retry, no fallback.
+    Uses ADFRsuite's prepare_receptor when it's on PATH. Falls back to
+    babel/obabel (see prep/pdbqt_convert.py) when it isn't — e.g. on Apple
+    Silicon, where ADFRsuite ships only an x86_64 tarball. The fallback is
+    sufficient for Vina scoring (Vina's set_receptor() doesn't require a
+    ROOT/ENDROOT torsion tree the way ligand PDBQTs do); AD4 scoring
+    (--scoring ad4) still requires real ADFRsuite for autogrid4.
+
+    If receptor PDBQT generation fails, raises PrepError immediately with the
+    full stderr captured. No retry.
 
     Args:
         config: Validated DockConfig. Uses receptor_path and output_dir.
@@ -34,8 +43,8 @@ def prepare_receptor(config: DockConfig) -> Path:
         Path to the written receptor PDBQT (output_dir/receptor.pdbqt).
 
     Raises:
-        PrepError: If prepare_receptor exits non-zero.
-        FileNotFoundError: If prepare_receptor is not on PATH.
+        PrepError: If PDBQT generation exits non-zero.
+        FileNotFoundError: If neither prepare_receptor nor babel/obabel is on PATH.
     """
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -86,35 +95,51 @@ def prepare_receptor(config: DockConfig) -> Path:
     finally:
         cleaned_pdb_path.unlink(missing_ok=True)
 
-    # --- Step 3: prepare_receptor (always regenerate) ---
+    # --- Step 3: prepare_receptor (ADFRsuite), or babel/obabel fallback ---
     # -A hydrogens: force H addition even if pdbfixer already added them (idempotent);
     # guards against cases where pdbfixer's addMissingHydrogens fails (e.g. HIS edge cases).
-    cmd = [
-        "prepare_receptor",
-        "-r", str(fixed_pdb_path),
-        "-o", str(pdbqt_path),
-        "-A", "hydrogens",
-    ]
-    logger.info("Running: %s", " ".join(cmd))
+    prepare_receptor_bin = shutil.which("prepare_receptor")
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError as exc:
-        raise PrepError(
-            "prepare_receptor not found on PATH — this needs ADFRsuite, the one "
-            "install step that requires a manual license click-through. See "
-            "https://ccsb.scripps.edu/adfrsuite/downloads/ and INSTALL.md Step 4."
-        ) from exc
+        if prepare_receptor_bin is not None:
+            cmd = [
+                "prepare_receptor",
+                "-r", str(fixed_pdb_path),
+                "-o", str(pdbqt_path),
+                "-A", "hydrogens",
+            ]
+            logger.info("Running: %s", " ".join(cmd))
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise PrepError(
+                    f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
+                )
+        else:
+            logger.warning(
+                "prepare_receptor (ADFRsuite) not on PATH — falling back to "
+                "babel/obabel for receptor PDBQT prep. Vina scoring will work; "
+                "AD4 scoring (--scoring ad4) still requires ADFRsuite."
+            )
+            try:
+                result = convert_pdb_to_pdbqt(fixed_pdb_path, pdbqt_path, add_hydrogens=True)
+            except FileNotFoundError as exc:
+                raise PrepError(
+                    "Neither prepare_receptor (ADFRsuite) nor babel/obabel (conda-forge "
+                    "openbabel) found on PATH. For Vina-only scoring, add openbabel to "
+                    "score-env.yml. For AD4 scoring, install ADFRsuite — the one step "
+                    "that needs a manual license click-through: "
+                    "https://ccsb.scripps.edu/adfrsuite/downloads/ and INSTALL.md Step 4."
+                ) from exc
+            try:
+                pdbqt_size = pdbqt_path.stat().st_size
+            except FileNotFoundError:
+                pdbqt_size = 0
+            if result.returncode != 0 or pdbqt_size == 0:
+                raise PrepError(
+                    f"babel/obabel failed to produce receptor PDBQT "
+                    f"(exit {result.returncode}):\n{result.stderr}"
+                )
     finally:
         fixed_pdb_path.unlink(missing_ok=True)
-
-    if result.returncode != 0:
-        raise PrepError(
-            f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
-        )
 
     logger.info("Receptor PDBQT written: %s", pdbqt_path)
     return pdbqt_path
