@@ -22,9 +22,6 @@ dependencies = [
     "scikit-learn>=1.8,<1.9",
     "openmm>=8.1",
     "pdbfixer>=1.9",
-    # launch_ui.sh / hybridock_pep.ui.tui (the guided terminal UI install.sh
-    # auto-launches at the end of setup) imports this unconditionally.
-    "prompt_toolkit>=3.0",
     # make verify / make test (the documented judge-facing path) need pytest present
     # right after `pip install -e .` — no separate dev-extras step should be required.
     "pytest>=8.0",

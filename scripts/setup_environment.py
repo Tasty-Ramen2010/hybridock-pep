@@ -432,30 +432,17 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None
             # CUDA-specific pre-built wheels (fast, no compilation)
             _run([*pip, *pyg_pkgs, "-f", info.pyg_find_url], dry_run)
         else:
-            # CPU wheels — work for MPS/ROCm/XPU/CPU backends. These have no
-            # prebuilt wheel and compile from source; their setup.py imports
-            # torch to match its ABI, so --no-build-isolation is required
-            # (default pip build isolation hides the just-installed torch in
-            # a throwaway venv, failing with "ModuleNotFoundError: No module
-            # named 'torch'"). On macOS this same build step then loads
-            # torch's bundled libomp.dylib alongside conda's llvm-openmp,
-            # aborting with "OMP: Error #15" unless KMP_DUPLICATE_LIB_OK is set.
+            # CPU wheels — work for MPS/ROCm/XPU/CPU backends.
             # ROCm note: torch-scatter message-passing ops fall back to CPU; the
             # diffusion model forward pass is still GPU-accelerated via the main
             # graph convolutions which use native torch ops, not torch-scatter.
-            _run(
-                [*pip, *pyg_pkgs, "--no-build-isolation"], dry_run,
-                env={"KMP_DUPLICATE_LIB_OK": "TRUE"},
-            )
+            _run([*pip, *pyg_pkgs], dry_run)
 
     # ── Verify PyTorch sees the expected device ───────────────────────────
     verify_script = _build_verify_script(info.backend)
     if not dry_run:
         py = _conda_python("rapidock")
-        # Same libomp collision as the PyG build above (see comment there) —
-        # this is a bare `import torch` with no protection from inference.py.
-        verify_env = {**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"}
-        result = subprocess.run([py, "-c", verify_script], capture_output=False, env=verify_env)
+        result = subprocess.run([py, "-c", verify_script], capture_output=False)
         if result.returncode != 0:
             print(
                 "\n  [WARN] Device verification returned non-zero. "
