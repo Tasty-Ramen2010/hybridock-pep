@@ -10,6 +10,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from hybridock_pep.models import PoseFailure
+from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
 
@@ -267,23 +268,12 @@ def _prepare_single_ligand(
     pdbqt_path = output_dir / (pdb_path.stem + ".pdbqt")
 
     try:
-        babel_bin = shutil.which("babel")
-        if babel_bin is None:
-            raise FileNotFoundError(
-                "babel not found on PATH — install ADFRsuite and add its bin/ to PATH"
-            )
-
-        # Sanitize element column before invoking babel (strips N1+, O1-, etc.)
+        # Sanitize element column before invoking babel/obabel (strips N1+, O1-, etc.)
         with tempfile.NamedTemporaryFile(suffix=".pdb", delete=False) as tmp:
             clean_pdb = Path(tmp.name)
         try:
             sanitize_pdb_for_babel(pdb_path, clean_pdb)
-            result = subprocess.run(
-                [babel_bin, "-i", "pdb", str(clean_pdb), "-o", "pdbqt", str(pdbqt_path),
-                 "-h", "-xr"],
-                capture_output=True,
-                text=True,
-            )
+            result = convert_pdb_to_pdbqt(clean_pdb, pdbqt_path, add_hydrogens=True)
         finally:
             clean_pdb.unlink(missing_ok=True)
 

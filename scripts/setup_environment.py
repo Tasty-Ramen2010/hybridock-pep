@@ -326,7 +326,8 @@ def _env_exists(env_name: str) -> bool:
 
 
 def _rapidock_stack_ready() -> bool:
-    """Return True if torch + torch_scatter already import cleanly in the rapidock env.
+    """Return True if torch + torch_scatter + torch_geometric already import
+    cleanly in the rapidock env.
 
     Read-only check (imports only, no side effects) — safe to run against a live env.
     """
@@ -422,6 +423,13 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None
             _run([*pip, "intel-extension-for-pytorch"], dry_run)
 
         # ── PyG core + scatter/sparse/cluster ────────────────────────────────
+        # torch-geometric itself (inference.py imports torch_geometric.loader
+        # directly) was missing from every backend path here — CUDA/MPS/ROCm/
+        # XPU/CPU all installed the scatter/sparse/cluster/spline-conv
+        # extensions but never the core package, so Stage 1 sampling failed
+        # with ModuleNotFoundError on a completely clean rapidock env even
+        # though `import torch, torch_scatter` (checked by
+        # _rapidock_stack_ready) succeeded.
         pyg_pkgs = [
             "torch-geometric",
             "torch-scatter",

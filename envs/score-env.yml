@@ -13,6 +13,10 @@ dependencies:
   - conda-forge::pdbfixer>=1.9
   - conda-forge::rdkit>=2024.03
   - conda-forge::swig
+  # Fallback for babel/prepare_receptor when ADFRsuite isn't installed (e.g.
+  # Apple Silicon, where ADFRsuite ships only an x86_64 tarball). See
+  # prep/pdbqt_convert.py for why obabel needs different flags than babel.
+  - conda-forge::openbabel>=3.1
   # pip's `vina` wheel build hardcodes -std=c++11; boost >=1.87 dropped the
   # std::enable_if_t compatibility shim that relies on, so the build fails
   # with "no member named 'enable_if_t' in namespace 'std'" past that version.
