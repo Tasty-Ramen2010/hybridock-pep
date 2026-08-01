@@ -10,6 +10,7 @@ minimized geometry (no re-minimization of components).
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 _KJ_TO_KCAL: float = 0.239006
 _MINIMIZE_TOL: float = 10.0          # kJ/mol/nm — loose; we want structure, not absolute minimum
 _MINIMIZE_MAXITER: int = 2000
+
+
 _TEMPERATURE_K: float = 300.0
 _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 
@@ -40,6 +43,48 @@ _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 # parameter (compute_mmgbsa_single(solute_dielectric=...)) so re-screening is cheap.
 _SOLUTE_DIELECTRIC: float = 1.0
 _SOLVENT_DIELECTRIC: float = 78.5
+
+
+def _minimize_constraints():
+    """Constraints used when building systems for MM-GBSA. HBonds by default.
+
+    This is the single largest cost lever in the whole refinement stage, and it
+    is not obvious why. ``LocalEnergyMinimizer`` has no native constraint
+    support: it converts constraints into harmonic restraints and re-runs L-BFGS
+    in an outer loop, ratcheting the force constant until they are satisfied.
+    Constraining H bonds therefore multiplies the minimisation, which is 94% of
+    MM-GBSA's runtime.
+
+    Measured on an M3, 1YCR/MDM2 (705-atom receptor), 3 poses, maxIter=2000:
+
+        constraints=HBonds (default)   21.1 s/pose
+        constraints=None                4.3 s/pose      4.9x faster
+
+    Constraints exist to permit large MD timesteps. Nothing here runs dynamics
+    -- the integrator is built only because Context requires one -- so dropping
+    them is physically defensible for minimisation plus a single energy
+    evaluation.
+
+    It is NOT the default anyway, because it moves the answer. Removing
+    constraints shifted dG by up to 4.37 kcal/mol, and for one pose the shift
+    was ~4.4 kcal/mol in the same direction across two independent trials, i.e.
+    systematic rather than noise. MM-GBSA ranks poses, so a pose-dependent shift
+    can reorder them. Per CLAUDE.md 7 that needs re-benchmarking against the
+    calibration set before it can become default.
+
+    Worth knowing when you do benchmark it: the current settings are already
+    only reproducible to +/-3.92 kcal/mol run-to-run (three identical runs of
+    one pose gave -65.80, -68.00, -69.72), because single-precision GPU
+    minimisation lands in different local minima. The 4.37 shift is 1.1x that
+    existing noise floor.
+
+    Set HYBRIDOCK_MMGBSA_FAST=1 to opt in.
+    """
+    import openmm.app as app  # noqa: PLC0415
+
+    if os.environ.get("HYBRIDOCK_MMGBSA_FAST", "") == "1":
+        return None
+    return app.HBonds
 
 
 # ---------------------------------------------------------------------------
@@ -155,13 +200,15 @@ def _context_energy_kcal(
     import openmm.app as app
     import openmm.unit as unit
 
-    system = ff.createSystem(
-        topology,
-        nonbondedMethod=app.NoCutoff,
-        constraints=app.HBonds,
-        soluteDielectric=solute_dielectric,
-        solventDielectric=solvent_dielectric,
-    )
+    constraints = _minimize_constraints()
+    system_kwargs = {
+        "nonbondedMethod": app.NoCutoff,
+        "soluteDielectric": solute_dielectric,
+        "solventDielectric": solvent_dielectric,
+    }
+    if constraints is not None:
+        system_kwargs["constraints"] = constraints
+    system = ff.createSystem(topology, **system_kwargs)
     integrator = _make_integrator()
 
     try:
