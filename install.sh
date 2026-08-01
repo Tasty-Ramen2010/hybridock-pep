@@ -99,7 +99,11 @@ fi
 # 3. Conda environments (auto-detects OS/GPU backend)
 # ---------------------------------------------------------------------------
 step "Creating conda environments (score-env + rapidock)"
-python3 scripts/setup_environment.py "${PASSTHROUGH_ARGS[@]}"
+if [ "${#PASSTHROUGH_ARGS[@]}" -gt 0 ]; then
+    python3 scripts/setup_environment.py "${PASSTHROUGH_ARGS[@]}"
+else
+    python3 scripts/setup_environment.py
+fi
 
 # ---------------------------------------------------------------------------
 # 4. RAPiDock model weights (public Zenodo record — no login needed)
