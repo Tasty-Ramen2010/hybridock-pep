@@ -14,19 +14,10 @@ Uses RAPiDock-Reloaded (Tasty-Ramen2010/RAPiDock-Reloaded) which runs on:
 from __future__ import annotations
 
 import argparse
-import os
 import random
 import sys
 from pathlib import Path
 from typing import Optional
-
-# Must be set before the FIRST `import torch` anywhere in this process.
-# _optimize_backends() below imports torch (unconditionally, before
-# inference.py is ever reached) and on macOS that collides with conda's
-# llvm-openmp (both link libomp.dylib), aborting with "OMP: Error #15" —
-# the SIGABRT kills Stage 1 before it can generate a single pose. inference.py
-# guards against this too, but only for imports that happen after it loads.
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 
 def _seed_everything(seed):
