@@ -52,6 +52,15 @@ step it can't automate is [ADFRsuite](https://ccsb.scripps.edu/adfrsuite/downloa
 requires a manual license click-through — the script tells you exactly what to do if it's missing,
 and everything else still works while you get it (see [Install](#install) for what each piece needs).
 
+> **Be patient — this genuinely takes 10–30 minutes**, most of it two long, silent `conda`
+> dependency-solve steps and a PyTorch download (hundreds of MB). If the terminal looks frozen on
+> a line like `Solving environment: \` for several minutes, that is normal — conda just doesn't
+> print progress during a solve. Don't Ctrl-C it. You don't need to open a second terminal, run
+> `conda activate` yourself, or launch anything by hand — the script does that, and drops you
+> straight into the guided UI when it's done. (That last step needs a real terminal window you
+> typed the command into directly — it won't work piped into a file or run over some restricted
+> remote shells.)
+
 Prefer to do it by hand, or just want to see what's happening under the hood? The full manual
 walkthrough is in [INSTALL.md](INSTALL.md).
 
@@ -99,7 +108,10 @@ Crystal ΔG = -10.07 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
 ```
 
 The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM). A
-result within a few kcal/mol of that number confirms your install works correctly.
+result within a few kcal/mol of that number confirms your install works correctly — the exact
+figure can shift by ~1 kcal/mol from the value above depending on your resolved `scikit-learn`
+patch version (the model is a GBT, so results aren't bit-identical across sklearn releases); it's
+not a sign anything is broken.
 
 **What you just ran:** `crystal-score` scores an existing, already-docked peptide pose. It skips
 pose generation (RAPiDock), clash-relief (Vina), and MM-GBSA entirely — the fastest way to confirm
