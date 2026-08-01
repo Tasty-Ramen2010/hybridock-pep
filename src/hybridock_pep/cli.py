@@ -497,7 +497,10 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         input_poses_dir=input_poses_dir,
         calibration_path=calibration_path,
     )
-    logger.info("Docking complete. %d poses scored.", len(scored_poses))
+    # print(), not logger.info(): the pose count is real signal (a
+    # surprisingly low count vs --n-samples is exactly what a user needs to
+    # notice), not progress narration — must stay visible at default -v.
+    print(f"Docking complete. {len(scored_poses)} poses scored.")
 
 
 def _run_calibrate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -547,7 +550,11 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         return
 
     pdbqt_path = prepare_receptor(config)
-    logger.info("Receptor prepared: %s", pdbqt_path)
+    # print(), not logger.info(): `prep` has no other UI — this line is its
+    # entire output. logger.info() would be silently swallowed at the
+    # default log level (WARNING; see main()), making the command look like
+    # it did nothing.
+    print(f"Receptor prepared: {pdbqt_path}")
 
 
 def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -582,10 +589,13 @@ def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentPars
     )
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "reproducibility.json").write_text(json.dumps(result.to_json(), indent=2))
-    logger.info(
-        "Reproducibility: mean RMSD=%.2fÅ  pearson=%.3f  ΔG σ=%.2f kcal/mol  → %s",
-        result.mean_pairwise_rmsd, result.mean_pairwise_pearson,
-        result.dg_std, result.verdict,
+    # print(), not logger.info(): this command has no progress UI of its own —
+    # this line is the entire result. See the note on the `prep` subcommand.
+    print(
+        "Reproducibility: mean RMSD={:.2f}Å  pearson={:.3f}  ΔG σ={:.2f} kcal/mol  → {}".format(
+            result.mean_pairwise_rmsd, result.mean_pairwise_pearson,
+            result.dg_std, result.verdict,
+        )
     )
 
 
@@ -639,10 +649,13 @@ def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) 
         input_poses_offtarget=Path(args.input_poses_offtarget).resolve() if args.input_poses_offtarget else None,
         score_field=args.score_field,
     )
-    logger.info(
-        "Selectivity complete: ΔΔG=%+.2f kcal/mol  CI95=[%+.2f, %+.2f]  →  %s",
-        result.ddg, result.ddg_ci_low, result.ddg_ci_high,
-        result.to_json()["interpretation"],
+    # print(), not logger.info(): this command has no progress UI of its own —
+    # this line is the entire result. See the note on the `prep` subcommand.
+    print(
+        "Selectivity complete: ΔΔG={:+.2f} kcal/mol  CI95=[{:+.2f}, {:+.2f}]  →  {}".format(
+            result.ddg, result.ddg_ci_low, result.ddg_ci_high,
+            result.to_json()["interpretation"],
+        )
     )
 
 

@@ -480,10 +480,19 @@ def main(args: argparse.Namespace | None = None) -> None:
         args = parse_args()
 
     log_level = logging.DEBUG if args.verbose else logging.INFO
+    # force=True: when this runs via `hybridock-pep benchmark`, cli.main()
+    # already called basicConfig() (WARNING by default — dock's quiet-UI
+    # default; see cli.py) before dispatching here. Without force=True this
+    # call is a silent no-op (basicConfig only configures once per process),
+    # which would leave a long batch run showing zero per-complex progress —
+    # the exact "did it freeze?" problem the dock-side fix was solving.
+    # Benchmark has no PipelineProgress-style UI of its own, so it keeps its
+    # original INFO-by-default behavior regardless of that.
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        force=True,
     )
 
     # Pre-flight checks — fail fast before iterating complexes

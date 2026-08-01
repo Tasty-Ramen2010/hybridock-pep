@@ -208,3 +208,51 @@ class TestLogLevel:
         import logging
         level = self._run_main_with_verbosity(monkeypatch, ["-vv"])
         assert level == logging.DEBUG
+
+
+class TestSubcommandResultsPrintAtDefaultVerbosity:
+    """Regression tests: prep/reproducibility/selectivity have no PipelineProgress-
+    style UI of their own — a subcommand's single result line used to be
+    logger.info(), which the default WARNING log level (TestLogLevel above)
+    silently swallows, making the command look like it did nothing. Each
+    result line is now print(); these tests catch a future accidental
+    reversion back to logger.info() for any of them."""
+
+    def test_prep_prints_result_at_default_verbosity(
+        self, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        import logging
+        from unittest.mock import patch
+        from hybridock_pep import cli
+
+        receptor = tmp_path / "receptor.pdb"
+        receptor.write_text(
+            "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\nEND\n"
+        )
+        fake_pdbqt = tmp_path / "out" / "receptor.pdbqt"
+
+        root = logging.getLogger()
+        saved_level = root.level
+        root.setLevel(logging.WARNING)  # the real default — see TestLogLevel
+        try:
+            with patch(
+                "hybridock_pep.prep.receptor.prepare_receptor", return_value=fake_pdbqt
+            ):
+                monkeypatch.setattr(
+                    sys,
+                    "argv",
+                    [
+                        "hybridock-pep", "prep",
+                        "--receptor", str(receptor),
+                        "--output-dir", str(tmp_path / "out"),
+                    ],
+                )
+                cli.main()
+        finally:
+            root.setLevel(saved_level)
+
+        captured = capsys.readouterr()
+        assert "Receptor prepared:" in captured.out, (
+            "prep's only output line must print to stdout regardless of log level"
+        )
+        assert str(fake_pdbqt) in captured.out
