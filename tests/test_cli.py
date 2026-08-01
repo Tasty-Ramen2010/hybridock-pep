@@ -159,3 +159,52 @@ class TestSeed:
             output_dir=tmp_path,
         )
         assert config.seed is None
+
+
+class TestLogLevel:
+    """Default verbosity must be quiet — PipelineProgress is the intended
+    default-mode UI; routine logger.info() calls from every module should
+    not print unless the user asked for -v/-vv. Regression test for the bug
+    where main() always set INFO regardless of verbosity 0 vs 1."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_root_logger(self):
+        # logging.basicConfig() is a no-op after the first call in a process
+        # (handlers already attached) — clear them so each test's call to
+        # cli.main() genuinely re-applies its own level, and restore the
+        # original root logger state afterward so this doesn't leak into
+        # other test files' logging expectations.
+        import logging
+        root = logging.getLogger()
+        saved_handlers = root.handlers[:]
+        saved_level = root.level
+        root.handlers.clear()
+        yield
+        root.handlers.clear()
+        root.handlers.extend(saved_handlers)
+        root.setLevel(saved_level)
+
+    def _run_main_with_verbosity(self, monkeypatch, verbose_flags: list[str]) -> int:
+        import logging
+        from hybridock_pep import cli
+
+        monkeypatch.setattr(sys, "argv", ["hybridock-pep", *verbose_flags])
+        # main() with no subcommand just prints help and returns — enough to
+        # exercise the logging.basicConfig() call without running a real dock.
+        cli.main()
+        return logging.getLogger().getEffectiveLevel()
+
+    def test_default_verbosity_is_warning(self, monkeypatch) -> None:
+        import logging
+        level = self._run_main_with_verbosity(monkeypatch, [])
+        assert level == logging.WARNING
+
+    def test_single_v_is_info(self, monkeypatch) -> None:
+        import logging
+        level = self._run_main_with_verbosity(monkeypatch, ["-v"])
+        assert level == logging.INFO
+
+    def test_double_v_is_debug(self, monkeypatch) -> None:
+        import logging
+        level = self._run_main_with_verbosity(monkeypatch, ["-vv"])
+        assert level == logging.DEBUG

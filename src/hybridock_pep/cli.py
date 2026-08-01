@@ -25,7 +25,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="count",
         default=0,
-        help="Increase verbosity (-v INFO, -vv DEBUG).",
+        help="Increase verbosity (default: warnings only + clean progress UI; "
+             "-v INFO logs, -vv DEBUG logs).",
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
     sub.required = False
@@ -402,6 +403,25 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_dock_banner(config: DockConfig) -> None:
+    """Print a one-time boxed summary line before a dock run starts.
+
+    TTY + default-verbosity only (checked by the caller) — this is decoration
+    for an interactive terminal, not something that should show up in logs or
+    piped output. Box width is content-driven with a sane floor so short
+    peptide/receptor names don't look sparse.
+    """
+    title = (
+        f"HybriDock-Pep — {config.peptide_sequence} "
+        f"({len(config.peptide_sequence)}-mer) × {config.receptor_path.name}"
+    )
+    width = max(len(title) + 4, 40)
+    print(file=sys.stderr)
+    print("┌" + "─" * width + "┐", file=sys.stderr)
+    print("│" + title.center(width) + "│", file=sys.stderr)
+    print("└" + "─" * width + "┘", file=sys.stderr)
+
+
 def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Validate inputs and orchestrate the full docking pipeline.
 
@@ -467,6 +487,9 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         Path(args.input_poses).resolve() if args.input_poses else None
     )
     calibration_path = Path(args.calibration).resolve()
+
+    if config.verbosity == 0 and sys.stderr.isatty():
+        _print_dock_banner(config)
 
     from hybridock_pep import driver
     scored_poses, _cluster_result = driver.run_dock(
@@ -714,9 +737,20 @@ def main() -> None:
 
     if args.verbose >= 2:
         log_level = logging.DEBUG
-    else:
+    elif args.verbose == 1:
         log_level = logging.INFO
-    logging.basicConfig(level=log_level, format="%(levelname)s %(name)s: %(message)s")
+    else:
+        # Default: only warnings/errors on stderr. PipelineProgress (driver.py)
+        # is the intended default-mode UI — routine logger.info() calls from
+        # every module used to always print regardless of -v, drowning it out.
+        log_level = logging.WARNING
+    # force=True: basicConfig() otherwise no-ops if the root logger already
+    # has a handler (e.g. main() invoked more than once in the same process —
+    # tests, a REPL, launch_ui.sh-style wrappers), silently freezing the log
+    # level at whatever the first call set regardless of this call's -v flags.
+    logging.basicConfig(
+        level=log_level, format="%(levelname)s %(name)s: %(message)s", force=True
+    )
 
     dispatch = {
         "dock": _run_dock,
