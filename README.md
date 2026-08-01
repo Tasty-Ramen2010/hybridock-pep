@@ -49,8 +49,10 @@ That's it for most machines: `install.sh` auto-detects your OS/GPU, creates both
 environments with the right PyTorch build, downloads the RAPiDock model weights, and finishes by
 launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. The **one**
 step it can't automate is [ADFRsuite](https://ccsb.scripps.edu/adfrsuite/downloads/) — Scripps
-requires a manual license click-through — the script tells you exactly what to do if it's missing,
-and everything else still works while you get it (see [Install](#install) for what each piece needs).
+requires a manual license click-through — the script tells you exactly what to do if it's missing.
+Without it, `crystal-score` and `make verify` work fine (see the practice test below), but a real
+`dock`/`make demo` run **will fail** at the receptor-prep step until ADFRsuite is on your PATH — it's
+not optional, just deferred (see [Install](#install) for what each piece needs).
 
 > **Be patient — this genuinely takes 10–30 minutes**, most of it two long, silent `conda`
 > dependency-solve steps and a PyTorch download (hundreds of MB). If the terminal looks frozen on
@@ -122,7 +124,10 @@ sequence alone, run a real end-to-end dock on the same shipped receptor:
 make demo   # hybridock-pep dock on 1YCR, 20 RAPiDock passes — needs the rapidock env, see below
 ```
 
-That needs the second environment (GPU pose sampling) — see [Install](#install).
+That needs the second environment (GPU pose sampling) **and** ADFRsuite (`prepare_receptor`,
+Stage 2) — see [Install](#install). Skipping ADFRsuite doesn't just slow this down, it fails it
+outright with `PrepError: prepare_receptor not found on PATH`; that's expected until you complete
+the one manual step above, not a broken install.
 
 ---
 

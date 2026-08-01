@@ -335,7 +335,7 @@ def _rapidock_stack_ready() -> bool:
         return False
     try:
         result = subprocess.run(
-            [py, "-c", "import torch, torch_scatter"],
+            [py, "-c", "import torch, torch_scatter, torch_geometric"],
             capture_output=True, timeout=30,
         )
     except (subprocess.TimeoutExpired, OSError):
@@ -421,8 +421,9 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None
         if info.ipex:
             _run([*pip, "intel-extension-for-pytorch"], dry_run)
 
-        # ── PyG scatter/sparse/cluster ──────────────────────────────────────
+        # ── PyG core + scatter/sparse/cluster ────────────────────────────────
         pyg_pkgs = [
+            "torch-geometric",
             "torch-scatter",
             "torch-sparse",
             "torch-cluster",
