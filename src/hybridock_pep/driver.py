@@ -342,7 +342,8 @@ def run_dock(
         # chain segments that MDAnalysis splits into extra segments, causing an
         # IndexError in RAPiDock's ESM embedding lookup).
         cleaned_receptor = prepare_receptor_pdb(config)
-        run_sampling(config, receptor_path=cleaned_receptor)
+        with prog.heartbeat():
+            run_sampling(config, receptor_path=cleaned_receptor)
         poses_dir = (config.output_dir / "poses").resolve()
 
     records, parse_failures = parse_poses(poses_dir)
