@@ -223,3 +223,41 @@ class TestWriteBestPosePdb:
             "best_pose.pdb should contain pose_1.pdb content (cluster 1, score -7.0), "
             "not pose_0.pdb (cluster 0, score -3.0)"
         )
+
+    def test_write_best_pose_pdb_prints_headline_result_to_stdout(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """The ΔG line is dock's actual deliverable, not progress narration —
+        it must print() to stdout unconditionally, not go through logging
+        (which the default level, WARNING, would silently swallow an INFO
+        call at; see cli.py main()). Regression test: this line used to be
+        logger.info() and a default-verbosity `hybridock-pep dock` run
+        printed no result at all.
+
+        Sets the root logger to CRITICAL (stricter than the real default,
+        WARNING) before calling, to prove the result line's visibility truly
+        does not depend on logging configuration at all — print() bypasses
+        it entirely, unlike the logger.info() call this replaced.
+        """
+        import logging
+        from hybridock_pep.output.csv_writer import write_best_pose_pdb
+
+        root = logging.getLogger()
+        saved_level = root.level
+        root.setLevel(logging.CRITICAL)
+        try:
+            poses_dir = tmp_path / "out" / "poses"
+            poses_dir.mkdir(parents=True)
+            config = _make_config(tmp_path, output_dir=tmp_path / "out")
+            cluster_result = self._make_cluster_result(tmp_path, poses_dir)
+            scored_poses = self._make_scored_poses(poses_dir)
+
+            write_best_pose_pdb(cluster_result, config, scored_poses)
+        finally:
+            root.setLevel(saved_level)
+
+        captured = capsys.readouterr()
+        assert "Best pose: ΔG =" in captured.out, (
+            "headline ΔG result must print to stdout even at logging.CRITICAL"
+        )
+        assert captured.out.strip() != "", "result line must not be empty"
