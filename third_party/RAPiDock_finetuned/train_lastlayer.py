@@ -58,6 +58,8 @@ from argparse import Namespace
 from utils.utils import get_model, ExponentialMovingAverage
 from utils.transform import NoiseTransform
 from utils.inference_utils import InferenceDataset
+from utils.so3 import score_norm as _so3_score_norm
+from utils.torus import score_norm as _torus_score_norm
 
 
 # ---------------------------------------------------------------------------
@@ -633,9 +635,25 @@ def load_model_for_finetuning(model_args, ckpt_path, device, unfreeze_phase,
     model = get_model(model_args, no_parallel=True)
     raw_ckpt = torch.load(ckpt_path, map_location="cpu")
 
-    # Support both raw state dict and {"model": ...} wrapper
+    # Support both raw state dict and {"model": ...} wrapper.
+    # strict=False: the finetuned model adds a ZERO-INIT cross_type_embedding
+    # (models/diffusion.py:383, a no-op residual at load) absent from the pretrained
+    # checkpoint. Loading non-strict leaves it at zero (preserving pretrained behavior)
+    # and lets training learn it. Assert only the EXPECTED key is missing.
+    def _safe_load(sd):
+        missing, unexpected = model.load_state_dict(sd, strict=False)
+        allowed = {"encoder.cross_type_embedding.weight"}
+        # tr_adapter_conv.* are the zero-init position-adapter params (added capacity, absent
+        # from the pretrained checkpoint) — expected to be missing and kept at zero-init.
+        bad_missing = [k for k in missing if k not in allowed and "tr_adapter" not in k]
+        if bad_missing or unexpected:
+            raise RuntimeError(f"Unexpected state_dict mismatch: missing={bad_missing} "
+                               f"unexpected={list(unexpected)}")
+        if missing:
+            print(f"[INFO] {list(missing)} kept at zero-init (added finetune capacity)")
+
     if isinstance(raw_ckpt, dict) and "model" in raw_ckpt:
-        model.load_state_dict(raw_ckpt["model"], strict=True)
+        _safe_load(raw_ckpt["model"])
         if "ema_weights" in raw_ckpt:
             try:
                 ema = ExponentialMovingAverage(model.parameters(),
@@ -646,7 +664,7 @@ def load_model_for_finetuning(model_args, ckpt_path, device, unfreeze_phase,
             except Exception as exc:
                 print(f"[WARN] Could not apply EMA weights: {exc} — using raw weights")
     else:
-        model.load_state_dict(raw_ckpt, strict=True)
+        _safe_load(raw_ckpt)
 
     # Phase 3 = full retraining (all layers unfrozen)
     if unfreeze_phase == 3:
@@ -676,6 +694,13 @@ def load_model_for_finetuning(model_args, ckpt_path, device, unfreeze_phase,
     # Phase 1 or 2: freeze everything first, then selectively unfreeze
     for param in model.parameters():
         param.requires_grad = False
+
+    # Always train the newly-added cross_type_embedding (added finetune capacity for
+    # receptor-peptide cross-type signal — directly relevant to the long-peptide
+    # PLACEMENT target). Set True here; pattern unfreezing below only adds more.
+    for _n, _p in model.named_parameters():
+        if "cross_type_embedding" in _n:
+            _p.requires_grad = True
 
     if v3_mode:
         if unfreeze_phase == 1:
@@ -866,6 +891,38 @@ def freeze_frozen_bn_stats(model):
     return n_frozen
 
 
+def freeze_all_bn_stats(model):
+    # type: (torch.nn.Module) -> int
+    """Set .eval() on EVERY BatchNorm submodule, regardless of whether its params are frozen.
+
+    ROOT-CAUSE FIX (finetune_normloss collapse, Aug 2026): forensics on the collapsed
+    checkpoints showed the model change was ~99% BatchNorm *running-buffer* drift, not
+    weight drift (ep28 vs base: learnable rel-drift 0.023 vs BN-buffer rel-drift 2.16).
+    The deepest cross-attention (placement) conv's running_var exploded 30x (99k -> 3.0M)
+    between ep22 and ep28 — exactly when docking RMSD collapsed. At inference (model.eval())
+    those corrupted buffers mis-normalize the receptor-peptide interaction signal, so
+    placement dies while the train-mode loss (which uses *batch* stats) keeps dropping.
+
+    freeze_frozen_bn_stats() only freezes BN whose learnable params are frozen — so under a
+    full-param unfreeze (--v4-mode --unfreeze-phase 3) it protects NOTHING and every BN's
+    running stats drift. This function freezes the running stats of ALL BN layers by putting
+    them in eval() mode. The affine params (weight/bias = gamma/beta) still receive gradients
+    in eval() mode, so you can still LEARN the affine transform while the running_mean/var
+    buffers stay pinned at their pretrained values.
+
+    Must be re-applied after every model.train() call (train() resets submodule modes).
+
+    Returns:
+        Number of BatchNorm submodules set to eval mode.
+    """
+    n = 0
+    for _name, module in model.named_modules():
+        if 'BatchNorm' in type(module).__name__:
+            module.eval()
+            n += 1
+    return n
+
+
 def snapshot_frozen_bn_stats(model):
     # type: (torch.nn.Module) -> dict
     """Snapshot running_mean/running_var of all frozen BatchNorm layers.
@@ -1026,21 +1083,74 @@ def compute_loss(model, data, transform, device, _norm_out=None):
     # Explicitly cast targets to float32.  Scores are computed from torch.normal()
     # (float32) so these should already be float, but int64 index tensors in the
     # graph can propagate through scatter ops and corrupt the dtype on CUDA.
+    # --- SIGMA-NORMALIZED loss (DiffDock / DiffPepDock convention) --------------------
+    # The old plain-MSE loss on the score (~1/sigma) was DOMINATED by low-sigma samples
+    # (verified: val raw_mean 1e7-1e9 vs median ~90). That over-weighted near-native fine
+    # denoising and starved COARSE PLACEMENT — the diagnosed retrain-failure root cause.
+    # Fix: weight each term by 1/(expected score-norm)^2 so every noise level contributes
+    # comparably.  translation: *tr_sigma^2 (score_norm_tr ~ 1/tr_sigma).  rotation/torsion:
+    # /score_norm(sigma)^2, with a floor to avoid divide-by-~0 at high sigma (degenerate).
+    def _norm_factor_rot(sig):
+        sn = float(_so3_score_norm(torch.tensor([float(sig)])).reshape(-1)[0])
+        return 1.0 / (max(sn, 0.1) ** 2)
+    def _norm_factor_tor(sig):
+        sn = float(_torus_score_norm(np.array([float(sig)]))[0])
+        return 1.0 / (max(sn, 0.5) ** 2)
+
+    tr_sig = float(getattr(noisy, "tr_sigma_val", 1.0))
     tr_target = noisy.tr_score.to(device).float()
-    loss = _TR_W * F.mse_loss(tr_pred, tr_target)
+    loss = _TR_W * F.mse_loss(tr_pred, tr_target) * (tr_sig ** 2)
 
     rot_target = noisy.rot_score.to(device).float()
-    loss = loss + _ROT_W * F.mse_loss(rot_pred, rot_target)
+    loss = loss + _ROT_W * F.mse_loss(rot_pred, rot_target) * _norm_factor_rot(getattr(noisy, "rot_sigma_val", 1.0))
 
     if tor_bb_pred.numel() > 0 and noisy.tor_backbone_score.numel() > 0:
         tor_bb_target = noisy.tor_backbone_score.to(device).float()
         if tor_bb_pred.shape == tor_bb_target.shape:
-            loss = loss + _TOR_BB_W * F.mse_loss(tor_bb_pred, tor_bb_target)
+            loss = loss + _TOR_BB_W * F.mse_loss(tor_bb_pred, tor_bb_target) * _norm_factor_tor(getattr(noisy, "tor_bb_sigma_val", 1.0))
 
     if tor_sc_pred.numel() > 0 and noisy.tor_sidechain_score.numel() > 0:
         tor_sc_target = noisy.tor_sidechain_score.to(device).float()
         if tor_sc_pred.shape == tor_sc_target.shape:
-            loss = loss + _TOR_SC_W * F.mse_loss(tor_sc_pred, tor_sc_target)
+            loss = loss + _TOR_SC_W * F.mse_loss(tor_sc_pred, tor_sc_target) * _norm_factor_tor(getattr(noisy, "tor_sc_sigma_val", 1.0))
+
+    # --- x0 COM PLACEMENT term (DiffPepDock-style direct-position supervision) ---------
+    # M1 lever: score-matching is a PROXY that does not directly reward native PLACEMENT.
+    # DiffPepDock adds a direct x0 (denoised-position) loss at low t. But DiffPepDock is a
+    # FrameDiff model with PER-RESIDUE translation frames (its trans_x0 loss is per residue),
+    # whereas RAPiDock is a DiffDock-style SCORE model with a BI-CONFORMATIONAL all-atom graph
+    # that FACTORIZES the peptide into rigid COM (tr) + orientation (rot) + backbone/sidechain
+    # torsions. The translation score itself is COMPOSITE — the model sums two conformational
+    # contributions (diffusion.py:512  tr_pred = global_pred[:,:3] + global_pred[:,6:9]).
+    #
+    # Therefore we do NOT port DiffPepDock's per-residue frame loss (RAPiDock has no per-residue
+    # translation frame). We supervise the ISOLATED COM channel — the composite tr_pred, taken
+    # DOWNSTREAM of the bi-conformational sum, so this term rewards native COM placement without
+    # touching how the two conformational arms are combined. Orientation (rot) and conformation
+    # (tor_bb/tor_sc) keep their own sigma-normalized score losses above. (An all-atom variant
+    # that also folds in rot — applying the reverse rigid transform to peptide heavy atoms — is
+    # the stronger, heavier option; see the Arm B handoff doc for its derivation.)
+    #
+    #   tr_update ~ N(0, tr_sigma)              (applied COM displacement, from transform)
+    #   tr_score  = -tr_update / tr_sigma^2     (target; tr_pred is trained to match it)
+    #   => true reverse-move to native COM   = tr_sigma^2 * tr_score = -tr_update   [Angstrom]
+    #      predicted reverse-move to native COM = tr_sigma^2 * tr_pred              [Angstrom]
+    #   x0 error (A^2) = || tr_sigma^2*(tr_pred - tr_score) ||^2 = tr_sigma^4 * ||dscore||^2
+    #
+    # This measures COM placement error in physical Angstroms — exactly what score-MSE ignores.
+    # Clamped per-sample so one far-off (high-sigma) draw can't dominate; sigma-gated so it
+    # only fires in the placement/refine band where direct-position supervision is stable.
+    x0_lambda = float(getattr(model, "_x0_lambda", 0.0))
+    if x0_lambda > 0.0:
+        x0_hi = float(getattr(model, "_x0_sigma_hi", 12.0))   # upper sigma gate (A)
+        x0_lo = float(getattr(model, "_x0_sigma_lo", 0.0))    # lower sigma gate (A)
+        if x0_lo <= tr_sig <= x0_hi:
+            sig2 = tr_sig ** 2
+            move_err = sig2 * (tr_pred - tr_target)           # Angstrom vector (per sample)
+            x0_sq = (move_err ** 2).sum()                     # summed A^2 (true sq. distance)
+            x0_cap = float(getattr(model, "_x0_cap", 100.0))  # (10 A)^2 per-sample ceiling
+            x0_sq = torch.clamp(x0_sq, max=x0_cap)
+            loss = loss + x0_lambda * x0_sq
 
     return loss
 
@@ -1167,6 +1277,11 @@ def train_epoch(model, dataset, indices, transform, optimizer, device,
     # that were set to .eval() by freeze_frozen_bn_stats(). Re-apply immediately after
     # model.train() so frozen BN running stats don't update during training.
     freeze_frozen_bn_stats(model)
+    # ROOT-CAUSE FIX (--freeze-bn-stats): under a full-param unfreeze, freeze_frozen_bn_stats
+    # protects nothing (no BN is frozen). This freezes the running stats of ALL BN layers —
+    # the confirmed driver of the finetune_normloss collapse. See freeze_all_bn_stats().
+    if getattr(model, "_freeze_all_bn", False):
+        freeze_all_bn_stats(model)
     total_loss = 0.0
     n_ok = 0
     n_load_fail = 0
@@ -2666,12 +2781,44 @@ def main():
              "(--save-every or --save-every-after must have been set in the prior run). "
              "If no checkpoint is found, starts from scratch (safe to always pass --resume)."
     )
+    parser.add_argument("--adapter-only", action="store_true",
+                        help="Zero-init translation-adapter training: build model with "
+                        "use_tr_adapter=True, FREEZE the entire pretrained base, train ONLY "
+                        "tr_adapter_conv. Cannot regress (adapter starts as a bit-for-bit no-op).")
     parser.add_argument("--n-epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--warmup-epochs", type=int, default=0,
                         help="Linear LR warmup epochs (recommended: 3 for Phase 2)")
     parser.add_argument("--grad-accum", type=int, default=4,
                         help="Gradient accumulation steps (effective batch = grad_accum)")
+    parser.add_argument("--tr-sigma-floor", type=float, default=0.0,
+                        help="M2 fix: floor tr_sigma before 1/sigma score scaling to cap "
+                             "low-sigma amplification of the translation head. 0.0 = off. "
+                             "(Weak lever: tr_sigma_min is already 0.1 in the schedule.)")
+    # --- ROOT-CAUSE FIX: freeze ALL BatchNorm running stats (see freeze_all_bn_stats) ---
+    parser.add_argument("--freeze-bn-stats", action="store_true",
+                        help="PRIMARY collapse fix. Freeze the running_mean/running_var of ALL "
+                             "BatchNorm layers (put them in eval() during training) so they stay "
+                             "pinned at pretrained values. Confirmed root cause of the "
+                             "finetune_normloss collapse: cross-attention BN running_var drifted "
+                             "up to 30x. Unlike --v6-mode's freeze_frozen_bn_stats (which only "
+                             "protects BN whose params are frozen), this works under full-param "
+                             "unfreeze. Affine gamma/beta still train. STRONGLY RECOMMENDED.")
+    # --- x0 COM PLACEMENT term (M1 lever; DiffPepDock-style, adapted to RAPiDock) --------
+    parser.add_argument("--x0-lambda", type=float, default=0.0,
+                        help="Weight of the direct x0 COM-placement term (Angstrom^2 space). "
+                             "0.0 = off. Rewards native COM placement directly, which "
+                             "score-matching only does as a proxy. Start ~0.05-0.2. Supervises "
+                             "the isolated COM (tr) channel; rot/tor keep their score losses.")
+    parser.add_argument("--x0-sigma-hi", type=float, default=12.0,
+                        help="Only apply the x0 term when tr_sigma <= this (placement/refine "
+                             "band). Above it, high-sigma draws are too coarse for stable "
+                             "direct-position supervision. tr_sigma_max is 30.")
+    parser.add_argument("--x0-sigma-lo", type=float, default=0.0,
+                        help="Lower tr_sigma gate for the x0 term (default 0 = no lower bound).")
+    parser.add_argument("--x0-cap", type=float, default=100.0,
+                        help="Per-sample clamp (Angstrom^2) on the x0 term so a single far-off "
+                             "draw can't dominate the batch. Default 100 = (10 A)^2.")
     parser.add_argument("--save-every", type=int, default=5)
     parser.add_argument("--ppii-weight", type=int, default=4,
                         help="Oversample factor for ppii_enriched entries")
@@ -2730,6 +2877,9 @@ def main():
     model_args = Namespace(**params)
     model_args.esm_embeddings_path_train   = True
     model_args.esm_embeddings_peptide_train = None
+    model_args.tr_sigma_floor = float(getattr(args, "tr_sigma_floor", 0.0))  # M2 fix (opt-in)
+    if getattr(args, "adapter_only", False):
+        model_args.use_tr_adapter = True   # build the model WITH the zero-init position adapter
 
     # Validate: at most one experiment mode flag
     active_modes = [m for m in [args.v3_mode, args.v4_mode, args.v5_mode,
@@ -2808,6 +2958,38 @@ def main():
                                           v3c_mode=args.v3c_mode,
                                           v4c_mode=args.v4c_mode,
                                           v5c_mode=args.v5c_mode)
+
+    if getattr(args, "adapter_only", False):
+        # Override any phase unfreezing: freeze the ENTIRE pretrained base, train ONLY the
+        # zero-init translation adapter. This is the frozen-base + ControlNet-zero-conv recipe
+        # that structurally cannot regress (adapter = bit-for-bit no-op at init).
+        for _p in model.parameters():
+            _p.requires_grad = False
+        _n_ad = 0
+        for _name, _p in model.named_parameters():
+            if "tr_adapter" in _name:
+                _p.requires_grad = True
+                _n_ad += _p.numel()
+        _n_tot = sum(p.numel() for p in model.parameters())
+        print(f"[adapter-only] trainable = {_n_ad:,} params (tr_adapter_conv only) "
+              f"of {_n_tot:,} total; ALL pretrained base frozen", flush=True)
+        assert _n_ad > 0, "adapter-only requested but no tr_adapter params found — flag not wired?"
+
+    # --- Wire ROOT-CAUSE-FIX + x0 flags onto the model (read by train_epoch/compute_loss) ---
+    model._freeze_all_bn = bool(getattr(args, "freeze_bn_stats", False))
+    model._x0_lambda   = float(getattr(args, "x0_lambda", 0.0))
+    model._x0_sigma_hi = float(getattr(args, "x0_sigma_hi", 12.0))
+    model._x0_sigma_lo = float(getattr(args, "x0_sigma_lo", 0.0))
+    model._x0_cap      = float(getattr(args, "x0_cap", 100.0))
+    if model._freeze_all_bn:
+        _n_all_bn = freeze_all_bn_stats(model)   # apply once now; re-applied each train_epoch
+        print(f"[freeze-bn-stats] ALL {_n_all_bn} BatchNorm layers pinned to pretrained "
+              f"running stats (running_mean/var frozen; affine still trains). ROOT-CAUSE FIX.",
+              flush=True)
+    if model._x0_lambda > 0.0:
+        print(f"[x0-term] COM placement term ON: lambda={model._x0_lambda} "
+              f"sigma-gate=[{model._x0_sigma_lo},{model._x0_sigma_hi}] cap={model._x0_cap} A^2",
+              flush=True)
 
     if args.v3_mode:
         if args.unfreeze_phase == 1:
