@@ -167,6 +167,54 @@ def _make_integrator(temperature_k: float = _TEMPERATURE_K):
 # Core computation
 # ---------------------------------------------------------------------------
 
+# Max residual force (kJ/mol/nm) above which a minimization is treated as having
+# failed rather than merely finished. Converged runs on this pipeline sit at
+# 54-102 kJ/mol/nm (measured, 1YCR/MDM2, 6 runs across 2 poses), so 500 leaves
+# ~5x headroom and only fires on gross divergence.
+#
+# This guard exists because minimization here is NOT reproducible. Apple GPUs
+# have no fp64 hardware at all -- OpenMM's OpenCL platform rejects both "mixed"
+# and "double" on Apple with "No compatible OpenCL platform is available" -- so
+# MM-GBSA is locked to single precision on this machine. Measured across three
+# identical runs, complex energy came back -3198.05 / -3498.37 / -3498.73: a
+# 300 kcal/mol outlier, because fp32 minimization from a clashed start can fall
+# into a different basin. The CPU platform (which does have fp64) spread only
+# 11.63 kcal/mol over the same test, but is ~12.5x slower.
+#
+# A wrong ΔG that is silently ranked is worse than a slow one, so flag it.
+_MAX_RESIDUAL_FORCE_KJ_NM: float = 500.0
+
+
+def _warn_if_unconverged(ctx) -> float:
+    """Log a warning if a minimization stopped far from a stationary point.
+
+    Returns the max residual force (kJ/mol/nm) so callers can record it.
+    Never raises: a diagnostic must not be able to break scoring.
+    """
+    try:
+        import numpy as np  # noqa: PLC0415
+        import openmm.unit as unit  # noqa: PLC0415
+
+        forces = ctx.getState(getForces=True).getForces().value_in_unit(
+            unit.kilojoule_per_mole / unit.nanometer
+        )
+        max_f = float(np.linalg.norm(np.asarray(forces), axis=1).max())
+    except Exception as exc:  # noqa: BLE001 - diagnostic only
+        logger.debug("MM-GBSA: residual-force check failed (%s)", exc)
+        return float("nan")
+
+    if max_f > _MAX_RESIDUAL_FORCE_KJ_NM:
+        logger.warning(
+            "MM-GBSA: minimization did not converge (max residual force "
+            "%.0f kJ/mol/nm > %.0f); this pose's ΔG is unreliable and may be a "
+            "single-precision basin-hopping artifact",
+            max_f, _MAX_RESIDUAL_FORCE_KJ_NM,
+        )
+    else:
+        logger.debug("MM-GBSA: converged, max residual force %.1f kJ/mol/nm", max_f)
+    return max_f
+
+
 def _context_energy_kcal(
     topology,
     positions,
@@ -229,6 +277,7 @@ def _context_energy_kcal(
 
     if minimize:
         openmm.LocalEnergyMinimizer.minimize(ctx, _MINIMIZE_TOL, _MINIMIZE_MAXITER)
+        _warn_if_unconverged(ctx)
 
     e_kj = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(
         unit.kilojoule_per_mole
