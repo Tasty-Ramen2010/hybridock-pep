@@ -1,0 +1,11 @@
+name,receptor,peptide_pdb,seq,pep_len,ss_class,length_bucket
+7d6r,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7d6r/7d6r_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7d6r/7d6r_peptide.pdb,RRRRA,5,SHEET,short
+7edo,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7edo/7edo_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7edo/7edo_peptide.pdb,CNVTLNYP,8,SHEET,short
+7rdv,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7rdv/7rdv_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7rdv/7rdv_peptide.pdb,EGRVRVNSAYQS,12,SHEET,medium
+7s8f,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7s8f/7s8f_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7s8f/7s8f_peptide.pdb,EPRSPSHSM,9,SHEET,medium
+7snx,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7snx/7snx_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7snx/7snx_peptide.pdb,VTGYRLFEEI,10,SHEET,medium
+7n19,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7n19/7n19_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7n19/7n19_peptide.pdb,GGIGSDNKVTRRG,13,SHEET,long
+7n6j,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7n6j/7n6j_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7n6j/7n6j_peptide.pdb,QSTIALALLPLLFT,14,SHEET,long
+7vpg,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7vpg/7vpg_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7vpg/7vpg_peptide.pdb,SELDDEEPMELDY,13,SHEET,long
+7kei,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7kei/7kei_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7kei/7kei_peptide.pdb,ERNAGSGIIISDGGGGSLVP,20,SHEET,very_long
+7nuf,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7nuf/7nuf_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7nuf/7nuf_peptide.pdb,MWSVFIHGHDGSNKGSKTYT,20,SHEET,very_long

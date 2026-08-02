@@ -268,18 +268,33 @@ def main() -> None:
             ref_coords = None
 
         if ref_coords is not None:
-            ref_rmsds = [superpose_rmsd(ref_coords, c) for c in coords_list]
-            results["ref_rmsds"] = [round(r, 4) for r in ref_rmsds]
-            results["best_rmsd"]    = round(min(ref_rmsds), 4)
-            results["hit_rate_1A"]  = round(sum(r <= 1.0 for r in ref_rmsds) / N, 4)
-            results["hit_rate_2A"]  = round(sum(r <= 2.0 for r in ref_rmsds) / N, 4)
-            results["hit_rate_5A"]  = round(sum(r <= 5.0 for r in ref_rmsds) / N, 4)
-            results["rmsd_p25"]     = round(float(np.percentile(ref_rmsds, 25)), 4)
-            results["rmsd_median"]  = round(float(np.median(ref_rmsds)), 4)
-            results["rmsd_p75"]     = round(float(np.percentile(ref_rmsds, 75)), 4)
+            # DIRECT docking RMSD (receptor-frame, NO superposition) — the honest
+            # docking metric: captures whether the peptide is PLACED correctly.
+            # SUPERPOSED (Kabsch) RMSD only measures conformation and hides ~3 A of
+            # placement error — it was the sole metric here and misled 2 months of
+            # benchmarking (see project_nsweep_metric_finding_jul29). Report BOTH.
+            def _direct(a, b):
+                if a.shape != b.shape:
+                    return float("nan")
+                d = a - b
+                return float(np.sqrt((d * d).sum(axis=1).mean()))
 
-            # Top-1: pose_0.pdb (or rank1.pdb) — assumed to be best-scored if no CSV
-            results["top1_rmsd"] = round(ref_rmsds[0], 4)
+            direct_rmsds = [_direct(ref_coords, c) for c in coords_list]
+            sup_rmsds = [superpose_rmsd(ref_coords, c) for c in coords_list]
+            results["ref_rmsds"] = [round(r, 4) for r in direct_rmsds]  # PRIMARY=direct
+            results["ref_rmsds_superposed"] = [round(r, 4) for r in sup_rmsds]
+
+            results["best_rmsd"]     = round(min(direct_rmsds), 4)       # docking
+            results["best_rmsd_superposed"] = round(min(sup_rmsds), 4)   # conformation
+            results["hit_rate_1A"]   = round(sum(r <= 1.0 for r in direct_rmsds) / N, 4)
+            results["hit_rate_2A"]   = round(sum(r <= 2.0 for r in direct_rmsds) / N, 4)
+            results["hit_rate_5A"]   = round(sum(r <= 5.0 for r in direct_rmsds) / N, 4)
+            results["rmsd_p25"]      = round(float(np.percentile(direct_rmsds, 25)), 4)
+            results["rmsd_median"]   = round(float(np.median(direct_rmsds)), 4)
+            results["rmsd_p75"]      = round(float(np.percentile(direct_rmsds, 75)), 4)
+
+            # Top-1: rank1.pdb — assumed best-scored if no CSV
+            results["top1_rmsd"] = round(direct_rmsds[0], 4)
 
     # ── Score-RMSD correlation ───────────────────────────────────────────────
     if args.scores_csv and "ref_rmsds" in results:
@@ -312,11 +327,13 @@ def main() -> None:
     print(f"  Clusters @ 1Å:{c1:4d}  @ 2Å:{c2:4d}  @ 5Å:{c5:4d}"
           f"  (diversity ratio: {results['diversity_ratio']:.2f})")
     if "best_rmsd" in results:
-        print(f"  vs Crystal:  best={results['best_rmsd']:.2f}Å"
+        print(f"  vs Crystal [DIRECT docking]:  best={results['best_rmsd']:.2f}Å"
               f"  top1={results['top1_rmsd']:.2f}Å"
               f"  hit@1Å={results['hit_rate_1A']:.1%}"
               f"  hit@2Å={results['hit_rate_2A']:.1%}"
               f"  hit@5Å={results['hit_rate_5A']:.1%}")
+        print(f"  vs Crystal [SUPERPOSED conf]: best={results['best_rmsd_superposed']:.2f}Å"
+              f"   (conformation only — does NOT reflect docking placement)")
     if "spearman_r" in results:
         print(f"  Score-RMSD Spearman ρ: {results['spearman_r']:+.3f}"
               f"  ({'anti-correlated ✓' if results['spearman_r'] < -0.1 else 'not correlated'})")
