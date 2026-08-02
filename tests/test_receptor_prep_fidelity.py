@@ -345,7 +345,7 @@ class TestMeekoFailureFallsThroughToObabel:
 
         monkeypatch.setattr(rec_mod.subprocess, "run", fake_run)
         out = tmp_path / "receptor.pdbqt"
-        assert rec_mod._try_meeko(tmp_path / "in.pdb", out) is False
+        assert rec_mod._try_meeko(tmp_path / "in.pdb", out, "/opt/env/bin/mk_prepare_receptor.py") is False
         assert not out.exists(), "a failed meeko run must not leave a partial file"
 
     def test_meeko_helper_reports_success(self, tmp_path, monkeypatch):
@@ -360,7 +360,7 @@ class TestMeekoFailureFallsThroughToObabel:
             return sp.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         monkeypatch.setattr(rec_mod.subprocess, "run", fake_run)
-        assert rec_mod._try_meeko(tmp_path / "in.pdb", out) is True
+        assert rec_mod._try_meeko(tmp_path / "in.pdb", out, "/opt/env/bin/mk_prepare_receptor.py") is True
 
     def test_partial_output_with_zero_exit_is_still_a_failure(self, tmp_path, monkeypatch):
         """meeko can exit 0 having written nothing (D-02)."""
@@ -372,7 +372,7 @@ class TestMeekoFailureFallsThroughToObabel:
             rec_mod.subprocess, "run",
             lambda cmd, **kw: sp.CompletedProcess(cmd, 0, stdout="", stderr=""),
         )
-        assert rec_mod._try_meeko(tmp_path / "in.pdb", tmp_path / "receptor.pdbqt") is False
+        assert rec_mod._try_meeko(tmp_path / "in.pdb", tmp_path / "receptor.pdbqt", "/opt/env/bin/mk_prepare_receptor.py") is False
 
     @requires_obabel
     @pytest.mark.parametrize("fixture", ["kin_2khh", "mdm2_1pmx"])
