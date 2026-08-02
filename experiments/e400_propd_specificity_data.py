@@ -69,7 +69,14 @@ INTERACTIONS_SHEET = "HD2 Combined"
 
 #: ProP-PD confidence grades to keep. The paper grades 1-4; CliPepPI used
 #: "high-confidence interactions with known binding motifs", so require the top
-#: grade *and* a curated motif annotation.
+#: grade plus a motif annotation of some kind.
+#:
+#: Motif evidence comes from any of three columns — curated_motifs (literature),
+#: consensus_matches, pssm_matches. Requiring *curated* specifically is far too
+#: strict: it is populated for only 46 of the 396 top-confidence rows and
+#: collapses the set to 11 baits. Accepting any of the three keeps 395 rows over
+#: 27 baits, which is the scale CliPepPI reports (282 pairs, 8 baits — they
+#: restricted further to baits they had structures for).
 MIN_CONFIDENCE = 4
 
 #: CliPepPI's negative-pair filters (Methods, "Negative sample generation").
@@ -153,10 +160,15 @@ def build() -> int:
     print(f"  loaded {len(df)} ProP-PD rows, {df['bait'].nunique()} baits")
 
     conf = df["HD2 confidence"].astype(str).str.strip()
-    keep = (conf == str(MIN_CONFIDENCE)) & df["curated_motifs"].notna() & df["Hit"].notna()
+    motif = (
+        df["curated_motifs"].notna()
+        | df["consensus_matches"].notna()
+        | df["pssm_matches"].notna()
+    )
+    keep = (conf == str(MIN_CONFIDENCE)) & motif & df["Hit"].notna()
     hits = df[keep]
     print(
-        f"  {len(hits)} rows at confidence {MIN_CONFIDENCE} with a curated motif "
+        f"  {len(hits)} rows at confidence {MIN_CONFIDENCE} with a motif annotation "
         f"({hits['bait'].nunique()} baits)"
     )
 
