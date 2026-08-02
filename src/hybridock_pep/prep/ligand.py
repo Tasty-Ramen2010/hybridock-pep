@@ -274,6 +274,13 @@ def _prepare_single_ligand(
     # keep producing the same PDBQT. This branch exists because conda-forge has
     # no linux-aarch64 openbabel build for Python 3.11, which left ARM Linux
     # (DGX Spark, Grace, Graviton, Ampere) unable to prepare a single ligand.
+    #
+    # Yield is lower than babel's. Meeko's Polymer templating rejects poses it
+    # cannot pad ("Expected N paddings for (A:4, A:8) ... but got 0") where
+    # babel converts them regardless; measured 7/20 poses converted on a 1YCR
+    # n=20 run. The run still completes and ranks — poses are independent and
+    # per-pose failure is already tolerated — but sample the same job with more
+    # --n-samples on a machine with no converter binary.
     if not babel_available():
         logger.warning(
             "Pose %d: neither babel nor obabel available — preparing with Meeko "
