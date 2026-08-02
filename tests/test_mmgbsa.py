@@ -182,8 +182,15 @@ class TestComputeMmgbsaSingle:
         mock_app.NoCutoff = MagicMock()
         mock_app.HBonds = MagicMock()
 
+        # _pdbfixer_addH must be patched too. It calls the REAL pdbfixer, which
+        # internally does forcefield.createSystem() + a minimization; under the
+        # mocked sys.modules above that resolves to a MagicMock, and
+        # System.addForce() then recurses through _get_child_mock forever. That
+        # hung the whole suite at ~31% for >25 minutes. This test is about the
+        # ΔG arithmetic, so structure preparation is out of scope.
         with patch.dict("sys.modules", {"openmm": mock_openmm, "openmm.app": mock_app, "openmm.unit": mock_unit}):
-            with patch("hybridock_pep.scoring.mmgbsa._context_energy_kcal") as mock_energy:
+            with patch("hybridock_pep.scoring.mmgbsa._pdbfixer_addH", side_effect=lambda p: p), \
+                 patch("hybridock_pep.scoring.mmgbsa._context_energy_kcal") as mock_energy:
                 mock_ctx_obj = MagicMock()
                 mock_ctx_obj.getState.return_value.getPositions.return_value = MagicMock()
                 mock_energy.side_effect = [
