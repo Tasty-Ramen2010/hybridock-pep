@@ -39,7 +39,7 @@ _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 # correct sign (+0.58 on n=4). That screen is inconclusive (n=4 after 2 crop
 # failures, and the speed-crop confounds the electrostatics εin scales), so we
 # keep the OpenMM default 1.0 until a larger structurally-resolved Kd set settles
-# it. See docs/scoring_overhaul_plan.md §5 decision log. The value is now a tunable
+# it. See scoring_overhaul_plan.md (Zenodo archive) §5 decision log. The value is now a tunable
 # parameter (compute_mmgbsa_single(solute_dielectric=...)) so re-screening is cheap.
 _SOLUTE_DIELECTRIC: float = 1.0
 _SOLVENT_DIELECTRIC: float = 78.5

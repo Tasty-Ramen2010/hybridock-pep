@@ -5,7 +5,7 @@ tightest, most physically valid fit). Validated on 112 bench300 complexes: a
 BSA-plus-clash fit score ties ref2015 for selected-pose RMSD (~4.5 Å mean,
 ~47% CAPRI-acceptable) at a fraction of the compute cost and with no PyRosetta
 dependency — and higher BSA genuinely tracks lower RMSD (the tightest valid
-pose IS the native one, thermodynamically). See docs/scoring_overhaul_verdict.md
+pose IS the native one, thermodynamically). See scoring_overhaul_verdict.md (Zenodo archive 10.5281/zenodo.21680573)
 and the pose-selection test (scripts/pipeline_selection_test.py).
 
 Score (lower = better fit, to match the ascending rank convention):

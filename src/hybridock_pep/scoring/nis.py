@@ -3,7 +3,7 @@
 **What this is.** The polar/charged composition of a peptide's *non-contacting*
 residues — PRODIGY's non-interacting-surface idea, ported to peptides. Validated
 this session (``experiments/e0_*`` … ``experiments/e2_*``;
-``docs/kcalmol_research_synthesis.md``) as the one correctly-signed, BSA-orthogonal
+``kcalmol_research_synthesis.md``, Zenodo archive) as the one correctly-signed, BSA-orthogonal
 feature that tracks binding affinity.
 
 **What it is for — and what it is NOT.** NIS carries genuine signal *within a

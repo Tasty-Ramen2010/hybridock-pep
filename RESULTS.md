@@ -41,7 +41,7 @@ anchoring, selectivity) — proves the relative-scoring machinery is correct wit
 - **Absolute cross-target Kd is confound-limited** for every cheap non-FEP method, ours
   included (size/baseline + enthalpy–entropy compensation). We report **relative** ΔΔG /
   selectivity / anchored ΔG as the accurate paths; absolute ΔG is a coarse readout. See
-  [MODEL_CARD.md](MODEL_CARD.md) and `docs/why_we_keep_failing_synthesis_2026-07-08.md`.
+  [MODEL_CARD.md](MODEL_CARD.md) and the Zenodo research archive: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
 - **Selectivity ΔΔG** lands r ≈ 0.30–0.45 — useful for triage, not a final answer.
 - **This is a rigor contribution, not a discovery.** The size/baseline (Simpson) confound is
   known; we prove it is the specific cause of cross-dataset non-replication in peptide docking

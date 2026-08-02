@@ -13,7 +13,7 @@ raw receptor sequence:
   4. Report per-cluster LOO-CV Pearson r and RMSE; write
      data/calibration_per_family.json with the dispatch table.
 
-This is the §4 path from docs/calibration_strategies.md. It does not change
+This is the §4 path from calibration_strategies.md (Zenodo archive). It does not change
 production behavior — the new JSON is opt-in via --calibration.
 """
 from __future__ import annotations

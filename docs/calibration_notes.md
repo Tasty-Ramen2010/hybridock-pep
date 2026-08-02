@@ -296,7 +296,7 @@ disappears: Vina sees an approximately-correct pose with noise, and its
 score is dominated by peptide size (r=−0.66 with N_res) plus that noise.
 
 This is the textbook cross-family absolute-ΔG ceiling described in
-`docs/calibration_strategies.md` §1. Production-pose recalibration on a
+`calibration_strategies.md` (Zenodo archive) §1. Production-pose recalibration on a
 6-complex set confirms it cannot be moved by data hygiene alone — Vina has
 essentially zero rank correlation with pKd on production poses of this set,
 even when we drop the noisy 1ddv entry.
@@ -314,7 +314,7 @@ even when we drop the noisy 1ddv entry.
   The signal isn't there to recover. α=0.1 will keep railing.
 - Do not abandon the production-pose dataset — it is the correct calibration
   target. The crystal-pose r=0.86 should be treated as a structural-quality
-  marker, not an affinity claim. See `calibration_strategies.md` §14.
+  marker, not an affinity claim. See `calibration_strategies.md` (Zenodo archive: 10.5281/zenodo.21680573) §14.
 
 ### What to do next (in order)
 1. **Re-run 1ddv** with a wider grid box (current box 30 Å, almost all
@@ -337,7 +337,7 @@ even when we drop the noisy 1ddv entry.
 **Output:** `data/eval_holdout_calibrations.json` (242 rows).
 
 After implementing the per-residue + SS-weighted entropy module (§5.5 of
-`calibration_strategies.md`) and dropping AD4 from the default scoring set,
+`calibration_strategies.md`, Zenodo archive) and dropping AD4 from the default scoring set,
 I evaluated all three calibrations on the largest crystal-pose dataset we
 have with experimental affinities:
 

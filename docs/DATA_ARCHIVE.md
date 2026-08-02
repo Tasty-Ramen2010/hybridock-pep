@@ -39,7 +39,26 @@ the ours-vs-PPI-clone head-to-head unreproducible from a clean clone; see the no
 found on the Zenodo record, the DGX, or the RTX PRO 6000 box.
 
 Research/experiment scripts: [`experiments/`](../experiments/) (E0–E37x, cited
-throughout [RESULTS.md](../RESULTS.md)). Operational tooling: [`scripts/`](../scripts/).
+throughout [RESULTS.md](../RESULTS.md)) — this stays in git; it's the reproducibility trail,
+not the research ledger below. Operational tooling: [`scripts/`](../scripts/).
+
+## Research ledger — moved to Zenodo only, not in this git tree
+
+As of the `v0.1.0` release, the live repo shows the completed tool, not the full research
+process. Three categories moved out of git and now live **only** in the Zenodo archive
+([10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573), which captures the
+full pre-cleanup tree):
+
+| Moved | Count | What it was |
+|---|---|---|
+| `docs/*` dated notes + `DEVELOPMENT_TIMELINE.md` | ~82 files | Brainstorms, forensics write-ups, refuted approaches, per-milestone verdicts — the prose research journal. |
+| `scripts/*` one-off campaign scripts | 59 files | Uncited helpers from specific investigations (RAPiDock fine-tune campaign, one-off benchmark builders) — not referenced by `README.md`/`RESULTS.md`/`MODEL_CARD.md`/`tests/`, and not imported by anything in `experiments/` or the scripts that remain. |
+| `data/*` one-off outputs | 47 files | Intermediate CSVs/JSONs from specific experiments, superseded fine-tune training splits, and 7 non-shipped ablation `.joblib` variants no longer cited by name. |
+
+None of this touches `experiments/` or the specific `scripts/`/`data/*` files that
+`README.md`, `RESULTS.md`, `MODEL_CARD.md`, or `tests/test_repro_claims.py` cite as
+reproducible evidence — those stayed, and a fresh clone still reproduces every number in
+`RESULTS.md`. Only the surrounding prose notes and dead-end scripts moved.
 
 ## Code archive (not the data archive)
 

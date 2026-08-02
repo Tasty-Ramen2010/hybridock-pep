@@ -1,6 +1,6 @@
 """Quick scoring benchmark: run each PepSet fixture family through the pipeline
 and print Vina, AD4, hybrid scores, entropy correction, and n_contact_residues.
-Used to populate the comparison table in docs/dataset_analysis.md.
+Used to populate the comparison table in dataset_analysis.md (Zenodo archive).
 
 Usage:
     conda run --no-capture-output -n score-env python scripts/score_family_benchmark.py

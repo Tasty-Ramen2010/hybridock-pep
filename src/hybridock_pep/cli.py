@@ -172,7 +172,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_dock.add_argument(
         "--mmgbsa-dielectric", type=float, default=1.0, metavar="EPS",
         help="GB internal dielectric εin for MM-GBSA (default 1.0; the PepSet "
-             "screen did not support raising it — see docs/scoring_overhaul_plan.md).",
+             "screen did not support raising it — see scoring_overhaul_plan.md, Zenodo archive 10.5281/zenodo.21680573).",
     )
     p_dock.add_argument(
         "--output-dir",
@@ -200,7 +200,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to calibration JSON for entropy correction "
              "(default: data/calibration_v1_2_production_entropy.json; "
              "v1.4 was reverted — LOO r=0.30 vs v1.2's 0.72, see "
-             "docs/scoring_overhaul_plan.md).",
+             "scoring_overhaul_plan.md, Zenodo archive 10.5281/zenodo.21680573).",
     )
     p_dock.add_argument(
         "--no-minimize",
