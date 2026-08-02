@@ -141,6 +141,13 @@ Fallback order:
     receptor PDBQT   prepare_receptor -> mk_prepare_receptor.py -> obabel
     AD4 maps         autogrid4
 
+Each step really does fall through to the next. meeko matches every residue
+against a template library and refuses the whole structure when one has an
+unexpected heavy-atom set ("No template matched for residue_key=..."), which
+crystal receptors hit routinely. When that happens you get a WARNING and obabel
+takes over -- prep does not fail. Nothing to do about it; the two backends
+score identically (below).
+
 Does the backend change your ΔG? Measured on 1YCR: no. Vina ignores the PDBQT
 charge column outright (bit-identical scores with charges zeroed, or
 sign-flipped and tripled). It does read atom types, but meeko and obabel
