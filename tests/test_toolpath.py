@@ -102,3 +102,69 @@ class TestPrepModulesUseIt:
             f"{rel} calls shutil.which directly — it will not see tools "
             "installed in score-env/bin. Use hybridock_pep.toolpath.which."
         )
+
+
+class TestMeekoLigandFallback:
+    """ARM Linux has no conda-forge openbabel for py3.11, so babel/obabel are
+    both absent and every pose failed ligand prep. Meeko's Polymer route works
+    there — but must stay a fallback, since the shipped calibration was fitted
+    against babel output."""
+
+    def test_babel_available_reports_both_binaries(self, monkeypatch):
+        import hybridock_pep.prep.pdbqt_convert as convert_mod
+
+        monkeypatch.setattr(convert_mod, "_which", lambda n: None)
+        assert convert_mod.babel_available() is False
+
+        monkeypatch.setattr(
+            convert_mod, "_which", lambda n: "/x/obabel" if n == "obabel" else None
+        )
+        assert convert_mod.babel_available() is True
+
+        monkeypatch.setattr(
+            convert_mod, "_which", lambda n: "/x/babel" if n == "babel" else None
+        )
+        assert convert_mod.babel_available() is True
+
+    def test_meeko_used_when_no_converter_binary_exists(self, tmp_path, monkeypatch):
+        import hybridock_pep.prep.ligand as ligand_mod
+
+        monkeypatch.setattr(ligand_mod, "babel_available", lambda: False)
+        called = []
+        monkeypatch.setattr(
+            "hybridock_pep.prep.phospho.prepare_phospho_ligand",
+            lambda idx, p, out: called.append(idx) or (out / "x.pdbqt"),
+        )
+        pdb = tmp_path / "pose_0.pdb"
+        pdb.write_text("ATOM      1  CA  ALA A   1       0.000   0.000   0.000\nEND\n")
+
+        ligand_mod._prepare_single_ligand((0, pdb, tmp_path))
+
+        assert called == [0], "no converter binary present but Meeko was not used"
+
+    def test_babel_still_wins_when_present(self, tmp_path, monkeypatch):
+        """Machines with babel must keep producing byte-identical PDBQT."""
+        import hybridock_pep.prep.ligand as ligand_mod
+
+        monkeypatch.setattr(ligand_mod, "babel_available", lambda: True)
+        called = []
+        monkeypatch.setattr(
+            "hybridock_pep.prep.phospho.prepare_phospho_ligand",
+            lambda idx, p, out: called.append(idx),
+        )
+        converted = []
+
+        def fake_convert(src, dst, add_hydrogens=True):
+            converted.append(dst)
+            dst.write_text("ATOM      1  CA  ALA A   1       0.000   0.000   0.000\n")
+            import subprocess
+            return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(ligand_mod, "convert_pdb_to_pdbqt", fake_convert)
+        pdb = tmp_path / "pose_0.pdb"
+        pdb.write_text("ATOM      1  CA  ALA A   1       0.000   0.000   0.000\nEND\n")
+
+        ligand_mod._prepare_single_ligand((0, pdb, tmp_path))
+
+        assert not called, "Meeko was used even though babel is available"
+        assert converted, "babel path was not taken"
