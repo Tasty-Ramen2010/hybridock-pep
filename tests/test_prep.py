@@ -183,7 +183,7 @@ class TestPrepareReceptor:
             patch("hybridock_pep.prep.receptor.PDBFile") as mock_pdbfile,
             patch("hybridock_pep.prep.receptor.subprocess.run", return_value=mock_result),
             patch("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile") as mock_ntf,
-            patch("hybridock_pep.prep.receptor.shutil.which", return_value="/fake/adfr/bin/prepare_receptor"),
+            patch("hybridock_pep.prep.receptor._which", return_value="/fake/adfr/bin/prepare_receptor"),
         ):
             # Set up temp file mock to produce real paths
             tmp_file1 = tmp_path / "tmp1.pdb"
@@ -225,7 +225,7 @@ class TestPrepareReceptor:
             patch("hybridock_pep.prep.receptor.PDBFile"),
             patch("hybridock_pep.prep.receptor.subprocess.run", return_value=mock_result),
             patch("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile") as mock_ntf,
-            patch("hybridock_pep.prep.receptor.shutil.which", return_value="/fake/adfr/bin/prepare_receptor"),
+            patch("hybridock_pep.prep.receptor._which", return_value="/fake/adfr/bin/prepare_receptor"),
         ):
             tmp_file1 = tmp_path / "tmp1.pdb"
             tmp_file1.write_text("")
@@ -270,7 +270,7 @@ class TestPrepareReceptor:
             patch("hybridock_pep.prep.receptor.PDBFile"),
             patch("hybridock_pep.prep.receptor.subprocess.run", return_value=mock_result),
             patch("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile") as mock_ntf,
-            patch("hybridock_pep.prep.receptor.shutil.which", return_value="/fake/adfr/bin/prepare_receptor"),
+            patch("hybridock_pep.prep.receptor._which", return_value="/fake/adfr/bin/prepare_receptor"),
         ):
             tmp_file1 = tmp_path / "tmp1.pdb"
             tmp_file1.write_text("")
@@ -883,7 +883,7 @@ class TestReceptorPrep:
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
         monkeypatch.setattr(
-            "hybridock_pep.prep.receptor.shutil.which",
+            "hybridock_pep.prep.receptor._which",
             lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
         )
         self._mock_ntf(monkeypatch, tmp_path)
@@ -916,7 +916,7 @@ class TestReceptorPrep:
         # everywhere else the code falls through to meeko/obabel and the error
         # under test is never reached.
         monkeypatch.setattr(
-            "hybridock_pep.prep.receptor.shutil.which",
+            "hybridock_pep.prep.receptor._which",
             lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
         )
         self._mock_ntf(monkeypatch, tmp_path)
@@ -955,7 +955,7 @@ class TestReceptorPrep:
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
         monkeypatch.setattr(
-            "hybridock_pep.prep.receptor.shutil.which",
+            "hybridock_pep.prep.receptor._which",
             lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
         )
         monkeypatch.setattr("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile", ntf_side_effect)
@@ -996,7 +996,7 @@ class TestReceptorPrep:
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", spy_subprocess)
         monkeypatch.setattr(
-            "hybridock_pep.prep.receptor.shutil.which",
+            "hybridock_pep.prep.receptor._which",
             lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
         )
         self._mock_ntf(monkeypatch, tmp_path)

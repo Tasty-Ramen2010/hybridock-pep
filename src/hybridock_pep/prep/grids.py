@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 
 from hybridock_pep.models import DockConfig
+from hybridock_pep.toolpath import which as _which
 from hybridock_pep.prep.errors import PrepError
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def _find_ad4_parameters_dat() -> str | None:
     Returns:
         Absolute path string, or None to let autogrid4 use its built-ins.
     """
-    prepare_receptor_bin = shutil.which("prepare_receptor")
+    prepare_receptor_bin = _which("prepare_receptor")
     if prepare_receptor_bin is None:
         logger.debug(
             "prepare_receptor not on PATH; omitting parameter_file so autogrid4 "

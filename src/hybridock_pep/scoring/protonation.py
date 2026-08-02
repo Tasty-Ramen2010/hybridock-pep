@@ -15,16 +15,17 @@ PROPKA: Olsson et al., JCTC 2011, 10.1021/ct100578z. pdb2pqr: Dolinsky et al., N
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 from pathlib import Path
+
+from hybridock_pep.toolpath import which as _which
 
 logger = logging.getLogger(__name__)
 
 
 def pdb2pqr_available() -> bool:
     """True if the pdb2pqr30 binary is on PATH."""
-    return shutil.which("pdb2pqr30") is not None
+    return _which("pdb2pqr30") is not None
 
 
 def assign_protonation(

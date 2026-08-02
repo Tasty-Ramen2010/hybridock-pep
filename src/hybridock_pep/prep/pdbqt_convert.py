@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
+
+from hybridock_pep.toolpath import which as _which
 
 
 def convert_pdb_to_pdbqt(
@@ -30,7 +31,7 @@ def convert_pdb_to_pdbqt(
     Raises:
         FileNotFoundError: If neither babel nor obabel is on PATH.
     """
-    babel_bin = shutil.which("babel")
+    babel_bin = _which("babel")
     if babel_bin is not None:
         cmd = [babel_bin, "-i", "pdb", str(pdb_path), "-o", "pdbqt", str(pdbqt_path)]
         if add_hydrogens:
@@ -38,7 +39,7 @@ def convert_pdb_to_pdbqt(
         cmd.append("-xr")
         return subprocess.run(cmd, capture_output=True, text=True)
 
-    obabel_bin = shutil.which("obabel")
+    obabel_bin = _which("obabel")
     if obabel_bin is not None:
         cmd = [obabel_bin, "-ipdb", str(pdb_path), "-opdbqt", "-O", str(pdbqt_path)]
         if add_hydrogens:

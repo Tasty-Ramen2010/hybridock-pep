@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,6 +10,7 @@ from pdbfixer import PDBFixer
 
 from hybridock_pep.models import DockConfig
 from hybridock_pep.prep.errors import PrepError
+from hybridock_pep.toolpath import which as _which
 from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
@@ -164,7 +164,7 @@ def prepare_receptor(config: DockConfig) -> Path:
     # --- Step 3: prepare_receptor (ADFRsuite), or babel/obabel fallback ---
     # -A hydrogens: force H addition even if pdbfixer already added them (idempotent);
     # guards against cases where pdbfixer's addMissingHydrogens fails (e.g. HIS edge cases).
-    prepare_receptor_bin = shutil.which("prepare_receptor")
+    prepare_receptor_bin = _which("prepare_receptor")
     try:
         if prepare_receptor_bin is not None:
             cmd = [
@@ -179,7 +179,7 @@ def prepare_receptor(config: DockConfig) -> Path:
                 raise PrepError(
                     f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
                 )
-        elif shutil.which("mk_prepare_receptor.py") is not None and _try_meeko(
+        elif _which("mk_prepare_receptor.py") is not None and _try_meeko(
             fixed_pdb_path, pdbqt_path
         ):
             pass  # meeko succeeded; nothing further to do
