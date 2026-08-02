@@ -26,12 +26,31 @@ def prepare_receptor(config: DockConfig) -> Path:
       3. Find and add missing atoms.
       4. Add hydrogens at pH 7.4.
 
-    Uses ADFRsuite's prepare_receptor when it's on PATH. Falls back to
-    babel/obabel (see prep/pdbqt_convert.py) when it isn't — e.g. on Apple
-    Silicon, where ADFRsuite ships only an x86_64 tarball. The fallback is
-    sufficient for Vina scoring (Vina's set_receptor() doesn't require a
-    ROOT/ENDROOT torsion tree the way ligand PDBQTs do); AD4 scoring
-    (--scoring ad4) still requires real ADFRsuite for autogrid4.
+    Backend order: ADFRsuite's prepare_receptor if on PATH, else meeko's
+    mk_prepare_receptor.py, else babel/obabel (see prep/pdbqt_convert.py).
+    ADFRsuite is NOT required — it ships only an x86_64 tarball, so it is
+    absent on Apple Silicon by default. AD4 scoring does not require it
+    either: conda-forge autogrid provides autogrid4 natively.
+
+    The backend choice does not move the reported ΔG, which is worth stating
+    because it is not obvious. Measured on 1YCR (705 receptor heavy atoms),
+    meeko vs obabel:
+
+      * Vina ignores the receptor PDBQT charge column entirely — scores are
+        bit-identical with every partial charge zeroed, or sign-flipped and
+        tripled. So Gasteiger-assignment differences between backends cannot
+        matter on the default --scoring vina path.
+      * Vina does read the atom-type column (retyping every heavy atom to C
+        moves the score 1.01 kcal/mol), but the types the backends actually
+        disagree on are all in Vina's neutral set: N↔NA, A↔C and S↔SA are
+        each exactly score-neutral. Only O↔OA moves a Vina score, and the
+        backends agree on every oxygen. Net: 22/705 typing disagreements,
+        9 of them in the binding interface, produce a 0.000000 kcal/mol
+        difference.
+      * AD4 is the one backend that does consume charges, and it is off by
+        default (the production ridge gives w_ad4=0).
+
+    See tests/test_receptor_prep_fidelity.py, which pins all of the above.
 
     If receptor PDBQT generation fails, raises PrepError immediately with the
     full stderr captured. No retry.

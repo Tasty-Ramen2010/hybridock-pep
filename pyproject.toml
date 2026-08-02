@@ -76,7 +76,7 @@ python_version = "3.11"
 
 [tool.pytest.ini_options]
 markers = [
-    "slow: slow integration tests requiring full score-env tool stack (Vina, Meeko, ADFRsuite)",
+    "slow: slow integration tests requiring the full score-env tool stack (Vina, meeko, autogrid4)",
 ]
 testpaths = ["tests"]
 norecursedirs = ["hybridock-pep", "third_party", "envs", "runs", "logs", "data", ".git"]

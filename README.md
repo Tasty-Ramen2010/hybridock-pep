@@ -105,14 +105,18 @@ hybridock-pep crystal-score \
 The command prints one line:
 
 ```
-Crystal ΔG = -10.07 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
+Crystal ΔG = -9.28 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
 ```
 
-The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM). A
-result within a few kcal/mol of that number confirms your install works correctly — the exact
-figure can shift by ~1 kcal/mol from the value above depending on your resolved `scikit-learn`
-patch version (the model is a GBT, so results aren't bit-identical across sklearn releases); it's
-not a sign anything is broken.
+The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM).
+Anything in the **−8 to −11** range confirms your install works correctly. The exact figure shifts
+by up to ~1 kcal/mol depending on your resolved `scikit-learn`/`numpy` versions (the model is a
+GBT and its geometry/interaction features are version-sensitive), so a small difference is not a
+sign anything is broken. On a given pinned stack the result is deterministic — repeated runs agree
+exactly.
+
+Note this command does **not** exercise receptor PDBQT preparation; it scores the pose you give it
+directly. It validates the scoring stack, not `meeko`/`autogrid4`. Use `hybridock-pep prep` for those.
 
 **What you just ran:** `crystal-score` scores an existing, already-docked peptide pose. It skips
 pose generation (RAPiDock), clash-relief (Vina), and MM-GBSA entirely — the fastest way to confirm
@@ -641,7 +645,7 @@ hybridock-pep crystal-score \
     --receptor receptors/mdm2.pdb \
     --peptide-pdb poses/native_peptide.pdb \
     --peptide ETFSDLWKLLPE
-# → Crystal ΔG = -10.07 kcal/mol  (geometry + interaction map, crystal-tuned model)
+# → Crystal ΔG = -9.28 kcal/mol  (geometry + interaction map, crystal-tuned model)
 ```
 
 No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crystal model
