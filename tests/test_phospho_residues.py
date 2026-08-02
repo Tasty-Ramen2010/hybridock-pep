@@ -234,16 +234,22 @@ class TestLigandRoutingPhospho:
     ) -> None:
         """Confirms phospho detection triggers Meeko path before babel is called."""
         import hybridock_pep.prep.ligand as ligand_mod
+        import hybridock_pep.prep.pdbqt_convert as convert_mod
 
+        # The babel/obabel lookup lives in pdbqt_convert, not ligand. Patch it
+        # there: the previous version patched `ligand_mod.shutil.which`, which
+        # is the *stdlib module object*, so it silently mutated shutil for the
+        # whole process and happened to work only because pdbqt_convert also
+        # called shutil.which.
         babel_called = []
-        original_which = ligand_mod.shutil.which
+        original_which = convert_mod._which
 
         def mock_which(name: str) -> str | None:
             if name == "babel":
                 babel_called.append(True)
             return original_which(name)
 
-        monkeypatch.setattr(ligand_mod.shutil, "which", mock_which)
+        monkeypatch.setattr(convert_mod, "_which", mock_which)
 
         result = ligand_mod._prepare_single_ligand((0, tpo_pdb, tmp_path))
         from hybridock_pep.models import PoseFailure
