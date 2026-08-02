@@ -11,10 +11,9 @@
 #   3. Creates both conda environments (score-env, rapidock) with the right
 #      PyTorch/PyG build for your OS + GPU — auto-detected.
 #   4. Downloads the RAPiDock model weights (public Zenodo record, ~55 MB).
-#   5. Checks for ADFRsuite. This one step CANNOT be automated — Scripps
-#      requires a manual license click-through — so this script detects it if
-#      you already downloaded it, wires up the PATH, and otherwise prints the
-#      one link you need and stops there (everything else still gets set up).
+#   5. Checks receptor-prep tooling (meeko + autogrid). Fully automated: no
+#      license click-through, no manual download. ADFRsuite is NOT required,
+#      though it is used automatically if you already have it on PATH.
 #   6. Runs the smoke test.
 #   7. Launches the guided terminal UI so you can run your first dock without
 #      memorizing any CLI flags.
@@ -128,39 +127,27 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. ADFRsuite (license-gated — cannot be automated, but we try to find it)
+# 5. Receptor-prep / grid tooling (no license click-through required)
 # ---------------------------------------------------------------------------
-step "Checking for ADFRsuite"
+# ADFRsuite is no longer required. meeko's mk_prepare_receptor.py handles
+# receptor PDBQT and conda-forge autogrid handles AD4 grid maps; both install
+# unattended and have native Apple Silicon builds. ADFRsuite is still used
+# automatically if it happens to be on PATH, which keeps results identical for
+# installs that already have it.
+step "Checking receptor-prep tooling"
 if command -v prepare_receptor >/dev/null 2>&1; then
-    ok "prepare_receptor found on PATH: $(command -v prepare_receptor)"
+    ok "ADFRsuite found on PATH — will be preferred: $(command -v prepare_receptor)"
+elif command -v mk_prepare_receptor.py >/dev/null 2>&1; then
+    ok "meeko mk_prepare_receptor.py found (no ADFRsuite needed)"
 else
-    ADFR_TARBALL="$(find "$HOME" "$HOME/Downloads" "$REPO_ROOT" -maxdepth 2 \
-        -iname 'ADFRsuite_*.tar.gz' 2>/dev/null | head -1 || true)"
-    if [ -n "$ADFR_TARBALL" ]; then
-        warn "prepare_receptor not on PATH, but found $ADFR_TARBALL — installing it"
-        ADFR_INSTALL_DIR="$HOME/$(basename "$ADFR_TARBALL" .tar.gz)"
-        if [ ! -d "$ADFR_INSTALL_DIR" ]; then
-            tar xzf "$ADFR_TARBALL" -C "$HOME"
-            (cd "$ADFR_INSTALL_DIR" && yes "" | bash install.sh >/dev/null 2>&1 || true)
-        fi
-        SHELL_RC="$HOME/.bashrc"
-        [ -n "${ZSH_VERSION:-}" ] && SHELL_RC="$HOME/.zshrc"
-        if ! grep -qF "$ADFR_INSTALL_DIR/bin" "$SHELL_RC" 2>/dev/null; then
-            echo "export PATH=\"$ADFR_INSTALL_DIR/bin:\$PATH\"" >> "$SHELL_RC"
-        fi
-        export PATH="$ADFR_INSTALL_DIR/bin:$PATH"
-        if command -v prepare_receptor >/dev/null 2>&1; then
-            ok "ADFRsuite installed and added to PATH (added to $SHELL_RC for future shells)"
-        else
-            warn "ADFRsuite install ran but prepare_receptor still not found — check $ADFR_INSTALL_DIR/bin manually"
-        fi
-    else
-        warn "ADFRsuite not found. This step needs a manual license click-through —" \
-             "everything else is set up, but Stage 2 scoring won't work until you:"
-        echo "      1. Download from: https://ccsb.scripps.edu/adfrsuite/downloads/"
-        echo "      2. Re-run this script (it will auto-detect and install the tarball), or"
-        echo "         follow INSTALL.md Step 4 to install it manually."
-    fi
+    warn "No receptor-prep tool found. Install meeko:  pip install 'meeko>=0.7'"
+fi
+
+if command -v autogrid4 >/dev/null 2>&1; then
+    ok "autogrid4 found — AD4 scoring available: $(command -v autogrid4)"
+else
+    warn "autogrid4 not found — --scoring ad4 will not work." \
+         "Install it with:  conda install -c conda-forge autogrid"
 fi
 
 # ---------------------------------------------------------------------------
