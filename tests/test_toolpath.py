@@ -168,3 +168,19 @@ class TestMeekoLigandFallback:
 
         assert not called, "Meeko was used even though babel is available"
         assert converted, "babel path was not taken"
+
+    def test_fallback_failure_reports_the_ordinary_prep_stage(self, tmp_path, monkeypatch):
+        """A failure on the Meeko fallback is an ordinary ligand-prep failure.
+
+        Reporting stage="prep_phospho" for a peptide with no phospho residues
+        sends whoever reads the failure record chasing the wrong thing.
+        """
+        import hybridock_pep.prep.ligand as ligand_mod
+        from hybridock_pep.models import PoseFailure
+
+        monkeypatch.setattr(ligand_mod, "babel_available", lambda: False)
+        result = ligand_mod._prepare_single_ligand((7, tmp_path / "missing.pdb", tmp_path))
+
+        assert isinstance(result, PoseFailure)
+        assert result.pose_idx == 7
+        assert result.stage == "prep"
