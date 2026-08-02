@@ -911,6 +911,14 @@ class TestReceptorPrep:
         )
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        # Force the ADFRsuite branch. Without this the test only exercises what
+        # it claims on a machine that happens to have prepare_receptor on PATH;
+        # everywhere else the code falls through to meeko/obabel and the error
+        # under test is never reached.
+        monkeypatch.setattr(
+            "hybridock_pep.prep.receptor.shutil.which",
+            lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
+        )
         self._mock_ntf(monkeypatch, tmp_path)
 
         with pytest.raises(PrepError, match="fatal: bad input"):

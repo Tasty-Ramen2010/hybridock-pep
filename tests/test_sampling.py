@@ -69,8 +69,15 @@ class TestRapidockRunner:
 
         run_sampling(config)
 
-        assert len(captured_cmd) == 1, "Popen should be called exactly once"
-        cmd = captured_cmd[0]
+        # On a CUDA host, backend detection shells out to `nvidia-smi` through
+        # the same Popen, so counting every call asserts "this machine has no
+        # GPU" rather than anything about the command. Select the sampling
+        # invocation instead.
+        sampling_cmds = [c for c in captured_cmd if any(str(a).endswith("run_rapidock.py") for a in c)]
+        assert len(sampling_cmds) == 1, (
+            f"expected exactly one run_rapidock.py invocation, got {captured_cmd}"
+        )
+        cmd = sampling_cmds[0]
 
         # Verify direct python3 invocation (no conda run — see module docstring)
         # cmd[0] must be the rapidock env's python3 (absolute path ending in python3)
