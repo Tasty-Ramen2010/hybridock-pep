@@ -25,7 +25,43 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from hybridock_pep.ui import help_content
+
 AA = set("ACDEFGHIKLMNPQRSTVWY")
+
+# --------------------------------------------------------------------------- #
+#  First-run state
+# --------------------------------------------------------------------------- #
+
+# A dotfile in $HOME rather than anything inside the repo: the repo is often a
+# fresh clone (or read-only, or shared), and "have I seen the tour" is a
+# property of the person, not of the checkout.
+STATE_DIR = Path.home() / ".hybridock-pep"
+WELCOME_MARKER = STATE_DIR / "ui_welcomed"
+
+
+def is_first_run(marker: Path | None = None) -> bool:
+    """True when the guided tour has never been dismissed on this machine.
+
+    Fails to True: if $HOME is unreadable we would rather show a returning
+    user the tour again than leave a first-time user staring at a bare form.
+    """
+    path = marker if marker is not None else WELCOME_MARKER
+    try:
+        return not path.exists()
+    except OSError:
+        return True
+
+
+def mark_welcomed(marker: Path | None = None) -> None:
+    """Record that the tour has been dismissed. Never raises — a read-only
+    home directory must not stop the UI from opening."""
+    path = marker if marker is not None else WELCOME_MARKER
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("1\n")
+    except OSError:
+        pass
 
 # --------------------------------------------------------------------------- #
 #  Form model + validation
@@ -256,35 +292,6 @@ class PipelineProgress:
         return int(time.time() - self.t0)
 
 
-HELP_TEXT = """\
- HybriDock-Pep — terminal UI
-
- WHAT IT DOES
-   peptide + receptor → AI diffusion poses (RAPiDock) → physics rescoring
-   → ranked ΔG (kcal/mol), best pose, clusters, plots. Selectivity mode also
-   docks an off-target and reports ΔΔG (does the peptide prefer the target?).
-
- RUN MODES  (buttons, top row)
-   Full ▶       n=100, vina+ad4, MM-GBSA top-10   (the real thing)
-   Half         n=50,  vina+ad4                    (faster)
-   Quick        n=20,  vina                         (fastest sanity check)
-   Selectivity  target vs off-target ΔΔG (fill the 3 Off-target fields)
-   Demo ▷       simulated full run — no GPU, just watch the progress bar
-
- FILLING THE FORM
-   • Tab / Shift-Tab move; every field validates live (✓ / ✗).
-   • Path fields: DRAG a file on, or press Browse (Ctrl-B) for a file/folder picker.
-   • Off-target fields are only needed for Selectivity.
-
- CONTROLS  (click buttons, or these keys — work on every OS, no function keys)
-   Ctrl-R Full   Ctrl-T Demo   Ctrl-B Browse   Ctrl-P Print
-   Ctrl-L Clear  Ctrl-G Help   Ctrl-Q Quit     Tab move
-
- FILE BROWSER
-   ↑/↓ move · Enter open folder / pick file · U use current folder · Esc cancel
-
- Press Ctrl-G or Esc to close this help.
-"""
 
 
 def demo_lines(n=100):
@@ -504,10 +511,39 @@ def run_fullscreen(auto_demo=False):
         output.text = ""
 
     # ----- overlays: help + file picker -----
-    view = {"mode": "main"}  # main | help | picker
+    # Show the guided tour the first time this user ever opens the UI. A form
+    # full of unexplained fields is the single biggest barrier for a
+    # non-computational user, and they have no way to know help exists.
+    view = {
+        "mode": "welcome" if is_first_run() else "main",  # main|help|picker|welcome
+        "topic": "1",
+    }
+
+    def _focus(win):
+        """Move focus, tolerating a not-yet-rendered layout.
+
+        Every view switch must carry focus with it: prompt_toolkit raises if
+        the focused control is not part of the layout currently on screen.
+        """
+        try:
+            get_app().layout.focus(win)
+        except Exception:
+            pass
+
+    def go_main():
+        view["mode"] = "main"
+        _focus(inputs["peptide"])
 
     def toggle_help():
-        view["mode"] = "main" if view["mode"] == "help" else "help"
+        if view["mode"] == "help":
+            go_main()
+        else:
+            view["mode"] = "help"
+            _focus(help_window)
+
+    def show_welcome():
+        view["mode"] = "welcome"
+        _focus(welcome_window)
 
     picker = {"dir": Path.cwd(), "items": [], "idx": 0, "target": "receptor", "want_dir": False}
 
@@ -612,9 +648,27 @@ def run_fullscreen(auto_demo=False):
                         Frame(Window(progress_ctrl, height=2), title="progress"),
                         Frame(output, title="output", height=D(min=3, weight=1)),
                         run_row, tool_row, footer])
-    help_view = HSplit([title, Frame(Window(FormattedTextControl(text=HELP_TEXT), wrap_lines=True,
-                                            style="class:help"), title="help — Ctrl-G / Esc to close",
+    # Both of these must own a FOCUSABLE window. prompt_toolkit requires the
+    # focused control to exist in the currently-rendered layout; focusing a
+    # form input while showing the welcome screen raises "Window does not
+    # appear in the layout" and drops the whole app to the --cli fallback.
+    help_window = Window(FormattedTextControl(
+                             text=lambda: help_content.render(view["topic"]),
+                             focusable=True),
+                         wrap_lines=True, style="class:help")
+    help_view = HSplit([title, Frame(help_window,
+                                     title="help — press 0-9 for a topic · Esc closes",
                                      height=D(weight=1)), footer])
+
+    welcome_window = Window(FormattedTextControl(
+                                text=lambda: help_content.LOGO + help_content.WELCOME,
+                                focusable=True),
+                            wrap_lines=True, style="class:help")
+    welcome_view = HSplit([title,
+                           Frame(welcome_window,
+                                 title="welcome — Enter to start · Ctrl-G for help",
+                                 height=D(weight=1)),
+                           footer])
     picker_view = HSplit([title, Frame(picker_window, title="browse — ↑↓ move · Enter open/pick · U use folder · Esc cancel",
                                        height=D(weight=1)),
                           Window(FormattedTextControl([("class:footer",
@@ -622,7 +676,8 @@ def run_fullscreen(auto_demo=False):
                                  height=1, style="class:footerbar")])
 
     def current_view():
-        return {"help": help_view, "picker": picker_view}.get(view["mode"], main_view)
+        return {"help": help_view, "picker": picker_view,
+                "welcome": welcome_view}.get(view["mode"], main_view)
 
     layout = Layout(DynamicContainer(current_view))
 
@@ -661,7 +716,26 @@ def run_fullscreen(auto_demo=False):
 
     @kb.add("escape", eager=True)
     def _(e):
-        view["mode"] = "main"
+        go_main()
+
+    in_welcome = Condition(lambda: view["mode"] == "welcome")
+    in_help = Condition(lambda: view["mode"] == "help")
+
+    @kb.add("c-w", filter=not_picker)
+    def _(e):
+        show_welcome()
+
+    @kb.add("enter", filter=in_welcome)
+    def _(e):
+        # Leaving the tour is what marks it as seen — so a user who quits from
+        # the welcome screen still gets it next time.
+        mark_welcomed()
+        go_main()
+
+    for _topic_key, _title in help_content.topic_titles():
+        @kb.add(_topic_key, filter=in_help)
+        def _(e, _k=_topic_key):
+            view["topic"] = _k
 
     @kb.add("tab", filter=not_picker)
     def _(e):
@@ -701,7 +775,10 @@ def run_fullscreen(auto_demo=False):
 
     app = Application(layout=layout, key_bindings=kb, style=style, full_screen=True,
                       mouse_support=True, refresh_interval=0.15)
-    app.layout.focus(inputs["peptide"])
+    # Focus must match the view we are actually opening on. Focusing a form
+    # input while the welcome tour is on screen makes prompt_toolkit reject the
+    # layout outright and the app silently degrades to the --cli wizard.
+    app.layout.focus(welcome_window if view["mode"] == "welcome" else inputs["peptide"])
     refresh_hint()
     refresh_progress()
 

@@ -244,7 +244,11 @@ def _score_vina_batch_impl(
         len(poses), receptor_pdbqt, optimize_clashing, max_clash_relief_rounds,
     )
 
-    for pose in poses:
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
+    _n_total = len(poses)
+    for _done, pose in enumerate(poses, 1):
+        _progress.tick(_done - 1, _n_total, "poses scored")
         try:
             if pose.pdbqt_path is None:
                 raise ValueError(
@@ -347,4 +351,6 @@ def _score_vina_batch_impl(
                 )
             )
 
+    _progress.tick(_n_total, _n_total, "poses scored")
+    _progress.clear()
     return scored, failures

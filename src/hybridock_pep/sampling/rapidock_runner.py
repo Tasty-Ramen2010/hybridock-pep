@@ -319,11 +319,30 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     t = threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True)
     t.start()
 
-    # Drain stdout on main thread — readline sentinel loop
+    # Drain stdout on main thread — readline sentinel loop.
+    # The shim emits "[[HDP-PROGRESS]] <done> <total>" once per diffusion
+    # step/batch; render those as a live bar so the longest silent stage of the
+    # run visibly moves. Anything else stays DEBUG chatter.
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+    from hybridock_pep.sampling.run_rapidock import PROGRESS_PREFIX  # noqa: PLC0415
+
+    saw_progress = False
     for raw_line in iter(proc.stdout.readline, b""):
         line = raw_line.decode("utf-8", errors="replace").rstrip()
-        if line:
-            logger.debug("[rapidock stdout] %s", line)
+        if not line:
+            continue
+        if line.startswith(PROGRESS_PREFIX):
+            try:
+                done_s, total_s = line[len(PROGRESS_PREFIX):].split()
+                _progress.tick(int(done_s), int(total_s), "denoising steps")
+                saw_progress = True
+            except ValueError:
+                logger.debug("[rapidock stdout] malformed progress line: %s", line)
+            continue
+        logger.debug("[rapidock stdout] %s", line)
+
+    if saw_progress:
+        _progress.clear()
 
     proc.wait()
     t.join()

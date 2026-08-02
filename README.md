@@ -17,21 +17,22 @@
 ## Table of contents
 
 1. [Quick start — one command](#quick-start--one-command)
-2. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
-3. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
-4. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
-5. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
-6. [Pipeline — the full workflow](#pipeline--the-full-workflow)
-7. [Install](#install)
-8. [Usage](#usage)
-9. [Repository structure](#repository-structure)
-10. [Testing](#testing)
-11. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
-12. [Roadmap](#roadmap--to-do)
-13. [Evaluation methodology](#evaluation-methodology)
-14. [Project status](#project-status)
-15. [Citations](#citations)
-16. [License](#license)
+2. [Command reference — install, test, run, UI](#command-reference--install-test-run-ui)
+3. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
+4. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
+5. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
+6. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
+7. [Pipeline — the full workflow](#pipeline--the-full-workflow)
+8. [Install](#install)
+9. [Usage](#usage)
+10. [Repository structure](#repository-structure)
+11. [Testing](#testing)
+12. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
+13. [Roadmap](#roadmap--to-do)
+14. [Evaluation methodology](#evaluation-methodology)
+15. [Project status](#project-status)
+16. [Citations](#citations)
+17. [License](#license)
 
 ---
 
@@ -131,6 +132,138 @@ That needs the second environment (GPU pose sampling) — see [Install](#install
 prep uses meeko's `mk_prepare_receptor.py`, and `--scoring ad4` uses conda-forge `autogrid` — no
 ADFRsuite needed. If ADFRsuite happens to be on PATH it is preferred, which keeps results identical
 to earlier installs.
+
+---
+
+## Command reference — install, test, run, UI
+
+Everything you need, in the order you need it. Copy-paste safe on a brand-new machine.
+
+### 1. Install (one command)
+
+```bash
+git clone --recurse-submodules https://github.com/Tasty-Ramen2010/hybridock-pep.git
+cd hybridock-pep
+./install.sh
+```
+
+`install.sh` installs conda if missing, initialises the RAPiDock submodule, creates both conda
+environments with the right PyTorch build for your GPU, **downloads and checksum-verifies the
+model weights (~55 MB) from Zenodo**, checks the receptor-prep tooling, runs a smoke test, and
+opens the UI.
+
+Budget **15–30 minutes**, mostly conda solving. It is quiet for long stretches — that is normal.
+
+| flag | effect |
+|---|---|
+| `--no-ui` | don't auto-launch the UI at the end |
+| `--force` | recreate the conda environments from scratch |
+| `--skip-rapidock` | scoring environment only (no GPU sampling) |
+| `-h` | full flag list |
+
+Then, in every new shell:
+
+```bash
+conda activate score-env
+```
+
+### 2. Test
+
+```bash
+pytest                  # fast suite — expect 670 passed, 55 skipped, ~18 s
+pytest -m slow          # real Vina / OpenMM / terminal tests, ~55 min
+pytest tests/test_tui.py    # just the UI
+pytest -k mmgbsa            # one area
+```
+
+Skips are **not** failures — they are the `slow` tier plus tests for optional tools.
+
+### 3. Check the install actually works
+
+```bash
+hybridock-pep crystal-score \
+    --receptor    data/pdbs/1YCR_mdm2.pdb \
+    --peptide-pdb data/pdbs/1YCR_peptide.pdb \
+    --peptide     ETFSDLWKLLPE
+```
+
+Expect **`Crystal ΔG = -9.28 kcal/mol`**. Anything from −8 to −11 means a healthy install. The
+result is deterministic — repeated runs agree exactly.
+
+### 4. Run a real docking job
+
+```bash
+hybridock-pep dock \
+    --peptide ETFSDLWKLLPE \
+    --receptor data/pdbs/1YCR_mdm2.pdb \
+    --site 25.20 -25.61 -7.97 --box 30 \
+    --n-samples 100 \
+    --output-dir runs/demo
+```
+
+About 2 minutes on an Apple M3. You will see live progress bars for each stage:
+
+```
+▶ [1/4] Generating poses…
+   [##############--------------]  50.0%  56/112 denoising steps  ETA 34s
+   ✓ Generating poses  (64s)
+▶ [2/4] Preparing receptor & ligands…
+   [############################] 100.0%  100/100 ligands prepared
+```
+
+Results land in `runs/demo/best_pose.pdb` and `runs/demo/ranked_poses.csv`.
+
+> `--site` is the **centre of the binding pocket**, in ångströms, and it must match the receptor
+> you passed. Getting it wrong is the most common mistake: the run completes but searches empty
+> space. See `hybridock-pep guide dock`, or help topic 8 in the UI.
+
+Add `--refine-topk 10` for MM-GBSA refinement (slower, more accurate), or `-v` for full logs
+instead of progress bars.
+
+### 5. The terminal UI
+
+```bash
+./launch_ui.sh              # full-screen guided UI
+./launch_ui.sh --demo       # simulated run, no GPU — the best place to start
+./launch_ui.sh --print      # build the command without running it
+./launch_ui.sh --cli        # plain wizard, for SSH or dumb terminals
+hybridock-tui               # identical to ./launch_ui.sh
+```
+
+**The first time you open it you get a guided walkthrough automatically.** After that:
+
+| key | action |
+|---|---|
+| `Ctrl-G` | help — 10 topics, including selectivity, crystal scoring, AI vs physics scoring, calibration |
+| `Ctrl-W` | reopen the welcome walkthrough |
+| `Ctrl-T` | Demo run (no GPU) |
+| `Ctrl-R` | Full run |
+| `Ctrl-B` | browse for a file |
+| `Ctrl-Q` | quit |
+
+Inside help, press `0`–`9` to jump between topics. You can also drag a `.pdb` file from Finder
+straight onto any path field.
+
+### 6. Built-in guide (no UI needed)
+
+```bash
+hybridock-pep guide           # overview
+hybridock-pep guide dock      # one command, with measured numbers
+hybridock-pep guide prep      # receptor prep, and why the backend doesn't change your ΔG
+hybridock-pep guide tuning    # environment switches and Apple Silicon notes
+hybridock-pep guide all
+```
+
+### 7. Environment switches
+
+| variable | effect |
+|---|---|
+| `HYBRIDOCK_RAPIDOCK_BATCH=N` | poses per diffusion step (default derived from RAM) |
+| `HYBRIDOCK_MMGBSA_FAST=1` | 5.4× faster MM-GBSA; shifts ΔG by up to ~4.5 kcal/mol |
+| `RAPIDOCK_DISABLE_METAL_TP=1` | disable the fused Metal kernel (A/B testing) |
+
+> A full `dock` run uses the separate `rapidock` environment for Stage 1 sampling, which needs
+> `KMP_DUPLICATE_LIB_OK=TRUE`. `install.sh` configures that for you.
 
 ---
 
@@ -564,10 +697,14 @@ conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
 # conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
 ```
 
-ADFRsuite + PULCHRA are license-restricted and **not** redistributed here — see
-[INSTALL.md](INSTALL.md) for the one-time download (this is the one step `install.sh` can't do
-for you). Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for
-a guided walkthrough.
+**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko` and
+AD4 grid maps from conda-forge `autogrid`, both declared in `envs/score-env.yml` with native Apple
+Silicon builds and no license click-through. The RAPiDock model weights (~55 MB) are fetched
+automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
+affects a backbone-rebuild path.
+
+Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
+walkthrough.
 
 ---
 
@@ -763,8 +900,8 @@ hybridock-pep/
 
 ```bash
 pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
-pytest                           # 419 fast unit tests
-pytest -m slow                   # + integration tests (MDM2/p53, ~30 min)
+pytest                           # fast suite — 670 passed, 55 skipped, ~18 s
+pytest -m slow                   # + integration tests (real Vina/OpenMM/pty, ~55 min)
 pytest --cov=hybridock_pep       # coverage
 ```
 
@@ -772,10 +909,11 @@ pytest --cov=hybridock_pep       # coverage
 > `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`. `OMP_NUM_THREADS=1` keeps the sklearn-heavy
 > scoring tests fast.
 >
-> **Full disclosure on the count:** ~429 non-slow tests are collected; **419 pass with the full toolchain
-> installed** (the `rapidock` conda env, meeko, and `autogrid` for AD4). In a bare sandbox
-> without those external binaries, ~30 tests skip/fail on missing-toolchain errors (not logic bugs) — so the
-> "419" number assumes you've built the full stack per [Install](#install).
+> **Full disclosure on the count:** the pass/skip split depends on which optional tools you have.
+> With a standard `score-env` (meeko, autogrid4, openbabel) the fast suite is **670 passed,
+> 55 skipped**. The skips are the `slow`-marked tier plus tests needing tools you may not have
+> installed — they are skips, not failures. `pytest -m slow` runs the real-Vina, real-OpenMM and
+> real-terminal tests, and takes roughly 55 minutes.
 
 ## Reproduce every number in this README
 

@@ -214,6 +214,65 @@ def _optimize_backends():
     return "CPU (threads tuned)"
 
 
+PROGRESS_PREFIX = "[[HDP-PROGRESS]]"
+
+
+def _install_progress_probe(rd_inference, rd_args):
+    # type: (object, object) -> None
+    """Emit machine-readable sampling progress on stdout for the parent process.
+
+    Pose generation is the longest silent stretch of a run (minutes on MPS with
+    no output at default verbosity), which is exactly when a non-expert decides
+    the tool has hung. RAPiDock has no progress callback, so we derive one.
+
+    The denoising loop runs `actual_steps` diffusion steps, and inside each step
+    iterates the batched pose set — so the model's forward is called exactly
+    once per (step, batch). Both counts are known up front, which makes total
+    forward calls a genuine, monotonic progress denominator rather than a guess.
+
+    Wrapping the *model* rather than editing RAPiDock keeps this entirely on our
+    side of the submodule boundary: third_party/RAPiDock is a pinned git
+    submodule, so any edit there would be unpushable and lost on re-clone.
+
+    Never fatal: any failure here silently leaves sampling unmonitored rather
+    than breaking the run that the user actually asked for.
+    """
+    try:
+        _orig_sampling = rd_inference.sampling
+    except AttributeError:
+        return
+
+    def _sampling_with_progress(data_list, model, args, *a, **kw):
+        try:
+            steps = kw.get("actual_steps") or kw.get("inference_steps") or 0
+            batch_size = kw.get("batch_size") or 1
+            n_batches = max(1, -(-len(data_list) // batch_size))  # ceil div
+            total = int(steps) * n_batches
+        except Exception:
+            total = 0
+        if total <= 0 or not hasattr(model, "forward"):
+            return _orig_sampling(data_list, model, args, *a, **kw)
+
+        state = {"n": 0}
+        _orig_forward = model.forward
+
+        def _counting_forward(*fa, **fkw):
+            state["n"] += 1
+            # stdout is the parent's structured channel; RAPiDock's own chatter
+            # goes to stderr, so these lines never interleave with it.
+            print("%s %d %d" % (PROGRESS_PREFIX, min(state["n"], total), total))
+            sys.stdout.flush()
+            return _orig_forward(*fa, **fkw)
+
+        model.forward = _counting_forward
+        try:
+            return _orig_sampling(data_list, model, args, *a, **kw)
+        finally:
+            model.forward = _orig_forward
+
+    rd_inference.sampling = _sampling_with_progress
+
+
 def main():
     # type: () -> None
     """Parse CLI args, seed RNGs, and invoke rd_inference.main()."""
@@ -349,6 +408,8 @@ def main():
             raise
 
     rd_inference.process_complex = _process_with_traceback
+
+    _install_progress_probe(rd_inference, rd_args)
 
     # Invoke RAPiDock inference — writes rank*.pdb to {output_dir}/poses_raw/
     rd_inference.main(rd_args)

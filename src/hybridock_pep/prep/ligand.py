@@ -372,6 +372,8 @@ def prepare_ligand_batch(
     successes: list[Path] = []
     failures: list[PoseFailure] = []
 
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
     logger.info(
         "Preparing %d pose PDBs → PDBQT (workers=%s)", len(pdb_paths), effective_workers
     )
@@ -381,7 +383,8 @@ def prepare_ligand_batch(
             executor.submit(_prepare_single_ligand, args): args[0]
             for args in args_list
         }
-        for future in as_completed(future_to_idx):
+        for _done, future in enumerate(as_completed(future_to_idx), 1):
+            _progress.tick(_done, len(args_list), "ligands prepared")
             result = future.result()
             if isinstance(result, PoseFailure):
                 failures.append(result)
@@ -389,6 +392,7 @@ def prepare_ligand_batch(
             else:
                 successes.append(result)
 
+    _progress.clear()
     logger.info(
         "Ligand prep complete: %d succeeded, %d failed", len(successes), len(failures)
     )
