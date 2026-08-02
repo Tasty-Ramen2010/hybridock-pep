@@ -20,6 +20,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hybridock-pep",
         description="Hybrid peptide docking: RAPiDock sampling + physics-based rescoring.",
+        # Pre-wrapped: RawDescriptionHelpFormatter preserves this verbatim, so
+        # a single long line would run off the edge of an 80-column terminal.
+        epilog=(
+            "getting started:\n"
+            "  hybridock-pep guide            how-to with worked examples, expected\n"
+            "                                 values and measured runtimes\n"
+            "  hybridock-pep guide dock       detail for one command\n"
+            "  hybridock-pep guide all        everything at once\n"
+            "\n"
+            "  hybridock-pep crystal-score    validate your install\n"
+            "                                 (expect \u0394G \u2248 -10.07 kcal/mol)\n"
+            "  ./launch_ui.sh                 terminal UI (or `hybridock-tui`)\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "-v",
@@ -30,6 +44,18 @@ def _build_parser() -> argparse.ArgumentParser:
              "-v INFO logs, -vv DEBUG logs).",
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
+
+    p_guide = sub.add_parser(
+        "guide",
+        help="How to use HybriDock-Pep: worked examples, expected values, runtimes.",
+        description="Built-in how-to guide with worked examples and measured numbers.",
+    )
+    p_guide.add_argument(
+        "topic", nargs="?", default=None, metavar="TOPIC",
+        help="Command or topic (dock, crystal-score, prep, selectivity, "
+             "reproducibility, benchmark, calibrate, tuning, testing, all). "
+             "Omit for the overview.",
+    )
     sub.required = False
 
     # dock subparser
@@ -699,6 +725,18 @@ def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     benchmark.main(ns)
 
 
+def _run_guide(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Print the built-in how-to guide.
+
+    Args:
+        args: Parsed namespace; ``args.topic`` selects a command or topic.
+        parser: Root ArgumentParser (unused; present for dispatch signature consistency).
+    """
+    from hybridock_pep.output.guide import print_guide  # noqa: PLC0415
+
+    raise SystemExit(print_guide(getattr(args, "topic", None)))
+
+
 def _run_crystal_score(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Score a single crystal-quality complex with the crystal-tuned IFP model (no docking).
 
@@ -781,6 +819,7 @@ def main() -> None:
         "selectivity": _run_selectivity,
         "reproducibility": _run_reproducibility,
         "crystal-score": _run_crystal_score,
+        "guide": _run_guide,
     }
     if args.command is None:
         parser.print_help()
