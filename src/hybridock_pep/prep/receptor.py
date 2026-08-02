@@ -113,21 +113,49 @@ def prepare_receptor(config: DockConfig) -> Path:
                 raise PrepError(
                     f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
                 )
+        elif shutil.which("mk_prepare_receptor.py") is not None:
+            # Meeko is the Forli lab's supported successor to prepare_receptor,
+            # pip/conda-installable and native on Apple Silicon. It emits proper
+            # AutoDock atom types (OA/HD/NA/SA) and Gasteiger charges, which
+            # obabel does less faithfully, so it is preferred over the babel
+            # fallback below.
+            logger.info(
+                "prepare_receptor (ADFRsuite) not on PATH — using meeko "
+                "mk_prepare_receptor.py instead."
+            )
+            cmd = [
+                "mk_prepare_receptor.py",
+                "--read_pdb", str(fixed_pdb_path),
+                "-o", str(pdbqt_path.with_suffix("")),
+                "-p",
+            ]
+            logger.info("Running: %s", " ".join(cmd))
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            # Post-run success check, NOT a skip-if-exists cache (D-02): meeko
+            # can exit 0 having written nothing when the input is unusable, so
+            # the output is verified after the subprocess, never before it.
+            wrote_output = Path(pdbqt_path).is_file()
+            if result.returncode != 0 or not wrote_output:
+                raise PrepError(
+                    f"mk_prepare_receptor.py failed (exit {result.returncode}):\n"
+                    f"{result.stderr or result.stdout}"
+                )
         else:
             logger.warning(
-                "prepare_receptor (ADFRsuite) not on PATH — falling back to "
-                "babel/obabel for receptor PDBQT prep. Vina scoring will work; "
-                "AD4 scoring (--scoring ad4) still requires ADFRsuite."
+                "Neither prepare_receptor (ADFRsuite) nor meeko "
+                "mk_prepare_receptor.py on PATH — falling back to babel/obabel "
+                "for receptor PDBQT prep."
             )
             try:
                 result = convert_pdb_to_pdbqt(fixed_pdb_path, pdbqt_path, add_hydrogens=True)
             except FileNotFoundError as exc:
                 raise PrepError(
-                    "Neither prepare_receptor (ADFRsuite) nor babel/obabel (conda-forge "
-                    "openbabel) found on PATH. For Vina-only scoring, add openbabel to "
-                    "score-env.yml. For AD4 scoring, install ADFRsuite — the one step "
-                    "that needs a manual license click-through: "
-                    "https://ccsb.scripps.edu/adfrsuite/downloads/ and INSTALL.md Step 4."
+                    "No receptor preparation tool found. Install any one of: "
+                    "meeko (`pip install meeko`, provides mk_prepare_receptor.py — "
+                    "recommended, no license click-through), openbabel "
+                    "(`conda install -c conda-forge openbabel`), or ADFRsuite. "
+                    "For AD4 map generation also install autogrid "
+                    "(`conda install -c conda-forge autogrid`)."
                 ) from exc
             try:
                 pdbqt_size = pdbqt_path.stat().st_size

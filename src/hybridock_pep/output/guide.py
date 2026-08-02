@@ -95,7 +95,9 @@ dominates the run. Leave --refine-topk off unless you need it.
 Notes:
   * --site is the box centre in Angstroms; --box the cube edge. Use 30 for
     12-mers and longer.
-  * Receptor prep needs ADFRsuite (prepare_receptor / autogrid4) on PATH.
+  * Receptor prep needs meeko (mk_prepare_receptor.py) and, for --scoring ad4,
+    autogrid (`conda install -c conda-forge autogrid`). ADFRsuite is NOT
+    required; it is used automatically if present.
   * Sampling is NOT bit-reproducible on GPU even with --seed. Two identical
     runs differ by ~2.9 A mean pose RMSD. That is expected, not a bug.
 """,
@@ -121,10 +123,17 @@ Convert a receptor PDB to PDBQT and build AutoDock4 grid maps.
 
     hybridock-pep prep --receptor data/pdbs/1YCR_mdm2.pdb --output-dir runs/prep
 
-Requires ADFRsuite (prepare_receptor, autogrid4) on PATH. Without it this
-command, and the scoring stage of `dock`, cannot run — the tests that cover it
-skip rather than fail. `dock` runs prep for you; use this only to inspect the
-intermediate files.
+No ADFRsuite required. Receptor PDBQT comes from meeko's
+mk_prepare_receptor.py, and AD4 grid maps from conda-forge autogrid -- both
+pip/conda installable with native Apple Silicon builds and no license
+click-through. ADFRsuite is still used automatically if it happens to be on
+PATH, which keeps results identical for existing installs.
+
+Fallback order:
+    receptor PDBQT   prepare_receptor -> mk_prepare_receptor.py -> obabel
+    AD4 maps         autogrid4  (conda install -c conda-forge autogrid)
+
+`dock` runs prep for you; use this command only to inspect the intermediates.
 """,
 
     "selectivity": f"""{_h("selectivity — on-target vs off-target ΔΔG")}
@@ -223,8 +232,9 @@ Known limits on Apple silicon:
   * No fp64 anywhere on the GPU, so MM-GBSA is single-precision only and is not
     reproducible run-to-run (~4 kcal/mol). The CPU platform has fp64 but is
     ~12.5x slower.
-  * ADFRsuite is an x86 build; without it, receptor prep and Vina scoring do
-    not run.
+  * ADFRsuite ships only an x86_64 tarball, so it is not used here. meeko and
+    conda-forge autogrid replace it with native arm64 builds; nothing in the
+    pipeline needs ADFRsuite any more.
 """
 
 TESTING = f"""{_h("running the tests")}
