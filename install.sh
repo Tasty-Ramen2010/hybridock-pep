@@ -87,13 +87,24 @@ else
     esac
     MF_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-${MF_OS}-${ARCH}.sh"
     # Miniforge's installer refuses to run unless invoked as "$0" ending in
-    # .sh (its own guard against being sourced) — plain `mktemp` doesn't add
-    # an extension. Use the template form (portable to both GNU and BSD/macOS
-    # mktemp; --suffix is GNU-only and not available on macOS).
-    MF_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/hdp-miniforge-installer.XXXXXX.sh")"
+    # .sh (its own guard against being sourced), so the temp file needs that
+    # extension.
+    #
+    # It cannot come from `mktemp <template>.sh`: BSD/macOS mktemp only expands
+    # XXXXXX when it is the *trailing* part of the template. Given a suffix it
+    # takes the name literally, creates /tmp/hdp-miniforge-installer.XXXXXX.sh
+    # once, and then fails every later run with
+    #     mktemp: mkstemp failed on ...XXXXXX.sh: File exists
+    # which kills install.sh at step 1 under set -e. GNU mktemp has --suffix
+    # for this; macOS does not.
+    #
+    # Make a temp *directory* instead — portable everywhere — and use a fixed
+    # filename inside it.
+    MF_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/hdp-miniforge.XXXXXX")"
+    MF_INSTALLER="$MF_TMPDIR/miniforge-installer.sh"
     curl -fsSL "$MF_URL" -o "$MF_INSTALLER"
     bash "$MF_INSTALLER" -b -p "$HOME/miniforge3"
-    rm -f "$MF_INSTALLER"
+    rm -rf "$MF_TMPDIR"
     # shellcheck disable=SC1091
     source "$HOME/miniforge3/etc/profile.d/conda.sh"
     ok "Miniforge installed at $HOME/miniforge3"
