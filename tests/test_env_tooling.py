@@ -85,6 +85,23 @@ class TestExistingEnvRepair:
         assert "conda" in cmd[0] and "install" in cmd
         assert "score-env" in cmd
         assert any(a.startswith("autogrid") for a in cmd), cmd
+        assert any(a.startswith("openbabel") for a in cmd), cmd
+
+    def test_repair_backfills_only_the_missing_tool(self, monkeypatch):
+        """A partial env is the common case (obabel and autogrid were added at
+        different times), so repair must not reinstall the tool that is fine."""
+        mod = _load_setup_environment()
+        calls = []
+        monkeypatch.setattr(mod, "_run", lambda cmd, dry, **kw: calls.append(cmd))
+        monkeypatch.setattr(
+            mod, "_env_has_binary", lambda env, binary: binary == "autogrid4"
+        )
+
+        mod._repair_score_env_tooling(dry_run=False)
+
+        assert len(calls) == 1, f"expected one install call, got {calls}"
+        specs = [a for a in calls[0] if a.startswith(("autogrid", "openbabel"))]
+        assert specs == ["openbabel>=3.1"], f"repair touched a present tool: {specs}"
 
     def test_repair_is_a_noop_when_autogrid_present(self, monkeypatch):
         """Never reinstall into a working env — that is slow and can break a

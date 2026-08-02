@@ -347,13 +347,19 @@ def _repair_score_env_tooling(dry_run: bool) -> None:
     Cheap when there is nothing to do, and never touches a package that is
     already present.
     """
-    missing = [b for b in ("autogrid4",) if not _env_has_binary("score-env", b)]
+    # binary name -> conda spec that provides it. Both entries post-date the
+    # ADFRsuite removal, so any env created before that is missing both.
+    wanted = {
+        "autogrid4": "autogrid>=4.2.9",   # AD4 grid maps (--scoring ad4)
+        "obabel": "openbabel>=3.1",       # last-resort ligand PDBQT conversion
+    }
+    missing = {b: spec for b, spec in wanted.items() if not _env_has_binary("score-env", b)}
     if not missing:
-        print("  ✓ score-env tooling complete (autogrid4 present)")
+        print(f"  ✓ score-env tooling complete ({', '.join(wanted)} present)")
         return
     print(f"  score-env predates {', '.join(missing)} — backfilling")
     _run(
-        ["conda", "install", "-n", "score-env", "-c", "conda-forge", "--yes", "autogrid>=4.2.9"],
+        ["conda", "install", "-n", "score-env", "-c", "conda-forge", "--yes", *missing.values()],
         dry_run,
         retries=2,
     )
