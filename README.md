@@ -7,12 +7,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
+[![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
+
+### 📺 Watch the tutorial
+
+**[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** · start here if you have
+never used a docking tool before. It goes from a clean machine through install, the first scored
+result, and the guided terminal UI. The written version is [Command
+reference](#command-reference--install-test-run-ui) below.
 
 **New here?** [RESULTS.md](RESULTS.md) — every leakage-free number + how to reproduce it · [MODEL_CARD.md](MODEL_CARD.md) — which of the 10 `data/*.joblib` actually ship & the honest limits · 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
 
-> **Tests:** ~429 collected, 419 pass with the full toolchain installed (`pytest`; see [Testing](#testing)).
+> **Tests:** 676 pass, 66 skip with a standard `score-env` (`pytest`; see [Testing](#testing)).
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
-> with their own licenses (ADFRsuite, AutoDock4, PULCHRA, RAPiDock) — see [`INSTALL.md`](INSTALL.md).
+> with their own licenses (AutoDock4, PULCHRA, RAPiDock, and optionally ADFRsuite) — see [`INSTALL.md`](INSTALL.md).
 
 ## Table of contents
 
@@ -138,6 +146,9 @@ to earlier installs.
 ## Command reference — install, test, run, UI
 
 Everything you need, in the order you need it. Copy-paste safe on a brand-new machine.
+
+> 📺 Prefer to watch? **[Tutorial video — setup and first run](https://youtu.be/ro9CukQCW44)** covers
+> this whole section on a clean machine.
 
 ### 1. Install (one command)
 
