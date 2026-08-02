@@ -158,7 +158,7 @@ while true; do
         echo "                          $FINETUNED/finetune_peppc_v4n_phase{1,2,3} \\"
         echo "           --out-dir logs/analysis_v3b_v4n_v5n"
         echo "    2. Benchmark: python3 scripts/benchmark_inference_multi.py"
-        echo "    3. Update AI doc: append to docs/ai_training_guide_peppc.md"
+        echo "    3. Update AI doc: append to ai_training_guide_peppc.md (Zenodo archive)"
         log "monitor_and_launch.sh complete."
         exit 0
     fi

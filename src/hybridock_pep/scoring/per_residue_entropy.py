@@ -4,7 +4,7 @@ Replaces the uniform ``-α·N_contact`` term in the legacy hybrid score (one α
 times a residue count) with a sum over per-residue penalties that depend on:
 
   * amino-acid identity (Doig & Sternberg 1995 / Pickett & Sternberg 1993
-    consensus values; see docs/calibration_strategies.md §5.5.2).
+    consensus values; see calibration_strategies.md (Zenodo archive) §5.5.2).
   * backbone flexibility (Gly free / Pro locked / others standard;
     Doig-Sternberg backbone table).
   * **secondary-structure context** of the contact region, inferred from the

@@ -5,8 +5,8 @@ validated. Written to be read start-to-finish in a few minutes; every claim
 links to the script that produces it.
 
 For *how to run it*, see [README §Quick start](README.md#quick-start--one-command).
-For the full research ledger, including refuted ideas, see
-[`docs/DEVELOPMENT_TIMELINE.md`](docs/DEVELOPMENT_TIMELINE.md).
+For the full research ledger, including refuted ideas, see the development timeline
+archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
 
 ---
 

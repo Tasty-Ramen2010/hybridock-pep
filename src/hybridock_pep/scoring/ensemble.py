@@ -4,7 +4,7 @@ Combines two partially-independent predictors of binding ΔG:
   * geometry  — linear model over pocket + interface descriptors (pose-derived SASA/contacts)
   * vina      — AutoDock Vina --score_only energy on the same pose
 
-Rationale (docs/e19_pocket_baseline_breakthrough.md, E21): on crystal-65 the geometry model
+Rationale (e19_pocket_baseline_breakthrough.md, Zenodo archive, E21): on crystal-65 the geometry model
 (r=0.576) and Vina-fit (r=0.527) fail on the SAME complexes (residual corr 0.74 — amphipathic
 helices) yet have enough independent error that a 50/50 z-blend reaches r=0.620, RMSE 1.68,
 clearing the literature ballpark (~0.62) — without the thousands of training complexes those

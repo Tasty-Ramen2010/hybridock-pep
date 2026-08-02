@@ -3,7 +3,7 @@
 This ranks the diffusion poses for the STRUCTURAL deliverable (``best_pose.pdb`` and the
 ranked-CSV order). It does NOT touch the affinity / ΔG number — selecting near-native poses
 *hurts* cross-complex affinity r (the pocket, not the pose geometry, carries Kd; see E94 /
-docs/DEVELOPMENT_TIMELINE.md). Keep this wall: ``ml_pose_score`` feeds pose ORDERING only.
+DEVELOPMENT_TIMELINE.md, Zenodo archive). Keep this wall: ``ml_pose_score`` feeds pose ORDERING only.
 
 Validated head-to-head on 46 real RAPiDock complexes, leave-one-complex-out, within-complex
 Kendall τ vs native RMSD (920 poses, experiments/e96_poseranker_validation.py):

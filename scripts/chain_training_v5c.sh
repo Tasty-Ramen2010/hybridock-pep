@@ -193,5 +193,5 @@ echo "  2. KEY metric: diversity_ratio — target ≥0.60 (vs pretrained ~0.71)"
 echo "     If v5c drops diversity to <0.50, pure pretrained is still better."
 echo "  3. Checkpoint averaging: avg best 3 P2 stable epochs:"
 echo "       python3 -c \\"
-echo "           \"import torch; ..."  # see docs/ai_training_guide_peppc.md §5
+echo "           \"import torch; ..."  # see ai_training_guide_peppc.md (Zenodo archive) §5
 echo "=================================================================="

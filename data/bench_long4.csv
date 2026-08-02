@@ -1,5 +1,0 @@
-name,receptor,peptide_pdb,seq,pep_len,ss_class,length_bucket,frac_H,frac_E,frac_P
-7nuf,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7nuf/7nuf_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7nuf/7nuf_peptide.pdb,MWSVFIHGHDGSNKGSKTYT,20,SHEET,very_long,0.111,0.722,0.0
-7kei,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7kei/7kei_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7kei/7kei_peptide.pdb,ERNAGSGIIISDGGGGSLVP,20,SHEET,very_long,0.0,0.944,0.0
-7nab,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7nab/7nab_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7nab/7nab_peptide.pdb,DSFKEELDKYFKNHTSPDVD,20,HELIX,very_long,0.556,0.222,0.0
-7ujs,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7ujs/7ujs_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7ujs/7ujs_peptide.pdb,RNKLRRQHSYDTFVDL,16,SHEET,long,0.071,0.786,0.0

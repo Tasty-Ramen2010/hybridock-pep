@@ -1,6 +1,6 @@
 """Same-receptor reference anchoring — calibrate an absolute ΔG to known-Kd peptides on the SAME target.
 
-Deployment of the validated reference-anchoring result (see docs/reference_anchoring_design.md). The
+Deployment of the validated reference-anchoring result (see reference_anchoring_design.md, Zenodo archive 10.5281/zenodo.21680573). The
 absolute scorer carries a per-receptor offset ``b(R)`` that is FEP-bound and unpredictable from any static
 feature (sequence, pocket sequence, pocket-3D — all tested, e266–e273). It CANCELS, however, when the
 reference peptide sits on the SAME receptor as the query::

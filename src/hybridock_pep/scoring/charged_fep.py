@@ -10,7 +10,7 @@ per-route scale) is being fit by the E345 overnight campaign — the numeric leg
 (CALIBRATION below). Until then this stage runs the structural triage (which residues, which route, confidence)
 so the wiring, progress, and metadata are complete and the compute leg is a drop-in.
 
-See docs/charged_failure_full_decomposition and MEMORY project_charged_fep_terminal_jul07.
+See charged_failure_full_decomposition (Zenodo archive) and MEMORY project_charged_fep_terminal_jul07.
 """
 from __future__ import annotations
 import logging

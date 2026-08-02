@@ -8,7 +8,7 @@ On the pooled crystal-65 + the-98 benchmark this collapsed short-peptide ranking
 Routing short peptides to a lean 3-feature hydrophobic sub-model recovers them:
   short-bin LOO  r 0.02 -> 0.51 ,  RMSE 1.79 -> 1.21 kcal/mol  (n=22)
   held-out test  pooled r 0.603 -> 0.682 , RMSE 1.77 -> 1.61   (rest of the set unchanged)
-See docs/e19_pocket_baseline_breakthrough.md (E85-E87) for the full length-stratified analysis.
+See e19_pocket_baseline_breakthrough.md (Zenodo archive, E85-E87) for the full length-stratified analysis.
 
 The sub-model uses only features already in ``ensemble.GEOMETRY_FEATURES`` (no new extraction). Long and
 very-long peptides did NOT benefit from their own sub-models (too few samples; signal is conformational,
