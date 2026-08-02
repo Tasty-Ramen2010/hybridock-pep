@@ -153,19 +153,36 @@ fi
 # automatically if it happens to be on PATH, which keeps results identical for
 # installs that already have it.
 step "Checking receptor-prep tooling"
-if command -v prepare_receptor >/dev/null 2>&1; then
-    ok "ADFRsuite found on PATH — will be preferred: $(command -v prepare_receptor)"
-elif command -v mk_prepare_receptor.py >/dev/null 2>&1; then
-    ok "meeko mk_prepare_receptor.py found (no ADFRsuite needed)"
+# These tools are installed *into score-env*, and this script never activates
+# it, so `command -v` alone reports every one of them missing on a perfectly
+# good install. Look inside the env too.
+SCORE_ENV_BIN=""
+for _base in "$HOME/miniforge3" "$HOME/miniconda3" "$HOME/anaconda3" "/opt/conda"; do
+    if [ -d "$_base/envs/score-env/bin" ]; then
+        SCORE_ENV_BIN="$_base/envs/score-env/bin"
+        break
+    fi
+done
+find_tool() {
+    command -v "$1" 2>/dev/null && return 0
+    [ -n "$SCORE_ENV_BIN" ] && [ -x "$SCORE_ENV_BIN/$1" ] && { echo "$SCORE_ENV_BIN/$1"; return 0; }
+    return 1
+}
+
+if PREP="$(find_tool prepare_receptor)"; then
+    ok "ADFRsuite found — will be preferred: $PREP"
+elif PREP="$(find_tool mk_prepare_receptor.py)"; then
+    ok "meeko mk_prepare_receptor.py found, no ADFRsuite needed: $PREP"
 else
     warn "No receptor-prep tool found. Install meeko:  pip install 'meeko>=0.7'"
 fi
 
-if command -v autogrid4 >/dev/null 2>&1; then
-    ok "autogrid4 found — AD4 scoring available: $(command -v autogrid4)"
+if AG="$(find_tool autogrid4)"; then
+    ok "autogrid4 found — '--scoring ad4' available: $AG"
 else
-    warn "autogrid4 not found — --scoring ad4 will not work." \
-         "Install it with:  conda install -c conda-forge autogrid"
+    warn "autogrid4 not available on this platform — '--scoring ad4' will not work." \
+         "Everything else is unaffected: AD4 is off by default and the reported ΔG" \
+         "comes from the affinity model, not AD4."
 fi
 
 # ---------------------------------------------------------------------------
