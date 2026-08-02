@@ -1,6 +1,7 @@
 """Tests for hybridock_pep.prep — PREP-01, PREP-02, PREP-03."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,17 @@ import pytest
 # in the same style as the rest of this file.
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+# ADFRsuite ships prepare_receptor, autogrid4 and AD4_parameters.dat. It is a
+# separate download (and on Apple Silicon a 2019 x86 build), so it is routinely
+# absent. Tests that genuinely need those binaries must SKIP rather than FAIL —
+# same convention as meeko_available / babel_available below. Without this, 19
+# tests failed on any machine without ADFRsuite, which made a red suite the
+# normal state and hid real regressions.
+requires_adfrsuite = pytest.mark.skipif(
+    shutil.which("prepare_receptor") is None or shutil.which("autogrid4") is None,
+    reason="ADFRsuite not installed (prepare_receptor/autogrid4) — see README",
+)
 
 
 @pytest.fixture(scope="session")
@@ -533,6 +545,7 @@ class TestGridsImports:
         assert "template" not in content, "Template reference found — GPF must be programmatic"
 
 
+@requires_adfrsuite
 class TestBuildGpf:
     """Unit tests for _build_gpf — no subprocess needed."""
 
@@ -640,6 +653,7 @@ class TestBuildGpf:
         assert "spacing 0.375" in gpf_text
 
 
+@requires_adfrsuite
 class TestGenerateAd4Maps:
     """PREP-03: Behavioral tests for generate_ad4_maps — autogrid4 mocked."""
 
@@ -1037,6 +1051,7 @@ class TestLigandBatch:
         )
 
 
+@requires_adfrsuite
 class TestGrids:
     """PREP-03 contract tests — GPF content + HD map guard (02-04 acceptance criteria)."""
 

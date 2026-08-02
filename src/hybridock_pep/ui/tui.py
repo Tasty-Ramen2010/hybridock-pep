@@ -150,8 +150,12 @@ def build_dock_command(v, exe="hybridock-pep"):
            "--site", x, y, z, "--box", v["box"].strip(),
            "--n-samples", v["n_samples"].strip(), "--scoring", v["scoring"].strip(),
            "--output-dir", v["output_dir"].strip()]
-    if int(v["refine_topk"] or 0) > 0:
-        cmd += ["--refine-topk", v["refine_topk"].strip()]
+    # .strip() before the truthiness test: "   " is truthy but int("   ")
+    # raises, which crashed command building when a field was typed into and
+    # then cleared.
+    topk = (v.get("refine_topk") or "").strip()
+    if topk and int(topk) > 0:
+        cmd += ["--refine-topk", topk]
     return cmd
 
 

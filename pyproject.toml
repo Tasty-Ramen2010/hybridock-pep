@@ -53,6 +53,10 @@ dev = [
 
 [project.scripts]
 hybridock-pep = "hybridock_pep.cli:main"
+# The TUI documents itself as `hybridock-tui` in its own --help and in
+# launch_ui.sh's banner, but the console script was never registered, so that
+# command did not exist after a normal install.
+hybridock-tui = "hybridock_pep.ui.tui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
