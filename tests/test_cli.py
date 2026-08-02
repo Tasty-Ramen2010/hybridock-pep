@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import sys
 from pathlib import Path
 
@@ -256,3 +258,58 @@ class TestSubcommandResultsPrintAtDefaultVerbosity:
             "prep's only output line must print to stdout regardless of log level"
         )
         assert str(fake_pdbqt) in captured.out
+
+
+class TestDockBannerFitsTerminal:
+    """The boxed banner must never exceed the terminal width.
+
+    A 30-mer — the peptide validator's own upper bound — against a long receptor
+    filename produced a 102-column box, which wraps on an 80-column macOS
+    Terminal and shreds the border.
+    """
+
+    @staticmethod
+    def _render(cols, peptide, receptor):
+        import os
+        import shutil as sh
+        from pathlib import Path
+        from unittest.mock import MagicMock, patch
+
+        from hybridock_pep.cli import _print_dock_banner
+
+        cfg = MagicMock()
+        cfg.peptide_sequence = peptide
+        cfg.receptor_path = Path(receptor)
+        buf = io.StringIO()
+        with patch.object(sh, "get_terminal_size",
+                          return_value=os.terminal_size((cols, 24))), \
+                contextlib.redirect_stderr(buf):
+            _print_dock_banner(cfg)
+        return [ln for ln in buf.getvalue().splitlines() if ln.strip()]
+
+    @pytest.mark.parametrize("cols", [40, 60, 80, 100, 120, 200])
+    @pytest.mark.parametrize("peptide,receptor", [
+        ("ETFSDLWKLLPE", "1YCR_mdm2.pdb"),
+        ("A" * 30, "hldh_1i0z_chainA_pocket_cropped_v2.pdb"),
+        ("ACD", "r.pdb"),
+    ])
+    def test_never_exceeds_terminal_width(self, cols, peptide, receptor):
+        for line in self._render(cols, peptide, receptor):
+            assert len(line) <= cols, f"{len(line)} cols > terminal {cols}"
+
+    @pytest.mark.parametrize("cols", [40, 80, 120])
+    def test_box_lines_are_all_equal_width(self, cols):
+        lines = self._render(cols, "A" * 30, "some_quite_long_receptor_name.pdb")
+        assert len({len(ln) for ln in lines}) == 1, "box borders misaligned"
+
+    def test_long_title_is_ellipsised(self):
+        lines = self._render(80, "A" * 30, "hldh_1i0z_chainA_pocket_cropped_v2.pdb")
+        assert any("…" in ln for ln in lines)
+
+    def test_short_title_is_not_ellipsised(self):
+        lines = self._render(120, "ACD", "r.pdb")
+        assert not any("…" in ln for ln in lines)
+
+    def test_peptide_still_visible_on_narrow_terminal(self):
+        lines = self._render(60, "ETFSDLWKLLPE", "1YCR_mdm2.pdb")
+        assert any("ETFSDLWKLLPE" in ln for ln in lines)

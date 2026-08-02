@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -415,11 +416,18 @@ def _print_dock_banner(config: DockConfig) -> None:
         f"HybriDock-Pep — {config.peptide_sequence} "
         f"({len(config.peptide_sequence)}-mer) × {config.receptor_path.name}"
     )
-    width = max(len(title) + 4, 40)
+    # Clamp to the terminal. A 30-mer (the validator's own upper bound) against a
+    # long receptor filename produced a 102-column box, which wraps on an 80-column
+    # macOS Terminal and shreds the border. Borders take 2 columns; the title is
+    # ellipsised rather than allowed to overflow.
+    term_cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+    inner = max(24, min(term_cols - 2, max(len(title) + 4, 40)))
+    if len(title) > inner - 2:
+        title = title[: max(1, inner - 3)] + "…"
     print(file=sys.stderr)
-    print("┌" + "─" * width + "┐", file=sys.stderr)
-    print("│" + title.center(width) + "│", file=sys.stderr)
-    print("└" + "─" * width + "┘", file=sys.stderr)
+    print("┌" + "─" * inner + "┐", file=sys.stderr)
+    print("│" + title.center(inner) + "│", file=sys.stderr)
+    print("└" + "─" * inner + "┘", file=sys.stderr)
 
 
 def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
