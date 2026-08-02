@@ -486,9 +486,24 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None
             # named 'torch'"). On macOS this same build step then loads
             # torch's bundled libomp.dylib alongside conda's llvm-openmp,
             # aborting with "OMP: Error #15" unless KMP_DUPLICATE_LIB_OK is set.
-            # ROCm note: torch-scatter message-passing ops fall back to CPU; the
-            # diffusion model forward pass is still GPU-accelerated via the main
-            # graph convolutions which use native torch ops, not torch-scatter.
+            # "CPU wheels" reads alarming on a GPU machine, so: measured, this
+            # does NOT put the model's hot path on the CPU.
+            #
+            # torch-scatter compiles custom C++/CUDA kernels only for the
+            # reductions that need them — scatter_max/min/mul. Its scatter_sum
+            # and scatter_mean are pure native torch (`out.scatter_add_(...)`,
+            # see torch_scatter/scatter.py), so they execute on whatever device
+            # the tensors live on, Metal included. RAPiDock's graph convolution
+            # aggregates with reduce="sum"/"mean" (models/diffusion.py:195), so
+            # every denoising step already runs that reduction on the GPU. The
+            # custom kernels are only reached by scatter_max/min in
+            # dataset/peptide_feature.py, which is one-time featurisation.
+            #
+            # Rerouting the conv reduction to native index_add_ was tried and
+            # reverted: 2.75x faster on the isolated op, but 0% end-to-end
+            # (sampling 35-37 s either way at --n-samples 20) and no memory
+            # saving, because torch_scatter's index broadcast is a stride-0
+            # view, not a copy. Not worth monkey-patching a third-party API.
             _run(
                 [*pip, *pyg_pkgs, "--no-build-isolation"], dry_run,
                 env={"KMP_DUPLICATE_LIB_OK": "TRUE"},
