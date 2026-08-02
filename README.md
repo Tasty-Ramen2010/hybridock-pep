@@ -16,7 +16,15 @@ never used a docking tool before. It goes from a clean machine through install, 
 result, and the guided terminal UI. The written version is [Command
 reference](#command-reference--install-test-run-ui) below.
 
-**New here?** [RESULTS.md](RESULTS.md) — every leakage-free number + how to reproduce it · [MODEL_CARD.md](MODEL_CARD.md) — which of the 10 `data/*.joblib` actually ship & the honest limits · 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+**New here? Read these three, in this order:**
+
+| | |
+|---|---|
+| **[METHODS.md](METHODS.md)** | What it does and how it was validated — the whole method in a few minutes. **Start here.** |
+| **[RESULTS.md](RESULTS.md)** | Every leakage-free number, and the command that reproduces each one. |
+| **[MODEL_CARD.md](MODEL_CARD.md)** | Which of the 10 `data/*.joblib` actually ship, and the honest limits. |
+
+Then run the 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/) and [`docs/`](docs/README.md). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
 
 > **Tests:** 676 pass, 66 skip with a standard `score-env` (`pytest`; see [Testing](#testing)).
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
@@ -24,23 +32,31 @@ reference](#command-reference--install-test-run-ui) below.
 
 ## Table of contents
 
+**Get it running**
 1. [Quick start — one command](#quick-start--one-command)
 2. [Command reference — install, test, run, UI](#command-reference--install-test-run-ui)
-3. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
-4. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
-5. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
-6. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
-7. [Pipeline — the full workflow](#pipeline--the-full-workflow)
-8. [Install](#install)
-9. [Usage](#usage)
-10. [Repository structure](#repository-structure)
-11. [Testing](#testing)
-12. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
-13. [Roadmap](#roadmap--to-do)
-14. [Evaluation methodology](#evaluation-methodology)
-15. [Project status](#project-status)
-16. [Citations](#citations)
-17. [License](#license)
+3. [Usage — the six subcommands](#usage)
+
+**Understand it** — the short version is [METHODS.md](METHODS.md)
+
+4. [Pipeline — the full workflow](#pipeline--the-full-workflow)
+5. [Evaluation methodology](#evaluation-methodology)
+
+**Check the claims**
+
+6. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
+7. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
+8. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
+9. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
+10. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
+
+**Reference**
+
+11. [Install — manual walkthrough](#install)
+12. [Repository structure](#repository-structure)
+13. [Testing](#testing)
+14. [Roadmap](#roadmap--to-do)
+15. [Project status](#project-status) · [Citations](#citations) · [License](#license)
 
 ---
 
@@ -58,9 +74,8 @@ That's it for most machines: `install.sh` auto-detects your OS/GPU, creates both
 environments with the right PyTorch build, downloads the RAPiDock model weights, and finishes by
 launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. Every step
 is automated — there is no license click-through. Receptor prep uses [meeko](https://github.com/forlilab/Meeko)
-(`mk_prepare_receptor.py`) and AD4 grid maps use conda-forge `autogrid`, both installed for you and
-both native on Apple Silicon. ADFRsuite is **not** required; it is used automatically if you already
-have it on PATH — see [Install](#install).
+(`mk_prepare_receptor.py`), installed for you and native on Apple Silicon. ADFRsuite is **not**
+required; it is used automatically if you already have it on PATH — see [Install](#install).
 
 > **Be patient — this genuinely takes 10–30 minutes**, most of it two long, silent `conda`
 > dependency-solve steps and a PyTorch download (hundreds of MB). If the terminal looks frozen on
@@ -602,13 +617,24 @@ method**, ours included (we publish it rather than hide it). This is exactly why
 
 ## Datasets — download and test for yourself
 
-Everything above is reproducible from data shipped in this repo. All files are small, plain-text, and
-MIT-licensed (derived features + public experimental affinities — no redistributed third-party structures).
+These files are small, plain-text, and MIT-licensed (derived features + public experimental
+affinities — no redistributed third-party structures). All of them ship in this repo except one,
+called out in the table and explained under it.
+
+> **One gap, stated plainly.** `data/e180_protdcal3d.jsonl` — the ProtDCal-3D feature file for the
+> PPI-Affinity clone — is **not in this repository**, so test ① (the ours-vs-clone head-to-head) is
+> **not currently reproducible from a clean clone**. The file is `.gitignore`d, and its generator
+> `experiments/e180_protdcal_925.py` cannot run either: it imports
+> `e158_overfit_failure_analysis`, which was never committed (48 experiment scripts depend on that
+> module for `greedy_cluster()` and `pocket_seq()`). Every other number on this page — the 925-complex
+> headline, the identity sweep, PPIKB, the Wang 2024 external holdout — reproduces from what is here.
+> `tests/test_repro_claims.py` guards the rest of the table so this cannot happen silently again, and
+> carries a strict `xfail` that flips green the moment the missing module is restored.
 
 | File | What it is | Rows |
 |---|---|---|
 | [`data/pdbbind_peptides.jsonl`](data/pdbbind_peptides.jsonl) | 925 PDBbind protein–peptide complexes with experimental K_d/K_i, our 16 structural features + sequence per complex | 925 |
-| [`data/e180_protdcal3d.jsonl`](data/e180_protdcal3d.jsonl) | PPI-Affinity-clone features (37 ProtDCal-3D intra-peptide descriptors) per complex — the head-to-head baseline | ~900 |
+| `data/e180_protdcal3d.jsonl` — **not shipped, see below** | PPI-Affinity-clone features (37 ProtDCal-3D intra-peptide descriptors) per complex — the head-to-head baseline | ~900 |
 | [`data/e331_matched_pdbids.json`](data/e331_matched_pdbids.json) | The exact 865 PDB IDs in the leakage-free ours-vs-PPI-clone head-to-head (both models can score) | 865 |
 | [`data/e329_ref2015_pdbbind.json`](data/e329_ref2015_pdbbind.json) | Rosetta ref2015 / FlexPepDock unrelaxed interface-ΔG (REU) for 918 of those complexes | 918 |
 | [`data/e331_relax_pdbbind.json`](data/e331_relax_pdbbind.json) | Unrelaxed vs interface-relaxed ref2015 interface-ΔG on a 40-complex spread | 40 |
@@ -689,20 +715,13 @@ relieves clashes without changing the binding mode.)
 
 ## Install
 
-**Recommended — one command** (see [Quick start](#quick-start--one-command) above):
+> Almost everyone should use the one-command installer in
+> [Quick start](#quick-start--one-command) — it auto-detects your OS/GPU, creates both
+> environments, downloads the model weights, and runs the smoke test. Re-running it is safe.
+> This section is the manual equivalent, for when you want control over each step or the
+> script doesn't fit your setup.
 
-```bash
-./install.sh      # Linux / WSL2 / macOS
-# install.bat      # Windows (sets up WSL2, then runs install.sh inside it)
-```
-
-It auto-installs conda if missing, auto-detects your OS/GPU (CUDA, ROCm, Intel XPU, Apple
-MPS, or CPU) to pick the right PyTorch build, creates both environments, downloads the RAPiDock
-model weights, and runs the smoke test. Re-running it is safe — it skips anything already set up
-(pass `--force` to recreate an environment from scratch).
-
-**Manual, step by step** — useful if you want control over each step, or `install.sh` doesn't fit
-your setup:
+**Manual, step by step:**
 
 ```bash
 # 1. Scoring + analysis environment (the package itself)
@@ -715,9 +734,12 @@ conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
 # conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
 ```
 
-**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko` and
-AD4 grid maps from conda-forge `autogrid`, both declared in `envs/score-env.yml` with native Apple
-Silicon builds and no license click-through. The RAPiDock model weights (~55 MB) are fetched
+**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko`,
+declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps come from
+conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
+conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
+unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
+reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
 automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
 affects a backbone-rebuild path.
 

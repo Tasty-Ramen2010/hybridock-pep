@@ -208,9 +208,18 @@ Known limits, stated plainly:
 ```bash
 make verify                              # math-only checks, 30 s, no data needed
 python experiments/e330_ours_pdbbind.py  # the 925-complex headline
-python experiments/e331_ours_vs_ppiclone_clustered.py   # the matched comparison
 python experiments/e366_identity_threshold_trend.py     # the identity sweep
+python experiments/e367_gap_penalized_trend.py          # the identity-metric fix
 ```
+
+**One exception, stated up front.** `experiments/e331_ours_vs_ppiclone_clustered.py`
+— the matched ours-vs-PPI-clone comparison — does *not* run from a clean clone.
+It needs `data/e180_protdcal3d.jsonl`, which is `.gitignore`d, and that file's
+generator needs a module (`e158_overfit_failure_analysis`) that was never
+committed. Treat the head-to-head numbers in §4 as reported-but-not-yet-
+independently-reproducible until that is restored; everything else on this page
+reproduces from what ships. `tests/test_repro_claims.py` pins this so it cannot
+recur silently.
 
 Each script prints its own metrics; the head-to-head (`e331`) also writes a JSON
 receipt. Datasets, including everything too large for git, are archived on Zenodo
