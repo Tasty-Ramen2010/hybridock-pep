@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 
 from hybridock_pep.models import DockConfig
+from hybridock_pep.toolpath import which as _which
 from hybridock_pep.prep.errors import PrepError
 
 logger = logging.getLogger(__name__)
@@ -53,35 +53,42 @@ def _get_pdbqt_atom_types(pdbqt_path: Path) -> list[str]:
     return sorted(types)
 
 
-def _find_ad4_parameters_dat() -> str:
-    """Return absolute path to AD4_parameters.dat from the ADFRsuite install.
+def _find_ad4_parameters_dat() -> str | None:
+    """Return an absolute path to AD4_parameters.dat, or None if unavailable.
 
-    autogrid4 segfaults when given a relative path for parameter_file — it
-    fails to locate the file and crashes on a null pointer. Deriving the path
-    from the prepare_receptor binary location guarantees portability across
-    ADFRsuite install locations.
+    The ``parameter_file`` directive is OPTIONAL in a GPF: autogrid4 falls back
+    to its built-in AD4.2 parameters when it is absent. Verified against
+    conda-forge autogrid 4.2.9 — a GPF with no ``parameter_file`` produced all
+    9 maps and reported "Successful Completion".
+
+    So this is a preference, not a requirement. When ADFRsuite is installed we
+    use its parameter file, which keeps results identical to what the shipped
+    calibration was fitted against; otherwise we return None and the caller
+    omits the line.
+
+    An absolute path is required when we do emit it: autogrid4 segfaults on a
+    relative ``parameter_file`` path, dereferencing a null pointer after failing
+    to open it.
 
     Returns:
-        Absolute path string to AD4_parameters.dat.
-
-    Raises:
-        FileNotFoundError: If prepare_receptor or AD4_parameters.dat not found.
+        Absolute path string, or None to let autogrid4 use its built-ins.
     """
-    prepare_receptor_bin = shutil.which("prepare_receptor")
+    prepare_receptor_bin = _which("prepare_receptor")
     if prepare_receptor_bin is None:
-        raise FileNotFoundError(
-            "prepare_receptor not on PATH — cannot locate AD4_parameters.dat. "
-            "Install ADFRsuite and add its bin/ to PATH."
+        logger.debug(
+            "prepare_receptor not on PATH; omitting parameter_file so autogrid4 "
+            "uses its built-in AD4.2 parameters"
         )
+        return None
     # prepare_receptor lives in {ADFR_ROOT}/bin/; AD4_parameters.dat is at
     # {ADFR_ROOT}/CCSBpckgs/AutoDockTools/AD4_parameters.dat
     adfr_root = Path(prepare_receptor_bin).resolve().parent.parent
     params_path = adfr_root / "CCSBpckgs" / "AutoDockTools" / "AD4_parameters.dat"
     if not params_path.exists():
-        raise FileNotFoundError(
-            f"AD4_parameters.dat not found at {params_path}. "
-            "Check your ADFRsuite installation."
+        logger.debug(
+            "ADFRsuite present but %s missing; using autogrid4 built-ins", params_path
         )
+        return None
     return str(params_path)
 
 
@@ -120,7 +127,10 @@ def generate_ad4_maps(config: DockConfig, receptor_pdbqt: Path) -> Path:
     gpf_path.write_text(gpf_content)
     logger.info("GPF written: %s", gpf_path)
 
-    cmd = ["autogrid4", "-p", "receptor.gpf", "-l", "receptor.glg"]
+    # Resolve to an absolute path: autogrid4 is installed into score-env/bin,
+    # which is not on $PATH when the CLI is run by absolute path.
+    autogrid_bin = _which("autogrid4") or "autogrid4"
+    cmd = [autogrid_bin, "-p", "receptor.gpf", "-l", "receptor.glg"]
     logger.info("Running: %s (cwd=%s)", " ".join(cmd), maps_dir)
 
     result = subprocess.run(
@@ -191,7 +201,9 @@ def _build_gpf(config: DockConfig, maps_dir: Path, receptor_pdbqt: Path) -> str:
 
     lines = [
         f"npts {npts} {npts} {npts}",
-        f"parameter_file {_find_ad4_parameters_dat()}",
+        # parameter_file is optional; omitted entirely when ADFRsuite is absent
+        # so autogrid4 uses its built-in AD4.2 parameters.
+        *( [f"parameter_file {_ad4_params}"] if (_ad4_params := _find_ad4_parameters_dat()) else [] ),
         "gridfld receptor.maps.fld",
         f"spacing {_GRID_SPACING}",
         f"receptor_types {receptor_types_str}",

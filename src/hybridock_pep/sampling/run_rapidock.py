@@ -14,10 +14,19 @@ Uses RAPiDock-Reloaded (Tasty-Ramen2010/RAPiDock-Reloaded) which runs on:
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import sys
 from pathlib import Path
 from typing import Optional
+
+# Must be set before the FIRST `import torch` anywhere in this process.
+# _optimize_backends() below imports torch (unconditionally, before
+# inference.py is ever reached) and on macOS that collides with conda's
+# llvm-openmp (both link libomp.dylib), aborting with "OMP: Error #15" —
+# the SIGABRT kills Stage 1 before it can generate a single pose. inference.py
+# guards against this too, but only for imports that happen after it loads.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 
 def _seed_everything(seed):
@@ -60,6 +69,139 @@ def _seed_everything(seed):
     random.seed(seed)
 
 
+def _total_ram_gb():
+    # type: () -> float
+    """Physical RAM in GB, or 16.0 if it cannot be determined."""
+    try:
+        import os as _os
+        return (_os.sysconf("SC_PAGE_SIZE") * _os.sysconf("SC_PHYS_PAGES")) / 1e9
+    except (ValueError, OSError, AttributeError):
+        return 16.0
+
+
+def _default_batch_cap():
+    # type: () -> int
+    """Largest per-step batch that fits in RAM without swapping.
+
+    Batching more poses per denoising step cuts MPS dispatch overhead, but each
+    batched pose costs roughly 0.5 GB of peak working set (GPU-side activations
+    plus the CPU-side graph copies sampling.py holds). Exceed physical RAM and
+    the run does not degrade gracefully -- it falls off a cliff into swap.
+
+    Measured on a 16 GB M3, --n-samples 100, 1YCR/MDM2 + 12-mer:
+
+        batch   4    8   16   20    24    32
+        wall   98s  70s  62s  64s   83s  398s
+        swap  -24M -80M -32M +638M +1.8G +4.8G
+
+    Batch 32 is 6.4x slower than batch 16 purely from paging, and worse than
+    the batch of 4 this wrapper used to hardcode.
+
+    Note how asymmetric that curve is. Undershooting the optimum costs ~15%
+    (batch 8 is 70s against 62s); overshooting costs 640%. The throughput
+    curve is nearly flat from 8 to 20 and then falls off a cliff, so this
+    deliberately aims *below* the measured optimum: budget 45% of physical
+    memory at ~0.5 GB/pose, giving 15 on this 16 GB machine (which reports
+    17.2 GB) against a measured optimum of 16 and first swapping at 20.
+    Guessing low is nearly free; guessing high is not.
+
+    Override with HYBRIDOCK_RAPIDOCK_BATCH if you know your machine.
+    """
+    cap = int((_total_ram_gb() * 0.45) / 0.5)
+    return max(2, min(32, cap))
+
+
+def _compute_batch_size(n_samples, cap=None):
+    # type: (int, int) -> int
+    """Pick how many poses' diffusion-step forward passes get batched together.
+
+    Diffusion sampling batches poses into forward passes per denoising step.
+    This wrapper used to hardcode 4 regardless of --n-samples, forcing e.g. a
+    10-pose run into 3 separate MPS forward passes per step instead of 1.
+
+    Each MPS kernel dispatch carries real fixed overhead (MPS lacks CUDA-style
+    Tensor Core batching and has documented higher per-op dispatch latency --
+    https://github.com/pytorch/pytorch/issues/122123), so 3 calls of ~3 samples
+    cost far more than 1 call of 10. Measured: n=10 went from 19.5s
+    (batch_size=4) to 10.6s (batch_size=10).
+
+    The upper bound is a memory limit, not a throughput one -- see
+    :func:`_default_batch_cap` for the measurements behind it. Batching is not
+    free above that point; it is catastrophic.
+
+    Args:
+        n_samples: The requested --n-samples / rd_args.N value.
+        cap: Maximum poses per batch. Defaults to the RAM-derived cap.
+
+    Returns:
+        The batch size to pass as rd_args.batch_size.
+    """
+    env = os.environ.get("HYBRIDOCK_RAPIDOCK_BATCH")
+    if env:
+        try:
+            forced = int(env)
+            if forced > 0:
+                return min(n_samples, forced)
+        except ValueError:
+            pass
+    if cap is None:
+        cap = _default_batch_cap()
+    return min(n_samples, cap)
+
+
+def _disable_jit_fusion_if_arch_unsupported(torch):
+    # type: (object) -> bool
+    """Turn off TorchScript GPU fusion when the wheel cannot codegen for this GPU.
+
+    PyTorch's TensorExpr fuser compiles fused kernels at runtime with NVRTC,
+    passing the device's compute capability as `-arch`. NVRTC only accepts an
+    architecture the shipped toolkit knows. On a GPU newer than the wheel —
+    the DGX Spark's GB10 is sm_121 while torch 2.7.0+cu128 reports
+    `arch_list == ['sm_90', 'sm_100', 'sm_120']` — every fused kernel dies with
+
+        nvrtc: error: invalid value for --gpu-architecture (-arch)
+
+    RAPiDock swallows that into "0 poses generated", so Stage 1 fails on
+    hardware where everything else (cuBLAS, cuDNN, eager kernels) works fine.
+
+    Only the runtime *codegen* path is broken, so disabling GPU fusion is
+    enough; the same ops then run as unfused eager kernels. Applied only when
+    the device's capability is genuinely missing from the build, so machines
+    with a matching wheel keep the fuser.
+
+    Returns:
+        True if fusion was disabled, False if the wheel supports this GPU.
+    """
+    try:
+        major, minor = torch.cuda.get_device_capability(0)
+        arch_list = torch.cuda.get_arch_list()
+    except Exception:  # pragma: no cover - ROCm and odd builds
+        return False
+    # ROCm reports gfx* targets; this whole failure mode is NVRTC-specific.
+    if not any(a.startswith("sm_") for a in arch_list):
+        return False
+    if "sm_{}{}".format(major, minor) in arch_list:
+        return False
+    for setter, arg in (
+        ("_jit_set_texpr_fuser_enabled", False),
+        ("_jit_override_can_fuse_on_gpu", False),
+        ("_jit_set_nvfuser_enabled", False),
+        ("_jit_set_profiling_executor", False),
+    ):
+        try:
+            getattr(torch._C, setter)(arg)
+        except Exception:  # pragma: no cover - knob absent on some builds
+            pass
+    sys.stderr.write(
+        "[run_rapidock] GPU is sm_{}{} but this PyTorch build targets {} — "
+        "disabling TorchScript GPU fusion so NVRTC is never asked to compile "
+        "for an architecture it does not know. Sampling runs unfused.\n".format(
+            major, minor, ", ".join(arch_list)
+        )
+    )
+    return True
+
+
 def _optimize_backends():
     # type: () -> str
     """Apply per-backend performance knobs for whichever device PyTorch will use.
@@ -99,7 +241,10 @@ def _optimize_backends():
             torch.backends.cudnn.benchmark = True  # autotune convs for fixed shapes
         except Exception:  # pragma: no cover - knob unavailable on old builds
             pass
-        return "CUDA/ROCm (TF32 fast path)"
+        label = "CUDA/ROCm (TF32 fast path)"
+        if _disable_jit_fusion_if_arch_unsupported(torch):
+            label += ", JIT GPU fusion off"
+        return label
 
     # Intel XPU — importing ipex registers fused kernels + the xpu device.
     if hasattr(torch, "xpu") and getattr(torch.xpu, "is_available", lambda: False)():
@@ -123,6 +268,65 @@ def _optimize_backends():
     except Exception:  # pragma: no cover
         pass
     return "CPU (threads tuned)"
+
+
+PROGRESS_PREFIX = "[[HDP-PROGRESS]]"
+
+
+def _install_progress_probe(rd_inference, rd_args):
+    # type: (object, object) -> None
+    """Emit machine-readable sampling progress on stdout for the parent process.
+
+    Pose generation is the longest silent stretch of a run (minutes on MPS with
+    no output at default verbosity), which is exactly when a non-expert decides
+    the tool has hung. RAPiDock has no progress callback, so we derive one.
+
+    The denoising loop runs `actual_steps` diffusion steps, and inside each step
+    iterates the batched pose set — so the model's forward is called exactly
+    once per (step, batch). Both counts are known up front, which makes total
+    forward calls a genuine, monotonic progress denominator rather than a guess.
+
+    Wrapping the *model* rather than editing RAPiDock keeps this entirely on our
+    side of the submodule boundary: third_party/RAPiDock is a pinned git
+    submodule, so any edit there would be unpushable and lost on re-clone.
+
+    Never fatal: any failure here silently leaves sampling unmonitored rather
+    than breaking the run that the user actually asked for.
+    """
+    try:
+        _orig_sampling = rd_inference.sampling
+    except AttributeError:
+        return
+
+    def _sampling_with_progress(data_list, model, args, *a, **kw):
+        try:
+            steps = kw.get("actual_steps") or kw.get("inference_steps") or 0
+            batch_size = kw.get("batch_size") or 1
+            n_batches = max(1, -(-len(data_list) // batch_size))  # ceil div
+            total = int(steps) * n_batches
+        except Exception:
+            total = 0
+        if total <= 0 or not hasattr(model, "forward"):
+            return _orig_sampling(data_list, model, args, *a, **kw)
+
+        state = {"n": 0}
+        _orig_forward = model.forward
+
+        def _counting_forward(*fa, **fkw):
+            state["n"] += 1
+            # stdout is the parent's structured channel; RAPiDock's own chatter
+            # goes to stderr, so these lines never interleave with it.
+            print("%s %d %d" % (PROGRESS_PREFIX, min(state["n"], total), total))
+            sys.stdout.flush()
+            return _orig_forward(*fa, **fkw)
+
+        model.forward = _counting_forward
+        try:
+            return _orig_sampling(data_list, model, args, *a, **kw)
+        finally:
+            model.forward = _orig_forward
+
+    rd_inference.sampling = _sampling_with_progress
 
 
 def main():
@@ -242,7 +446,7 @@ def main():
     if rd_args.actual_steps is None:
         rd_args.actual_steps = 16
     if rd_args.batch_size is None:
-        rd_args.batch_size = 4
+        rd_args.batch_size = _compute_batch_size(rd_args.N)
     if rd_args.conformation_partial is None:
         rd_args.conformation_partial = "1:1:1"
 
@@ -260,6 +464,8 @@ def main():
             raise
 
     rd_inference.process_complex = _process_with_traceback
+
+    _install_progress_probe(rd_inference, rd_args)
 
     # Invoke RAPiDock inference — writes rank*.pdb to {output_dir}/poses_raw/
     rd_inference.main(rd_args)

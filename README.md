@@ -7,31 +7,56 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
+[![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
 
-**New here?** [RESULTS.md](RESULTS.md) — every leakage-free number + how to reproduce it · [MODEL_CARD.md](MODEL_CARD.md) — which of the 10 `data/*.joblib` actually ship & the honest limits · 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+### 📺 Watch the tutorial
 
-> **Tests:** ~429 collected, 419 pass with the full toolchain installed (`pytest`; see [Testing](#testing)).
+**[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** · start here if you have
+never used a docking tool before. It goes from a clean machine through install, the first scored
+result, and the guided terminal UI. The written version is [Command
+reference](#command-reference--install-test-run-ui) below.
+
+**New here? Read these three, in this order:**
+
+| | |
+|---|---|
+| **[METHODS.md](METHODS.md)** | What it does and how it was validated — the whole method in a few minutes. **Start here.** |
+| **[RESULTS.md](RESULTS.md)** | Every leakage-free number, and the command that reproduces each one. |
+| **[MODEL_CARD.md](MODEL_CARD.md)** | Which of the 10 `data/*.joblib` actually ship, and the honest limits. |
+
+Then run the 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/) and [`docs/`](docs/README.md). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+
+> **Tests:** 676 pass, 66 skip with a standard `score-env` (`pytest`; see [Testing](#testing)).
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
-> with their own licenses (ADFRsuite, AutoDock4, PULCHRA, RAPiDock) — see [`INSTALL.md`](INSTALL.md).
+> with their own licenses (AutoDock4, PULCHRA, RAPiDock, and optionally ADFRsuite) — see [`INSTALL.md`](INSTALL.md).
 
 ## Table of contents
 
+**Get it running**
 1. [Quick start — one command](#quick-start--one-command)
-2. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
-3. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
-4. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
-5. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
-6. [Pipeline — the full workflow](#pipeline--the-full-workflow)
-7. [Install](#install)
-8. [Usage](#usage)
-9. [Repository structure](#repository-structure)
-10. [Testing](#testing)
-11. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
-12. [Roadmap](#roadmap--to-do)
-13. [Evaluation methodology](#evaluation-methodology)
-14. [Project status](#project-status)
-15. [Citations](#citations)
-16. [License](#license)
+2. [Command reference — install, test, run, UI](#command-reference--install-test-run-ui)
+3. [Usage — the six subcommands](#usage)
+
+**Understand it** — the short version is [METHODS.md](METHODS.md)
+
+4. [Pipeline — the full workflow](#pipeline--the-full-workflow)
+5. [Evaluation methodology](#evaluation-methodology)
+
+**Check the claims**
+
+6. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
+7. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
+8. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
+9. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
+10. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
+
+**Reference**
+
+11. [Install — manual walkthrough](#install)
+12. [Repository structure](#repository-structure)
+13. [Testing](#testing)
+14. [Roadmap](#roadmap--to-do)
+15. [Project status](#project-status) · [Citations](#citations) · [License](#license)
 
 ---
 
@@ -47,10 +72,19 @@ cd hybridock-pep
 
 That's it for most machines: `install.sh` auto-detects your OS/GPU, creates both conda
 environments with the right PyTorch build, downloads the RAPiDock model weights, and finishes by
-launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. The **one**
-step it can't automate is [ADFRsuite](https://ccsb.scripps.edu/adfrsuite/downloads/) — Scripps
-requires a manual license click-through — the script tells you exactly what to do if it's missing,
-and everything else still works while you get it (see [Install](#install) for what each piece needs).
+launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. Every step
+is automated — there is no license click-through. Receptor prep uses [meeko](https://github.com/forlilab/Meeko)
+(`mk_prepare_receptor.py`), installed for you and native on Apple Silicon. ADFRsuite is **not**
+required; it is used automatically if you already have it on PATH — see [Install](#install).
+
+> **Be patient — this genuinely takes 10–30 minutes**, most of it two long, silent `conda`
+> dependency-solve steps and a PyTorch download (hundreds of MB). If the terminal looks frozen on
+> a line like `Solving environment: \` for several minutes, that is normal — conda just doesn't
+> print progress during a solve. Don't Ctrl-C it. You don't need to open a second terminal, run
+> `conda activate` yourself, or launch anything by hand — the script does that, and drops you
+> straight into the guided UI when it's done. (That last step needs a real terminal window you
+> typed the command into directly — it won't work piped into a file or run over some restricted
+> remote shells.)
 
 Prefer to do it by hand, or just want to see what's happening under the hood? The full manual
 walkthrough is in [INSTALL.md](INSTALL.md).
@@ -95,11 +129,18 @@ hybridock-pep crystal-score \
 The command prints one line:
 
 ```
-Crystal ΔG = -10.07 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
+Crystal ΔG = -9.28 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
 ```
 
-The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM). A
-result within a few kcal/mol of that number confirms your install works correctly.
+The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM).
+Anything in the **−8 to −11** range confirms your install works correctly. The exact figure shifts
+by up to ~1 kcal/mol depending on your resolved `scikit-learn`/`numpy` versions (the model is a
+GBT and its geometry/interaction features are version-sensitive), so a small difference is not a
+sign anything is broken. On a given pinned stack the result is deterministic — repeated runs agree
+exactly.
+
+Note this command does **not** exercise receptor PDBQT preparation; it scores the pose you give it
+directly. It validates the scoring stack, not `meeko`/`autogrid4`. Use `hybridock-pep prep` for those.
 
 **What you just ran:** `crystal-score` scores an existing, already-docked peptide pose. It skips
 pose generation (RAPiDock), clash-relief (Vina), and MM-GBSA entirely — the fastest way to confirm
@@ -110,7 +151,152 @@ sequence alone, run a real end-to-end dock on the same shipped receptor:
 make demo   # hybridock-pep dock on 1YCR, 20 RAPiDock passes — needs the rapidock env, see below
 ```
 
-That needs the second environment (GPU pose sampling) — see [Install](#install).
+That needs the second environment (GPU pose sampling) — see [Install](#install). Stage 2 receptor
+prep uses meeko's `mk_prepare_receptor.py`, and `--scoring ad4` uses conda-forge `autogrid` — no
+ADFRsuite needed. If ADFRsuite happens to be on PATH it is preferred, which keeps results identical
+to earlier installs.
+
+---
+
+## Command reference — install, test, run, UI
+
+Everything you need, in the order you need it. Copy-paste safe on a brand-new machine.
+
+> 📺 Prefer to watch? **[Tutorial video — setup and first run](https://youtu.be/ro9CukQCW44)** covers
+> this whole section on a clean machine.
+
+### 1. Install (one command)
+
+```bash
+git clone --recurse-submodules https://github.com/Tasty-Ramen2010/hybridock-pep.git
+cd hybridock-pep
+./install.sh
+```
+
+`install.sh` installs conda if missing, initialises the RAPiDock submodule, creates both conda
+environments with the right PyTorch build for your GPU, **downloads and checksum-verifies the
+model weights (~55 MB) from Zenodo**, checks the receptor-prep tooling, runs a smoke test, and
+opens the UI.
+
+Budget **15–30 minutes**, mostly conda solving. It is quiet for long stretches — that is normal.
+
+| flag | effect |
+|---|---|
+| `--no-ui` | don't auto-launch the UI at the end |
+| `--force` | recreate the conda environments from scratch |
+| `--skip-rapidock` | scoring environment only (no GPU sampling) |
+| `-h` | full flag list |
+
+Then, in every new shell:
+
+```bash
+conda activate score-env
+```
+
+### 2. Test
+
+```bash
+pytest                  # fast suite — expect 670 passed, 55 skipped, ~18 s
+pytest -m slow          # real Vina / OpenMM / terminal tests, ~55 min
+pytest tests/test_tui.py    # just the UI
+pytest -k mmgbsa            # one area
+```
+
+Skips are **not** failures — they are the `slow` tier plus tests for optional tools.
+
+### 3. Check the install actually works
+
+```bash
+hybridock-pep crystal-score \
+    --receptor    data/pdbs/1YCR_mdm2.pdb \
+    --peptide-pdb data/pdbs/1YCR_peptide.pdb \
+    --peptide     ETFSDLWKLLPE
+```
+
+Expect **`Crystal ΔG = -9.28 kcal/mol`**. Anything from −8 to −11 means a healthy install. The
+result is deterministic — repeated runs agree exactly.
+
+### 4. Run a real docking job
+
+```bash
+hybridock-pep dock \
+    --peptide ETFSDLWKLLPE \
+    --receptor data/pdbs/1YCR_mdm2.pdb \
+    --site 25.20 -25.61 -7.97 --box 30 \
+    --n-samples 100 \
+    --output-dir runs/demo
+```
+
+About 2 minutes on an Apple M3. You will see live progress bars for each stage:
+
+```
+▶ [1/4] Generating poses…
+   [##############--------------]  50.0%  56/112 denoising steps  ETA 34s
+   ✓ Generating poses  (64s)
+▶ [2/4] Preparing receptor & ligands…
+   [############################] 100.0%  100/100 ligands prepared
+```
+
+Results land in `runs/demo/best_pose.pdb` and `runs/demo/ranked_poses.csv`.
+
+> `--site` is the **centre of the binding pocket**, in ångströms, and it must match the receptor
+> you passed. Getting it wrong is the most common mistake: the run completes but searches empty
+> space. See `hybridock-pep guide dock`, or help topic 8 in the UI.
+
+Add `--refine-topk 10` for MM-GBSA refinement (slower, more accurate), or `-v` for full logs
+instead of progress bars.
+
+### 5. The terminal UI
+
+```bash
+./launch_ui.sh              # full-screen guided UI
+./launch_ui.sh --demo       # simulated run, no GPU — the best place to start
+./launch_ui.sh --print      # build the command without running it
+./launch_ui.sh --cli        # plain wizard, for SSH or dumb terminals
+hybridock-tui               # identical to ./launch_ui.sh
+```
+
+**The first time you open it you get a guided walkthrough automatically.** After that:
+
+| key | action |
+|---|---|
+| `↑` / `↓` | move between form fields (Tab / Shift-Tab also work) |
+| `Ctrl-C` | **STOP** — abort a running job and everything it spawned |
+| `Ctrl-G` | help — 10 topics, including selectivity, crystal scoring, AI vs physics scoring, calibration |
+| `Ctrl-W` | reopen the welcome walkthrough |
+| `Ctrl-T` | Demo run (no GPU) |
+| `Ctrl-R` | Full run |
+| `Ctrl-B` | browse for a file |
+| `Ctrl-Q` | quit |
+
+The field you are editing is marked with a `▶` and a yellow label, so you can always see where you
+are. Inside help, press `0`–`9` to jump between topics. You can also drag a `.pdb` file from Finder
+straight onto any path field.
+
+> `Ctrl-C` **stops the run, it does not quit the program** — quitting is `Ctrl-Q`. The stop signals
+> the whole process group, so the `rapidock` sampling child dies too rather than being orphaned on
+> your GPU.
+
+### 6. Built-in guide (no UI needed)
+
+```bash
+hybridock-pep guide           # overview
+hybridock-pep guide dock      # one command, with measured numbers
+hybridock-pep guide prep      # receptor prep, and why the backend doesn't change your ΔG
+hybridock-pep guide tuning    # environment switches and Apple Silicon notes
+hybridock-pep guide all
+```
+
+### 7. Environment switches
+
+| variable | effect |
+|---|---|
+| `HYBRIDOCK_RAPIDOCK_BATCH=N` | poses per diffusion step (default derived from RAM) |
+| `HYBRIDOCK_MMGBSA_FAST=1` | 5.4× faster MM-GBSA; shifts ΔG by up to ~4.5 kcal/mol |
+| `RAPIDOCK_DISABLE_METAL_TP=1` | disable the fused Metal kernel (A/B testing) |
+
+> A full `dock` run uses the separate `rapidock` environment for Stage 1 sampling, which needs
+> `KMP_DUPLICATE_LIB_OK=TRUE`. `install.sh` configures that for you.
 
 ---
 
@@ -431,13 +617,24 @@ method**, ours included (we publish it rather than hide it). This is exactly why
 
 ## Datasets — download and test for yourself
 
-Everything above is reproducible from data shipped in this repo. All files are small, plain-text, and
-MIT-licensed (derived features + public experimental affinities — no redistributed third-party structures).
+These files are small, plain-text, and MIT-licensed (derived features + public experimental
+affinities — no redistributed third-party structures). All of them ship in this repo except one,
+called out in the table and explained under it.
+
+> **One gap, stated plainly.** `data/e180_protdcal3d.jsonl` — the ProtDCal-3D feature file for the
+> PPI-Affinity clone — is **not in this repository**, so test ① (the ours-vs-clone head-to-head) is
+> **not currently reproducible from a clean clone**. The file is `.gitignore`d, and its generator
+> `experiments/e180_protdcal_925.py` cannot run either: it imports
+> `e158_overfit_failure_analysis`, which was never committed (48 experiment scripts depend on that
+> module for `greedy_cluster()` and `pocket_seq()`). Every other number on this page — the 925-complex
+> headline, the identity sweep, PPIKB, the Wang 2024 external holdout — reproduces from what is here.
+> `tests/test_repro_claims.py` guards the rest of the table so this cannot happen silently again, and
+> carries a strict `xfail` that flips green the moment the missing module is restored.
 
 | File | What it is | Rows |
 |---|---|---|
 | [`data/pdbbind_peptides.jsonl`](data/pdbbind_peptides.jsonl) | 925 PDBbind protein–peptide complexes with experimental K_d/K_i, our 16 structural features + sequence per complex | 925 |
-| [`data/e180_protdcal3d.jsonl`](data/e180_protdcal3d.jsonl) | PPI-Affinity-clone features (37 ProtDCal-3D intra-peptide descriptors) per complex — the head-to-head baseline | ~900 |
+| `data/e180_protdcal3d.jsonl` — **not shipped, see below** | PPI-Affinity-clone features (37 ProtDCal-3D intra-peptide descriptors) per complex — the head-to-head baseline | ~900 |
 | [`data/e331_matched_pdbids.json`](data/e331_matched_pdbids.json) | The exact 865 PDB IDs in the leakage-free ours-vs-PPI-clone head-to-head (both models can score) | 865 |
 | [`data/e329_ref2015_pdbbind.json`](data/e329_ref2015_pdbbind.json) | Rosetta ref2015 / FlexPepDock unrelaxed interface-ΔG (REU) for 918 of those complexes | 918 |
 | [`data/e331_relax_pdbbind.json`](data/e331_relax_pdbbind.json) | Unrelaxed vs interface-relaxed ref2015 interface-ΔG on a 40-complex spread | 40 |
@@ -518,20 +715,13 @@ relieves clashes without changing the binding mode.)
 
 ## Install
 
-**Recommended — one command** (see [Quick start](#quick-start--one-command) above):
+> Almost everyone should use the one-command installer in
+> [Quick start](#quick-start--one-command) — it auto-detects your OS/GPU, creates both
+> environments, downloads the model weights, and runs the smoke test. Re-running it is safe.
+> This section is the manual equivalent, for when you want control over each step or the
+> script doesn't fit your setup.
 
-```bash
-./install.sh      # Linux / WSL2 / macOS
-# install.bat      # Windows (sets up WSL2, then runs install.sh inside it)
-```
-
-It auto-installs conda if missing, auto-detects your OS/GPU (CUDA, ROCm, Intel XPU, Apple
-MPS, or CPU) to pick the right PyTorch build, creates both environments, downloads the RAPiDock
-model weights, and runs the smoke test. Re-running it is safe — it skips anything already set up
-(pass `--force` to recreate an environment from scratch).
-
-**Manual, step by step** — useful if you want control over each step, or `install.sh` doesn't fit
-your setup:
+**Manual, step by step:**
 
 ```bash
 # 1. Scoring + analysis environment (the package itself)
@@ -544,10 +734,17 @@ conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
 # conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
 ```
 
-ADFRsuite + PULCHRA are license-restricted and **not** redistributed here — see
-[INSTALL.md](INSTALL.md) for the one-time download (this is the one step `install.sh` can't do
-for you). Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for
-a guided walkthrough.
+**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko`,
+declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps come from
+conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
+conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
+unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
+reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
+automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
+affects a backbone-rebuild path.
+
+Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
+walkthrough.
 
 ---
 
@@ -625,7 +822,7 @@ hybridock-pep crystal-score \
     --receptor receptors/mdm2.pdb \
     --peptide-pdb poses/native_peptide.pdb \
     --peptide ETFSDLWKLLPE
-# → Crystal ΔG = -10.07 kcal/mol  (geometry + interaction map, crystal-tuned model)
+# → Crystal ΔG = -9.28 kcal/mol  (geometry + interaction map, crystal-tuned model)
 ```
 
 No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crystal model
@@ -637,7 +834,7 @@ No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crys
 hybridock-pep prep --receptor receptors/mdm2.pdb --output-dir prepped/
 ```
 
-Wraps `prepare_receptor` (ADFRsuite) so you can cache the receptor once and reuse it across many `dock` runs.
+Wraps receptor preparation (meeko `mk_prepare_receptor.py`, or ADFRsuite `prepare_receptor` when present) so you can cache the receptor once and reuse it across many `dock` runs.
 
 ### `calibrate` — fit the ΔG correction to your own data
 
@@ -659,6 +856,25 @@ hybridock-pep benchmark \
     --baselines vina,adcp \
     --report benchmark_report.md
 ```
+
+### ARM Linux (DGX Spark, Grace, Graviton, Ampere)
+
+Verified end-to-end on a DGX Spark (GB10, `linux-aarch64`): 693 tests pass and
+`dock` completes. Two platform limits, both handled automatically:
+
+- **No `autogrid` build on conda-forge for `linux-aarch64`**, so `--scoring ad4`
+  is unavailable. AD4 is off by default and the reported ΔG comes from the affinity
+  model, so nothing else changes. The installer says so instead of failing.
+- **No `openbabel` build for Python 3.11 either**, so neither `babel` nor `obabel`
+  exists. Ligand prep falls back to meeko's Polymer route. It works, but converts
+  fewer poses than babel (7/20 on a 1YCR `--n-samples 20` run) because meeko
+  rejects poses it cannot template-pad — raise `--n-samples` to compensate.
+
+If your GPU is newer than the PyTorch wheel that gets installed (the GB10 is
+`sm_121`; the cu128 wheel targets `sm_90/100/120`), Stage 1 detects it and disables
+TorchScript GPU fusion, which is the only part that needs runtime NVRTC codegen.
+Without that, every fused kernel dies with `nvrtc: error: invalid value for
+--gpu-architecture` and sampling silently produces zero poses.
 
 ### Cross-platform & accelerator tuning (CUDA · ROCm · oneAPI · Metal · CPU)
 
@@ -711,7 +927,7 @@ visualization; it is ligand-format and not meant for re-scoring.)
 hybridock-pep/
 ├── README.md · RESULTS.md · MODEL_CARD.md   # start here — quickstart, benchmarks, shipped models
 ├── CLAUDE.md                      # AI-assistant project instructions
-├── INSTALL.md                     # license-restricted binary setup (ADFRsuite, PULCHRA)
+├── INSTALL.md                     # environment setup + optional license-restricted extras (PULCHRA)
 ├── Makefile                       # make install / verify / demo / reproduce / test
 ├── LICENSE                        # MIT
 ├── pyproject.toml                 # score-env package definition
@@ -743,8 +959,8 @@ hybridock-pep/
 
 ```bash
 pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
-pytest                           # 419 fast unit tests
-pytest -m slow                   # + integration tests (MDM2/p53, ~30 min)
+pytest                           # fast suite — 670 passed, 55 skipped, ~18 s
+pytest -m slow                   # + integration tests (real Vina/OpenMM/pty, ~55 min)
 pytest --cov=hybridock_pep       # coverage
 ```
 
@@ -752,10 +968,11 @@ pytest --cov=hybridock_pep       # coverage
 > `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`. `OMP_NUM_THREADS=1` keeps the sklearn-heavy
 > scoring tests fast.
 >
-> **Full disclosure on the count:** ~429 non-slow tests are collected; **419 pass with the full toolchain
-> installed** (ADFRsuite `prepare_receptor` on PATH, the `rapidock` conda env, Meeko). In a bare sandbox
-> without those external binaries, ~30 tests skip/fail on missing-toolchain errors (not logic bugs) — so the
-> "419" number assumes you've built the full stack per [Install](#install).
+> **Full disclosure on the count:** the pass/skip split depends on which optional tools you have.
+> With a standard `score-env` (meeko, autogrid4, openbabel) the fast suite is **670 passed,
+> 55 skipped**. The skips are the `slow`-marked tier plus tests needing tools you may not have
+> installed — they are skips, not failures. `pytest -m slow` runs the real-Vina, real-OpenMM and
+> real-terminal tests, and takes roughly 55 minutes.
 
 ## Reproduce every number in this README
 

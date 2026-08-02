@@ -28,6 +28,7 @@ import re
 import platform
 import shutil
 import subprocess
+from collections import deque
 import sys
 import threading
 from pathlib import Path
@@ -103,19 +104,34 @@ def _detect_device_platform() -> str:
     return "CPU (Linux — no GPU detected)"
 
 
-def _stream_stderr(stderr_pipe) -> None:
+#: Trailing RAPiDock stderr kept in memory so a failure can quote it. Sized to
+#: hold a Python traceback plus surrounding context without unbounded growth
+#: (RAPiDock prints a progress bar to stderr on every step).
+_STDERR_TAIL_LINES = 40
+
+
+def _stream_stderr(stderr_pipe, sink: deque | None = None) -> None:
     """Drain RAPiDock stderr line-by-line on a daemon thread; emit to logger.
 
     Must run on a daemon thread — the main thread reads stdout. Running both
     readline loops on the same thread would deadlock when the pipe buffers fill.
 
+    Lines also go into `sink`, a bounded deque, because they are logged at
+    DEBUG: at the default log level "check stderr logs above" pointed the user
+    at output that was never printed. Keeping the tail lets the failure quote
+    the actual cause. (A GB10 host failed here with an NVRTC arch error that
+    was invisible without -vv.)
+
     Args:
         stderr_pipe: Opened stderr binary pipe from subprocess.Popen.
+        sink: Optional bounded deque collecting the trailing lines.
     """
     for raw_line in iter(stderr_pipe.readline, b""):
         line = raw_line.decode("utf-8", errors="replace").rstrip()
         if line:
             logger.debug("[rapidock stderr] %s", line)
+            if sink is not None:
+                sink.append(line)
 
 
 # Repo-bundled submodule: src/hybridock_pep/sampling/ → src/hybridock_pep/ → src/ → repo root
@@ -316,14 +332,36 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     # Drain stderr on daemon thread — prevents pipe buffer deadlock when stderr fills
-    t = threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True)
+    stderr_tail: deque = deque(maxlen=_STDERR_TAIL_LINES)
+    t = threading.Thread(
+        target=_stream_stderr, args=(proc.stderr, stderr_tail), daemon=True
+    )
     t.start()
 
-    # Drain stdout on main thread — readline sentinel loop
+    # Drain stdout on main thread — readline sentinel loop.
+    # The shim emits "[[HDP-PROGRESS]] <done> <total>" once per diffusion
+    # step/batch; render those as a live bar so the longest silent stage of the
+    # run visibly moves. Anything else stays DEBUG chatter.
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+    from hybridock_pep.sampling.run_rapidock import PROGRESS_PREFIX  # noqa: PLC0415
+
+    saw_progress = False
     for raw_line in iter(proc.stdout.readline, b""):
         line = raw_line.decode("utf-8", errors="replace").rstrip()
-        if line:
-            logger.debug("[rapidock stdout] %s", line)
+        if not line:
+            continue
+        if line.startswith(PROGRESS_PREFIX):
+            try:
+                done_s, total_s = line[len(PROGRESS_PREFIX):].split()
+                _progress.tick(int(done_s), int(total_s), "denoising steps")
+                saw_progress = True
+            except ValueError:
+                logger.debug("[rapidock stdout] malformed progress line: %s", line)
+            continue
+        logger.debug("[rapidock stdout] %s", line)
+
+    if saw_progress:
+        _progress.clear()
 
     proc.wait()
     t.join()
@@ -364,8 +402,14 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
 
     # Zero poses = hard failure
     if len(renamed) == 0:
+        tail = "\n".join(f"    {ln}" for ln in stderr_tail)
+        detail = (
+            f"\n\nLast {len(stderr_tail)} lines of RAPiDock stderr:\n{tail}"
+            if stderr_tail
+            else "\n\nRAPiDock printed nothing to stderr. Re-run with -vv for full logs."
+        )
         raise RuntimeError(
-            f"RAPiDock produced 0 poses in {raw_dir}. Check stderr logs above."
+            f"RAPiDock produced 0 poses in {raw_dir}.{detail}"
         )
 
     # Shortfall = warning only; caller decides what to do

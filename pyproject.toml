@@ -22,6 +22,9 @@ dependencies = [
     "scikit-learn>=1.8,<1.9",
     "openmm>=8.1",
     "pdbfixer>=1.9",
+    # launch_ui.sh / hybridock_pep.ui.tui (the guided terminal UI install.sh
+    # auto-launches at the end of setup) imports this unconditionally.
+    "prompt_toolkit>=3.0",
     # make verify / make test (the documented judge-facing path) need pytest present
     # right after `pip install -e .` — no separate dev-extras step should be required.
     "pytest>=8.0",
@@ -50,6 +53,10 @@ dev = [
 
 [project.scripts]
 hybridock-pep = "hybridock_pep.cli:main"
+# The TUI documents itself as `hybridock-tui` in its own --help and in
+# launch_ui.sh's banner, but the console script was never registered, so that
+# command did not exist after a normal install.
+hybridock-tui = "hybridock_pep.ui.tui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -69,7 +76,7 @@ python_version = "3.11"
 
 [tool.pytest.ini_options]
 markers = [
-    "slow: slow integration tests requiring full score-env tool stack (Vina, Meeko, ADFRsuite)",
+    "slow: slow integration tests requiring the full score-env tool stack (Vina, meeko, autogrid4)",
 ]
 testpaths = ["tests"]
 norecursedirs = ["hybridock-pep", "third_party", "envs", "runs", "logs", "data", ".git"]

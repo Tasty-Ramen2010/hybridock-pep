@@ -2,7 +2,7 @@
 REM HybriDock-Pep - Windows launcher.
 REM
 REM HybriDock-Pep does not have a native Windows install path: RAPiDock's CUDA
-REM stack, conda, and ADFRsuite are only supported on Linux/WSL2 and macOS (see
+REM stack and conda are only supported on Linux/WSL2 and macOS (see
 REM the platform table in INSTALL.md). This script sets up WSL2 for you if you
 REM don't have it, then runs the real installer (install.sh) inside WSL2 -
 REM which gives you full CUDA passthrough to your NVIDIA GPU, exactly like a

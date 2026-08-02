@@ -69,8 +69,15 @@ class TestRapidockRunner:
 
         run_sampling(config)
 
-        assert len(captured_cmd) == 1, "Popen should be called exactly once"
-        cmd = captured_cmd[0]
+        # On a CUDA host, backend detection shells out to `nvidia-smi` through
+        # the same Popen, so counting every call asserts "this machine has no
+        # GPU" rather than anything about the command. Select the sampling
+        # invocation instead.
+        sampling_cmds = [c for c in captured_cmd if any(str(a).endswith("run_rapidock.py") for a in c)]
+        assert len(sampling_cmds) == 1, (
+            f"expected exactly one run_rapidock.py invocation, got {captured_cmd}"
+        )
+        cmd = sampling_cmds[0]
 
         # Verify direct python3 invocation (no conda run — see module docstring)
         # cmd[0] must be the rapidock env's python3 (absolute path ending in python3)
@@ -459,3 +466,96 @@ class TestCrossPlatformDetection:
 
         mock_torch.manual_seed.assert_called_once_with(99)
         mock_cuda_mod.manual_seed_all.assert_called_once_with(99)
+
+
+class TestComputeBatchSize:
+    """_compute_batch_size — regression coverage for the MPS batching fix.
+
+    Diffusion sampling batches all requested poses into one (or a few)
+    forward passes per denoising step. This wrapper used to hardcode
+    batch_size=4 regardless of --n-samples, forcing e.g. a 10-pose run into
+    3 separate MPS forward passes per step instead of 1 — profiled on an M3
+    (8-core GPU) at a 1.84x wall-clock cost (MPS kernel dispatch carries
+    real fixed overhead per call: https://github.com/pytorch/pytorch/issues/122123).
+    The cap is a *memory* limit, not a throughput one, and it is derived
+    from physical RAM rather than fixed. A fixed cap of 32 was measured at
+    398s for --n-samples 100 on a 16 GB M3 versus 62s at batch 16 — 6.4x
+    slower, purely from swapping (+4.8 GB), and worse than the batch of 4
+    this wrapper originally hardcoded. Batching past the RAM budget does not
+    degrade gracefully; it falls off a cliff.
+    """
+
+    def _import_run_rapidock(self):
+        import sys
+
+        shim_path = Path(__file__).parent.parent / "src" / "hybridock_pep" / "sampling"
+        sys.path.insert(0, str(shim_path))
+        orig_rr = sys.modules.pop("run_rapidock", None)
+        try:
+            import run_rapidock as rr  # noqa: PLC0415
+            import importlib
+            importlib.reload(rr)
+            return rr
+        finally:
+            sys.path.pop(0)
+            if orig_rr is not None:
+                import sys as _sys
+                _sys.modules["run_rapidock"] = orig_rr
+
+    def test_small_n_uses_single_batch(self) -> None:
+        """A typical exploratory run gets one batch — the original speedup
+        fix: previously this would have been split into ceil(n/4) separate
+        MPS forward passes per diffusion step."""
+        rr = self._import_run_rapidock()
+        assert rr._compute_batch_size(1) == 1
+        assert rr._compute_batch_size(10) == 10
+
+    def test_large_n_is_capped(self) -> None:
+        """A large production run is capped, not batched unboundedly."""
+        rr = self._import_run_rapidock()
+        cap = rr._default_batch_cap()
+        assert rr._compute_batch_size(100) == cap
+        assert rr._compute_batch_size(1000) == cap
+        assert cap < 100
+
+    def test_cap_is_derived_from_physical_ram(self) -> None:
+        """The cap tracks RAM and deliberately sits just below the measured
+        optimum, because overshooting costs 640% and undershooting ~15%."""
+        rr = self._import_run_rapidock()
+        orig = rr._total_ram_gb
+        try:
+            rr._total_ram_gb = lambda: 16.0
+            assert rr._default_batch_cap() == 14
+            rr._total_ram_gb = lambda: 8.0
+            assert rr._default_batch_cap() == 7
+            rr._total_ram_gb = lambda: 128.0
+            assert rr._default_batch_cap() == 32   # absolute ceiling
+            rr._total_ram_gb = lambda: 1.0
+            assert rr._default_batch_cap() == 2    # floor, never 0
+        finally:
+            rr._total_ram_gb = orig
+
+    def test_env_override_wins(self) -> None:
+        """HYBRIDOCK_RAPIDOCK_BATCH is the documented escape hatch."""
+        import os
+
+        rr = self._import_run_rapidock()
+        orig = os.environ.get("HYBRIDOCK_RAPIDOCK_BATCH")
+        try:
+            os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = "8"
+            assert rr._compute_batch_size(100) == 8
+            assert rr._compute_batch_size(4) == 4      # still bounded by n
+            os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = "garbage"
+            assert rr._compute_batch_size(100) == rr._default_batch_cap()
+            os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = "0"
+            assert rr._compute_batch_size(100) == rr._default_batch_cap()
+        finally:
+            if orig is None:
+                os.environ.pop("HYBRIDOCK_RAPIDOCK_BATCH", None)
+            else:
+                os.environ["HYBRIDOCK_RAPIDOCK_BATCH"] = orig
+
+    def test_custom_cap_respected(self) -> None:
+        rr = self._import_run_rapidock()
+        assert rr._compute_batch_size(50, cap=16) == 16
+        assert rr._compute_batch_size(10, cap=16) == 10

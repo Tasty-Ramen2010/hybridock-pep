@@ -206,10 +206,16 @@ def minimize_poses_batch(pdb_paths: list[Path], output_dir: Path) -> list[Path]:
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Clash-relief minimization: %d poses → %s", len(pdb_paths), output_dir)
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
     results: list[Path] = []
-    for pdb_path in pdb_paths:
+    n_total = len(pdb_paths)
+    for done, pdb_path in enumerate(pdb_paths, 1):
+        _progress.tick(done - 1, n_total, "poses minimized")
         dest = output_dir / pdb_path.name
         results.append(minimize_pose(pdb_path, dest))
+    _progress.tick(n_total, n_total, "poses minimized")
+    _progress.clear()
     logger.info("Minimization complete: %d poses processed", len(results))
     return results
 

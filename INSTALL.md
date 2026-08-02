@@ -5,7 +5,7 @@ non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 
 > **Just want it installed?** Run `./install.sh` (Linux/WSL2/macOS) or
 > `install.bat` (Windows) from the repo root — it automates every step below
-> except ADFRsuite (license-gated, see Step 4), and finishes by launching a
+> including receptor-prep tooling (see Step 4), and finishes by launching a
 > guided terminal UI. The rest of this document is the manual walkthrough,
 > useful if you want to understand or control each step individually, or if
 > `install.sh` doesn't fit your setup.
@@ -15,7 +15,7 @@ non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 > |---|---|---|
 > | Linux x86-64 + CUDA | ✅ CUDA (full speed) | ✅ |
 > | WSL2 + CUDA passthrough | ✅ CUDA | ✅ |
-> | macOS Apple Silicon (M1–M4) | ✅ MPS (~10× slower than CUDA) | ✅ (ADFRsuite via Rosetta 2) |
+> | macOS Apple Silicon (M1–M4) | ✅ MPS (~10× slower than CUDA) | ✅ (native, no Rosetta) |
 > | macOS Intel | ✅ CPU (slow, use `--n-samples 10`) | ✅ |
 >
 > `--input-poses` lets you skip Stage 1 entirely and supply pre-generated poses
@@ -75,6 +75,7 @@ conda run -n rapidock pip install torch==2.7.0 \
     --index-url https://download.pytorch.org/whl/cu128
 
 conda run -n rapidock pip install \
+    torch-geometric \
     torch-scatter torch-sparse torch-cluster torch-spline-conv \
     -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
 ```
@@ -152,61 +153,42 @@ print('RAPiDock-Reloaded: OK')
 
 ---
 
-## Step 4 — Install ADFRsuite (required for Stage 2, non-redistributable)
+## Step 4 — Receptor-prep tooling (no license, no manual download)
 
-ADFRsuite provides `prepare_receptor`, `autogrid4`, and `babel` (OpenBabel).
-Licensed by The Scripps Research Institute — **cannot be bundled** with HybriDock-Pep.
+ADFRsuite is **not required**. Two pip/conda packages replace it, both with
+native Apple Silicon builds:
 
-**Download:** <https://ccsb.scripps.edu/adfrsuite/downloads/>
+| what it does | tool | install |
+|---|---|---|
+| receptor PDB → PDBQT | meeko's `mk_prepare_receptor.py` | already in `envs/score-env.yml` (`meeko>=0.7`) |
+| AutoDock4 grid maps | `autogrid4` | `conda install -c conda-forge autogrid` |
 
-### Linux x86-64
-
-```bash
-tar xzf ADFRsuite_x86_64Linux_1.0.tar.gz
-cd ADFRsuite_x86_64Linux_1.0
-bash install.sh   # follow prompts; default install path is fine
-
-# Add to PATH — append to ~/.bashrc for persistence:
-export PATH="/path/to/ADFRsuite_x86_64Linux_1.0/bin:$PATH"
-```
-
-### macOS (Rosetta 2)
-
-ADFRsuite ships an x86_64 macOS binary that runs under Rosetta 2 on Apple Silicon:
+`install.sh` sets both up for you. To do it by hand:
 
 ```bash
-# 1. Enable Rosetta 2 (one-time, already enabled on most M-series Macs):
-softwareupdate --install-rosetta --agree-to-license
-
-# 2. Download the macOS installer from the link above (ADFRsuite_*macOS*.tar.gz)
-tar xzf ADFRsuite_MacOS_1.0.tar.gz
-cd ADFRsuite_MacOS_1.0
-bash install.sh
-
-# 3. Add to PATH:
-export PATH="/path/to/ADFRsuite_MacOS_1.0/bin:$PATH"
-```
-
-**macOS Gatekeeper:** If macOS blocks the binary with "cannot be opened because
-the developer cannot be verified", run:
-
-```bash
-xattr -dr com.apple.quarantine /path/to/ADFRsuite_MacOS_1.0/bin/
+conda activate score-env
+conda install -c conda-forge autogrid     # only needed for --scoring ad4
+pip install 'meeko>=0.7'                  # usually already present
 ```
 
 Verify:
 
 ```bash
-which prepare_receptor   # → ADFRsuite/bin/prepare_receptor
-which autogrid4          # → ADFRsuite/bin/autogrid4
-which babel              # → ADFRsuite/bin/babel
-babel --version          # → OpenBabel 3.x.x
+which mk_prepare_receptor.py   # → score-env/bin/mk_prepare_receptor.py
+which autogrid4                # → score-env/bin/autogrid4
 ```
 
-> **PATH note:** ADFRsuite ships a Python 2.7 binary named `python`. Always call
-> `python3` explicitly in scripts to avoid shadowing the conda Python.
+> `AD4_parameters.dat` is **not** needed. A GPF's `parameter_file` directive is
+> optional, and autogrid4 falls back to its built-in AD4.2 parameters. That file
+> only ever shipped with ADFRsuite, and needing it was the sole reason ADFRsuite
+> was a hard requirement.
 
----
+### If you already have ADFRsuite
+
+It is still used automatically when `prepare_receptor` is on PATH, which keeps
+results identical to earlier installs. Nothing to change. Note that ADFRsuite
+ships a Python 2.7 binary named `python`, so always call `python3` explicitly
+when its `bin/` is on your PATH.
 
 ## Step 5 — Install PyRosetta (optional, rarely needed)
 
@@ -250,7 +232,7 @@ Run the unit test suite:
 
 ```bash
 pytest                         # fast unit tests (~5 s)
-pytest -m slow                 # add integration tests (~2 min, requires ADFRsuite)
+pytest -m slow                 # add integration tests (~2 min)
 pytest --cov=hybridock_pep     # with coverage report
 ```
 
@@ -283,13 +265,12 @@ hybridock-pep dock \
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `libpython2.7.so.1.0` error in `conda run` | ADFRsuite `python` shadows conda | Always use `python3` explicitly |
-| `autogrid4` segfaults immediately | `AD4_parameters.dat` relative path | Already fixed in code; check ADFRsuite is on PATH |
+| `libpython2.7.so.1.0` error in `conda run` | a stray ADFRsuite `python` shadows conda | Always use `python3` explicitly |
+| `autogrid4` segfaults immediately | relative `parameter_file` path | Already fixed in code (the line is omitted entirely unless ADFRsuite supplies an absolute path) |
 | `No module named 'torch'` in rapidock env | PyTorch not installed (Step 2b skipped) | Re-run Step 2b for your platform |
 | `CUDA capability sm_120 not compatible` | PyTorch < 2.6 | Re-run Step 2b with `torch==2.7.0` |
 | `HIS residue has the wrong set of atoms` | pdbfixer edge case on RCSB PDB | Already handled gracefully in `receptor.py` |
-| `babel: command not found` | ADFRsuite not on PATH | Add ADFRsuite `bin/` to PATH (Step 4) |
-| `"cannot be opened because the developer cannot be verified"` (macOS) | Gatekeeper blocks ADFRsuite | `xattr -dr com.apple.quarantine /path/to/ADFRsuite_MacOS_1.0/bin/` |
+| `babel: command not found` | OpenBabel missing | `conda install -c conda-forge openbabel` (only a last-resort fallback; meeko is preferred) |
 | MPS fallback warnings in Stage 1 | Ops not yet on Metal | Normal — `PYTORCH_ENABLE_MPS_FALLBACK=1` already set by inference.py |
 | `torch-scatter` ImportError on macOS | Wrong PyG install command used | Use the macOS pip command from Step 2b (no `+cu128`) |
 | Stage 1 very slow on macOS Intel | No MPS, running on CPU | Expected; use `--n-samples 10` or use `--input-poses` bypass |

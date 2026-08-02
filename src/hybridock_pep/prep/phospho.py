@@ -37,6 +37,7 @@ def prepare_phospho_ligand(
     pose_idx: int,
     pdb_path: Path,
     output_dir: Path,
+    stage: str = "prep_phospho",
 ) -> Path | PoseFailure:
     """Convert a phospho-containing peptide PDB to PDBQT via Meeko.
 
@@ -48,6 +49,11 @@ def prepare_phospho_ligand(
         pose_idx: Zero-based pose index (for error reporting).
         pdb_path: Path to the pose PDB to convert.
         output_dir: Directory to write the PDBQT file.
+        stage: Stage label recorded on a PoseFailure. Defaults to the phospho
+            route; prep/ligand.py passes "prep" when it uses this same code for
+            an ordinary peptide because no babel/obabel binary exists, so a
+            failure there is reported as the ordinary ligand-prep failure it is
+            rather than implying the pose contained phospho residues.
 
     Returns:
         Path to the written PDBQT on success, or PoseFailure on error.
@@ -90,6 +96,6 @@ def prepare_phospho_ligand(
     except Exception as exc:
         return PoseFailure(
             pose_idx=pose_idx,
-            stage="prep_phospho",
+            stage=stage,
             error_msg=f"{type(exc).__name__}: {exc}",
         )

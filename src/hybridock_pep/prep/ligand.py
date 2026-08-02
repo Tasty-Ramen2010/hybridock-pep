@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from hybridock_pep.models import PoseFailure
+from hybridock_pep.toolpath import which as _which
+from hybridock_pep.prep.pdbqt_convert import babel_available, convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
 
@@ -160,10 +161,10 @@ def _try_prepare_ligand4_fallback(pdb_path: Path, pdbqt_out: Path) -> Path | Non
         fails.
     """
     # Locate ADFRsuite pythonsh and prepare_ligand4.py
-    pythonsh = shutil.which("pythonsh")
+    pythonsh = _which("pythonsh")
     if pythonsh is None:
         # Try relative to prepare_receptor (same ADFRsuite bin/)
-        prep_rec = shutil.which("prepare_receptor")
+        prep_rec = _which("prepare_receptor")
         if prep_rec:
             pythonsh = str(Path(prep_rec).parent / "pythonsh")
         if not pythonsh or not Path(pythonsh).exists():
@@ -171,7 +172,7 @@ def _try_prepare_ligand4_fallback(pdb_path: Path, pdbqt_out: Path) -> Path | Non
 
     # Locate prepare_ligand4.py — typically at
     # {ADFR_ROOT}/CCSBpckgs/AutoDockTools/Utilities24/prepare_ligand4.py
-    prep4 = shutil.which("prepare_ligand4.py")
+    prep4 = _which("prepare_ligand4.py")
     if prep4 is None:
         adfr_root = Path(pythonsh).resolve().parent.parent
         candidate = (
@@ -264,26 +265,41 @@ def _prepare_single_ligand(
         logger.debug("Pose %d has phospho residues — routing through Meeko", pose_idx)
         return prepare_phospho_ligand(pose_idx, pdb_path, output_dir)
 
+    # No babel and no obabel: use Meeko's Polymer route for standard peptides
+    # too. prepare_phospho_ligand is residue-agnostic — nothing in it is
+    # specific to TPO/SEP/PTR — so it converts any peptide pose.
+    #
+    # Deliberately a fallback, not the default. babel output is what the
+    # shipped calibration was fitted against, so every machine that has it must
+    # keep producing the same PDBQT. This branch exists because conda-forge has
+    # no linux-aarch64 openbabel build for Python 3.11, which left ARM Linux
+    # (DGX Spark, Grace, Graviton, Ampere) unable to prepare a single ligand.
+    #
+    # Yield is lower than babel's. Meeko's Polymer templating rejects poses it
+    # cannot pad ("Expected N paddings for (A:4, A:8) ... but got 0") where
+    # babel converts them regardless; measured 7/20 poses converted on a 1YCR
+    # n=20 run. The run still completes and ranks — poses are independent and
+    # per-pose failure is already tolerated — but sample the same job with more
+    # --n-samples on a machine with no converter binary.
+    if not babel_available():
+        logger.warning(
+            "Pose %d: neither babel nor obabel available — preparing with Meeko "
+            "instead. Vina's scoring function reads atom types and ignores "
+            "partial charges, so this is close to equivalent for Vina, but AD4 "
+            "scoring (which does use charges) may differ slightly.",
+            pose_idx,
+        )
+        return prepare_phospho_ligand(pose_idx, pdb_path, output_dir, stage="prep")
+
     pdbqt_path = output_dir / (pdb_path.stem + ".pdbqt")
 
     try:
-        babel_bin = shutil.which("babel")
-        if babel_bin is None:
-            raise FileNotFoundError(
-                "babel not found on PATH — install ADFRsuite and add its bin/ to PATH"
-            )
-
-        # Sanitize element column before invoking babel (strips N1+, O1-, etc.)
+        # Sanitize element column before invoking babel/obabel (strips N1+, O1-, etc.)
         with tempfile.NamedTemporaryFile(suffix=".pdb", delete=False) as tmp:
             clean_pdb = Path(tmp.name)
         try:
             sanitize_pdb_for_babel(pdb_path, clean_pdb)
-            result = subprocess.run(
-                [babel_bin, "-i", "pdb", str(clean_pdb), "-o", "pdbqt", str(pdbqt_path),
-                 "-h", "-xr"],
-                capture_output=True,
-                text=True,
-            )
+            result = convert_pdb_to_pdbqt(clean_pdb, pdbqt_path, add_hydrogens=True)
         finally:
             clean_pdb.unlink(missing_ok=True)
 
@@ -382,6 +398,8 @@ def prepare_ligand_batch(
     successes: list[Path] = []
     failures: list[PoseFailure] = []
 
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
     logger.info(
         "Preparing %d pose PDBs → PDBQT (workers=%s)", len(pdb_paths), effective_workers
     )
@@ -391,7 +409,8 @@ def prepare_ligand_batch(
             executor.submit(_prepare_single_ligand, args): args[0]
             for args in args_list
         }
-        for future in as_completed(future_to_idx):
+        for _done, future in enumerate(as_completed(future_to_idx), 1):
+            _progress.tick(_done, len(args_list), "ligands prepared")
             result = future.result()
             if isinstance(result, PoseFailure):
                 failures.append(result)
@@ -399,6 +418,7 @@ def prepare_ligand_batch(
             else:
                 successes.append(result)
 
+    _progress.clear()
     logger.info(
         "Ligand prep complete: %d succeeded, %d failed", len(successes), len(failures)
     )

@@ -15,9 +15,11 @@ The layout resizes with the terminal. Dependency-light (prompt_toolkit only).
 """
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -25,7 +27,95 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from hybridock_pep.ui import help_content
+
 AA = set("ACDEFGHIKLMNPQRSTVWY")
+
+# --------------------------------------------------------------------------- #
+#  First-run state
+# --------------------------------------------------------------------------- #
+
+# A dotfile in $HOME rather than anything inside the repo: the repo is often a
+# fresh clone (or read-only, or shared), and "have I seen the tour" is a
+# property of the person, not of the checkout.
+STATE_DIR = Path.home() / ".hybridock-pep"
+WELCOME_MARKER = STATE_DIR / "ui_welcomed"
+
+
+def is_first_run(marker: Path | None = None) -> bool:
+    """True when the guided tour has never been dismissed on this machine.
+
+    Fails to True: if $HOME is unreadable we would rather show a returning
+    user the tour again than leave a first-time user staring at a bare form.
+    """
+    path = marker if marker is not None else WELCOME_MARKER
+    try:
+        return not path.exists()
+    except OSError:
+        return True
+
+
+def mark_welcomed(marker: Path | None = None) -> None:
+    """Record that the tour has been dismissed. Never raises — a read-only
+    home directory must not stop the UI from opening."""
+    path = marker if marker is not None else WELCOME_MARKER
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("1\n")
+    except OSError:
+        pass
+
+# --------------------------------------------------------------------------- #
+#  Emergency stop
+# --------------------------------------------------------------------------- #
+
+
+def terminate_process_tree(proc, grace: float = 4.0) -> bool:
+    """Stop a running dock and everything it spawned. Returns True if it died.
+
+    Killing only `proc` is not enough. `hybridock-pep dock` launches the
+    rapidock environment's python as a *child* process to do GPU sampling; kill
+    the parent alone and that child keeps running, holding the GPU and writing
+    into the output directory. For an emergency stop that is the worst possible
+    outcome — the user thinks they stopped it and it is still going.
+
+    So the run is started in its own process group (``start_new_session=True``)
+    and the whole group is signalled: SIGTERM first so OpenMM/torch can unwind,
+    then SIGKILL for anything still alive after `grace` seconds.
+
+    Falls back to plain terminate()/kill() where process groups do not exist
+    (Windows). Never raises: a stop button that can throw is not a stop button.
+    """
+    if proc is None or proc.poll() is not None:
+        return True
+
+    def _signal_group(sig) -> None:
+        if hasattr(os, "killpg"):
+            try:
+                os.killpg(os.getpgid(proc.pid), sig)
+                return
+            except (ProcessLookupError, PermissionError, OSError):
+                pass  # group already gone, or no permission — fall through
+        try:
+            proc.send_signal(sig)
+        except (ProcessLookupError, OSError, ValueError):
+            pass
+
+    _signal_group(signal.SIGTERM)
+    deadline = time.time() + grace
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return True
+        time.sleep(0.1)
+
+    _signal_group(getattr(signal, "SIGKILL", signal.SIGTERM))
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return True
+        time.sleep(0.1)
+    return proc.poll() is not None
+
 
 # --------------------------------------------------------------------------- #
 #  Form model + validation
@@ -150,8 +240,12 @@ def build_dock_command(v, exe="hybridock-pep"):
            "--site", x, y, z, "--box", v["box"].strip(),
            "--n-samples", v["n_samples"].strip(), "--scoring", v["scoring"].strip(),
            "--output-dir", v["output_dir"].strip()]
-    if int(v["refine_topk"] or 0) > 0:
-        cmd += ["--refine-topk", v["refine_topk"].strip()]
+    # .strip() before the truthiness test: "   " is truthy but int("   ")
+    # raises, which crashed command building when a field was typed into and
+    # then cleared.
+    topk = (v.get("refine_topk") or "").strip()
+    if topk and int(topk) > 0:
+        cmd += ["--refine-topk", topk]
     return cmd
 
 
@@ -252,35 +346,6 @@ class PipelineProgress:
         return int(time.time() - self.t0)
 
 
-HELP_TEXT = """\
- HybriDock-Pep — terminal UI
-
- WHAT IT DOES
-   peptide + receptor → AI diffusion poses (RAPiDock) → physics rescoring
-   → ranked ΔG (kcal/mol), best pose, clusters, plots. Selectivity mode also
-   docks an off-target and reports ΔΔG (does the peptide prefer the target?).
-
- RUN MODES  (buttons, top row)
-   Full ▶       n=100, vina+ad4, MM-GBSA top-10   (the real thing)
-   Half         n=50,  vina+ad4                    (faster)
-   Quick        n=20,  vina                         (fastest sanity check)
-   Selectivity  target vs off-target ΔΔG (fill the 3 Off-target fields)
-   Demo ▷       simulated full run — no GPU, just watch the progress bar
-
- FILLING THE FORM
-   • Tab / Shift-Tab move; every field validates live (✓ / ✗).
-   • Path fields: DRAG a file on, or press Browse (Ctrl-B) for a file/folder picker.
-   • Off-target fields are only needed for Selectivity.
-
- CONTROLS  (click buttons, or these keys — work on every OS, no function keys)
-   Ctrl-R Full   Ctrl-T Demo   Ctrl-B Browse   Ctrl-P Print
-   Ctrl-L Clear  Ctrl-G Help   Ctrl-Q Quit     Tab move
-
- FILE BROWSER
-   ↑/↓ move · Enter open folder / pick file · U use current folder · Esc cancel
-
- Press Ctrl-G or Esc to close this help.
-"""
 
 
 def demo_lines(n=100):
@@ -432,6 +497,7 @@ def run_fullscreen(auto_demo=False):
             append("… a run is already in progress")
             return
         state["running"], state["rc"] = True, None
+        state["cancel"], state["proc"] = False, None
         progress["p"] = PipelineProgress()
         append("")
         append(f"▶ {title}" if title else "▶ run")
@@ -442,6 +508,8 @@ def run_fullscreen(auto_demo=False):
             try:
                 if demo:
                     for text, delay in demo_lines(int(vals()["n_samples"] or 100)):
+                        if state["cancel"]:
+                            break
                         progress["p"].feed(text)
                         append(text)
                         time.sleep(delay)
@@ -451,14 +519,24 @@ def run_fullscreen(auto_demo=False):
                         append(f"✗ '{cmd[0]}' not on PATH — run `conda activate score-env` first.")
                         state["rc"] = 127
                         return
-                    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                            text=True, bufsize=1)
+                    # Own process group so Stop can signal the dock AND the
+                    # rapidock sampling child it spawns. See
+                    # terminate_process_tree().
+                    proc = subprocess.Popen(
+                        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, bufsize=1,
+                        start_new_session=(os.name != "nt"),
+                    )
+                    state["proc"] = proc
                     for line in proc.stdout:
                         progress["p"].feed(line)
                         append(line)
                     state["rc"] = proc.wait()
                 progress["p"].finished = True
-                append(f"── finished (exit {state['rc']}) ──")
+                if state["cancel"]:
+                    append("── STOPPED by user ──")
+                else:
+                    append(f"── finished (exit {state['rc']}) ──")
             except Exception as exc:  # noqa: BLE001
                 append(f"✗ error: {exc}")
                 state["rc"] = 1
@@ -466,6 +544,28 @@ def run_fullscreen(auto_demo=False):
                 state["running"] = False
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def stop_run():
+        """Emergency stop — abort whatever is running, right now."""
+        if not state["running"]:
+            append("… nothing is running to stop")
+            return
+        state["cancel"] = True
+        proc = state.get("proc")
+        if proc is None:                       # demo, or process not spawned yet
+            append("■ stopping…")
+            return
+        append("■ STOP requested — terminating the run and its sampling child…")
+        # Off the UI thread: terminate_process_tree waits out a grace period,
+        # and blocking the event loop would freeze the screen mid-stop and make
+        # the user think the button did nothing.
+        threading.Thread(
+            target=lambda: append(
+                "■ stopped." if terminate_process_tree(proc) else
+                "■ could not confirm the process died — check with: ps aux | grep hybridock"
+            ),
+            daemon=True,
+        ).start()
 
     def run_dock(n, scoring, refine, title):
         inputs["n_samples"].text, inputs["scoring"].text, inputs["refine_topk"].text = str(n), scoring, str(refine)
@@ -500,10 +600,39 @@ def run_fullscreen(auto_demo=False):
         output.text = ""
 
     # ----- overlays: help + file picker -----
-    view = {"mode": "main"}  # main | help | picker
+    # Show the guided tour the first time this user ever opens the UI. A form
+    # full of unexplained fields is the single biggest barrier for a
+    # non-computational user, and they have no way to know help exists.
+    view = {
+        "mode": "welcome" if is_first_run() else "main",  # main|help|picker|welcome
+        "topic": "1",
+    }
+
+    def _focus(win):
+        """Move focus, tolerating a not-yet-rendered layout.
+
+        Every view switch must carry focus with it: prompt_toolkit raises if
+        the focused control is not part of the layout currently on screen.
+        """
+        try:
+            get_app().layout.focus(win)
+        except Exception:
+            pass
+
+    def go_main():
+        view["mode"] = "main"
+        _focus(inputs["peptide"])
 
     def toggle_help():
-        view["mode"] = "main" if view["mode"] == "help" else "help"
+        if view["mode"] == "help":
+            go_main()
+        else:
+            view["mode"] = "help"
+            _focus(help_window)
+
+    def show_welcome():
+        view["mode"] = "welcome"
+        _focus(welcome_window)
 
     picker = {"dir": Path.cwd(), "items": [], "idx": 0, "target": "receptor", "want_dir": False}
 
@@ -580,6 +709,7 @@ def run_fullscreen(auto_demo=False):
         B("Demo ▷", lambda: start_stream(None, demo=True, title="DEMO (simulated, no GPU)"), 10),
     ], padding=1, height=1)
     tool_row = VSplit([
+        B("STOP ■", stop_run, 9),
         B("Browse 📁", open_picker, 12),
         B("Print", do_print, 9),
         B("Help ?", toggle_help, 10),
@@ -587,11 +717,46 @@ def run_fullscreen(auto_demo=False):
         B("Quit ✕", lambda: get_app().exit(result=0), 10),
     ], padding=1, height=1)
 
+    def focused_key():
+        """Which form field currently has the caret, or None."""
+        try:
+            control = get_app().layout.current_control
+        except Exception:
+            return None
+        for key, ta in inputs.items():
+            if ta.control is control:
+                return key
+        return None
+
+    def label_fragments(f):
+        """Label text, marked when its field is focused.
+
+        Without this every label looked identical whether or not it was
+        selected, so Tab appeared to do nothing and the form read as
+        "only the first box is editable". The caret alone is not enough of a
+        cue on a form this tall.
+        """
+        if focused_key() == f.key:
+            return [("class:labelfocus", f"{'▶ ' + f.label:>28} ")]
+        return [("class:label", f"{f.label:>28} ")]
+
     form_rows = [VSplit([
-        Window(FormattedTextControl(lambda f=f: [("class:label", f"{f.label:>28} ")]),
+        Window(FormattedTextControl(lambda f=f: label_fragments(f)),
                width=29, height=1, dont_extend_width=True),
         inputs[f.key],
     ], height=1) for f in FIELDS]
+
+    def focus_field(delta):
+        """Move focus by `delta` fields, wrapping at the ends.
+
+        Deliberately not layout.focus_next(): that walks every focusable window
+        in the layout, so Tab wandered off into the output pane and the buttons
+        instead of stepping through the form. This stays inside FIELDS.
+        """
+        keys = [f.key for f in FIELDS]
+        cur = focused_key()
+        idx = keys.index(cur) if cur in keys else 0
+        _focus(inputs[keys[(idx + delta) % len(keys)]])
     form = HSplit(form_rows + [Window(hint, height=1)])
 
     title = Window(FormattedTextControl(
@@ -599,18 +764,36 @@ def run_fullscreen(auto_demo=False):
         height=1, align=WindowAlign.LEFT, style="class:titlebar")
     footer = Window(FormattedTextControl(
         [("class:key", " Ctrl-R "), ("class:footer", "Full "), ("class:key", " Ctrl-T "), ("class:footer", "Demo "),
-         ("class:key", " Ctrl-B "), ("class:footer", "Browse "), ("class:key", " Ctrl-G "), ("class:footer", "Help "),
-         ("class:key", " Ctrl-Q "), ("class:footer", "Quit "),
-         ("class:footer", " · Tab moves · drag a .pdb onto a path field · click any button ")]),
+         ("class:key", " Ctrl-C "), ("class:footer", "STOP "), ("class:key", " Ctrl-B "), ("class:footer", "Browse "),
+         ("class:key", " Ctrl-G "), ("class:footer", "Help "), ("class:key", " Ctrl-Q "), ("class:footer", "Quit "),
+         ("class:footer", " · ↑↓ or Tab move between fields · drag a .pdb onto a path field ")]),
         height=1, style="class:footerbar")
 
     main_view = HSplit([title, Frame(form, title="inputs"),
                         Frame(Window(progress_ctrl, height=2), title="progress"),
                         Frame(output, title="output", height=D(min=3, weight=1)),
                         run_row, tool_row, footer])
-    help_view = HSplit([title, Frame(Window(FormattedTextControl(text=HELP_TEXT), wrap_lines=True,
-                                            style="class:help"), title="help — Ctrl-G / Esc to close",
+    # Both of these must own a FOCUSABLE window. prompt_toolkit requires the
+    # focused control to exist in the currently-rendered layout; focusing a
+    # form input while showing the welcome screen raises "Window does not
+    # appear in the layout" and drops the whole app to the --cli fallback.
+    help_window = Window(FormattedTextControl(
+                             text=lambda: help_content.render(view["topic"]),
+                             focusable=True),
+                         wrap_lines=True, style="class:help")
+    help_view = HSplit([title, Frame(help_window,
+                                     title="help — press 0-9 for a topic · Esc closes",
                                      height=D(weight=1)), footer])
+
+    welcome_window = Window(FormattedTextControl(
+                                text=lambda: help_content.LOGO + help_content.WELCOME,
+                                focusable=True),
+                            wrap_lines=True, style="class:help")
+    welcome_view = HSplit([title,
+                           Frame(welcome_window,
+                                 title="welcome — Enter to start · Ctrl-G for help",
+                                 height=D(weight=1)),
+                           footer])
     picker_view = HSplit([title, Frame(picker_window, title="browse — ↑↓ move · Enter open/pick · U use folder · Esc cancel",
                                        height=D(weight=1)),
                           Window(FormattedTextControl([("class:footer",
@@ -618,7 +801,8 @@ def run_fullscreen(auto_demo=False):
                                  height=1, style="class:footerbar")])
 
     def current_view():
-        return {"help": help_view, "picker": picker_view}.get(view["mode"], main_view)
+        return {"help": help_view, "picker": picker_view,
+                "welcome": welcome_view}.get(view["mode"], main_view)
 
     layout = Layout(DynamicContainer(current_view))
 
@@ -657,15 +841,56 @@ def run_fullscreen(auto_demo=False):
 
     @kb.add("escape", eager=True)
     def _(e):
-        view["mode"] = "main"
+        go_main()
+
+    in_welcome = Condition(lambda: view["mode"] == "welcome")
+    in_help = Condition(lambda: view["mode"] == "help")
+
+    @kb.add("c-w", filter=not_picker)
+    def _(e):
+        show_welcome()
+
+    @kb.add("enter", filter=in_welcome)
+    def _(e):
+        # Leaving the tour is what marks it as seen — so a user who quits from
+        # the welcome screen still gets it next time.
+        mark_welcomed()
+        go_main()
+
+    for _topic_key, _title in help_content.topic_titles():
+        @kb.add(_topic_key, filter=in_help)
+        def _(e, _k=_topic_key):
+            view["topic"] = _k
+
+    in_form = Condition(lambda: view["mode"] == "main")
 
     @kb.add("tab", filter=not_picker)
     def _(e):
-        e.app.layout.focus_next()
+        focus_field(+1)
 
     @kb.add("s-tab", filter=not_picker)
     def _(e):
-        e.app.layout.focus_previous()
+        focus_field(-1)
+
+    # Arrows too: on a labelled vertical form this is what people reach for
+    # first, and the inputs are single-line so up/down do nothing inside them.
+    @kb.add("down", filter=in_form)
+    def _(e):
+        focus_field(+1)
+
+    @kb.add("up", filter=in_form)
+    def _(e):
+        focus_field(-1)
+
+    # Emergency stop. Ctrl-C is the instinct in a panic, so bind that as well as
+    # a mnemonic; quitting stays on Ctrl-Q.
+    @kb.add("c-c", filter=not_picker)
+    def _(e):
+        stop_run()
+
+    @kb.add("c-k", filter=not_picker)
+    def _(e):
+        stop_run()
 
     @kb.add("up", filter=in_picker)
     def _(e):
@@ -687,6 +912,7 @@ def run_fullscreen(auto_demo=False):
     style = Style.from_dict({
         "titlebar": "bg:#0d3b66 #ffffff bold", "title": "bg:#0d3b66 #ffffff bold",
         "titledim": "bg:#0d3b66 #a9c7e8", "label": "bold #cfe3ff", "input": "bg:#11151c #ffffff",
+        "labelfocus": "bold #ffd166",
         "output": "bg:#0a0e14 #b6f0c4", "help": "bg:#0d1830 #d3e2ff", "picker": "bg:#0a0e14 #d3e2ff",
         "pickersel": "bg:#0d3b66 #ffffff bold", "pickerdir": "#7fd0ff", "pickerfile": "#b6f0c4",
         "bar": "#39c0ff", "okbar": "#4ade80", "pct": "bold #ffffff", "stage": "bold #ffd166",
@@ -697,7 +923,10 @@ def run_fullscreen(auto_demo=False):
 
     app = Application(layout=layout, key_bindings=kb, style=style, full_screen=True,
                       mouse_support=True, refresh_interval=0.15)
-    app.layout.focus(inputs["peptide"])
+    # Focus must match the view we are actually opening on. Focusing a form
+    # input while the welcome tour is on screen makes prompt_toolkit reject the
+    # layout outright and the app silently degrades to the --cli wizard.
+    app.layout.focus(welcome_window if view["mode"] == "welcome" else inputs["peptide"])
     refresh_hint()
     refresh_progress()
 

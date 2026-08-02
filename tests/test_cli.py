@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import sys
 from pathlib import Path
 
@@ -159,3 +161,155 @@ class TestSeed:
             output_dir=tmp_path,
         )
         assert config.seed is None
+
+
+class TestLogLevel:
+    """Default verbosity must be quiet — PipelineProgress is the intended
+    default-mode UI; routine logger.info() calls from every module should
+    not print unless the user asked for -v/-vv. Regression test for the bug
+    where main() always set INFO regardless of verbosity 0 vs 1."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_root_logger(self):
+        # logging.basicConfig() is a no-op after the first call in a process
+        # (handlers already attached) — clear them so each test's call to
+        # cli.main() genuinely re-applies its own level, and restore the
+        # original root logger state afterward so this doesn't leak into
+        # other test files' logging expectations.
+        import logging
+        root = logging.getLogger()
+        saved_handlers = root.handlers[:]
+        saved_level = root.level
+        root.handlers.clear()
+        yield
+        root.handlers.clear()
+        root.handlers.extend(saved_handlers)
+        root.setLevel(saved_level)
+
+    def _run_main_with_verbosity(self, monkeypatch, verbose_flags: list[str]) -> int:
+        import logging
+        from hybridock_pep import cli
+
+        monkeypatch.setattr(sys, "argv", ["hybridock-pep", *verbose_flags])
+        # main() with no subcommand just prints help and returns — enough to
+        # exercise the logging.basicConfig() call without running a real dock.
+        cli.main()
+        return logging.getLogger().getEffectiveLevel()
+
+    def test_default_verbosity_is_warning(self, monkeypatch) -> None:
+        import logging
+        level = self._run_main_with_verbosity(monkeypatch, [])
+        assert level == logging.WARNING
+
+    def test_single_v_is_info(self, monkeypatch) -> None:
+        import logging
+        level = self._run_main_with_verbosity(monkeypatch, ["-v"])
+        assert level == logging.INFO
+
+    def test_double_v_is_debug(self, monkeypatch) -> None:
+        import logging
+        level = self._run_main_with_verbosity(monkeypatch, ["-vv"])
+        assert level == logging.DEBUG
+
+
+class TestSubcommandResultsPrintAtDefaultVerbosity:
+    """Regression tests: prep/reproducibility/selectivity have no PipelineProgress-
+    style UI of their own — a subcommand's single result line used to be
+    logger.info(), which the default WARNING log level (TestLogLevel above)
+    silently swallows, making the command look like it did nothing. Each
+    result line is now print(); these tests catch a future accidental
+    reversion back to logger.info() for any of them."""
+
+    def test_prep_prints_result_at_default_verbosity(
+        self, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        import logging
+        from unittest.mock import patch
+        from hybridock_pep import cli
+
+        receptor = tmp_path / "receptor.pdb"
+        receptor.write_text(
+            "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\nEND\n"
+        )
+        fake_pdbqt = tmp_path / "out" / "receptor.pdbqt"
+
+        root = logging.getLogger()
+        saved_level = root.level
+        root.setLevel(logging.WARNING)  # the real default — see TestLogLevel
+        try:
+            with patch(
+                "hybridock_pep.prep.receptor.prepare_receptor", return_value=fake_pdbqt
+            ):
+                monkeypatch.setattr(
+                    sys,
+                    "argv",
+                    [
+                        "hybridock-pep", "prep",
+                        "--receptor", str(receptor),
+                        "--output-dir", str(tmp_path / "out"),
+                    ],
+                )
+                cli.main()
+        finally:
+            root.setLevel(saved_level)
+
+        captured = capsys.readouterr()
+        assert "Receptor prepared:" in captured.out, (
+            "prep's only output line must print to stdout regardless of log level"
+        )
+        assert str(fake_pdbqt) in captured.out
+
+
+class TestDockBannerFitsTerminal:
+    """The boxed banner must never exceed the terminal width.
+
+    A 30-mer — the peptide validator's own upper bound — against a long receptor
+    filename produced a 102-column box, which wraps on an 80-column macOS
+    Terminal and shreds the border.
+    """
+
+    @staticmethod
+    def _render(cols, peptide, receptor):
+        import os
+        import shutil as sh
+        from pathlib import Path
+        from unittest.mock import MagicMock, patch
+
+        from hybridock_pep.cli import _print_dock_banner
+
+        cfg = MagicMock()
+        cfg.peptide_sequence = peptide
+        cfg.receptor_path = Path(receptor)
+        buf = io.StringIO()
+        with patch.object(sh, "get_terminal_size",
+                          return_value=os.terminal_size((cols, 24))), \
+                contextlib.redirect_stderr(buf):
+            _print_dock_banner(cfg)
+        return [ln for ln in buf.getvalue().splitlines() if ln.strip()]
+
+    @pytest.mark.parametrize("cols", [40, 60, 80, 100, 120, 200])
+    @pytest.mark.parametrize("peptide,receptor", [
+        ("ETFSDLWKLLPE", "1YCR_mdm2.pdb"),
+        ("A" * 30, "hldh_1i0z_chainA_pocket_cropped_v2.pdb"),
+        ("ACD", "r.pdb"),
+    ])
+    def test_never_exceeds_terminal_width(self, cols, peptide, receptor):
+        for line in self._render(cols, peptide, receptor):
+            assert len(line) <= cols, f"{len(line)} cols > terminal {cols}"
+
+    @pytest.mark.parametrize("cols", [40, 80, 120])
+    def test_box_lines_are_all_equal_width(self, cols):
+        lines = self._render(cols, "A" * 30, "some_quite_long_receptor_name.pdb")
+        assert len({len(ln) for ln in lines}) == 1, "box borders misaligned"
+
+    def test_long_title_is_ellipsised(self):
+        lines = self._render(80, "A" * 30, "hldh_1i0z_chainA_pocket_cropped_v2.pdb")
+        assert any("…" in ln for ln in lines)
+
+    def test_short_title_is_not_ellipsised(self):
+        lines = self._render(120, "ACD", "r.pdb")
+        assert not any("…" in ln for ln in lines)
+
+    def test_peptide_still_visible_on_narrow_terminal(self):
+        lines = self._render(60, "ETFSDLWKLLPE", "1YCR_mdm2.pdb")
+        assert any("ETFSDLWKLLPE" in ln for ln in lines)

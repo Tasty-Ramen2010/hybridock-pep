@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -19,15 +20,42 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hybridock-pep",
         description="Hybrid peptide docking: RAPiDock sampling + physics-based rescoring.",
+        # Pre-wrapped: RawDescriptionHelpFormatter preserves this verbatim, so
+        # a single long line would run off the edge of an 80-column terminal.
+        epilog=(
+            "getting started:\n"
+            "  hybridock-pep guide            how-to with worked examples, expected\n"
+            "                                 values and measured runtimes\n"
+            "  hybridock-pep guide dock       detail for one command\n"
+            "  hybridock-pep guide all        everything at once\n"
+            "\n"
+            "  hybridock-pep crystal-score    validate your install\n"
+            "                                 (expect \u0394G \u2248 -10.07 kcal/mol)\n"
+            "  ./launch_ui.sh                 terminal UI (or `hybridock-tui`)\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "-v",
         "--verbose",
         action="count",
         default=0,
-        help="Increase verbosity (-v INFO, -vv DEBUG).",
+        help="Increase verbosity (default: warnings only + clean progress UI; "
+             "-v INFO logs, -vv DEBUG logs).",
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
+
+    p_guide = sub.add_parser(
+        "guide",
+        help="How to use HybriDock-Pep: worked examples, expected values, runtimes.",
+        description="Built-in how-to guide with worked examples and measured numbers.",
+    )
+    p_guide.add_argument(
+        "topic", nargs="?", default=None, metavar="TOPIC",
+        help="Command or topic (dock, crystal-score, prep, selectivity, "
+             "reproducibility, benchmark, calibrate, tuning, testing, all). "
+             "Omit for the overview.",
+    )
     sub.required = False
 
     # dock subparser
@@ -402,6 +430,32 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_dock_banner(config: DockConfig) -> None:
+    """Print a one-time boxed summary line before a dock run starts.
+
+    TTY + default-verbosity only (checked by the caller) — this is decoration
+    for an interactive terminal, not something that should show up in logs or
+    piped output. Box width is content-driven with a sane floor so short
+    peptide/receptor names don't look sparse.
+    """
+    title = (
+        f"HybriDock-Pep — {config.peptide_sequence} "
+        f"({len(config.peptide_sequence)}-mer) × {config.receptor_path.name}"
+    )
+    # Clamp to the terminal. A 30-mer (the validator's own upper bound) against a
+    # long receptor filename produced a 102-column box, which wraps on an 80-column
+    # macOS Terminal and shreds the border. Borders take 2 columns; the title is
+    # ellipsised rather than allowed to overflow.
+    term_cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+    inner = max(24, min(term_cols - 2, max(len(title) + 4, 40)))
+    if len(title) > inner - 2:
+        title = title[: max(1, inner - 3)] + "…"
+    print(file=sys.stderr)
+    print("┌" + "─" * inner + "┐", file=sys.stderr)
+    print("│" + title.center(inner) + "│", file=sys.stderr)
+    print("└" + "─" * inner + "┘", file=sys.stderr)
+
+
 def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Validate inputs and orchestrate the full docking pipeline.
 
@@ -468,13 +522,19 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     )
     calibration_path = Path(args.calibration).resolve()
 
+    if config.verbosity == 0 and sys.stderr.isatty():
+        _print_dock_banner(config)
+
     from hybridock_pep import driver
     scored_poses, _cluster_result = driver.run_dock(
         config=config,
         input_poses_dir=input_poses_dir,
         calibration_path=calibration_path,
     )
-    logger.info("Docking complete. %d poses scored.", len(scored_poses))
+    # print(), not logger.info(): the pose count is real signal (a
+    # surprisingly low count vs --n-samples is exactly what a user needs to
+    # notice), not progress narration — must stay visible at default -v.
+    print(f"Docking complete. {len(scored_poses)} poses scored.")
 
 
 def _run_calibrate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -524,7 +584,11 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         return
 
     pdbqt_path = prepare_receptor(config)
-    logger.info("Receptor prepared: %s", pdbqt_path)
+    # print(), not logger.info(): `prep` has no other UI — this line is its
+    # entire output. logger.info() would be silently swallowed at the
+    # default log level (WARNING; see main()), making the command look like
+    # it did nothing.
+    print(f"Receptor prepared: {pdbqt_path}")
 
 
 def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -559,10 +623,13 @@ def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentPars
     )
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "reproducibility.json").write_text(json.dumps(result.to_json(), indent=2))
-    logger.info(
-        "Reproducibility: mean RMSD=%.2fÅ  pearson=%.3f  ΔG σ=%.2f kcal/mol  → %s",
-        result.mean_pairwise_rmsd, result.mean_pairwise_pearson,
-        result.dg_std, result.verdict,
+    # print(), not logger.info(): this command has no progress UI of its own —
+    # this line is the entire result. See the note on the `prep` subcommand.
+    print(
+        "Reproducibility: mean RMSD={:.2f}Å  pearson={:.3f}  ΔG σ={:.2f} kcal/mol  → {}".format(
+            result.mean_pairwise_rmsd, result.mean_pairwise_pearson,
+            result.dg_std, result.verdict,
+        )
     )
 
 
@@ -616,10 +683,13 @@ def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) 
         input_poses_offtarget=Path(args.input_poses_offtarget).resolve() if args.input_poses_offtarget else None,
         score_field=args.score_field,
     )
-    logger.info(
-        "Selectivity complete: ΔΔG=%+.2f kcal/mol  CI95=[%+.2f, %+.2f]  →  %s",
-        result.ddg, result.ddg_ci_low, result.ddg_ci_high,
-        result.to_json()["interpretation"],
+    # print(), not logger.info(): this command has no progress UI of its own —
+    # this line is the entire result. See the note on the `prep` subcommand.
+    print(
+        "Selectivity complete: ΔΔG={:+.2f} kcal/mol  CI95=[{:+.2f}, {:+.2f}]  →  {}".format(
+            result.ddg, result.ddg_ci_low, result.ddg_ci_high,
+            result.to_json()["interpretation"],
+        )
     )
 
 
@@ -653,6 +723,18 @@ def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
         verbose=args.verbose > 0,
     )
     benchmark.main(ns)
+
+
+def _run_guide(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Print the built-in how-to guide.
+
+    Args:
+        args: Parsed namespace; ``args.topic`` selects a command or topic.
+        parser: Root ArgumentParser (unused; present for dispatch signature consistency).
+    """
+    from hybridock_pep.output.guide import print_guide  # noqa: PLC0415
+
+    raise SystemExit(print_guide(getattr(args, "topic", None)))
 
 
 def _run_crystal_score(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -714,9 +796,20 @@ def main() -> None:
 
     if args.verbose >= 2:
         log_level = logging.DEBUG
-    else:
+    elif args.verbose == 1:
         log_level = logging.INFO
-    logging.basicConfig(level=log_level, format="%(levelname)s %(name)s: %(message)s")
+    else:
+        # Default: only warnings/errors on stderr. PipelineProgress (driver.py)
+        # is the intended default-mode UI — routine logger.info() calls from
+        # every module used to always print regardless of -v, drowning it out.
+        log_level = logging.WARNING
+    # force=True: basicConfig() otherwise no-ops if the root logger already
+    # has a handler (e.g. main() invoked more than once in the same process —
+    # tests, a REPL, launch_ui.sh-style wrappers), silently freezing the log
+    # level at whatever the first call set regardless of this call's -v flags.
+    logging.basicConfig(
+        level=log_level, format="%(levelname)s %(name)s: %(message)s", force=True
+    )
 
     dispatch = {
         "dock": _run_dock,
@@ -726,6 +819,7 @@ def main() -> None:
         "selectivity": _run_selectivity,
         "reproducibility": _run_reproducibility,
         "crystal-score": _run_crystal_score,
+        "guide": _run_guide,
     }
     if args.command is None:
         parser.print_help()
