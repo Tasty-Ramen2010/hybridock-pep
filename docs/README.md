@@ -3,7 +3,7 @@
 This directory holds the documentation for the shipped tool. The dated research ledger
 (~80 working notes written as the scoring campaign happened — brainstorms, forensics,
 refuted approaches, `DEVELOPMENT_TIMELINE.md`) has been moved off the live git tree and
-lives only in the Zenodo archive: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573)
+lives only in the Zenodo archive: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713)
 (see [`DATA_ARCHIVE.md`](DATA_ARCHIVE.md)). `experiments/` (the reproducibility trail cited
 by `RESULTS.md`/`MODEL_CARD.md`/tests) stays in git — only the prose notes moved.
 
@@ -33,7 +33,7 @@ If you are trying to *understand or use* HybriDock-Pep, you want six files.
 `DEVELOPMENT_TIMELINE.md` (the complete honest development record, E0 → E304) and every
 dated working note (`*_2026-06-15.md`, `overnight_*.md`, `*_brainstorm.md`,
 `why_we_keep_failing_*.md`, etc.) are preserved in the `v0.1.0` Zenodo snapshot —
-[10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573) — not in this directory.
+[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713) — not in this directory.
 They were individually accurate as of their date and collectively out of date; read them
 only to check that a specific claim was arrived at honestly.
 
