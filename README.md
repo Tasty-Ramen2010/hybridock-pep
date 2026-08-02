@@ -47,12 +47,11 @@ cd hybridock-pep
 
 That's it for most machines: `install.sh` auto-detects your OS/GPU, creates both conda
 environments with the right PyTorch build, downloads the RAPiDock model weights, and finishes by
-launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. The **one**
-step it can't automate is [ADFRsuite](https://ccsb.scripps.edu/adfrsuite/downloads/) — Scripps
-requires a manual license click-through — the script tells you exactly what to do if it's missing.
-`crystal-score`, `make verify`, and a real `dock`/`make demo` run all work fine without it (Vina
-scoring falls back to `obabel`, a score-env dependency); ADFRsuite is only required for AD4 scoring
-(`--scoring ad4`, off by default) — see [Install](#install) for what each piece needs.
+launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. Every step
+is automated — there is no license click-through. Receptor prep uses [meeko](https://github.com/forlilab/Meeko)
+(`mk_prepare_receptor.py`) and AD4 grid maps use conda-forge `autogrid`, both installed for you and
+both native on Apple Silicon. ADFRsuite is **not** required; it is used automatically if you already
+have it on PATH — see [Install](#install).
 
 > **Be patient — this genuinely takes 10–30 minutes**, most of it two long, silent `conda`
 > dependency-solve steps and a PyTorch download (hundreds of MB). If the terminal looks frozen on
@@ -124,10 +123,10 @@ sequence alone, run a real end-to-end dock on the same shipped receptor:
 make demo   # hybridock-pep dock on 1YCR, 20 RAPiDock passes — needs the rapidock env, see below
 ```
 
-That needs the second environment (GPU pose sampling) — see [Install](#install). Without ADFRsuite,
-Stage 2 receptor/ligand prep falls back to `obabel` automatically (you'll see a one-line warning
-about it in the logs); the run still completes with Vina scoring. ADFRsuite is only required if you
-pass `--scoring ad4`.
+That needs the second environment (GPU pose sampling) — see [Install](#install). Stage 2 receptor
+prep uses meeko's `mk_prepare_receptor.py`, and `--scoring ad4` uses conda-forge `autogrid` — no
+ADFRsuite needed. If ADFRsuite happens to be on PATH it is preferred, which keeps results identical
+to earlier installs.
 
 ---
 
@@ -654,7 +653,7 @@ No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crys
 hybridock-pep prep --receptor receptors/mdm2.pdb --output-dir prepped/
 ```
 
-Wraps `prepare_receptor` (ADFRsuite) so you can cache the receptor once and reuse it across many `dock` runs.
+Wraps receptor preparation (meeko `mk_prepare_receptor.py`, or ADFRsuite `prepare_receptor` when present) so you can cache the receptor once and reuse it across many `dock` runs.
 
 ### `calibrate` — fit the ΔG correction to your own data
 
@@ -728,7 +727,7 @@ visualization; it is ligand-format and not meant for re-scoring.)
 hybridock-pep/
 ├── README.md · RESULTS.md · MODEL_CARD.md   # start here — quickstart, benchmarks, shipped models
 ├── CLAUDE.md                      # AI-assistant project instructions
-├── INSTALL.md                     # license-restricted binary setup (ADFRsuite, PULCHRA)
+├── INSTALL.md                     # environment setup + optional license-restricted extras (PULCHRA)
 ├── Makefile                       # make install / verify / demo / reproduce / test
 ├── LICENSE                        # MIT
 ├── pyproject.toml                 # score-env package definition
@@ -770,7 +769,7 @@ pytest --cov=hybridock_pep       # coverage
 > scoring tests fast.
 >
 > **Full disclosure on the count:** ~429 non-slow tests are collected; **419 pass with the full toolchain
-> installed** (ADFRsuite `prepare_receptor` on PATH, the `rapidock` conda env, Meeko). In a bare sandbox
+> installed** (the `rapidock` conda env, meeko, and `autogrid` for AD4). In a bare sandbox
 > without those external binaries, ~30 tests skip/fail on missing-toolchain errors (not logic bugs) — so the
 > "419" number assumes you've built the full stack per [Install](#install).
 

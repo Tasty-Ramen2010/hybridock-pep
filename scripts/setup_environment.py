@@ -551,9 +551,9 @@ def print_next_steps(info: PlatformInfo) -> None:
 │     → third_party/RAPiDock/train_models/                        │
 │       CGTensorProductEquivariantModel/rapidock_local.pt          │
 │                                                                   │
-│  2. Install ADFRsuite (required for Stage 2 scoring):            │
-│     https://ccsb.scripps.edu/adfrsuite/downloads/               │
-│     Add ADFRsuite/bin/ to PATH (see INSTALL.md Step 4)          │
+│  2. For AD4 scoring (--scoring ad4), install autogrid:            │
+│     conda install -c conda-forge autogrid                       │
+│     (ADFRsuite is NOT required — meeko handles receptor prep)   │
 │                                                                   │
 │  3. Verify the full install:                                     │
 │     conda activate score-env                                     │
