@@ -19,7 +19,7 @@ one number from this repo, read this table first.
 `affinity_ai_sizefix`, `affinity_crystal_sizefix`, `affinity_crystal_augmented`,
 `affinity_pooled_prodn`, `affinity_realpose`, `affinity_rank_ifp`, `entropy_surrogate`.
 These reproduce ablations documented in the development timeline archived on Zenodo:
-[10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573). They are not the shipping scorer.
+[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713). They are not the shipping scorer.
 
 ## Intended use
 
@@ -45,6 +45,6 @@ wall in this regime). MAE is the stable, meaningful metric; absolute Pearson r c
 the field ceiling (~0.32) for everyone. An **earlier, now-superseded** production scorer
 generalized to *negative* correlation on a small holdout — that model is retired; the story
 is documented on the record in the Zenodo research archive:
-[10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573). **Report relative ΔΔG / selectivity / anchored ΔG
+[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713). **Report relative ΔΔG / selectivity / anchored ΔG
 as the accurate paths; treat a standalone absolute Kd as a coarse readout, not a validated
 prediction.**

@@ -314,7 +314,7 @@ even when we drop the noisy 1ddv entry.
   The signal isn't there to recover. α=0.1 will keep railing.
 - Do not abandon the production-pose dataset — it is the correct calibration
   target. The crystal-pose r=0.86 should be treated as a structural-quality
-  marker, not an affinity claim. See `calibration_strategies.md` (Zenodo archive: 10.5281/zenodo.21680573) §14.
+  marker, not an affinity claim. See `calibration_strategies.md` (Zenodo archive: 10.5281/zenodo.21764713) §14.
 
 ### What to do next (in order)
 1. **Re-run 1ddv** with a wider grid box (current box 30 Å, almost all

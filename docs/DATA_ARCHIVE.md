@@ -45,9 +45,15 @@ not the research ledger below. Operational tooling: [`scripts/`](../scripts/).
 ## Research ledger — moved to Zenodo only, not in this git tree
 
 As of the `v0.1.0` release, the live repo shows the completed tool, not the full research
-process. Three categories moved out of git and now live **only** in the Zenodo archive
-([10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573), which captures the
-full pre-cleanup tree):
+process. Three categories moved out of git and now live **only** in the
+**v0.1.0 source snapshot**, [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713)
+— the Zenodo–GitHub release archive of commit `af86f00`, the last commit before the cleanup.
+It contains all 88 `docs/*.md` including `DEVELOPMENT_TIMELINE.md`.
+
+> Note the two records are different things and are not interchangeable:
+> **21764713** is the source snapshot holding the research ledger; **21680573** (above) is
+> the MD trajectory cache and nothing else. Only *this* version of the release carries the
+> ledger — later releases are built from the cleaned tree.
 
 | Moved | Count | What it was |
 |---|---|---|

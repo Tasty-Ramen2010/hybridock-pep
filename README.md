@@ -24,7 +24,7 @@ reference](#command-reference--install-test-run-ui) below.
 | **[RESULTS.md](RESULTS.md)** | Every leakage-free number, and the command that reproduces each one. |
 | **[MODEL_CARD.md](MODEL_CARD.md)** | Which of the 10 `data/*.joblib` actually ship, and the honest limits. |
 
-Then run the 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/) and [`docs/`](docs/README.md). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+Then run the 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/) and [`docs/`](docs/README.md). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — MD trajectory cache on Zenodo [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573), research ledger in the v0.1.0 source snapshot [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
 > **Tests:** 676 pass, 66 skip with a standard `score-env` (`pytest`; see [Testing](#testing)).
 > No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
@@ -343,7 +343,7 @@ accuracy from *r*≈0.25 to ≈0.55 when anchored to a few measured references o
 also works in); and **(3)** it ships a structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot
 provide. Everything below is measured, every claim links to the script that reproduces it, and every
 negative result is kept on the record in the development timeline archived on Zenodo:
-[10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plain CPU.
 
 ---
@@ -425,7 +425,7 @@ higher *absolute* MAE (~1.9 vs ~1.4 on PDBbind) is **PPIKB's own label noise**, 
 labels are IC50/EC50 (assay-specific, *not* thermodynamic — [JCIM 4c00049](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00049):
 27% of IC50 pairs disagree by >1 log unit), and identical peptide sequences carry y-values differing by **up to
 10.8 kcal/mol**. Restricting to the curated Kd/Ki-only subset leaves the ranking unchanged (ours 0.333 vs clone
-0.265). Full diagnostic in the Zenodo research archive: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+0.265). Full diagnostic in the Zenodo research archive: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
 **Where we lose, stated up front: PPI-Affinity's own home test set (T100).** On the 48-complex set PPI-Affinity
 curated and tuned on, the *real published tool* (not our clone) beats us on ranking — this is the honest flip
@@ -516,7 +516,7 @@ still below ours and below its own within-target 0.59. `experiments/e329_ref2015
 Everything else stays honest: absolute charged Kd is capped at the non-FEP ceiling and we say so; selectivity
 ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; MIT-licensed and runs on CUDA · Apple MPS · Intel · AMD · CPU.
 Full evidence and every negative result: development timeline archived on Zenodo
-([10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573)) ·
+([10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713)) ·
 [`docs/SCORING_COMPARISON.md`](docs/SCORING_COMPARISON.md) · reproduce them in
 [Reproduce the benchmarks](#reproduce-every-number-in-this-readme).
 
@@ -595,7 +595,7 @@ not a skill gap, and it is worth stating plainly so our modest r isn't misread:
 
 **This is why we report kcal/mol MAE (stable, meaningful) as the headline and treat r as secondary.** Our full
 characterisation of this wall — proven from ~10 experimental angles — is archived on Zenodo:
-[10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
 ### Fresh out-of-training check (2026-07-06)
 
@@ -912,7 +912,7 @@ within-run pose ranker (that ordering is the CSV row order).
 where affinity is single-residue side-chain chemistry (PDZ +0.26, BH3 −0.63). It **self-reports confidence**:
 `interaction_map.ranking_confidence(best_pose_rank_scores)` returns `high` (reliable — 100% correct direction
 in validation) when the panel's scores spread out, `low` (verify in wet lab) when they cluster. Full
-validation write-up archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+validation write-up archived on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
 `best_pose.pdb` is the exact geometry the headline ΔG was computed on, **with standard residue names** — so
 you can re-score it directly: `hybridock-pep crystal-score --receptor R.pdb --peptide-pdb <out>/best_pose.pdb
@@ -998,7 +998,7 @@ in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the
 
 Rebuild the IFP training cache from raw structures (the 437 new PPIKB complexes) with
 `python experiments/e303_build_ppikb_ifp.py`. The full experiment ledger (E0–E304, every win and every refuted
-idea) is archived on Zenodo: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
+idea) is archived on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
 ---
 
