@@ -13,17 +13,15 @@ dependencies:
   - conda-forge::pdbfixer>=1.9
   - conda-forge::rdkit>=2024.03
   - conda-forge::swig
-  # AutoDock4 grid maps. Replaces ADFRsuite's autogrid4 and, unlike ADFRsuite,
-  # has a native osx-arm64 build and no license click-through. The GPF's
-  # parameter_file directive is optional, so AD4_parameters.dat (which only
-  # ADFRsuite ships) is not needed — autogrid4 falls back to its built-in AD4.2
-  # parameters. With this plus meeko's mk_prepare_receptor.py, the pipeline no
-  # longer requires ADFRsuite at all.
-  - conda-forge::autogrid>=4.2.9
-  # Last-resort receptor PDBQT conversion when neither meeko nor ADFRsuite is
-  # present. See prep/pdbqt_convert.py for why obabel needs different flags
-  # than babel.
-  - conda-forge::openbabel>=3.1
+  # NOTE: autogrid (AD4 grid maps) and openbabel (fallback PDBQT conversion)
+  # are deliberately NOT listed here. conda-forge has no linux-aarch64 build of
+  # autogrid and only py39 builds of openbabel, so either one as a hard
+  # dependency makes this whole file unsolvable on ARM Linux —
+  # PackagesNotFoundError, no env, install over. They are installed as
+  # best-effort extras by scripts/setup_environment.py
+  # (OPTIONAL_SCORE_ENV_TOOLS), which degrades to a warning instead. Everything
+  # the pipeline genuinely cannot run without belongs in this file.
+  #
   # pip's `vina` wheel build hardcodes -std=c++11; boost >=1.87 dropped the
   # std::enable_if_t compatibility shim that relies on, so the build fails
   # with "no member named 'enable_if_t' in namespace 'std'" past that version.

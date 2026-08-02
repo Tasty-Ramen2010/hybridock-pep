@@ -257,8 +257,15 @@ def detect_platform(force_backend: str | None = None) -> PlatformInfo:
 # Command helpers
 # ---------------------------------------------------------------------------
 
-def _run(cmd: list[str], dry_run: bool, *, env: dict | None = None, retries: int = 0) -> None:
-    """Print and optionally execute a shell command.
+def _run(
+    cmd: list[str],
+    dry_run: bool,
+    *,
+    env: dict | None = None,
+    retries: int = 0,
+    optional: bool = False,
+) -> bool:
+    """Print and optionally execute a shell command. Returns True on success.
 
     retries: extra attempts on failure (total attempts = retries + 1), with a
     short backoff between them. conda-forge/anaconda.org's CDN is prone to
@@ -266,19 +273,28 @@ def _run(cmd: list[str], dry_run: bool, *, env: dict | None = None, retries: int
     genuinely transient, unrelated to the command itself — so `conda env
     create` calls pass retries=2 rather than making the whole install fail
     on a single bad connection.
+
+    optional: report the failure and carry on instead of exiting. For steps
+    that add a *nice-to-have* tool — one that some platforms have no build
+    for at all — where aborting the install would cost the user everything
+    else that already worked.
     """
     display = " ".join(str(c) for c in cmd)
     print(f"  $ {display}")
     if dry_run:
-        return
+        return True
     merged_env = {**os.environ, **(env or {})}
     attempt = 0
     while True:
         result = subprocess.run(cmd, env=merged_env)
         if result.returncode == 0:
-            return
+            return True
         attempt += 1
         if attempt > retries:
+            if optional:
+                print(f"\n[WARN] Optional step failed (exit {result.returncode}):")
+                print(f"  {display}")
+                return False
             print(f"\n[ERROR] Command failed (exit {result.returncode}):")
             print(f"  {display}")
             sys.exit(result.returncode)
@@ -333,36 +349,63 @@ def _env_has_binary(env_name: str, binary: str) -> bool:
     return (base / "envs" / env_name / "bin" / binary).exists()
 
 
-def _repair_score_env_tooling(dry_run: bool) -> None:
-    """Backfill conda tools that an existing score-env may predate.
+# Optional score-env tooling: binary name -> conda spec that provides it.
+#
+# Deliberately NOT in envs/score-env.yml. conda-forge has no linux-aarch64
+# build of autogrid at all, and only py39 builds of openbabel, so listing
+# either as a hard yml dependency makes `conda env create -f score-env.yml`
+# fail outright with PackagesNotFoundError on ARM Linux — no env, no install,
+# nothing. Installing them here instead means the env always creates and these
+# two degrade to "unavailable" on platforms that have no build:
+#   - no autogrid4 -> `--scoring ad4` is unavailable (off by default anyway;
+#     the headline dG comes from the affinity model, not AD4)
+#   - no obabel    -> the last-resort ligand PDBQT converter is gone, but meeko
+#     is the primary path and ships wheels everywhere
+# Everything the pipeline genuinely cannot run without stays in the yml.
+OPTIONAL_SCORE_ENV_TOOLS = {
+    "autogrid4": "autogrid>=4.2.9",   # AD4 grid maps (--scoring ad4)
+    "obabel": "openbabel>=3.1",       # last-resort ligand PDBQT conversion
+}
 
-    ``install_score_env`` skips creation entirely when the env already exists,
-    which is right — recreating a working env is destructive and slow. But it
-    means anything added to score-env.yml *after* a user first installed never
-    reaches them: they keep a valid env that silently lacks the new tool. That
-    is how autogrid4 (added when ADFRsuite was dropped) went missing for
-    upgraders while every fresh install had it.
 
-    So verify the tools the yml promises and install just the missing ones.
+def _install_optional_score_env_tools(dry_run: bool) -> None:
+    """Install whichever optional tools score-env is missing. Never fatal.
+
+    This runs on *both* paths, and that is the point. ``install_score_env``
+    skips creation when the env already exists, which is right — recreating a
+    working env is destructive and slow — but it means a tool added to the
+    stack after a user first installed never reaches them: they keep a valid
+    env that silently lacks it. That is how autogrid4 (added when ADFRsuite was
+    dropped) went missing for upgraders while every fresh install had it. One
+    step that checks what is actually on disk fixes both cases with no
+    fresh-vs-upgrade branch to keep in sync.
+
     Cheap when there is nothing to do, and never touches a package that is
     already present.
     """
-    # binary name -> conda spec that provides it. Both entries post-date the
-    # ADFRsuite removal, so any env created before that is missing both.
-    wanted = {
-        "autogrid4": "autogrid>=4.2.9",   # AD4 grid maps (--scoring ad4)
-        "obabel": "openbabel>=3.1",       # last-resort ligand PDBQT conversion
+    missing = {
+        b: spec
+        for b, spec in OPTIONAL_SCORE_ENV_TOOLS.items()
+        if not _env_has_binary("score-env", b)
     }
-    missing = {b: spec for b, spec in wanted.items() if not _env_has_binary("score-env", b)}
     if not missing:
-        print(f"  ✓ score-env tooling complete ({', '.join(wanted)} present)")
+        print(f"  ✓ score-env tooling complete ({', '.join(OPTIONAL_SCORE_ENV_TOOLS)} present)")
         return
-    print(f"  score-env predates {', '.join(missing)} — backfilling")
-    _run(
+    print(f"  score-env is missing {', '.join(missing)} — installing")
+    ok = _run(
         ["conda", "install", "-n", "score-env", "-c", "conda-forge", "--yes", *missing.values()],
         dry_run,
-        retries=2,
+        retries=1,
+        optional=True,
     )
+    if not ok:
+        still_missing = [b for b in missing if not _env_has_binary("score-env", b)]
+        print(
+            f"  ! optional tooling unavailable on this platform: {', '.join(still_missing)}\n"
+            "    The pipeline still works. Consequences:\n"
+            "      autogrid4 missing -> `--scoring ad4` unavailable (off by default)\n"
+            "      obabel missing    -> no fallback ligand PDBQT converter (meeko is primary)"
+        )
 
 
 def _rapidock_stack_ready() -> bool:
@@ -419,9 +462,10 @@ def install_score_env(dry_run: bool, force: bool) -> None:
         if exists and force:
             _run(["conda", "env", "remove", "-n", "score-env", "--yes"], dry_run)
         _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run, retries=2)
-    # An env skipped above may predate tools later added to score-env.yml.
+    # Runs on both paths: a fresh env has never had these, and an env skipped
+    # above may predate them. See _install_optional_score_env_tools.
     if not dry_run:
-        _repair_score_env_tooling(dry_run)
+        _install_optional_score_env_tools(dry_run)
     # Editable install of hybridock-pep package (safe to re-run; pip no-ops if unchanged)
     _run([*_pip_in("score-env"), "-e", str(_REPO_ROOT)], dry_run)
     print("  ✓ score-env ready — activate with: conda activate score-env")
