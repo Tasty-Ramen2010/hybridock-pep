@@ -291,6 +291,8 @@ def print_guide(topic: str | None = None, stream=None) -> int:
     topics = _topics()
 
     if topic in (None, "", "overview"):
+        from hybridock_pep.output.progress import banner  # noqa: PLC0415
+        banner(stream=out)
         print(OVERVIEW, file=out)
         print(f"Topics: {', '.join(sorted(topics))}, all", file=out)
         return 0

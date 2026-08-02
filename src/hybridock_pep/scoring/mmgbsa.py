@@ -557,8 +557,14 @@ def refine_topk_poses(
         config.mmgbsa_solute_dielectric,
     )
 
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
+    # MM-GBSA is by far the slowest stage (~5-21 s per pose), so this is the
+    # bar users most need: without it the run looks frozen for minutes.
     n_ok = 0
-    for pose in gated:
+    _n_total = len(gated)
+    for _done, pose in enumerate(gated, 1):
+        _progress.tick(_done - 1, _n_total, "poses refined (MM-GBSA)")
         try:
             dg = compute_mmgbsa_single(
                 pose_pdb=pose.pdb_path.resolve(),
@@ -589,6 +595,9 @@ def refine_topk_poses(
             logger.info("MM-GBSA pose %d: ΔG = %.2f kcal/mol", pose.pose_idx, dg)
         except Exception as exc:
             logger.warning("MM-GBSA failed for pose %d (%s); skipping", pose.pose_idx, exc)
+
+    _progress.tick(_n_total, _n_total, "poses refined (MM-GBSA)")
+    _progress.clear()
 
     # Step-2 two-step workflow: surface the MM-GBSA (affinity) re-ranking of the
     # refined poses. The diffusion/Vina rank chose the binding *mode*; MM-GBSA

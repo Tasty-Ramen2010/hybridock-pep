@@ -324,9 +324,14 @@ def run_dock(
     write_metadata_skeleton(config, metadata_path)
 
     # User-facing progress (clean plain-language stages). Enabled at default verbosity; -v users get full logs.
+    from hybridock_pep.output import progress as _progress_mod  # noqa: PLC0415
     from hybridock_pep.output.progress import PipelineProgress, LABELS  # noqa: PLC0415
     _n_stages = 4 + (1 if config.refine_topk is not None else 0) + (1 if config.ultra_charged else 0) + 1
     prog = PipelineProgress(enabled=(config.verbosity == 0), total=_n_stages)
+    # Publish for the batch helpers (scoring, minimization, MM-GBSA, ligand prep,
+    # RAPiDock sampling) so they can draw per-item bars without every one of
+    # their signatures having to carry a progress argument.
+    _progress_mod.set_active(prog)
 
     # Stage 1: Sampling or bypass
     prog.step(LABELS["sample"] if input_poses_dir is None else "Loading input poses")
@@ -740,4 +745,7 @@ def run_dock(
         write_best_pose_pdb(cluster_result, config, scored_poses)
 
     prog.finish()
+    # Unpublish: selectivity/reproducibility call run_dock repeatedly, and a
+    # stale reporter would keep drawing bars against a finished run's stage.
+    _progress_mod.set_active(None)
     return scored_poses, cluster_result

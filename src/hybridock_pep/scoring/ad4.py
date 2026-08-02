@@ -82,7 +82,11 @@ def score_ad4_batch(
     scored: list[ScoredPose] = []
     failures: list[PoseFailure] = []
 
-    for pose in poses:
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
+    _n_total = len(poses)
+    for _done, pose in enumerate(poses, 1):
+        _progress.tick(_done - 1, _n_total, "poses scored (AD4)")
         try:
             v.set_ligand_from_file(str(pose.pdbqt_path))
             pose.ad4_score = float(v.score()[0])
@@ -105,4 +109,6 @@ def score_ad4_batch(
                 )
             )
 
+    _progress.tick(_n_total, _n_total, "poses scored (AD4)")
+    _progress.clear()
     return scored, failures

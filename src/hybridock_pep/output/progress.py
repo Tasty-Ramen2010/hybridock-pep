@@ -110,17 +110,67 @@ class PipelineProgress:
         if self.enabled:
             self._write(f"   • {msg}\n")
 
-    def bar(self, iterable: Iterable[T], label: str, total: int | None = None) -> Iterator[T]:
-        """Per-item progress for a loop. Falls back to plain iteration off-TTY or if tqdm is missing."""
+    def render_bar(self, done: int, total: int, label: str, *, width: int = 28) -> None:
+        """Draw/redraw one in-place ASCII progress bar. TTY-only.
+
+        Deliberately hand-rolled rather than tqdm: tqdm is not a dependency of
+        score-env, so the previous tqdm-backed implementation silently degraded
+        to no progress output at all on a standard install — which is exactly
+        the "is it frozen?" experience this module exists to prevent. Plain
+        ASCII also renders identically everywhere (SSH, Terminal.app, tmux,
+        screen recordings) with no font or Unicode-width surprises.
+        """
         if not self.enabled or not self.tty:
+            return
+        total = max(1, int(total))
+        done = max(0, min(int(done), total))
+        filled = int(width * done / total)
+        bar = "#" * filled + "-" * (width - filled)
+        pct = 100.0 * done / total
+        elapsed = time.time() - self._t if self._t else 0.0
+        eta = ""
+        if done and done < total and elapsed > 1.0:
+            eta = f"  ETA {self._fmt_time(elapsed / done * (total - done))}"
+        self._write(f"\r   [{bar}] {pct:5.1f}%  {done}/{total} {label}{eta}   ")
+
+    @staticmethod
+    def _fmt_time(seconds: float) -> str:
+        seconds = int(max(0, seconds))
+        if seconds < 60:
+            return f"{seconds}s"
+        if seconds < 3600:
+            return f"{seconds // 60}m{seconds % 60:02d}s"
+        return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
+
+    def clear_line(self) -> None:
+        """Erase an in-place bar so the next ✓/▶ line starts clean."""
+        if self.enabled and self.tty:
+            self._write("\r" + " " * 78 + "\r")
+
+    def bar(self, iterable: Iterable[T], label: str, total: int | None = None) -> Iterator[T]:
+        """Wrap a loop in an in-place ASCII progress bar.
+
+        Degrades to plain iteration off-TTY (piped output, CI, log files) so a
+        captured log never fills with control characters. Never raises: a
+        progress bar must not be able to break a run.
+        """
+        if total is None:
+            try:
+                total = len(iterable)  # type: ignore[arg-type]
+            except (TypeError, AttributeError):
+                total = None
+        if not self.enabled or not self.tty or not total:
             yield from iterable
             return
+        done = 0
+        self.render_bar(0, total, label)
         try:
-            from tqdm import tqdm  # noqa: PLC0415
-            yield from tqdm(iterable, desc=f"   {label}", total=total, leave=False,
-                            file=self.stream, ncols=72)
-        except Exception:
-            yield from iterable
+            for item in iterable:
+                yield item
+                done += 1
+                self.render_bar(done, total, label)
+        finally:
+            self.clear_line()
 
     @contextlib.contextmanager
     def heartbeat(self, interval_s: float = 15.0):
@@ -159,6 +209,115 @@ class PipelineProgress:
 
     def finish(self) -> None:
         self._close(ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Ambient progress sink
+# ---------------------------------------------------------------------------
+# The expensive loops (ligand prep, Vina scoring, minimization, MM-GBSA) live
+# inside batch helpers several call-frames below the driver, and most of them
+# are also called directly by tests and scripts. Threading a `prog` argument
+# through every one of those signatures would be broad, churn-heavy, and would
+# force every caller to care about progress reporting.
+#
+# Instead the driver publishes its reporter here once, and any module that
+# wants to draw a bar asks for it. Unset (tests, library use) it is None and
+# every call site is a no-op, so nothing has to be mocked.
+
+_ACTIVE: "PipelineProgress | None" = None
+
+
+def set_active(progress: "PipelineProgress | None") -> None:
+    """Publish the reporter that batch helpers should draw on."""
+    global _ACTIVE
+    _ACTIVE = progress
+
+
+def active() -> "PipelineProgress | None":
+    """The current reporter, or None when progress reporting is off."""
+    return _ACTIVE
+
+
+def track(iterable: Iterable[T], label: str, total: int | None = None) -> Iterator[T]:
+    """Draw a bar over `iterable` using the ambient reporter, if there is one.
+
+    Safe everywhere: with no active reporter, off-TTY, or on any internal
+    failure this is exactly plain iteration.
+    """
+    prog = active()
+    if prog is None:
+        yield from iterable
+        return
+    try:
+        yield from prog.bar(iterable, label, total=total)
+    except Exception:
+        yield from iterable
+
+
+def tick(done: int, total: int, label: str) -> None:
+    """Redraw the ambient bar for code that owns its own loop counter."""
+    prog = active()
+    if prog is not None:
+        try:
+            prog.render_bar(done, total, label)
+        except Exception:
+            pass
+
+
+def clear() -> None:
+    """Erase the ambient bar. Call when a hand-driven `tick` loop finishes, so
+    the trailing bar does not collide with the next ✓ or ▶ line."""
+    prog = active()
+    if prog is not None:
+        try:
+            prog.clear_line()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# ASCII art
+# ---------------------------------------------------------------------------
+
+BANNER = r"""
+  _   _       _          _ ____             _      ____
+ | | | |_   _| |__  _ __(_)  _ \  ___   ___| | __ |  _ \ ___ _ __
+ | |_| | | | | '_ \| '__| | | | |/ _ \ / __| |/ / | |_) / _ \ '_ \
+ |  _  | |_| | |_) | |  | | |_| | (_) | (__|   <  |  __/  __/ |_) |
+ |_| |_|\__, |_.__/|_|  |_|____/ \___/ \___|_|\_\ |_|   \___| .__/
+        |___/                                               |_|
+"""
+
+BANNER_COMPACT = r"""
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+
+  H y b r i D o c k - P e p
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+
+"""
+
+TAGLINE = "peptide -> AI poses -> physics rescoring -> binding energy"
+
+
+def banner(stream=None, subtitle: str = TAGLINE) -> None:
+    """Return the wordmark sized to the terminal, and write it. Never raises.
+
+    Uses ``shutil.get_terminal_size`` (not ``os.get_terminal_size``) to match
+    the rest of the CLI: it honours the COLUMNS environment variable and has a
+    fallback, so tests and piped output get a deterministic width instead of an
+    OSError path.
+    """
+    import shutil  # noqa: PLC0415
+
+    out = stream if stream is not None else sys.stderr
+    cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+    art = BANNER if cols >= 72 else BANNER_COMPACT
+    try:
+        out.write(art)
+        if subtitle:
+            out.write(f"  {subtitle}\n")
+        out.write("\n")
+        out.flush()
+    except Exception:
+        pass
 
 
 # Simplified plain-language stage labels — the vocabulary the user sees.

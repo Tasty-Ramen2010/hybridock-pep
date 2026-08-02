@@ -127,3 +127,145 @@ class TestHeartbeat:
         with pytest.raises(RuntimeError, match="boom"):
             with prog.heartbeat(interval_s=0.01):
                 raise RuntimeError("boom")
+
+
+# ---------------------------------------------------------------------------
+# ASCII bars and the ambient progress sink
+# ---------------------------------------------------------------------------
+# `bar()` used to be implemented on top of tqdm, which is NOT a dependency of
+# score-env. So on every standard install it silently fell through to plain
+# iteration and drew nothing: a progress system that reported no progress,
+# which is exactly the "is it frozen?" experience it exists to prevent.
+# Nothing caught that, because nothing tested it. These do.
+
+from hybridock_pep.output import progress as P  # noqa: E402
+
+
+class _FakePipeStream(io.StringIO):
+    def isatty(self) -> bool:
+        return False
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_leak():
+    """The sink is module-global; never let one test's reporter reach another."""
+    P.set_active(None)
+    yield
+    P.set_active(None)
+
+
+class TestBarDrawsWithoutTqdm:
+    def test_bar_writes_progress_on_a_tty(self) -> None:
+        out = _FakeTTYStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("Scoring")
+        assert list(prog.bar(range(5), "poses")) == [0, 1, 2, 3, 4]
+        text = out.getvalue()
+        assert "%" in text and "poses" in text
+        assert "5/5" in text, "the bar never reached completion"
+
+    def test_bar_is_silent_off_tty(self) -> None:
+        out = _FakePipeStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("Scoring")
+        before = out.getvalue()
+        assert list(prog.bar(range(5), "poses")) == [0, 1, 2, 3, 4]
+        assert out.getvalue() == before, "a piped log must not receive bar output"
+
+    def test_bar_yields_everything_for_a_sizeless_iterable(self) -> None:
+        out = _FakeTTYStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+
+        def gen():
+            yield from range(4)
+
+        assert list(prog.bar(gen(), "items")) == [0, 1, 2, 3]
+
+    def test_render_bar_clamps_out_of_range_counts(self) -> None:
+        out = _FakeTTYStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("x")
+        prog.render_bar(999, 10, "poses")
+        prog.render_bar(-5, 10, "poses")
+        text = out.getvalue()
+        assert "100.0%" in text and "0.0%" in text
+
+    def test_zero_total_does_not_divide_by_zero(self) -> None:
+        out = _FakeTTYStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("x")
+        prog.render_bar(0, 0, "poses")
+
+
+class TestAmbientSink:
+    def test_tick_is_a_noop_with_no_reporter(self) -> None:
+        P.tick(1, 10, "poses")
+        P.clear()
+
+    def test_tick_draws_through_the_active_reporter(self) -> None:
+        out = _FakeTTYStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("Scoring")
+        P.set_active(prog)
+        P.tick(3, 10, "poses refined")
+        assert "poses refined" in out.getvalue()
+        assert "30.0%" in out.getvalue()
+
+    def test_track_iterates_identically_with_or_without_a_reporter(self) -> None:
+        assert list(P.track(range(4), "x")) == [0, 1, 2, 3]
+        out = _FakeTTYStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("s")
+        P.set_active(prog)
+        assert list(P.track(range(4), "x")) == [0, 1, 2, 3]
+
+    def test_a_broken_reporter_cannot_break_the_run(self) -> None:
+        """Progress reporting must never be able to fail real work."""
+        class Exploding:
+            def render_bar(self, *a, **kw):
+                raise RuntimeError("boom")
+
+            def bar(self, iterable, label, total=None):
+                raise RuntimeError("boom")
+
+            def clear_line(self):
+                raise RuntimeError("boom")
+
+        P.set_active(Exploding())
+        P.tick(1, 2, "x")
+        P.clear()
+        assert list(P.track(range(3), "x")) == [0, 1, 2]
+
+
+class TestBanner:
+    def test_banner_writes_plain_ascii_art(self) -> None:
+        out = io.StringIO()
+        P.banner(stream=out)
+        text = out.getvalue()
+        assert len(text.splitlines()) > 3
+        assert text.isascii(), "banner must be plain ASCII so it renders anywhere"
+
+    def test_banner_never_raises_on_a_broken_stream(self) -> None:
+        class Broken:
+            def write(self, s):
+                raise OSError("no")
+
+            def flush(self):
+                pass
+
+        P.banner(stream=Broken())
+
+
+class TestSamplingProgressProtocol:
+    """The RAPiDock shim and the parent must agree on the wire format."""
+
+    def test_parent_and_shim_share_one_prefix_constant(self) -> None:
+        from hybridock_pep.sampling.run_rapidock import PROGRESS_PREFIX
+        assert PROGRESS_PREFIX.startswith("[[") and PROGRESS_PREFIX.endswith("]]")
+
+    def test_progress_line_round_trips(self) -> None:
+        from hybridock_pep.sampling.run_rapidock import PROGRESS_PREFIX
+        line = "%s %d %d" % (PROGRESS_PREFIX, 7, 112)
+        assert line.startswith(PROGRESS_PREFIX)
+        done_s, total_s = line[len(PROGRESS_PREFIX):].split()
+        assert (int(done_s), int(total_s)) == (7, 112)
