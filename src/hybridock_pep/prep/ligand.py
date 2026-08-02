@@ -3,13 +3,13 @@ from __future__ import annotations
 import logging
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from hybridock_pep.models import PoseFailure
+from hybridock_pep.toolpath import which as _which
 from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
@@ -161,10 +161,10 @@ def _try_prepare_ligand4_fallback(pdb_path: Path, pdbqt_out: Path) -> Path | Non
         fails.
     """
     # Locate ADFRsuite pythonsh and prepare_ligand4.py
-    pythonsh = shutil.which("pythonsh")
+    pythonsh = _which("pythonsh")
     if pythonsh is None:
         # Try relative to prepare_receptor (same ADFRsuite bin/)
-        prep_rec = shutil.which("prepare_receptor")
+        prep_rec = _which("prepare_receptor")
         if prep_rec:
             pythonsh = str(Path(prep_rec).parent / "pythonsh")
         if not pythonsh or not Path(pythonsh).exists():
@@ -172,7 +172,7 @@ def _try_prepare_ligand4_fallback(pdb_path: Path, pdbqt_out: Path) -> Path | Non
 
     # Locate prepare_ligand4.py — typically at
     # {ADFR_ROOT}/CCSBpckgs/AutoDockTools/Utilities24/prepare_ligand4.py
-    prep4 = shutil.which("prepare_ligand4.py")
+    prep4 = _which("prepare_ligand4.py")
     if prep4 is None:
         adfr_root = Path(pythonsh).resolve().parent.parent
         candidate = (
