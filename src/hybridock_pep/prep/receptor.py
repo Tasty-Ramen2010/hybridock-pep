@@ -16,6 +16,53 @@ from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 logger = logging.getLogger(__name__)
 
 
+def _try_meeko(fixed_pdb_path: Path, pdbqt_path: Path) -> bool:
+    """Attempt meeko receptor prep. Return True on success, False to fall through.
+
+    Meeko is the Forli lab's supported successor to prepare_receptor:
+    pip/conda-installable, native on Apple Silicon, and it emits proper
+    AutoDock atom types (OA/HD/NA/SA) where obabel is sloppier. So it is tried
+    first.
+
+    But it is also much stricter. It matches every residue against a template
+    library and refuses the whole structure when any residue has an unexpected
+    heavy-atom set — e.g. ``No template matched for residue_key='A:41' ...
+    PHE heavy_miss=0 heavy_excess=1``. Crystal-derived receptors hit this
+    routinely (alternate conformations, modified residues, stray ligand atoms
+    a template does not know about).
+
+    A meeko failure must therefore NOT abort receptor prep: obabel is more
+    permissive and handles exactly these structures. Returning False rather
+    than raising is what makes the documented chain
+    ``prepare_receptor -> mk_prepare_receptor.py -> obabel`` real; raising here
+    silently reduced it to a two-step chain and broke every receptor meeko
+    could not template-match.
+    """
+    cmd = [
+        "mk_prepare_receptor.py",
+        "--read_pdb", str(fixed_pdb_path),
+        "-o", str(pdbqt_path.with_suffix("")),
+        "-p",
+    ]
+    logger.info("Running: %s", " ".join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Post-run success check, NOT a skip-if-exists cache (D-02): meeko can exit
+    # 0 having written nothing when the input is unusable, so the output is
+    # verified after the subprocess, never before it.
+    if result.returncode == 0 and Path(pdbqt_path).is_file():
+        return True
+    logger.warning(
+        "mk_prepare_receptor.py failed (exit %s) — falling back to babel/obabel. "
+        "This is usually a residue meeko has no template for; obabel is more "
+        "permissive. Details:\n%s",
+        result.returncode,
+        (result.stderr or result.stdout or "").strip()[:800],
+    )
+    # Never leave a partial file behind for the fallback to trip over.
+    Path(pdbqt_path).unlink(missing_ok=True)
+    return False
+
+
 def prepare_receptor(config: DockConfig) -> Path:
     """Clean a receptor PDB with pdbfixer and convert it to PDBQT.
 
@@ -132,38 +179,14 @@ def prepare_receptor(config: DockConfig) -> Path:
                 raise PrepError(
                     f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
                 )
-        elif shutil.which("mk_prepare_receptor.py") is not None:
-            # Meeko is the Forli lab's supported successor to prepare_receptor,
-            # pip/conda-installable and native on Apple Silicon. It emits proper
-            # AutoDock atom types (OA/HD/NA/SA) and Gasteiger charges, which
-            # obabel does less faithfully, so it is preferred over the babel
-            # fallback below.
-            logger.info(
-                "prepare_receptor (ADFRsuite) not on PATH — using meeko "
-                "mk_prepare_receptor.py instead."
-            )
-            cmd = [
-                "mk_prepare_receptor.py",
-                "--read_pdb", str(fixed_pdb_path),
-                "-o", str(pdbqt_path.with_suffix("")),
-                "-p",
-            ]
-            logger.info("Running: %s", " ".join(cmd))
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            # Post-run success check, NOT a skip-if-exists cache (D-02): meeko
-            # can exit 0 having written nothing when the input is unusable, so
-            # the output is verified after the subprocess, never before it.
-            wrote_output = Path(pdbqt_path).is_file()
-            if result.returncode != 0 or not wrote_output:
-                raise PrepError(
-                    f"mk_prepare_receptor.py failed (exit {result.returncode}):\n"
-                    f"{result.stderr or result.stdout}"
-                )
+        elif shutil.which("mk_prepare_receptor.py") is not None and _try_meeko(
+            fixed_pdb_path, pdbqt_path
+        ):
+            pass  # meeko succeeded; nothing further to do
         else:
             logger.warning(
-                "Neither prepare_receptor (ADFRsuite) nor meeko "
-                "mk_prepare_receptor.py on PATH — falling back to babel/obabel "
-                "for receptor PDBQT prep."
+                "Using babel/obabel for receptor PDBQT prep (no usable "
+                "prepare_receptor or meeko result)."
             )
             try:
                 result = convert_pdb_to_pdbqt(fixed_pdb_path, pdbqt_path, add_hydrogens=True)
