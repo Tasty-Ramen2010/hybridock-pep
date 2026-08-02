@@ -127,7 +127,10 @@ def generate_ad4_maps(config: DockConfig, receptor_pdbqt: Path) -> Path:
     gpf_path.write_text(gpf_content)
     logger.info("GPF written: %s", gpf_path)
 
-    cmd = ["autogrid4", "-p", "receptor.gpf", "-l", "receptor.glg"]
+    # Resolve to an absolute path: autogrid4 is installed into score-env/bin,
+    # which is not on $PATH when the CLI is run by absolute path.
+    autogrid_bin = _which("autogrid4") or "autogrid4"
+    cmd = [autogrid_bin, "-p", "receptor.gpf", "-l", "receptor.glg"]
     logger.info("Running: %s (cwd=%s)", " ".join(cmd), maps_dir)
 
     result = subprocess.run(

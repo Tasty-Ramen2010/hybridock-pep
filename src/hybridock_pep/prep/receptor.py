@@ -16,7 +16,7 @@ from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 logger = logging.getLogger(__name__)
 
 
-def _try_meeko(fixed_pdb_path: Path, pdbqt_path: Path) -> bool:
+def _try_meeko(fixed_pdb_path: Path, pdbqt_path: Path, meeko_bin: str) -> bool:
     """Attempt meeko receptor prep. Return True on success, False to fall through.
 
     Meeko is the Forli lab's supported successor to prepare_receptor:
@@ -38,8 +38,11 @@ def _try_meeko(fixed_pdb_path: Path, pdbqt_path: Path) -> bool:
     silently reduced it to a two-step chain and broke every receptor meeko
     could not template-match.
     """
+    # Absolute path, not the bare name: the binary lives in score-env/bin, which
+    # is not on $PATH when hybridock-pep is invoked by absolute path, so
+    # subprocess would raise FileNotFoundError on a tool we just located.
     cmd = [
-        "mk_prepare_receptor.py",
+        meeko_bin,
         "--read_pdb", str(fixed_pdb_path),
         "-o", str(pdbqt_path.with_suffix("")),
         "-p",
@@ -168,7 +171,7 @@ def prepare_receptor(config: DockConfig) -> Path:
     try:
         if prepare_receptor_bin is not None:
             cmd = [
-                "prepare_receptor",
+                prepare_receptor_bin,
                 "-r", str(fixed_pdb_path),
                 "-o", str(pdbqt_path),
                 "-A", "hydrogens",
@@ -179,8 +182,8 @@ def prepare_receptor(config: DockConfig) -> Path:
                 raise PrepError(
                     f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
                 )
-        elif _which("mk_prepare_receptor.py") is not None and _try_meeko(
-            fixed_pdb_path, pdbqt_path
+        elif (meeko_bin := _which("mk_prepare_receptor.py")) is not None and _try_meeko(
+            fixed_pdb_path, pdbqt_path, meeko_bin
         ):
             pass  # meeko succeeded; nothing further to do
         else:

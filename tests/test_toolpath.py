@@ -184,3 +184,41 @@ class TestMeekoLigandFallback:
         assert isinstance(result, PoseFailure)
         assert result.pose_idx == 7
         assert result.stage == "prep"
+
+
+class TestToolsAreInvokedByResolvedPath:
+    """Locating a tool is not enough — the command must use the path found.
+
+    receptor.py located mk_prepare_receptor.py through the env-aware lookup and
+    then ran subprocess with the bare name, so execve searched $PATH again and
+    raised FileNotFoundError on a binary the code had just confirmed exists.
+    """
+
+    def test_meeko_command_uses_the_resolved_binary(self, tmp_path, monkeypatch):
+        import subprocess as sp
+
+        import hybridock_pep.prep.receptor as receptor_mod
+
+        seen = []
+
+        def fake_run(cmd, **kw):
+            seen.append(cmd)
+            Path(cmd[cmd.index("-o") + 1] + ".pdbqt").write_text("ATOM\n")
+            return sp.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(receptor_mod.subprocess, "run", fake_run)
+        out = tmp_path / "receptor.pdbqt"
+        receptor_mod._try_meeko(tmp_path / "in.pdb", out, "/opt/env/bin/mk_prepare_receptor.py")
+
+        assert seen[0][0] == "/opt/env/bin/mk_prepare_receptor.py", (
+            f"invoked by bare name: {seen[0][0]!r} — execve will search $PATH "
+            "and miss score-env/bin"
+        )
+
+    def test_autogrid_command_uses_the_resolved_binary(self, monkeypatch):
+        import hybridock_pep.prep.grids as grids_mod
+
+        src = Path(grids_mod.__file__).read_text()
+        assert '["autogrid4", "-p"' not in src, (
+            "autogrid4 invoked by bare name — resolve it through toolpath.which"
+        )
