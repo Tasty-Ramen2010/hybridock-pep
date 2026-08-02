@@ -857,6 +857,25 @@ hybridock-pep benchmark \
     --report benchmark_report.md
 ```
 
+### ARM Linux (DGX Spark, Grace, Graviton, Ampere)
+
+Verified end-to-end on a DGX Spark (GB10, `linux-aarch64`): 693 tests pass and
+`dock` completes. Two platform limits, both handled automatically:
+
+- **No `autogrid` build on conda-forge for `linux-aarch64`**, so `--scoring ad4`
+  is unavailable. AD4 is off by default and the reported ΔG comes from the affinity
+  model, so nothing else changes. The installer says so instead of failing.
+- **No `openbabel` build for Python 3.11 either**, so neither `babel` nor `obabel`
+  exists. Ligand prep falls back to meeko's Polymer route. It works, but converts
+  fewer poses than babel (7/20 on a 1YCR `--n-samples 20` run) because meeko
+  rejects poses it cannot template-pad — raise `--n-samples` to compensate.
+
+If your GPU is newer than the PyTorch wheel that gets installed (the GB10 is
+`sm_121`; the cu128 wheel targets `sm_90/100/120`), Stage 1 detects it and disables
+TorchScript GPU fusion, which is the only part that needs runtime NVRTC codegen.
+Without that, every fused kernel dies with `nvrtc: error: invalid value for
+--gpu-architecture` and sampling silently produces zero poses.
+
 ### Cross-platform & accelerator tuning (CUDA · ROCm · oneAPI · Metal · CPU)
 
 Backend selection and per-device tuning are **automatic** — no flags. Each compute path is routed to the
