@@ -58,15 +58,25 @@ def pair_key(rec: dict) -> str:
 
 
 def load_done() -> set[str]:
+    """Pairs that already have a score.
+
+    A pair that *failed* is deliberately not counted as done: over a multi-day
+    run the failures are the ones worth retrying, since they are usually
+    environmental (a missing converter, a transient sampler crash) and get
+    fixed while the job is still going. Re-running simply appends a newer row.
+    """
     if not RESULTS.is_file():
         return set()
     done = set()
     for line in RESULTS.read_text().splitlines():
-        if line.strip():
-            try:
-                done.add(pair_key(json.loads(line)))
-            except (ValueError, KeyError):
-                continue
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+            if rec.get("delta_g") is not None:
+                done.add(pair_key(rec))
+        except (ValueError, KeyError):
+            continue
     return done
 
 

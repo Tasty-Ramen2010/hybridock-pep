@@ -222,3 +222,62 @@ class TestToolsAreInvokedByResolvedPath:
         assert '["autogrid4", "-p"' not in src, (
             "autogrid4 invoked by bare name — resolve it through toolpath.which"
         )
+
+
+class TestSidecarEnv:
+    """Some tools cannot live in score-env at all and get their own env.
+
+    openbabel is the case: conda-forge's only linux-aarch64 builds are against
+    Python 3.9, so it will never enter a 3.11 score-env, and without it ARM
+    Linux has no PDBQT converter. It installs fine in an env of its own, and
+    `obabel` is a binary — what Python it was built against is irrelevant.
+    """
+
+    def test_finds_a_tool_in_the_sidecar_env(self, tmp_path, monkeypatch):
+        from hybridock_pep.toolpath import SIDECAR_ENV
+
+        envs = tmp_path / "miniforge3" / "envs"
+        prefix = envs / "score-env"
+        (prefix / "bin").mkdir(parents=True)
+        exe = _make_exe(envs / SIDECAR_ENV / "bin", "obabel")
+        monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+        monkeypatch.setattr(sys, "prefix", str(prefix))
+
+        assert which("obabel") == str(exe)
+
+    def test_own_env_wins_over_the_sidecar(self, tmp_path, monkeypatch):
+        from hybridock_pep.toolpath import SIDECAR_ENV
+
+        envs = tmp_path / "miniforge3" / "envs"
+        prefix = envs / "score-env"
+        mine = _make_exe(prefix / "bin", "obabel")
+        _make_exe(envs / SIDECAR_ENV / "bin", "obabel")
+        monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+        monkeypatch.setattr(sys, "prefix", str(prefix))
+
+        assert which("obabel") == str(mine)
+
+    def test_no_sidecar_lookup_outside_a_conda_layout(self, tmp_path, monkeypatch):
+        """sys.prefix must actually look like <base>/envs/<name> before we go
+        guessing at sibling directories — a venv or system Python must not."""
+        prefix = tmp_path / "venv"
+        (prefix / "bin").mkdir(parents=True)
+        monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+        monkeypatch.setattr(sys, "prefix", str(prefix))
+
+        assert which("obabel") is None
+
+    def test_setup_environment_agrees_on_the_env_name(self):
+        """The installer creates it; the pipeline looks for it. One name."""
+        import importlib.util
+
+        from hybridock_pep.toolpath import SIDECAR_ENV
+
+        repo = Path(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location(
+            "_setup_env_sidecar", repo / "scripts" / "setup_environment.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+        assert mod.SIDECAR_ENV == SIDECAR_ENV
