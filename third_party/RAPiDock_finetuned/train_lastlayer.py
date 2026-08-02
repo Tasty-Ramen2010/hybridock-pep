@@ -2819,6 +2819,12 @@ def main():
     parser.add_argument("--x0-cap", type=float, default=100.0,
                         help="Per-sample clamp (Angstrom^2) on the x0 term so a single far-off "
                              "draw can't dominate the batch. Default 100 = (10 A)^2.")
+    parser.add_argument("--unfreeze-extra", type=str, default="",
+                        help="Comma-separated name substrings of params to additionally unfreeze "
+                             "(composes with --adapter-only / v-modes). ~10%% recipe: "
+                             "'tr_final_layer,rot_final_layer,tor_bb_final_layer,tor_sc_final_layer,"
+                             "final_conv,cross_convs.3'. Pair with dropout + --pretrained-reg-lambda "
+                             "+ --freeze-bn-stats to limit forgetting in unfrozen conv layers.")
     parser.add_argument("--save-every", type=int, default=5)
     parser.add_argument("--ppii-weight", type=int, default=4,
                         help="Oversample factor for ppii_enriched entries")
@@ -2974,6 +2980,24 @@ def main():
         print(f"[adapter-only] trainable = {_n_ad:,} params (tr_adapter_conv only) "
               f"of {_n_tot:,} total; ALL pretrained base frozen", flush=True)
         assert _n_ad > 0, "adapter-only requested but no tr_adapter params found — flag not wired?"
+
+    # --- --unfreeze-extra: unfreeze additional params by name substring (composes with any mode) ---
+    # Targeted capacity boost (~10% recipe): adapter-only gives translation-DIRECTION only; adding
+    # the readout heads (rot/tor/tr-magnitude) + the deepest interaction conv (cross_convs.3) lets
+    # the model also correct ORIENTATION, CONFORMATION, and receptor-peptide INTERACTION — while
+    # keeping the forgetting-prone bulk (early convs, embeddings) FROZEN. Pair with dropout +
+    # --pretrained-reg-lambda (anchor) + --freeze-bn-stats to manage forgetting in the unfrozen conv.
+    _extra = [s.strip() for s in str(getattr(args, "unfreeze_extra", "") or "").split(",") if s.strip()]
+    if _extra:
+        _n_ex = 0
+        for _name, _p in model.named_parameters():
+            if any(pat in _name for pat in _extra) and not _p.requires_grad:
+                _p.requires_grad = True
+                _n_ex += _p.numel()
+        _n_tot = sum(p.numel() for p in model.parameters())
+        _n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"[unfreeze-extra] +{_n_ex:,} params via {_extra}; "
+              f"TOTAL trainable = {_n_train:,} / {_n_tot:,} ({100*_n_train/_n_tot:.1f}%)", flush=True)
 
     # --- Wire ROOT-CAUSE-FIX + x0 flags onto the model (read by train_epoch/compute_loss) ---
     model._freeze_all_bn = bool(getattr(args, "freeze_bn_stats", False))
