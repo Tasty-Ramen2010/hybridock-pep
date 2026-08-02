@@ -62,7 +62,10 @@ WELCOME = """\
    If a bar is moving, it is working. Some stages are slow and quiet —
    MM-GBSA takes several seconds per pose. That is normal.
 
-   Enter  start filling the form        Ctrl-G  open help (9 topics)
+   Move between fields with  ↑ ↓  (or Tab). The one you are on shows a  ▶ .
+   Need to abort a run? Press Ctrl-C, or the STOP ■ button, at any time.
+
+   Enter  start filling the form        Ctrl-G  open help (10 topics)
 """
 
 
@@ -89,10 +92,22 @@ TOPICS: list[tuple[str, str, str]] = [
  Nothing you do here can damage your data. Every run writes into its own
  new folder under  runs/  and never edits your input files.
 
+ MOVING AROUND THE FORM
+   Press  ↑  and  ↓  to move between fields. Tab and Shift-Tab do the same.
+   The field you are on is marked with a  ▶  and its name turns yellow, so
+   you can always see where you are.
+
  CONTROLS — all Ctrl keys, so they work identically on every OS
    Ctrl-R  Full run      Ctrl-T  Demo run     Ctrl-B  Browse for a file
    Ctrl-P  Print command Ctrl-L  Clear output Ctrl-G  Help (this screen)
-   Ctrl-W  Welcome tour  Ctrl-Q  Quit         Tab     Next field
+   Ctrl-W  Welcome tour  Ctrl-Q  Quit         ↑ ↓     Move between fields
+
+ STOPPING A RUN — Ctrl-C, or the red STOP ■ button
+   Works at any point once a run has started. It stops the docking process
+   AND the pose-generation process it launched, so nothing is left running
+   in the background using your GPU.
+
+   Ctrl-C stops the run; it does NOT quit the program. Use Ctrl-Q to quit.
 
  You can also just click any button with the mouse.
 

@@ -15,9 +15,11 @@ The layout resizes with the terminal. Dependency-light (prompt_toolkit only).
 """
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -62,6 +64,58 @@ def mark_welcomed(marker: Path | None = None) -> None:
         path.write_text("1\n")
     except OSError:
         pass
+
+# --------------------------------------------------------------------------- #
+#  Emergency stop
+# --------------------------------------------------------------------------- #
+
+
+def terminate_process_tree(proc, grace: float = 4.0) -> bool:
+    """Stop a running dock and everything it spawned. Returns True if it died.
+
+    Killing only `proc` is not enough. `hybridock-pep dock` launches the
+    rapidock environment's python as a *child* process to do GPU sampling; kill
+    the parent alone and that child keeps running, holding the GPU and writing
+    into the output directory. For an emergency stop that is the worst possible
+    outcome — the user thinks they stopped it and it is still going.
+
+    So the run is started in its own process group (``start_new_session=True``)
+    and the whole group is signalled: SIGTERM first so OpenMM/torch can unwind,
+    then SIGKILL for anything still alive after `grace` seconds.
+
+    Falls back to plain terminate()/kill() where process groups do not exist
+    (Windows). Never raises: a stop button that can throw is not a stop button.
+    """
+    if proc is None or proc.poll() is not None:
+        return True
+
+    def _signal_group(sig) -> None:
+        if hasattr(os, "killpg"):
+            try:
+                os.killpg(os.getpgid(proc.pid), sig)
+                return
+            except (ProcessLookupError, PermissionError, OSError):
+                pass  # group already gone, or no permission — fall through
+        try:
+            proc.send_signal(sig)
+        except (ProcessLookupError, OSError, ValueError):
+            pass
+
+    _signal_group(signal.SIGTERM)
+    deadline = time.time() + grace
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return True
+        time.sleep(0.1)
+
+    _signal_group(getattr(signal, "SIGKILL", signal.SIGTERM))
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return True
+        time.sleep(0.1)
+    return proc.poll() is not None
+
 
 # --------------------------------------------------------------------------- #
 #  Form model + validation
@@ -443,6 +497,7 @@ def run_fullscreen(auto_demo=False):
             append("… a run is already in progress")
             return
         state["running"], state["rc"] = True, None
+        state["cancel"], state["proc"] = False, None
         progress["p"] = PipelineProgress()
         append("")
         append(f"▶ {title}" if title else "▶ run")
@@ -453,6 +508,8 @@ def run_fullscreen(auto_demo=False):
             try:
                 if demo:
                     for text, delay in demo_lines(int(vals()["n_samples"] or 100)):
+                        if state["cancel"]:
+                            break
                         progress["p"].feed(text)
                         append(text)
                         time.sleep(delay)
@@ -462,14 +519,24 @@ def run_fullscreen(auto_demo=False):
                         append(f"✗ '{cmd[0]}' not on PATH — run `conda activate score-env` first.")
                         state["rc"] = 127
                         return
-                    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                            text=True, bufsize=1)
+                    # Own process group so Stop can signal the dock AND the
+                    # rapidock sampling child it spawns. See
+                    # terminate_process_tree().
+                    proc = subprocess.Popen(
+                        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, bufsize=1,
+                        start_new_session=(os.name != "nt"),
+                    )
+                    state["proc"] = proc
                     for line in proc.stdout:
                         progress["p"].feed(line)
                         append(line)
                     state["rc"] = proc.wait()
                 progress["p"].finished = True
-                append(f"── finished (exit {state['rc']}) ──")
+                if state["cancel"]:
+                    append("── STOPPED by user ──")
+                else:
+                    append(f"── finished (exit {state['rc']}) ──")
             except Exception as exc:  # noqa: BLE001
                 append(f"✗ error: {exc}")
                 state["rc"] = 1
@@ -477,6 +544,28 @@ def run_fullscreen(auto_demo=False):
                 state["running"] = False
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def stop_run():
+        """Emergency stop — abort whatever is running, right now."""
+        if not state["running"]:
+            append("… nothing is running to stop")
+            return
+        state["cancel"] = True
+        proc = state.get("proc")
+        if proc is None:                       # demo, or process not spawned yet
+            append("■ stopping…")
+            return
+        append("■ STOP requested — terminating the run and its sampling child…")
+        # Off the UI thread: terminate_process_tree waits out a grace period,
+        # and blocking the event loop would freeze the screen mid-stop and make
+        # the user think the button did nothing.
+        threading.Thread(
+            target=lambda: append(
+                "■ stopped." if terminate_process_tree(proc) else
+                "■ could not confirm the process died — check with: ps aux | grep hybridock"
+            ),
+            daemon=True,
+        ).start()
 
     def run_dock(n, scoring, refine, title):
         inputs["n_samples"].text, inputs["scoring"].text, inputs["refine_topk"].text = str(n), scoring, str(refine)
@@ -620,6 +709,7 @@ def run_fullscreen(auto_demo=False):
         B("Demo ▷", lambda: start_stream(None, demo=True, title="DEMO (simulated, no GPU)"), 10),
     ], padding=1, height=1)
     tool_row = VSplit([
+        B("STOP ■", stop_run, 9),
         B("Browse 📁", open_picker, 12),
         B("Print", do_print, 9),
         B("Help ?", toggle_help, 10),
@@ -627,11 +717,46 @@ def run_fullscreen(auto_demo=False):
         B("Quit ✕", lambda: get_app().exit(result=0), 10),
     ], padding=1, height=1)
 
+    def focused_key():
+        """Which form field currently has the caret, or None."""
+        try:
+            control = get_app().layout.current_control
+        except Exception:
+            return None
+        for key, ta in inputs.items():
+            if ta.control is control:
+                return key
+        return None
+
+    def label_fragments(f):
+        """Label text, marked when its field is focused.
+
+        Without this every label looked identical whether or not it was
+        selected, so Tab appeared to do nothing and the form read as
+        "only the first box is editable". The caret alone is not enough of a
+        cue on a form this tall.
+        """
+        if focused_key() == f.key:
+            return [("class:labelfocus", f"{'▶ ' + f.label:>28} ")]
+        return [("class:label", f"{f.label:>28} ")]
+
     form_rows = [VSplit([
-        Window(FormattedTextControl(lambda f=f: [("class:label", f"{f.label:>28} ")]),
+        Window(FormattedTextControl(lambda f=f: label_fragments(f)),
                width=29, height=1, dont_extend_width=True),
         inputs[f.key],
     ], height=1) for f in FIELDS]
+
+    def focus_field(delta):
+        """Move focus by `delta` fields, wrapping at the ends.
+
+        Deliberately not layout.focus_next(): that walks every focusable window
+        in the layout, so Tab wandered off into the output pane and the buttons
+        instead of stepping through the form. This stays inside FIELDS.
+        """
+        keys = [f.key for f in FIELDS]
+        cur = focused_key()
+        idx = keys.index(cur) if cur in keys else 0
+        _focus(inputs[keys[(idx + delta) % len(keys)]])
     form = HSplit(form_rows + [Window(hint, height=1)])
 
     title = Window(FormattedTextControl(
@@ -639,9 +764,9 @@ def run_fullscreen(auto_demo=False):
         height=1, align=WindowAlign.LEFT, style="class:titlebar")
     footer = Window(FormattedTextControl(
         [("class:key", " Ctrl-R "), ("class:footer", "Full "), ("class:key", " Ctrl-T "), ("class:footer", "Demo "),
-         ("class:key", " Ctrl-B "), ("class:footer", "Browse "), ("class:key", " Ctrl-G "), ("class:footer", "Help "),
-         ("class:key", " Ctrl-Q "), ("class:footer", "Quit "),
-         ("class:footer", " · Tab moves · drag a .pdb onto a path field · click any button ")]),
+         ("class:key", " Ctrl-C "), ("class:footer", "STOP "), ("class:key", " Ctrl-B "), ("class:footer", "Browse "),
+         ("class:key", " Ctrl-G "), ("class:footer", "Help "), ("class:key", " Ctrl-Q "), ("class:footer", "Quit "),
+         ("class:footer", " · ↑↓ or Tab move between fields · drag a .pdb onto a path field ")]),
         height=1, style="class:footerbar")
 
     main_view = HSplit([title, Frame(form, title="inputs"),
@@ -737,13 +862,35 @@ def run_fullscreen(auto_demo=False):
         def _(e, _k=_topic_key):
             view["topic"] = _k
 
+    in_form = Condition(lambda: view["mode"] == "main")
+
     @kb.add("tab", filter=not_picker)
     def _(e):
-        e.app.layout.focus_next()
+        focus_field(+1)
 
     @kb.add("s-tab", filter=not_picker)
     def _(e):
-        e.app.layout.focus_previous()
+        focus_field(-1)
+
+    # Arrows too: on a labelled vertical form this is what people reach for
+    # first, and the inputs are single-line so up/down do nothing inside them.
+    @kb.add("down", filter=in_form)
+    def _(e):
+        focus_field(+1)
+
+    @kb.add("up", filter=in_form)
+    def _(e):
+        focus_field(-1)
+
+    # Emergency stop. Ctrl-C is the instinct in a panic, so bind that as well as
+    # a mnemonic; quitting stays on Ctrl-Q.
+    @kb.add("c-c", filter=not_picker)
+    def _(e):
+        stop_run()
+
+    @kb.add("c-k", filter=not_picker)
+    def _(e):
+        stop_run()
 
     @kb.add("up", filter=in_picker)
     def _(e):
@@ -765,6 +912,7 @@ def run_fullscreen(auto_demo=False):
     style = Style.from_dict({
         "titlebar": "bg:#0d3b66 #ffffff bold", "title": "bg:#0d3b66 #ffffff bold",
         "titledim": "bg:#0d3b66 #a9c7e8", "label": "bold #cfe3ff", "input": "bg:#11151c #ffffff",
+        "labelfocus": "bold #ffd166",
         "output": "bg:#0a0e14 #b6f0c4", "help": "bg:#0d1830 #d3e2ff", "picker": "bg:#0a0e14 #d3e2ff",
         "pickersel": "bg:#0d3b66 #ffffff bold", "pickerdir": "#7fd0ff", "pickerfile": "#b6f0c4",
         "bar": "#39c0ff", "okbar": "#4ade80", "pct": "bold #ffffff", "stage": "bold #ffd166",

@@ -234,6 +234,8 @@ hybridock-tui               # identical to ./launch_ui.sh
 
 | key | action |
 |---|---|
+| `↑` / `↓` | move between form fields (Tab / Shift-Tab also work) |
+| `Ctrl-C` | **STOP** — abort a running job and everything it spawned |
 | `Ctrl-G` | help — 10 topics, including selectivity, crystal scoring, AI vs physics scoring, calibration |
 | `Ctrl-W` | reopen the welcome walkthrough |
 | `Ctrl-T` | Demo run (no GPU) |
@@ -241,8 +243,13 @@ hybridock-tui               # identical to ./launch_ui.sh
 | `Ctrl-B` | browse for a file |
 | `Ctrl-Q` | quit |
 
-Inside help, press `0`–`9` to jump between topics. You can also drag a `.pdb` file from Finder
+The field you are editing is marked with a `▶` and a yellow label, so you can always see where you
+are. Inside help, press `0`–`9` to jump between topics. You can also drag a `.pdb` file from Finder
 straight onto any path field.
+
+> `Ctrl-C` **stops the run, it does not quit the program** — quitting is `Ctrl-Q`. The stop signals
+> the whole process group, so the `rapidock` sampling child dies too rather than being orphaned on
+> your GPU.
 
 ### 6. Built-in guide (no UI needed)
 

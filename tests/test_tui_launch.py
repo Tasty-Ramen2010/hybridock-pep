@@ -36,8 +36,13 @@ pytestmark = [
 ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b[()][AB012]")
 
 
-def _launch(home: str, keys: bytes = b"", settle: float = 2.5) -> str:
-    """Run the TUI in a pty, optionally send keys, return the de-ANSI'd screen."""
+def _launch(home: str, keys: bytes = b"", settle: float = 2.5,
+            after: bytes = b"", after_delay: float = 0.0) -> str:
+    """Run the TUI in a pty, optionally send keys, return the de-ANSI'd screen.
+
+    `after`/`after_delay` send a second burst later in the session — needed to
+    start something and then stop it.
+    """
     import fcntl
     import pty
     import select
@@ -57,7 +62,13 @@ def _launch(home: str, keys: bytes = b"", settle: float = 2.5) -> str:
     try:
         if keys:
             time.sleep(settle)
-            os.write(fd, keys)
+            for byte in keys:            # one at a time: prompt_toolkit needs
+                os.write(fd, bytes([byte]))   # to process each key separately
+                time.sleep(0.2)
+        if after:
+            time.sleep(after_delay)
+            os.write(fd, after)
+            time.sleep(2.0)
         deadline = time.time() + 10
         while time.time() < deadline:
             r, _, _ = select.select([fd], [], [], 0.4)
@@ -143,3 +154,70 @@ def test_help_is_reachable_for_a_first_time_user_too(fresh_home):
     """A new user must be able to get help straight from the tour."""
     screen = _launch(fresh_home, keys=b"\x07")
     assert _topics_visible(screen) >= 3
+
+
+# ---------------------------------------------------------------------------
+# Moving around the form
+# ---------------------------------------------------------------------------
+# Reported as "I can only fill out the peptide sequence, I can't get to the
+# receptor or the scoring stuff". Tab did in fact move focus — but every label
+# rendered identically whether or not it was selected, so nothing on screen
+# changed and the form read as having one editable box. The fix is the ▶ marker
+# plus arrow-key navigation; both are only observable with a real terminal.
+
+def _focused_label(screen: str) -> str:
+    """The most recently drawn focused-field label.
+
+    Matching on "▶" alone is not enough: the run buttons render as "Full ▶" and
+    would be picked up instead, which made this pass or fail depending on which
+    repaint frame the capture ended on. Require a real field label on the line.
+    """
+    from hybridock_pep.ui.tui import FIELDS
+
+    labels = [f.label for f in FIELDS]
+    hits = [
+        label
+        for line in screen.replace("\r", "\n").splitlines() if "▶" in line
+        for label in labels if label in line
+    ]
+    return hits[-1] if hits else ""
+
+
+def test_focused_field_is_visibly_marked(returning_home):
+    screen = _launch(returning_home)
+    assert "Peptide sequence" in _focused_label(screen), (
+        "no visible focus marker — the user cannot tell which field is selected"
+    )
+
+
+def test_tab_moves_to_the_next_field(returning_home):
+    screen = _launch(returning_home, keys=b"\t")
+    assert "Target receptor" in _focused_label(screen)
+
+
+def test_down_arrow_moves_between_fields(returning_home):
+    """Arrows are what people reach for on a vertical form, and the inputs are
+    single-line so nothing is lost by rebinding them."""
+    screen = _launch(returning_home, keys=b"\x1b[B" * 5)
+    assert "Scoring" in _focused_label(screen)
+
+
+def test_shift_tab_wraps_backwards(returning_home):
+    screen = _launch(returning_home, keys=b"\x1b[Z")
+    assert "Off-target box" in _focused_label(screen)
+
+
+# ---------------------------------------------------------------------------
+# Emergency stop
+# ---------------------------------------------------------------------------
+
+def test_stop_aborts_a_running_demo(returning_home):
+    """Ctrl-T starts the simulated run; Ctrl-C must end it early."""
+    screen = _launch(returning_home, keys=b"\x14", settle=2.0, after=b"\x03",
+                     after_delay=3.0)
+    assert "STOPPED by user" in screen
+
+
+def test_stop_when_idle_says_so_instead_of_failing(returning_home):
+    screen = _launch(returning_home, keys=b"\x03")
+    assert "nothing is running" in screen
