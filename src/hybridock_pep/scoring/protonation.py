@@ -54,7 +54,7 @@ def assign_protonation(
         return None
     pdb_path = Path(pdb_path)
     out_pqr = Path(out_pqr) if out_pqr else pdb_path.with_suffix(".pqr")
-    cmd = ["pdb2pqr30", "--ff", forcefield, "--titration-state-method", "propka",
+    cmd = [_which("pdb2pqr30") or "pdb2pqr30", "--ff", forcefield, "--titration-state-method", "propka",
            "--with-ph", str(ph), str(pdb_path), str(out_pqr)]
     logger.info("PROPKA protonation @ pH %.1f: %s", ph, " ".join(cmd))
     try:
