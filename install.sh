@@ -55,6 +55,24 @@ ARCH="$(uname -m)"
 # 1. conda (install Miniforge automatically if missing)
 # ---------------------------------------------------------------------------
 step "Checking for conda"
+# `conda` is only on PATH once a shell has been through `conda init` + a login
+# shell. Non-interactive shells (ssh host './install.sh', CI, a terminal opened
+# before conda init took effect) have a perfectly good conda installed and
+# still fail `command -v conda`. Look for the installation itself before
+# concluding there isn't one — otherwise we try to install Miniforge over an
+# existing ~/miniforge3, the installer refuses ("File or directory already
+# exists"), and set -e kills the whole install with a misleading message.
+# Same prefixes setup_environment.py::_conda_base() checks, same order.
+if ! command -v conda >/dev/null 2>&1; then
+    for _base in "$HOME/miniforge3" "$HOME/miniconda3" "$HOME/anaconda3" "/opt/conda"; do
+        if [ -f "$_base/etc/profile.d/conda.sh" ]; then
+            # shellcheck disable=SC1091
+            source "$_base/etc/profile.d/conda.sh"
+            break
+        fi
+    done
+fi
+
 if command -v conda >/dev/null 2>&1; then
     ok "conda found: $(command -v conda)"
 else
