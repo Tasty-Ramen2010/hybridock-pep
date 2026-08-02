@@ -38,7 +38,16 @@ OUTDIR = ROOT / "data" / "propd_structures"
 CACHE = ROOT / "data" / "cache" / "afdb"
 INDEX = OUTDIR / "index.json"
 
-AFDB_URL = "https://alphafold.ebi.ac.uk/files/AF-{acc}-F1-model_v4.pdb"
+#: Ask the API for the model URL rather than composing one. AlphaFold DB bumps
+#: its file version periodically and old URLs 404 outright — every accession
+#: here returned 404 on the `model_v4` pattern once the DB moved to v6. The
+#: prediction endpoint returns the current `pdbUrl`, so this keeps working
+#: across version bumps.
+AFDB_API = "https://alphafold.ebi.ac.uk/api/prediction/{acc}"
+
+#: Fallback if the API is unreachable: try recent file versions, newest first.
+AFDB_FILE = "https://alphafold.ebi.ac.uk/files/AF-{acc}-F1-model_v{ver}.pdb"
+AFDB_VERSIONS = (6, 5, 4)
 
 #: Padding added around the domain's bounding box, in Angstroms. The peptide
 #: binds at the surface and extends outward, so the box has to contain more
@@ -50,19 +59,39 @@ BOX_PAD_AA = 12.0
 BOX_MAX_AA = 100.0
 
 
+def _afdb_urls(acc: str) -> list[str]:
+    """Candidate model URLs for an accession, API answer first."""
+    urls: list[str] = []
+    try:
+        with urllib.request.urlopen(AFDB_API.format(acc=acc), timeout=60) as r:
+            payload = json.loads(r.read())
+        entry = payload[0] if isinstance(payload, list) else payload
+        if entry.get("pdbUrl"):
+            urls.append(entry["pdbUrl"])
+    except Exception:  # noqa: BLE001 - API down or shape changed; fall through
+        pass
+    urls += [AFDB_FILE.format(acc=acc, ver=v) for v in AFDB_VERSIONS]
+    return urls
+
+
 def fetch_afdb(acc: str) -> Path | None:
     """Download (and cache) the AlphaFold DB model for a UniProt accession."""
     CACHE.mkdir(parents=True, exist_ok=True)
-    dest = CACHE / f"AF-{acc}-F1-model_v4.pdb"
+    dest = CACHE / f"AF-{acc}-F1.pdb"
     if dest.is_file() and dest.stat().st_size > 1000:
         return dest
-    try:
-        with urllib.request.urlopen(AFDB_URL.format(acc=acc), timeout=120) as r:
-            dest.write_bytes(r.read())
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
-        print(f"    ! AFDB fetch failed for {acc}: {exc}")
-        return None
-    return dest if dest.stat().st_size > 1000 else None
+    errors = []
+    for url in _afdb_urls(acc):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as r:
+                dest.write_bytes(r.read())
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+            errors.append(f"{url.rsplit('/', 1)[-1]}: {exc}")
+            continue
+        if dest.stat().st_size > 1000:
+            return dest
+    print(f"    ! AFDB fetch failed for {acc}: {errors[0] if errors else 'empty file'}")
+    return None
 
 
 def crop(model: Path, start: int, stop: int, out: Path) -> dict | None:
