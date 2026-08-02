@@ -133,7 +133,7 @@ class TestMeekoLigandFallback:
         called = []
         monkeypatch.setattr(
             "hybridock_pep.prep.phospho.prepare_phospho_ligand",
-            lambda idx, p, out: called.append(idx) or (out / "x.pdbqt"),
+            lambda idx, p, out, stage="prep_phospho": called.append(idx) or (out / "x.pdbqt"),
         )
         pdb = tmp_path / "pose_0.pdb"
         pdb.write_text("ATOM      1  CA  ALA A   1       0.000   0.000   0.000\nEND\n")
@@ -150,7 +150,7 @@ class TestMeekoLigandFallback:
         called = []
         monkeypatch.setattr(
             "hybridock_pep.prep.phospho.prepare_phospho_ligand",
-            lambda idx, p, out: called.append(idx),
+            lambda idx, p, out, stage="prep_phospho": called.append(idx),
         )
         converted = []
 
