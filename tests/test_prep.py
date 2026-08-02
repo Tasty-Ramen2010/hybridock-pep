@@ -15,16 +15,21 @@ import pytest
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
-# ADFRsuite ships prepare_receptor, autogrid4 and AD4_parameters.dat. It is a
-# separate download (and on Apple Silicon a 2019 x86 build), so it is routinely
-# absent. Tests that genuinely need those binaries must SKIP rather than FAIL —
-# same convention as meeko_available / babel_available below. Without this, 19
-# tests failed on any machine without ADFRsuite, which made a red suite the
-# normal state and hid real regressions.
-requires_adfrsuite = pytest.mark.skipif(
-    shutil.which("prepare_receptor") is None or shutil.which("autogrid4") is None,
-    reason="ADFRsuite not installed (prepare_receptor/autogrid4) — see README",
+# AD4 map generation needs an autogrid4 binary. It no longer needs ADFRsuite:
+# conda-forge ships autogrid 4.2.9 with a native osx-arm64 build, and the GPF's
+# parameter_file directive is optional (autogrid4 falls back to its built-in
+# AD4.2 parameters), so prepare_receptor is not required just to locate
+# AD4_parameters.dat. Receptor PDBQT comes from meeko's mk_prepare_receptor.py.
+#
+# Still guarded, because autogrid4 is a separate install and a missing external
+# tool should SKIP rather than FAIL — same convention as meeko_available /
+# babel_available below.
+requires_autogrid = pytest.mark.skipif(
+    shutil.which("autogrid4") is None,
+    reason="autogrid4 not installed (conda install -c conda-forge autogrid)",
 )
+# Back-compat alias: these tests used to require the whole of ADFRsuite.
+requires_adfrsuite = requires_autogrid
 
 
 @pytest.fixture(scope="session")
@@ -1228,3 +1233,71 @@ class TestCoordinateOverflow:
         pdbqt = tmp_path / "malformed.pdbqt"
         pdbqt.write_text("ATOM      1  C   ALA A   1      XX.XXX  YY.YYY  ZZ.ZZZ  1.00  0.00     C  \n")
         assert _has_coordinate_overflow(pdbqt) is False
+
+
+class TestNoAdfrSuiteDependency:
+    """The pipeline must work with no ADFRsuite anywhere on PATH.
+
+    ADFRsuite ships only an x86_64 tarball and needs a manual license
+    click-through, so requiring it made the tool unusable out of the box on
+    Apple Silicon. meeko's mk_prepare_receptor.py and conda-forge autogrid
+    replace it; ADFRsuite is still preferred when present so existing installs
+    keep identical results.
+    """
+
+    def test_ad4_parameters_is_optional_not_fatal(self, monkeypatch):
+        """Missing AD4_parameters.dat must return None, not raise.
+
+        autogrid4's GPF `parameter_file` directive is optional -- it falls back
+        to built-in AD4.2 parameters. Verified against conda-forge autogrid
+        4.2.9: a GPF with no parameter_file produced all 9 maps and reported
+        "Successful Completion".
+        """
+        import shutil as _sh
+
+        from hybridock_pep.prep.grids import _find_ad4_parameters_dat
+
+        monkeypatch.setattr(_sh, "which", lambda name: None)
+        assert _find_ad4_parameters_dat() is None
+
+    @staticmethod
+    def _gpf(tmp_path):
+        from hybridock_pep.models import DockConfig
+        from hybridock_pep.prep import grids
+
+        rec = tmp_path / "receptor.pdbqt"
+        rec.write_text(
+            "ATOM      1  CA  ALA A   1       1.000   2.000   3.000  0.00  0.00    +0.000 C\n"
+        )
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir(exist_ok=True)
+        cfg = DockConfig(
+            peptide_sequence="ALA",
+            receptor_path=Path(__file__).parent / "fixtures" / "receptor_tiny.pdb",
+            site_coords=(22.5, 14.1, 38.7),
+            box_size=20.0,
+            output_dir=tmp_path / "out",
+        )
+        return grids._build_gpf(cfg, maps_dir, rec)
+
+    def test_gpf_omits_parameter_file_without_adfrsuite(self, monkeypatch, tmp_path):
+        """The emitted GPF must not carry a parameter_file we cannot honour."""
+        from hybridock_pep.prep import grids
+
+        monkeypatch.setattr(grids, "_find_ad4_parameters_dat", lambda: None)
+        assert "parameter_file" not in self._gpf(tmp_path)
+
+    def test_gpf_includes_parameter_file_when_adfrsuite_present(self, monkeypatch, tmp_path):
+        """When ADFRsuite IS installed we keep using its parameter file, so
+        results stay identical to what the shipped calibration was fitted on."""
+        from hybridock_pep.prep import grids
+
+        monkeypatch.setattr(grids, "_find_ad4_parameters_dat",
+                            lambda: "/abs/AD4_parameters.dat")
+        assert "parameter_file /abs/AD4_parameters.dat" in self._gpf(tmp_path)
+
+    def test_receptor_prep_has_a_non_adfr_path(self):
+        """receptor.py must know how to prepare a receptor without ADFRsuite."""
+        src = (Path(__file__).parent.parent / "src" / "hybridock_pep"
+               / "prep" / "receptor.py").read_text()
+        assert "mk_prepare_receptor.py" in src
