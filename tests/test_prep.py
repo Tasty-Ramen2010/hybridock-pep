@@ -892,8 +892,12 @@ class TestReceptorPrep:
 
         assert result == config.output_dir / "receptor.pdbqt"
         assert len(calls) == 1, "subprocess.run should have been called exactly once"
-        assert calls[0][0] == "prepare_receptor", (
-            f"First arg to subprocess must be 'prepare_receptor', got: {calls[0][0]!r}"
+        # The *resolved* path, not the bare name: score-env/bin is not on $PATH
+        # when the CLI is run by absolute path, so a bare name would make execve
+        # miss a binary the code already located.
+        assert calls[0][0] == "/fake/adfr/bin/prepare_receptor", (
+            f"subprocess must be given the resolved prepare_receptor path, "
+            f"got: {calls[0][0]!r}"
         )
 
     def test_prepare_receptor_nonzero_exit_raises_prep_error(
