@@ -1,0 +1,9 @@
+name,receptor,peptide_pdb,seq,pep_len,ss_class
+7bh8,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bh8/7bh8_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bh8/7bh8_peptide.pdb,VMAPRTVLL,9,REAL
+7bbg,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bbg/7bbg_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bbg/7bbg_peptide.pdb,RMFPNAPYL,9,REAL
+7f2i,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7f2i/7f2i_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7f2i/7f2i_peptide.pdb,RVAAA,5,REAL
+7al2,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7al2/7al2_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7al2/7al2_peptide.pdb,QLDDFIDGIF,10,REAL
+7arx,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7arx/7arx_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7arx/7arx_peptide.pdb,GICSRSLPPICI,12,REAL
+7bn1,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bn1/7bn1_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bn1/7bn1_peptide.pdb,AADLIDFS,8,REAL
+7boc,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7boc/7boc_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7boc/7boc_peptide.pdb,SRVVPGQFDDADSS,14,REAL
+7bmi,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bmi/7bmi_protein_pocket.pdb,/home/igem/unknown_software/datasets/RefPepDB-RecentSet/7bmi/7bmi_peptide.pdb,GKCKDGLGEYTCTSLEGF,18,REAL

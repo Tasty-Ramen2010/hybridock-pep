@@ -186,3 +186,11 @@ pfldh.pdb
 # MD trajectory cache (e363) — per-file >1 MB, exceeds the in-repo size limit; see the
 # external-archive link in README.md once it's added
 data/traj_cache/
+
+# RAPiDock fine-tuning campaign — raw Propedia structure dumps (~16 GB), not distributable
+datasets/propedia/
+datasets/propedia_formatted/
+
+# DGX handoff bundle staging dir — scratch copy of code/data already tracked elsewhere,
+# rebuilt on demand by .bundle_stage/build_full_bundle.py; not a committable artifact
+.bundle_stage/
