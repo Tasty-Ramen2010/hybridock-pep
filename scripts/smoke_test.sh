@@ -5,7 +5,8 @@
 #   1. Device availability: CUDA (Linux/WSL2) or MPS (macOS Apple Silicon).
 #      Warns on macOS Intel (CPU-only) and Linux without nvidia-smi.
 #   2. RAPiDock-Reloaded submodule present + importable in rapidock env.
-#   3. ADFRsuite prepare_receptor on PATH.
+#   3. Receptor-prep tooling: prepare_receptor -> mk_prepare_receptor.py ->
+#      obabel (the real fallback chain), plus optional autogrid4.
 #   4. AutoDock Vina >= 1.2.5 Python API in score-env.
 #   5. OpenMM importable (for MM-GBSA).
 #
@@ -114,14 +115,49 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. ADFRsuite prepare_receptor on PATH
+# 3. Receptor-prep tooling
 # ---------------------------------------------------------------------------
-if command -v prepare_receptor &>/dev/null; then
-    pass "prepare_receptor found on PATH ($(command -v prepare_receptor))"
-elif [ "$PLATFORM" = "Darwin" ]; then
-    warn "prepare_receptor not on PATH — install ADFRsuite (Rosetta 2) from https://ccsb.scripps.edu/adfrsuite/"
+# Mirrors prep/receptor.py's actual fallback chain: ADFRsuite prepare_receptor
+# -> meeko mk_prepare_receptor.py -> obabel. ADFRsuite has not been required
+# since meeko took over, so demanding it here reported [FAIL] on installs that
+# were completely fine — including every fresh one, which is the worst possible
+# first impression.
+#
+# Tools installed by score-env.yml live in that env's bin/, not on the PATH of
+# the shell running this script (installers and `ssh host ./install.sh` never
+# have score-env activated), so look there too before concluding a tool is
+# absent.
+SCORE_BIN=""
+SCORE_PY_PROBE="$(find_conda_env_python score-env)"
+if [ -n "$SCORE_PY_PROBE" ]; then
+    SCORE_BIN="$(dirname "$SCORE_PY_PROBE")"
+fi
+
+have_tool() {
+    command -v "$1" &>/dev/null && { echo "$(command -v "$1")"; return 0; }
+    [ -n "$SCORE_BIN" ] && [ -x "$SCORE_BIN/$1" ] && { echo "$SCORE_BIN/$1"; return 0; }
+    return 1
+}
+
+if PREP_PATH="$(have_tool prepare_receptor)"; then
+    pass "receptor prep: ADFRsuite prepare_receptor ($PREP_PATH)"
+elif PREP_PATH="$(have_tool mk_prepare_receptor.py)"; then
+    pass "receptor prep: meeko mk_prepare_receptor.py ($PREP_PATH) — ADFRsuite not needed"
+elif PREP_PATH="$(have_tool obabel)"; then
+    warn "receptor prep: only the obabel fallback found ($PREP_PATH) — install meeko for" \
+         "better PDBQT fidelity:  pip install 'meeko>=0.7'"
 else
-    fail "prepare_receptor not on PATH — install ADFRsuite from https://ccsb.scripps.edu/adfrsuite/"
+    fail "no receptor-prep tool found (tried prepare_receptor, mk_prepare_receptor.py, obabel)" \
+         "— install meeko:  pip install 'meeko>=0.7'"
+fi
+
+# autogrid4 is optional: --scoring ad4 is off by default, and conda-forge has
+# no linux-aarch64 build at all, so its absence is information, not a failure.
+if AG_PATH="$(have_tool autogrid4)"; then
+    pass "AD4 grid maps: autogrid4 ($AG_PATH) — '--scoring ad4' available"
+else
+    info "autogrid4 not installed — '--scoring ad4' unavailable (off by default; the" \
+         "reported ΔG comes from the affinity model, not AD4)"
 fi
 
 # ---------------------------------------------------------------------------

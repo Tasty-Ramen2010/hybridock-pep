@@ -1,6 +1,7 @@
 """Tests for hybridock_pep.prep — PREP-01, PREP-02, PREP-03."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,22 @@ import pytest
 # in the same style as the rest of this file.
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+# AD4 map generation needs an autogrid4 binary. It no longer needs ADFRsuite:
+# conda-forge ships autogrid 4.2.9 with a native osx-arm64 build, and the GPF's
+# parameter_file directive is optional (autogrid4 falls back to its built-in
+# AD4.2 parameters), so prepare_receptor is not required just to locate
+# AD4_parameters.dat. Receptor PDBQT comes from meeko's mk_prepare_receptor.py.
+#
+# Still guarded, because autogrid4 is a separate install and a missing external
+# tool should SKIP rather than FAIL — same convention as meeko_available /
+# babel_available below.
+requires_autogrid = pytest.mark.skipif(
+    shutil.which("autogrid4") is None,
+    reason="autogrid4 not installed (conda install -c conda-forge autogrid)",
+)
+# Back-compat alias: these tests used to require the whole of ADFRsuite.
+requires_adfrsuite = requires_autogrid
 
 
 @pytest.fixture(scope="session")
@@ -166,6 +183,7 @@ class TestPrepareReceptor:
             patch("hybridock_pep.prep.receptor.PDBFile") as mock_pdbfile,
             patch("hybridock_pep.prep.receptor.subprocess.run", return_value=mock_result),
             patch("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile") as mock_ntf,
+            patch("hybridock_pep.prep.receptor._which", return_value="/fake/adfr/bin/prepare_receptor"),
         ):
             # Set up temp file mock to produce real paths
             tmp_file1 = tmp_path / "tmp1.pdb"
@@ -207,6 +225,7 @@ class TestPrepareReceptor:
             patch("hybridock_pep.prep.receptor.PDBFile"),
             patch("hybridock_pep.prep.receptor.subprocess.run", return_value=mock_result),
             patch("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile") as mock_ntf,
+            patch("hybridock_pep.prep.receptor._which", return_value="/fake/adfr/bin/prepare_receptor"),
         ):
             tmp_file1 = tmp_path / "tmp1.pdb"
             tmp_file1.write_text("")
@@ -251,6 +270,7 @@ class TestPrepareReceptor:
             patch("hybridock_pep.prep.receptor.PDBFile"),
             patch("hybridock_pep.prep.receptor.subprocess.run", return_value=mock_result),
             patch("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile") as mock_ntf,
+            patch("hybridock_pep.prep.receptor._which", return_value="/fake/adfr/bin/prepare_receptor"),
         ):
             tmp_file1 = tmp_path / "tmp1.pdb"
             tmp_file1.write_text("")
@@ -530,6 +550,7 @@ class TestGridsImports:
         assert "template" not in content, "Template reference found — GPF must be programmatic"
 
 
+@requires_adfrsuite
 class TestBuildGpf:
     """Unit tests for _build_gpf — no subprocess needed."""
 
@@ -637,6 +658,7 @@ class TestBuildGpf:
         assert "spacing 0.375" in gpf_text
 
 
+@requires_adfrsuite
 class TestGenerateAd4Maps:
     """PREP-03: Behavioral tests for generate_ad4_maps — autogrid4 mocked."""
 
@@ -860,14 +882,22 @@ class TestReceptorPrep:
         monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", fake_run)
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        monkeypatch.setattr(
+            "hybridock_pep.prep.receptor._which",
+            lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
+        )
         self._mock_ntf(monkeypatch, tmp_path)
 
         result = prepare_receptor(config)
 
         assert result == config.output_dir / "receptor.pdbqt"
         assert len(calls) == 1, "subprocess.run should have been called exactly once"
-        assert calls[0][0] == "prepare_receptor", (
-            f"First arg to subprocess must be 'prepare_receptor', got: {calls[0][0]!r}"
+        # The *resolved* path, not the bare name: score-env/bin is not on $PATH
+        # when the CLI is run by absolute path, so a bare name would make execve
+        # miss a binary the code already located.
+        assert calls[0][0] == "/fake/adfr/bin/prepare_receptor", (
+            f"subprocess must be given the resolved prepare_receptor path, "
+            f"got: {calls[0][0]!r}"
         )
 
     def test_prepare_receptor_nonzero_exit_raises_prep_error(
@@ -885,6 +915,14 @@ class TestReceptorPrep:
         )
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        # Force the ADFRsuite branch. Without this the test only exercises what
+        # it claims on a machine that happens to have prepare_receptor on PATH;
+        # everywhere else the code falls through to meeko/obabel and the error
+        # under test is never reached.
+        monkeypatch.setattr(
+            "hybridock_pep.prep.receptor._which",
+            lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
+        )
         self._mock_ntf(monkeypatch, tmp_path)
 
         with pytest.raises(PrepError, match="fatal: bad input"):
@@ -920,6 +958,10 @@ class TestReceptorPrep:
         monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", lambda *a, **kw: mock_result)
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
+        monkeypatch.setattr(
+            "hybridock_pep.prep.receptor._which",
+            lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
+        )
         monkeypatch.setattr("hybridock_pep.prep.receptor.tempfile.NamedTemporaryFile", ntf_side_effect)
 
         # Must not raise on either call
@@ -957,6 +999,10 @@ class TestReceptorPrep:
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFixer", SpyFixer)
         monkeypatch.setattr("hybridock_pep.prep.receptor.PDBFile", MagicMock())
         monkeypatch.setattr("hybridock_pep.prep.receptor.subprocess.run", spy_subprocess)
+        monkeypatch.setattr(
+            "hybridock_pep.prep.receptor._which",
+            lambda name: "/fake/adfr/bin/prepare_receptor" if name == "prepare_receptor" else None,
+        )
         self._mock_ntf(monkeypatch, tmp_path)
 
         prepare_receptor(config)
@@ -1022,6 +1068,7 @@ class TestLigandBatch:
         )
 
 
+@requires_adfrsuite
 class TestGrids:
     """PREP-03 contract tests — GPF content + HD map guard (02-04 acceptance criteria)."""
 
@@ -1198,3 +1245,71 @@ class TestCoordinateOverflow:
         pdbqt = tmp_path / "malformed.pdbqt"
         pdbqt.write_text("ATOM      1  C   ALA A   1      XX.XXX  YY.YYY  ZZ.ZZZ  1.00  0.00     C  \n")
         assert _has_coordinate_overflow(pdbqt) is False
+
+
+class TestNoAdfrSuiteDependency:
+    """The pipeline must work with no ADFRsuite anywhere on PATH.
+
+    ADFRsuite ships only an x86_64 tarball and needs a manual license
+    click-through, so requiring it made the tool unusable out of the box on
+    Apple Silicon. meeko's mk_prepare_receptor.py and conda-forge autogrid
+    replace it; ADFRsuite is still preferred when present so existing installs
+    keep identical results.
+    """
+
+    def test_ad4_parameters_is_optional_not_fatal(self, monkeypatch):
+        """Missing AD4_parameters.dat must return None, not raise.
+
+        autogrid4's GPF `parameter_file` directive is optional -- it falls back
+        to built-in AD4.2 parameters. Verified against conda-forge autogrid
+        4.2.9: a GPF with no parameter_file produced all 9 maps and reported
+        "Successful Completion".
+        """
+        import shutil as _sh
+
+        from hybridock_pep.prep.grids import _find_ad4_parameters_dat
+
+        monkeypatch.setattr(_sh, "which", lambda name: None)
+        assert _find_ad4_parameters_dat() is None
+
+    @staticmethod
+    def _gpf(tmp_path):
+        from hybridock_pep.models import DockConfig
+        from hybridock_pep.prep import grids
+
+        rec = tmp_path / "receptor.pdbqt"
+        rec.write_text(
+            "ATOM      1  CA  ALA A   1       1.000   2.000   3.000  0.00  0.00    +0.000 C\n"
+        )
+        maps_dir = tmp_path / "maps"
+        maps_dir.mkdir(exist_ok=True)
+        cfg = DockConfig(
+            peptide_sequence="ALA",
+            receptor_path=Path(__file__).parent / "fixtures" / "receptor_tiny.pdb",
+            site_coords=(22.5, 14.1, 38.7),
+            box_size=20.0,
+            output_dir=tmp_path / "out",
+        )
+        return grids._build_gpf(cfg, maps_dir, rec)
+
+    def test_gpf_omits_parameter_file_without_adfrsuite(self, monkeypatch, tmp_path):
+        """The emitted GPF must not carry a parameter_file we cannot honour."""
+        from hybridock_pep.prep import grids
+
+        monkeypatch.setattr(grids, "_find_ad4_parameters_dat", lambda: None)
+        assert "parameter_file" not in self._gpf(tmp_path)
+
+    def test_gpf_includes_parameter_file_when_adfrsuite_present(self, monkeypatch, tmp_path):
+        """When ADFRsuite IS installed we keep using its parameter file, so
+        results stay identical to what the shipped calibration was fitted on."""
+        from hybridock_pep.prep import grids
+
+        monkeypatch.setattr(grids, "_find_ad4_parameters_dat",
+                            lambda: "/abs/AD4_parameters.dat")
+        assert "parameter_file /abs/AD4_parameters.dat" in self._gpf(tmp_path)
+
+    def test_receptor_prep_has_a_non_adfr_path(self):
+        """receptor.py must know how to prepare a receptor without ADFRsuite."""
+        src = (Path(__file__).parent.parent / "src" / "hybridock_pep"
+               / "prep" / "receptor.py").read_text()
+        assert "mk_prepare_receptor.py" in src

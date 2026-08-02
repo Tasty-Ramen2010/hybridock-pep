@@ -258,11 +258,16 @@ def write_best_pose_pdb(
         score_val, src_label = selected_pose.pooled_affinity_dg, "AI-pose model"
     else:
         score_val, src_label = selected_pose.hybrid_score, "hybrid (fallback)"
-    logger.info(
-        "Best pose: ΔG = %.1f kcal/mol [%s] (cluster %s, %s)",
-        score_val if score_val is not None else float("nan"),
-        src_label,
-        selected_pose.cluster_id,
-        src.name,
+    # print(), not logger.info(): this is the actual deliverable of `dock`,
+    # not progress narration — it must stay visible regardless of -v (the
+    # default log level is WARNING; see cli.py main()). Matches crystal-score's
+    # existing print()-for-the-headline-result convention.
+    print(
+        "Best pose: ΔG = {:.1f} kcal/mol [{}] (cluster {}, {})".format(
+            score_val if score_val is not None else float("nan"),
+            src_label,
+            selected_pose.cluster_id,
+            src.name,
+        )
     )
     return dest

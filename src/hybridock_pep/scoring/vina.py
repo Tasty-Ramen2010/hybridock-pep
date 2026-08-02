@@ -137,6 +137,36 @@ def score_vina_batch(
     optimize_clashing: bool = True,
     max_clash_relief_rounds: int = 5,
 ) -> tuple[list[ScoredPose], list[PoseFailure]]:
+    """Thin wrapper around _score_vina_batch_impl that silences Vina's native
+    stdout ("Computing Vina grid ... done.", "Performing local search ...
+    done.") when verbosity == 0 — these are unconditional C++-layer prints
+    that ignore the Vina(verbosity=...) constructor arg, so a Python log
+    level can't reach them. See output/progress.suppress_native_stdout.
+    """
+    from hybridock_pep.output.progress import suppress_native_stdout  # noqa: PLC0415
+
+    with suppress_native_stdout(enabled=(verbosity == 0)):
+        return _score_vina_batch_impl(
+            poses,
+            config,
+            receptor_pdbqt,
+            verbosity=verbosity,
+            metadata_path=metadata_path,
+            optimize_clashing=optimize_clashing,
+            max_clash_relief_rounds=max_clash_relief_rounds,
+        )
+
+
+def _score_vina_batch_impl(
+    poses: list[ScoredPose],
+    config: DockConfig,
+    receptor_pdbqt: Path,
+    *,
+    verbosity: int = 0,
+    metadata_path: Path | None = None,
+    optimize_clashing: bool = True,
+    max_clash_relief_rounds: int = 5,
+) -> tuple[list[ScoredPose], list[PoseFailure]]:
     """Score a batch of poses with Vina --score_only using a single Vina instance.
 
     Creates one Vina instance, loads the receptor once, computes maps once
@@ -214,7 +244,11 @@ def score_vina_batch(
         len(poses), receptor_pdbqt, optimize_clashing, max_clash_relief_rounds,
     )
 
-    for pose in poses:
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
+    _n_total = len(poses)
+    for _done, pose in enumerate(poses, 1):
+        _progress.tick(_done - 1, _n_total, "poses scored")
         try:
             if pose.pdbqt_path is None:
                 raise ValueError(
@@ -317,4 +351,6 @@ def score_vina_batch(
                 )
             )
 
+    _progress.tick(_n_total, _n_total, "poses scored")
+    _progress.clear()
     return scored, failures

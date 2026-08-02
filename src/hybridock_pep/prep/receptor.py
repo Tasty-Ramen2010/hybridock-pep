@@ -10,12 +10,64 @@ from pdbfixer import PDBFixer
 
 from hybridock_pep.models import DockConfig
 from hybridock_pep.prep.errors import PrepError
+from hybridock_pep.toolpath import which as _which
+from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
 
 
+def _try_meeko(fixed_pdb_path: Path, pdbqt_path: Path, meeko_bin: str) -> bool:
+    """Attempt meeko receptor prep. Return True on success, False to fall through.
+
+    Meeko is the Forli lab's supported successor to prepare_receptor:
+    pip/conda-installable, native on Apple Silicon, and it emits proper
+    AutoDock atom types (OA/HD/NA/SA) where obabel is sloppier. So it is tried
+    first.
+
+    But it is also much stricter. It matches every residue against a template
+    library and refuses the whole structure when any residue has an unexpected
+    heavy-atom set — e.g. ``No template matched for residue_key='A:41' ...
+    PHE heavy_miss=0 heavy_excess=1``. Crystal-derived receptors hit this
+    routinely (alternate conformations, modified residues, stray ligand atoms
+    a template does not know about).
+
+    A meeko failure must therefore NOT abort receptor prep: obabel is more
+    permissive and handles exactly these structures. Returning False rather
+    than raising is what makes the documented chain
+    ``prepare_receptor -> mk_prepare_receptor.py -> obabel`` real; raising here
+    silently reduced it to a two-step chain and broke every receptor meeko
+    could not template-match.
+    """
+    # Absolute path, not the bare name: the binary lives in score-env/bin, which
+    # is not on $PATH when hybridock-pep is invoked by absolute path, so
+    # subprocess would raise FileNotFoundError on a tool we just located.
+    cmd = [
+        meeko_bin,
+        "--read_pdb", str(fixed_pdb_path),
+        "-o", str(pdbqt_path.with_suffix("")),
+        "-p",
+    ]
+    logger.info("Running: %s", " ".join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Post-run success check, NOT a skip-if-exists cache (D-02): meeko can exit
+    # 0 having written nothing when the input is unusable, so the output is
+    # verified after the subprocess, never before it.
+    if result.returncode == 0 and Path(pdbqt_path).is_file():
+        return True
+    logger.warning(
+        "mk_prepare_receptor.py failed (exit %s) — falling back to babel/obabel. "
+        "This is usually a residue meeko has no template for; obabel is more "
+        "permissive. Details:\n%s",
+        result.returncode,
+        (result.stderr or result.stdout or "").strip()[:800],
+    )
+    # Never leave a partial file behind for the fallback to trip over.
+    Path(pdbqt_path).unlink(missing_ok=True)
+    return False
+
+
 def prepare_receptor(config: DockConfig) -> Path:
-    """Clean a receptor PDB with pdbfixer and convert it to PDBQT via prepare_receptor.
+    """Clean a receptor PDB with pdbfixer and convert it to PDBQT.
 
     Always regenerates the PDBQT — no caching, no mtime checks.
     pdbfixer steps run unconditionally:
@@ -24,8 +76,34 @@ def prepare_receptor(config: DockConfig) -> Path:
       3. Find and add missing atoms.
       4. Add hydrogens at pH 7.4.
 
-    If prepare_receptor exits non-zero, raises PrepError immediately with the
-    full stderr captured. No retry, no fallback.
+    Backend order: ADFRsuite's prepare_receptor if on PATH, else meeko's
+    mk_prepare_receptor.py, else babel/obabel (see prep/pdbqt_convert.py).
+    ADFRsuite is NOT required — it ships only an x86_64 tarball, so it is
+    absent on Apple Silicon by default. AD4 scoring does not require it
+    either: conda-forge autogrid provides autogrid4 natively.
+
+    The backend choice does not move the reported ΔG, which is worth stating
+    because it is not obvious. Measured on 1YCR (705 receptor heavy atoms),
+    meeko vs obabel:
+
+      * Vina ignores the receptor PDBQT charge column entirely — scores are
+        bit-identical with every partial charge zeroed, or sign-flipped and
+        tripled. So Gasteiger-assignment differences between backends cannot
+        matter on the default --scoring vina path.
+      * Vina does read the atom-type column (retyping every heavy atom to C
+        moves the score 1.01 kcal/mol), but the types the backends actually
+        disagree on are all in Vina's neutral set: N↔NA, A↔C and S↔SA are
+        each exactly score-neutral. Only O↔OA moves a Vina score, and the
+        backends agree on every oxygen. Net: 22/705 typing disagreements,
+        9 of them in the binding interface, produce a 0.000000 kcal/mol
+        difference.
+      * AD4 is the one backend that does consume charges, and it is off by
+        default (the production ridge gives w_ad4=0).
+
+    See tests/test_receptor_prep_fidelity.py, which pins all of the above.
+
+    If receptor PDBQT generation fails, raises PrepError immediately with the
+    full stderr captured. No retry.
 
     Args:
         config: Validated DockConfig. Uses receptor_path and output_dir.
@@ -34,8 +112,8 @@ def prepare_receptor(config: DockConfig) -> Path:
         Path to the written receptor PDBQT (output_dir/receptor.pdbqt).
 
     Raises:
-        PrepError: If prepare_receptor exits non-zero.
-        FileNotFoundError: If prepare_receptor is not on PATH.
+        PrepError: If PDBQT generation exits non-zero.
+        FileNotFoundError: If neither prepare_receptor nor babel/obabel is on PATH.
     """
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -86,29 +164,55 @@ def prepare_receptor(config: DockConfig) -> Path:
     finally:
         cleaned_pdb_path.unlink(missing_ok=True)
 
-    # --- Step 3: prepare_receptor (always regenerate) ---
+    # --- Step 3: prepare_receptor (ADFRsuite), or babel/obabel fallback ---
     # -A hydrogens: force H addition even if pdbfixer already added them (idempotent);
     # guards against cases where pdbfixer's addMissingHydrogens fails (e.g. HIS edge cases).
-    cmd = [
-        "prepare_receptor",
-        "-r", str(fixed_pdb_path),
-        "-o", str(pdbqt_path),
-        "-A", "hydrogens",
-    ]
-    logger.info("Running: %s", " ".join(cmd))
+    prepare_receptor_bin = _which("prepare_receptor")
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-        )
+        if prepare_receptor_bin is not None:
+            cmd = [
+                prepare_receptor_bin,
+                "-r", str(fixed_pdb_path),
+                "-o", str(pdbqt_path),
+                "-A", "hydrogens",
+            ]
+            logger.info("Running: %s", " ".join(cmd))
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise PrepError(
+                    f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
+                )
+        elif (meeko_bin := _which("mk_prepare_receptor.py")) is not None and _try_meeko(
+            fixed_pdb_path, pdbqt_path, meeko_bin
+        ):
+            pass  # meeko succeeded; nothing further to do
+        else:
+            logger.warning(
+                "Using babel/obabel for receptor PDBQT prep (no usable "
+                "prepare_receptor or meeko result)."
+            )
+            try:
+                result = convert_pdb_to_pdbqt(fixed_pdb_path, pdbqt_path, add_hydrogens=True)
+            except FileNotFoundError as exc:
+                raise PrepError(
+                    "No receptor preparation tool found. Install any one of: "
+                    "meeko (`pip install meeko`, provides mk_prepare_receptor.py — "
+                    "recommended, no license click-through), openbabel "
+                    "(`conda install -c conda-forge openbabel`), or ADFRsuite. "
+                    "For AD4 map generation also install autogrid "
+                    "(`conda install -c conda-forge autogrid`)."
+                ) from exc
+            try:
+                pdbqt_size = pdbqt_path.stat().st_size
+            except FileNotFoundError:
+                pdbqt_size = 0
+            if result.returncode != 0 or pdbqt_size == 0:
+                raise PrepError(
+                    f"babel/obabel failed to produce receptor PDBQT "
+                    f"(exit {result.returncode}):\n{result.stderr}"
+                )
     finally:
         fixed_pdb_path.unlink(missing_ok=True)
-
-    if result.returncode != 0:
-        raise PrepError(
-            f"prepare_receptor failed (exit {result.returncode}):\n{result.stderr}"
-        )
 
     logger.info("Receptor PDBQT written: %s", pdbqt_path)
     return pdbqt_path

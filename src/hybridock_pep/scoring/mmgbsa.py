@@ -10,6 +10,7 @@ minimized geometry (no re-minimization of components).
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 _KJ_TO_KCAL: float = 0.239006
 _MINIMIZE_TOL: float = 10.0          # kJ/mol/nm — loose; we want structure, not absolute minimum
 _MINIMIZE_MAXITER: int = 2000
+
+
 _TEMPERATURE_K: float = 300.0
 _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 
@@ -40,6 +43,48 @@ _FF_FILES: tuple[str, str] = ("amber14-all.xml", "implicit/gbn2.xml")
 # parameter (compute_mmgbsa_single(solute_dielectric=...)) so re-screening is cheap.
 _SOLUTE_DIELECTRIC: float = 1.0
 _SOLVENT_DIELECTRIC: float = 78.5
+
+
+def _minimize_constraints():
+    """Constraints used when building systems for MM-GBSA. HBonds by default.
+
+    This is the single largest cost lever in the whole refinement stage, and it
+    is not obvious why. ``LocalEnergyMinimizer`` has no native constraint
+    support: it converts constraints into harmonic restraints and re-runs L-BFGS
+    in an outer loop, ratcheting the force constant until they are satisfied.
+    Constraining H bonds therefore multiplies the minimisation, which is 94% of
+    MM-GBSA's runtime.
+
+    Measured on an M3, 1YCR/MDM2 (705-atom receptor), 3 poses, maxIter=2000:
+
+        constraints=HBonds (default)   21.1 s/pose
+        constraints=None                4.3 s/pose      4.9x faster
+
+    Constraints exist to permit large MD timesteps. Nothing here runs dynamics
+    -- the integrator is built only because Context requires one -- so dropping
+    them is physically defensible for minimisation plus a single energy
+    evaluation.
+
+    It is NOT the default anyway, because it moves the answer. Removing
+    constraints shifted dG by up to 4.37 kcal/mol, and for one pose the shift
+    was ~4.4 kcal/mol in the same direction across two independent trials, i.e.
+    systematic rather than noise. MM-GBSA ranks poses, so a pose-dependent shift
+    can reorder them. Per CLAUDE.md 7 that needs re-benchmarking against the
+    calibration set before it can become default.
+
+    Worth knowing when you do benchmark it: the current settings are already
+    only reproducible to +/-3.92 kcal/mol run-to-run (three identical runs of
+    one pose gave -65.80, -68.00, -69.72), because single-precision GPU
+    minimisation lands in different local minima. The 4.37 shift is 1.1x that
+    existing noise floor.
+
+    Set HYBRIDOCK_MMGBSA_FAST=1 to opt in.
+    """
+    import openmm.app as app  # noqa: PLC0415
+
+    if os.environ.get("HYBRIDOCK_MMGBSA_FAST", "") == "1":
+        return None
+    return app.HBonds
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +167,54 @@ def _make_integrator(temperature_k: float = _TEMPERATURE_K):
 # Core computation
 # ---------------------------------------------------------------------------
 
+# Max residual force (kJ/mol/nm) above which a minimization is treated as having
+# failed rather than merely finished. Converged runs on this pipeline sit at
+# 54-102 kJ/mol/nm (measured, 1YCR/MDM2, 6 runs across 2 poses), so 500 leaves
+# ~5x headroom and only fires on gross divergence.
+#
+# This guard exists because minimization here is NOT reproducible. Apple GPUs
+# have no fp64 hardware at all -- OpenMM's OpenCL platform rejects both "mixed"
+# and "double" on Apple with "No compatible OpenCL platform is available" -- so
+# MM-GBSA is locked to single precision on this machine. Measured across three
+# identical runs, complex energy came back -3198.05 / -3498.37 / -3498.73: a
+# 300 kcal/mol outlier, because fp32 minimization from a clashed start can fall
+# into a different basin. The CPU platform (which does have fp64) spread only
+# 11.63 kcal/mol over the same test, but is ~12.5x slower.
+#
+# A wrong ΔG that is silently ranked is worse than a slow one, so flag it.
+_MAX_RESIDUAL_FORCE_KJ_NM: float = 500.0
+
+
+def _warn_if_unconverged(ctx) -> float:
+    """Log a warning if a minimization stopped far from a stationary point.
+
+    Returns the max residual force (kJ/mol/nm) so callers can record it.
+    Never raises: a diagnostic must not be able to break scoring.
+    """
+    try:
+        import numpy as np  # noqa: PLC0415
+        import openmm.unit as unit  # noqa: PLC0415
+
+        forces = ctx.getState(getForces=True).getForces().value_in_unit(
+            unit.kilojoule_per_mole / unit.nanometer
+        )
+        max_f = float(np.linalg.norm(np.asarray(forces), axis=1).max())
+    except Exception as exc:  # noqa: BLE001 - diagnostic only
+        logger.debug("MM-GBSA: residual-force check failed (%s)", exc)
+        return float("nan")
+
+    if max_f > _MAX_RESIDUAL_FORCE_KJ_NM:
+        logger.warning(
+            "MM-GBSA: minimization did not converge (max residual force "
+            "%.0f kJ/mol/nm > %.0f); this pose's ΔG is unreliable and may be a "
+            "single-precision basin-hopping artifact",
+            max_f, _MAX_RESIDUAL_FORCE_KJ_NM,
+        )
+    else:
+        logger.debug("MM-GBSA: converged, max residual force %.1f kJ/mol/nm", max_f)
+    return max_f
+
+
 def _context_energy_kcal(
     topology,
     positions,
@@ -155,13 +248,15 @@ def _context_energy_kcal(
     import openmm.app as app
     import openmm.unit as unit
 
-    system = ff.createSystem(
-        topology,
-        nonbondedMethod=app.NoCutoff,
-        constraints=app.HBonds,
-        soluteDielectric=solute_dielectric,
-        solventDielectric=solvent_dielectric,
-    )
+    constraints = _minimize_constraints()
+    system_kwargs = {
+        "nonbondedMethod": app.NoCutoff,
+        "soluteDielectric": solute_dielectric,
+        "solventDielectric": solvent_dielectric,
+    }
+    if constraints is not None:
+        system_kwargs["constraints"] = constraints
+    system = ff.createSystem(topology, **system_kwargs)
     integrator = _make_integrator()
 
     try:
@@ -182,6 +277,7 @@ def _context_energy_kcal(
 
     if minimize:
         openmm.LocalEnergyMinimizer.minimize(ctx, _MINIMIZE_TOL, _MINIMIZE_MAXITER)
+        _warn_if_unconverged(ctx)
 
     e_kj = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(
         unit.kilojoule_per_mole
@@ -461,8 +557,14 @@ def refine_topk_poses(
         config.mmgbsa_solute_dielectric,
     )
 
+    from hybridock_pep.output import progress as _progress  # noqa: PLC0415
+
+    # MM-GBSA is by far the slowest stage (~5-21 s per pose), so this is the
+    # bar users most need: without it the run looks frozen for minutes.
     n_ok = 0
-    for pose in gated:
+    _n_total = len(gated)
+    for _done, pose in enumerate(gated, 1):
+        _progress.tick(_done - 1, _n_total, "poses refined (MM-GBSA)")
         try:
             dg = compute_mmgbsa_single(
                 pose_pdb=pose.pdb_path.resolve(),
@@ -493,6 +595,9 @@ def refine_topk_poses(
             logger.info("MM-GBSA pose %d: ΔG = %.2f kcal/mol", pose.pose_idx, dg)
         except Exception as exc:
             logger.warning("MM-GBSA failed for pose %d (%s); skipping", pose.pose_idx, exc)
+
+    _progress.tick(_n_total, _n_total, "poses refined (MM-GBSA)")
+    _progress.clear()
 
     # Step-2 two-step workflow: surface the MM-GBSA (affinity) re-ranking of the
     # refined poses. The diffusion/Vina rank chose the binding *mode*; MM-GBSA

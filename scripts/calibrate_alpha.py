@@ -154,12 +154,18 @@ def main(args: argparse.Namespace | None = None) -> None:
     if args is None:
         args = parse_args()
 
-    # Configure logging
+    # Configure logging.
+    # force=True: when this runs via `hybridock-pep calibrate`, cli.main()
+    # already called basicConfig() (WARNING by default — dock's quiet-UI
+    # default; see cli.py) before dispatching here, which would otherwise
+    # make this call a silent no-op and hide this script's own INFO-level
+    # results (its only output — no separate progress UI).
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        force=True,
     )
 
     # Validate --scores-json is provided (required in Phase 3)
