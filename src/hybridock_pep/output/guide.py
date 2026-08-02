@@ -42,17 +42,19 @@ Start here if you have just installed:
   This scores a known crystal complex and needs no GPU sampling, so it is the
   fastest way to prove the install works end to end.
 
-  Expected: ΔG ≈ -10.07 kcal/mol. The published experimental value for this
-  complex is about -8.5 kcal/mol (Kd ≈ 0.6 µM). Anything within a couple of
-  kcal/mol means your install is healthy; the exact figure moves by up to
-  ~1 kcal/mol with your resolved scikit-learn version.
+  Expected: ΔG ≈ -9.3 kcal/mol (measured on the pinned score-env stack,
+  scikit-learn 1.8.0). The published experimental value for this complex is
+  about -8.5 kcal/mol (Kd ≈ 0.6 µM). Treat anything from -8 to -11 as a
+  healthy install: the exact figure shifts by up to ~1 kcal/mol with your
+  resolved scikit-learn/numpy versions, because the shipped model is a
+  gradient-boosted tree and its feature inputs are version-sensitive.
 
 Then run a real docking job:
 
     hybridock-pep dock \\
         --peptide ETFSDLWKLLPE \\
         --receptor data/pdbs/1YCR_mdm2.pdb \\
-        --site 31.9 17.5 9.5 --box 20 \\
+        --site 25.20 -25.61 -7.97 --box 30 \\
         --n-samples 100 \\
         --output-dir runs/my_first_run
 
@@ -71,7 +73,7 @@ Dock one peptide against one receptor and report a calibrated ΔG.
     hybridock-pep dock \\
         --peptide ETFSDLWKLLPE \\
         --receptor data/pdbs/1YCR_mdm2.pdb \\
-        --site 31.9 17.5 9.5 --box 20 \\
+        --site 25.20 -25.61 -7.97 --box 30 \\
         --n-samples 100 \\
         --output-dir runs/demo
 
@@ -96,8 +98,9 @@ Notes:
   * --site is the box centre in Angstroms; --box the cube edge. Use 30 for
     12-mers and longer.
   * Receptor prep needs meeko (mk_prepare_receptor.py) and, for --scoring ad4,
-    autogrid (`conda install -c conda-forge autogrid`). ADFRsuite is NOT
-    required; it is used automatically if present.
+    autogrid4. Both ship in envs/score-env.yml, so a normal install already has
+    them — nothing extra to do. ADFRsuite is NOT required; it is used
+    automatically if present.
   * Sampling is NOT bit-reproducible on GPU even with --seed. Two identical
     runs differ by ~2.9 A mean pose RMSD. That is expected, not a bug.
 """,
@@ -110,12 +113,17 @@ Score an existing complex. No sampling, no GPU, seconds to run.
         --peptide-pdb data/pdbs/1YCR_peptide.pdb \\
         --peptide     ETFSDLWKLLPE
 
-Expected: ΔG ≈ -10.07 kcal/mol  (experimental ≈ -8.5, Kd ≈ 0.6 µM).
-Within a couple of kcal/mol means the install is good. The value shifts by up
-to ~1 kcal/mol depending on your resolved scikit-learn version, so do not treat
-a small difference as a failure.
+Expected: ΔG ≈ -9.3 kcal/mol  (experimental ≈ -8.5, Kd ≈ 0.6 µM).
+Anything from -8 to -11 means the install is good. The value shifts by up to
+~1 kcal/mol with your resolved scikit-learn/numpy versions, so do not treat a
+small difference as a failure. On the pinned stack the result is deterministic:
+repeated runs agree exactly.
 
 This is the recommended first command after installing.
+
+Note this command does NOT exercise receptor PDBQT preparation — it scores the
+pose you hand it directly with the geometry + interaction-map model. It
+validates the scoring stack, not meeko/autogrid. Use `prep` for those.
 """,
 
     "prep": f"""{_h("prep — receptor preparation")}
@@ -124,14 +132,22 @@ Convert a receptor PDB to PDBQT and build AutoDock4 grid maps.
     hybridock-pep prep --receptor data/pdbs/1YCR_mdm2.pdb --output-dir runs/prep
 
 No ADFRsuite required. Receptor PDBQT comes from meeko's
-mk_prepare_receptor.py, and AD4 grid maps from conda-forge autogrid -- both
-pip/conda installable with native Apple Silicon builds and no license
-click-through. ADFRsuite is still used automatically if it happens to be on
-PATH, which keeps results identical for existing installs.
+mk_prepare_receptor.py, and AD4 grid maps from conda-forge autogrid -- both are
+declared in envs/score-env.yml, build natively on Apple Silicon, and need no
+license click-through. ADFRsuite is still used automatically if it happens to
+be on PATH.
 
 Fallback order:
     receptor PDBQT   prepare_receptor -> mk_prepare_receptor.py -> obabel
-    AD4 maps         autogrid4  (conda install -c conda-forge autogrid)
+    AD4 maps         autogrid4
+
+Does the backend change your ΔG? Measured on 1YCR: no. Vina ignores the PDBQT
+charge column outright (bit-identical scores with charges zeroed, or
+sign-flipped and tripled). It does read atom types, but meeko and obabel
+disagree on only 22 of 705 heavy atoms, and every one of those disagreements
+(N/NA, A/C, S/SA) is exactly score-neutral in Vina -- only O/OA would matter,
+and they agree on every oxygen. Net difference: 0.000000 kcal/mol. AD4 is the
+one backend that does read charges, and it is off by default (w_ad4=0).
 
 `dock` runs prep for you; use this command only to inspect the intermediates.
 """,
@@ -141,8 +157,8 @@ Dock the same peptide against two receptors and report ΔΔG.
 
     hybridock-pep selectivity \\
         --peptide ETFSDLWKLLPE \\
-        --target-receptor    data/pdbs/1YCR_mdm2.pdb --target-site    31.9 17.5 9.5 --target-box    20 \\
-        --offtarget-receptor data/pdbs/3LNJ_mdm2.pdb --offtarget-site 30.0 16.0 9.0 --offtarget-box 20 \\
+        --target-receptor    data/pdbs/1YCR_mdm2.pdb --target-site    25.20 -25.61 -7.97 --target-box    30 \\
+        --offtarget-receptor data/pdbs/3LNJ_mdm2.pdb --offtarget-site  6.80 -44.20  4.10 --offtarget-box 30 \\
         --n-samples 100 --output-dir runs/sel
 
 More negative ΔΔG = more selective for the target. This runs the full dock
@@ -154,7 +170,7 @@ Repeat the same docking several times and report the spread.
 
     hybridock-pep reproducibility \\
         --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \\
-        --site 31.9 17.5 9.5 --box 20 --n-samples 100 --output-dir runs/repro
+        --site 25.20 -25.61 -7.97 --box 30 --n-samples 100 --output-dir runs/repro
 
 Worth running before you trust a small ΔG difference between two peptides.
 GPU sampling is not deterministic: identical seeds give ~2.9 A mean pose RMSD
@@ -234,7 +250,8 @@ Known limits on Apple silicon:
     ~12.5x slower.
   * ADFRsuite ships only an x86_64 tarball, so it is not used here. meeko and
     conda-forge autogrid replace it with native arm64 builds; nothing in the
-    pipeline needs ADFRsuite any more.
+    pipeline needs ADFRsuite any more, and switching backends does not move the
+    reported ΔG (see `hybridock-pep guide prep` for the measurements).
 """
 
 TESTING = f"""{_h("running the tests")}
@@ -242,11 +259,11 @@ TESTING = f"""{_h("running the tests")}
     pytest tests/test_tui.py     just the terminal UI
     pytest -k mmgbsa             one area
 
-Expect: 549 passed, 65 skipped, 0 failed.
+Expect: 0 failed. The pass/skip split depends on which optional tools you have.
 
 Skips are not failures. Tests that need an external tool skip when it is
-absent -- ADFRsuite (prepare_receptor / autogrid4), meeko, or openbabel. If you
-install those, the skip count drops and more tests run.
+absent -- autogrid4, meeko, openbabel, or PULCHRA. A standard score-env install
+has meeko, autogrid4 and openbabel, so most of these run.
 
 If the suite hangs rather than fails, run it with
 `pytest --timeout=120 --timeout-method=thread`, which prints the stack of the

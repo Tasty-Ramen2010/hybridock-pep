@@ -325,6 +325,40 @@ def _env_exists(env_name: str) -> bool:
     return (env_dir / "conda-meta").is_dir()
 
 
+def _env_has_binary(env_name: str, binary: str) -> bool:
+    """Return True if `binary` is on PATH inside the named conda env."""
+    base = _conda_base()
+    if base is None:
+        return False
+    return (base / "envs" / env_name / "bin" / binary).exists()
+
+
+def _repair_score_env_tooling(dry_run: bool) -> None:
+    """Backfill conda tools that an existing score-env may predate.
+
+    ``install_score_env`` skips creation entirely when the env already exists,
+    which is right — recreating a working env is destructive and slow. But it
+    means anything added to score-env.yml *after* a user first installed never
+    reaches them: they keep a valid env that silently lacks the new tool. That
+    is how autogrid4 (added when ADFRsuite was dropped) went missing for
+    upgraders while every fresh install had it.
+
+    So verify the tools the yml promises and install just the missing ones.
+    Cheap when there is nothing to do, and never touches a package that is
+    already present.
+    """
+    missing = [b for b in ("autogrid4",) if not _env_has_binary("score-env", b)]
+    if not missing:
+        print("  ✓ score-env tooling complete (autogrid4 present)")
+        return
+    print(f"  score-env predates {', '.join(missing)} — backfilling")
+    _run(
+        ["conda", "install", "-n", "score-env", "-c", "conda-forge", "--yes", "autogrid>=4.2.9"],
+        dry_run,
+        retries=2,
+    )
+
+
 def _rapidock_stack_ready() -> bool:
     """Return True if torch + torch_scatter + torch_geometric already import
     cleanly in the rapidock env.
@@ -379,6 +413,9 @@ def install_score_env(dry_run: bool, force: bool) -> None:
         if exists and force:
             _run(["conda", "env", "remove", "-n", "score-env", "--yes"], dry_run)
         _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run, retries=2)
+    # An env skipped above may predate tools later added to score-env.yml.
+    if not dry_run:
+        _repair_score_env_tooling(dry_run)
     # Editable install of hybridock-pep package (safe to re-run; pip no-ops if unchanged)
     _run([*_pip_in("score-env"), "-e", str(_REPO_ROOT)], dry_run)
     print("  ✓ score-env ready — activate with: conda activate score-env")
@@ -551,9 +588,8 @@ def print_next_steps(info: PlatformInfo) -> None:
 │     → third_party/RAPiDock/train_models/                        │
 │       CGTensorProductEquivariantModel/rapidock_local.pt          │
 │                                                                   │
-│  2. For AD4 scoring (--scoring ad4), install autogrid:            │
-│     conda install -c conda-forge autogrid                       │
-│     (ADFRsuite is NOT required — meeko handles receptor prep)   │
+│  2. Receptor prep needs nothing extra: meeko and autogrid4 both  │
+│     ship in score-env.yml. ADFRsuite is NOT required.            │
 │                                                                   │
 │  3. Verify the full install:                                     │
 │     conda activate score-env                                     │
