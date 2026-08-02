@@ -24,14 +24,28 @@ import shutil
 import sys
 from pathlib import Path
 
-__all__ = ["which"]
+__all__ = ["SIDECAR_ENV", "which"]
+
+#: Sibling conda env for tools that cannot be installed into score-env itself.
+#: openbabel is the case that forced this: conda-forge builds it for
+#: linux-aarch64 only against Python 3.9, so it cannot enter a 3.11 env, and
+#: without it ARM Linux has no PDBQT converter at all. It installs cleanly into
+#: an env of its own, and `obabel` is a binary — the Python version it was
+#: built against is irrelevant to us. setup_environment.py creates this.
+SIDECAR_ENV = "hdp-tools"
+
+
+def _bindir(prefix: Path) -> Path:
+    return prefix / ("Scripts" if os.name == "nt" else "bin")
 
 
 def which(name: str) -> str | None:
     """Return the path to `name`, or None.
 
-    Checks `$PATH` first, then `sys.prefix/bin` (`Scripts` on Windows) — the
-    environment this interpreter is running from.
+    Search order:
+      1. `$PATH` — an explicitly activated env or system install wins.
+      2. `sys.prefix/bin` — the env this interpreter is running from.
+      3. `<conda base>/envs/hdp-tools/bin` — the sidecar env.
 
     Args:
         name: Executable name, e.g. "mk_prepare_receptor.py".
@@ -43,8 +57,14 @@ def which(name: str) -> str | None:
     if found is not None:
         return found
 
-    bindir = Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin")
-    candidate = bindir / name
+    prefix = Path(sys.prefix)
+    candidate = _bindir(prefix) / name
     if candidate.is_file() and os.access(candidate, os.X_OK):
         return str(candidate)
+
+    # sys.prefix is <base>/envs/<name>, so the sidecar is a sibling.
+    if prefix.parent.name == "envs":
+        candidate = _bindir(prefix.parent / SIDECAR_ENV) / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
     return None

@@ -382,11 +382,27 @@ def run_dock(
     if input_poses_dir is None and records:
         scored_dir = (config.output_dir / "poses_scored").resolve()
         scored_dir.mkdir(parents=True, exist_ok=True)
+        copied = 0
         for record in records:
             dest = scored_dir / record.pdb_path.name
-            if not dest.exists():
+            if dest.exists():
+                continue
+            # A record can outlive its file: Stage 1.5 rewrites poses into
+            # poses_min/ and a pose whose minimization was rejected keeps a
+            # path that later stages may have cleaned up. This directory is a
+            # convenience for benchmark.py's vina-only rescore, so a missing
+            # source must not take the whole run down — it did, with
+            # FileNotFoundError on poses/pose_0.pdb, mid-way through a
+            # 1,185-pair benchmark.
+            try:
                 shutil.copy2(record.pdb_path, dest)
-        logger.debug("poses_scored/ written: %d files → %s", len(records), scored_dir)
+                copied += 1
+            except OSError as exc:
+                logger.warning(
+                    "poses_scored/: could not copy %s (%s) — continuing without it",
+                    record.pdb_path, exc,
+                )
+        logger.debug("poses_scored/ written: %d files → %s", copied, scored_dir)
 
     # Stage 1.7a: Drop off-pocket poses (Cα centroid > 35 Å from site_coords).
     # These are RAPiDock noise on tetrameric / extended-surface receptors; if
