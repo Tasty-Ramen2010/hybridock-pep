@@ -149,6 +149,59 @@ def _compute_batch_size(n_samples, cap=None):
     return min(n_samples, cap)
 
 
+def _disable_jit_fusion_if_arch_unsupported(torch):
+    # type: (object) -> bool
+    """Turn off TorchScript GPU fusion when the wheel cannot codegen for this GPU.
+
+    PyTorch's TensorExpr fuser compiles fused kernels at runtime with NVRTC,
+    passing the device's compute capability as `-arch`. NVRTC only accepts an
+    architecture the shipped toolkit knows. On a GPU newer than the wheel —
+    the DGX Spark's GB10 is sm_121 while torch 2.7.0+cu128 reports
+    `arch_list == ['sm_90', 'sm_100', 'sm_120']` — every fused kernel dies with
+
+        nvrtc: error: invalid value for --gpu-architecture (-arch)
+
+    RAPiDock swallows that into "0 poses generated", so Stage 1 fails on
+    hardware where everything else (cuBLAS, cuDNN, eager kernels) works fine.
+
+    Only the runtime *codegen* path is broken, so disabling GPU fusion is
+    enough; the same ops then run as unfused eager kernels. Applied only when
+    the device's capability is genuinely missing from the build, so machines
+    with a matching wheel keep the fuser.
+
+    Returns:
+        True if fusion was disabled, False if the wheel supports this GPU.
+    """
+    try:
+        major, minor = torch.cuda.get_device_capability(0)
+        arch_list = torch.cuda.get_arch_list()
+    except Exception:  # pragma: no cover - ROCm and odd builds
+        return False
+    # ROCm reports gfx* targets; this whole failure mode is NVRTC-specific.
+    if not any(a.startswith("sm_") for a in arch_list):
+        return False
+    if "sm_{}{}".format(major, minor) in arch_list:
+        return False
+    for setter, arg in (
+        ("_jit_set_texpr_fuser_enabled", False),
+        ("_jit_override_can_fuse_on_gpu", False),
+        ("_jit_set_nvfuser_enabled", False),
+        ("_jit_set_profiling_executor", False),
+    ):
+        try:
+            getattr(torch._C, setter)(arg)
+        except Exception:  # pragma: no cover - knob absent on some builds
+            pass
+    sys.stderr.write(
+        "[run_rapidock] GPU is sm_{}{} but this PyTorch build targets {} — "
+        "disabling TorchScript GPU fusion so NVRTC is never asked to compile "
+        "for an architecture it does not know. Sampling runs unfused.\n".format(
+            major, minor, ", ".join(arch_list)
+        )
+    )
+    return True
+
+
 def _optimize_backends():
     # type: () -> str
     """Apply per-backend performance knobs for whichever device PyTorch will use.
@@ -188,7 +241,10 @@ def _optimize_backends():
             torch.backends.cudnn.benchmark = True  # autotune convs for fixed shapes
         except Exception:  # pragma: no cover - knob unavailable on old builds
             pass
-        return "CUDA/ROCm (TF32 fast path)"
+        label = "CUDA/ROCm (TF32 fast path)"
+        if _disable_jit_fusion_if_arch_unsupported(torch):
+            label += ", JIT GPU fusion off"
+        return label
 
     # Intel XPU — importing ipex registers fused kernels + the xpu device.
     if hasattr(torch, "xpu") and getattr(torch.xpu, "is_available", lambda: False)():
