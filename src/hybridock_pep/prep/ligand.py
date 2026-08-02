@@ -282,7 +282,7 @@ def _prepare_single_ligand(
             "scoring (which does use charges) may differ slightly.",
             pose_idx,
         )
-        return prepare_phospho_ligand(pose_idx, pdb_path, output_dir)
+        return prepare_phospho_ligand(pose_idx, pdb_path, output_dir, stage="prep")
 
     pdbqt_path = output_dir / (pdb_path.stem + ".pdbqt")
 
