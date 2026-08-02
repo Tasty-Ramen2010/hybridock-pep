@@ -10,7 +10,7 @@ from pathlib import Path
 
 from hybridock_pep.models import PoseFailure
 from hybridock_pep.toolpath import which as _which
-from hybridock_pep.prep.pdbqt_convert import convert_pdb_to_pdbqt
+from hybridock_pep.prep.pdbqt_convert import babel_available, convert_pdb_to_pdbqt
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +263,25 @@ def _prepare_single_ligand(
     from hybridock_pep.prep.phospho import has_phospho_residues, prepare_phospho_ligand
     if has_phospho_residues(pdb_path):
         logger.debug("Pose %d has phospho residues — routing through Meeko", pose_idx)
+        return prepare_phospho_ligand(pose_idx, pdb_path, output_dir)
+
+    # No babel and no obabel: use Meeko's Polymer route for standard peptides
+    # too. prepare_phospho_ligand is residue-agnostic — nothing in it is
+    # specific to TPO/SEP/PTR — so it converts any peptide pose.
+    #
+    # Deliberately a fallback, not the default. babel output is what the
+    # shipped calibration was fitted against, so every machine that has it must
+    # keep producing the same PDBQT. This branch exists because conda-forge has
+    # no linux-aarch64 openbabel build for Python 3.11, which left ARM Linux
+    # (DGX Spark, Grace, Graviton, Ampere) unable to prepare a single ligand.
+    if not babel_available():
+        logger.warning(
+            "Pose %d: neither babel nor obabel available — preparing with Meeko "
+            "instead. Vina's scoring function reads atom types and ignores "
+            "partial charges, so this is close to equivalent for Vina, but AD4 "
+            "scoring (which does use charges) may differ slightly.",
+            pose_idx,
+        )
         return prepare_phospho_ligand(pose_idx, pdb_path, output_dir)
 
     pdbqt_path = output_dir / (pdb_path.stem + ".pdbqt")

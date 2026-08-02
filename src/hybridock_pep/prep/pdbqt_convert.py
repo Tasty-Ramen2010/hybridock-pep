@@ -6,6 +6,17 @@ from pathlib import Path
 from hybridock_pep.toolpath import which as _which
 
 
+def babel_available() -> bool:
+    """True if either PDBQT converter binary can be found.
+
+    Lets callers pick a different route *before* attempting a conversion that
+    can only fail. conda-forge has no linux-aarch64 openbabel build for
+    Python 3.11, so on ARM Linux neither binary exists and every pose would
+    otherwise fail ligand prep with a missing-dependency error.
+    """
+    return _which("babel") is not None or _which("obabel") is not None
+
+
 def convert_pdb_to_pdbqt(
     pdb_path: Path, pdbqt_path: Path, *, add_hydrogens: bool = True
 ) -> subprocess.CompletedProcess:
