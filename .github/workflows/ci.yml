@@ -257,11 +257,31 @@ jobs:
           (Get-Content vina-1.2.7\setup.py) -replace '"-std=c\+\+11"', '"-std=c++17"' | Set-Content vina-1.2.7\setup.py
           Select-String -Path vina-1.2.7\setup.py -Pattern "std=c\+\+"
 
+      # Setting TMP/TEMP alone was NOT sufficient (confirmed 2026-08-03 — still zero compiler
+      # output with the same command that produced full, real diagnostics when run through
+      # msys2_shell.cmd -mingw64). Whatever the full difference is, running through MSYS2's
+      # own shell is the one thing that's actually worked so far — so build the wheel there
+      # directly (a script file, not an inline -c string, to avoid fragile nested quoting
+      # across YAML/PowerShell/cmd/bash). The later pip install step then just installs the
+      # already-built .whl, which needs no compilation and so doesn't depend on which shell
+      # invokes it.
+      - name: "Windows — build vina's wheel through MSYS2's own shell context"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pythonExe = "$env:CONDA_PREFIX\python.exe"
+          Set-Content -Path vina-1.2.7\build_vina.sh -Value "#!/bin/bash`nset -e`n`"$pythonExe`" setup.py bdist_wheel`n" -Encoding ascii
+          & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd\vina-1.2.7" -c "bash build_vina.sh"
+          Write-Host "=== exit code: $LASTEXITCODE ==="
+          Get-ChildItem vina-1.2.7\dist\*.whl
+
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
           pip install "pydantic>=2.0" "meeko>=0.7" "gemmi>=0.6" "rcsbsearch==0.2.3"
-          pip install ./vina-1.2.7
+          $wheel = Get-ChildItem vina-1.2.7\dist\*.whl | Select-Object -First 1
+          pip install $wheel.FullName
 
       - name: Install package on top of the conda env (vina etc. already present)
         run: pip install -e ".[dev]"
