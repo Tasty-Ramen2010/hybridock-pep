@@ -16,6 +16,7 @@ the pose, not a separate apo peptide). Pure Biopython + Shrake-Rupley; no GPU, ~
 """
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -79,7 +80,7 @@ _AROM_RING = {
 
 def _merge_complex(peptide_pdb: Path, receptor_pdb: Path) -> Path:
     """Write a merged complex (peptide chain P, receptor chain R), waters stripped."""
-    out = Path("/tmp") / f"_ens_{peptide_pdb.stem}_{receptor_pdb.stem}.pdb"
+    out = Path(tempfile.gettempdir()) / f"_ens_{peptide_pdb.stem}_{receptor_pdb.stem}.pdb"
     lines = []
     for src, ch in ((peptide_pdb, "P"), (receptor_pdb, "R")):
         for ln in Path(src).read_text().splitlines():

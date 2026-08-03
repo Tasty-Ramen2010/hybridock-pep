@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from hybridock_pep.toolpath import which
+from hybridock_pep.toolpath import _bindir, which
 
 
 def _make_exe(directory: Path, name: str) -> Path:
@@ -28,6 +28,13 @@ def _make_exe(directory: Path, name: str) -> Path:
     p.write_text("#!/bin/sh\nexit 0\n")
     p.chmod(0o755)
     return p
+
+
+def _make_env_exe(prefix: Path, name: str) -> Path:
+    """Create a fake tool in `prefix`'s bin dir — `Scripts` on Windows, `bin`
+    elsewhere, matching toolpath._bindir() exactly (which() looks there, not
+    literally in `<prefix>/bin` on every platform)."""
+    return _make_exe(_bindir(prefix), name)
 
 
 class TestWhich:
@@ -43,7 +50,7 @@ class TestWhich:
     ):
         """The regression: the tool is in sys.prefix/bin and PATH is elsewhere."""
         prefix = tmp_path / "envs" / "score-env"
-        exe = _make_exe(prefix / "bin", "mk_prepare_receptor.py")
+        exe = _make_env_exe(prefix, "mk_prepare_receptor.py")
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 
@@ -54,7 +61,7 @@ class TestWhich:
         precedence — this only ever adds a fallback."""
         on_path = _make_exe(tmp_path / "onpath", "autogrid4")
         prefix = tmp_path / "envs" / "score-env"
-        _make_exe(prefix / "bin", "autogrid4")
+        _make_env_exe(prefix, "autogrid4")
         monkeypatch.setenv("PATH", str(tmp_path / "onpath"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 
@@ -62,7 +69,7 @@ class TestWhich:
 
     def test_returns_none_when_genuinely_absent(self, tmp_path, monkeypatch):
         prefix = tmp_path / "envs" / "score-env"
-        (prefix / "bin").mkdir(parents=True)
+        _bindir(prefix).mkdir(parents=True)
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 
@@ -71,7 +78,7 @@ class TestWhich:
     @pytest.mark.skipif(os.name == "nt", reason="POSIX permission semantics")
     def test_ignores_a_non_executable_file(self, tmp_path, monkeypatch):
         prefix = tmp_path / "envs" / "score-env"
-        (prefix / "bin").mkdir(parents=True)
+        _bindir(prefix).mkdir(parents=True)
         (prefix / "bin" / "obabel").write_text("not executable")
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
@@ -238,8 +245,8 @@ class TestSidecarEnv:
 
         envs = tmp_path / "miniforge3" / "envs"
         prefix = envs / "score-env"
-        (prefix / "bin").mkdir(parents=True)
-        exe = _make_exe(envs / SIDECAR_ENV / "bin", "obabel")
+        _bindir(prefix).mkdir(parents=True)
+        exe = _make_env_exe(envs / SIDECAR_ENV, "obabel")
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 
@@ -250,8 +257,8 @@ class TestSidecarEnv:
 
         envs = tmp_path / "miniforge3" / "envs"
         prefix = envs / "score-env"
-        mine = _make_exe(prefix / "bin", "obabel")
-        _make_exe(envs / SIDECAR_ENV / "bin", "obabel")
+        mine = _make_env_exe(prefix, "obabel")
+        _make_env_exe(envs / SIDECAR_ENV, "obabel")
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 
@@ -261,7 +268,7 @@ class TestSidecarEnv:
         """sys.prefix must actually look like <base>/envs/<name> before we go
         guessing at sibling directories — a venv or system Python must not."""
         prefix = tmp_path / "venv"
-        (prefix / "bin").mkdir(parents=True)
+        _bindir(prefix).mkdir(parents=True)
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 

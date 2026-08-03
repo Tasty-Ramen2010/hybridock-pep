@@ -57,6 +57,21 @@ def which(name: str) -> str | None:
     if found is not None:
         return found
 
+    # shutil.which() on Windows only matches names ending in a PATHEXT-registered
+    # extension (.exe, .bat, ...). A script that's genuinely on $PATH verbatim with
+    # no such extension - e.g. meeko's mk_prepare_receptor.py, which conda installs
+    # as a bare .py file, no .exe wrapper - is invisible to it even though the file
+    # is real and readable. Check PATH directories directly for an exact match too,
+    # matching the same is_file()-based check already used for the env fallbacks
+    # below (execute-bit checks don't mean much for a .py file on Windows anyway).
+    if os.name == "nt":
+        for directory in os.environ.get("PATH", "").split(os.pathsep):
+            if not directory:
+                continue
+            candidate = Path(directory) / name
+            if candidate.is_file():
+                return str(candidate)
+
     prefix = Path(sys.prefix)
     candidate = _bindir(prefix) / name
     if candidate.is_file() and os.access(candidate, os.X_OK):
