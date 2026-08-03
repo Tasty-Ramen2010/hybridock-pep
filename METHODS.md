@@ -55,7 +55,7 @@ ranked_poses.csv · best_pose.pdb · cluster_summary.csv · run_metadata.json
 ```
 
 **What the reported ΔG is.** The headline number is Stage 3.6:
-`data/affinity_ai_nofix.joblib`, a `HistGradientBoostingRegressor` over 262
+`affinity_ai_nofix.joblib` (packaged in `hybridock_pep/data/`), a `HistGradientBoostingRegressor` over 262
 features — a 16-term interface-geometry block (buried hydrophobic area, H-bond
 and salt-bridge SASA, aromatic contacts, mean burial, Miyazawa–Jernigan contact
 energy, pocket descriptors) plus ~246 ProtDCal sequence/structure descriptors —
@@ -87,7 +87,7 @@ them; the sub-model recovers r ≈ 0.51.
 are separable. Diffusion models place peptides well but do not produce
 energies; classical scoring functions produce energies but were fitted to
 crystal poses and degrade on generated ones. Training the scorer *on AI poses*
-(`data/affinity_ai_nofix.joblib`) rather than on crystals absorbs that
+(`affinity_ai_nofix.joblib` (packaged in `hybridock_pep/data/`)) rather than on crystals absorbs that
 distribution shift: on the same complexes, a crystal-tuned model reaches
 r ≈ 0.585 and the AI-pose model reaches 0.49–0.53, versus 0.325 for a
 pose-blind sequence-only baseline that cannot read the pose at all.
@@ -96,7 +96,7 @@ pose-blind sequence-only baseline that cannot read the pose at all.
 
 | | Deployment scorer (`dock`) | Benchmark model (§4 PDBbind numbers) |
 |---|---|---|
-| Artifact | `data/affinity_ai_nofix.joblib` | fitted per-fold inside the experiment script |
+| Artifact | `affinity_ai_nofix.joblib` (packaged in `hybridock_pep/data/`) | fitted per-fold inside the experiment script |
 | Estimator | `HistGradientBoostingRegressor` | `GradientBoostingRegressor` (300 trees, depth 3) |
 | Features | 262 (16 geometry + ~246 ProtDCal) | 16 geometry |
 | Trained on | 633 **RAPiDock-generated** poses | 925 PDBbind **crystal** poses |

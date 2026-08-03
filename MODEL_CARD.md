@@ -8,9 +8,9 @@ one number from this repo, read this table first.
 
 | Artifact | Used by | Role | Set in |
 |---|---|---|---|
-| **`data/affinity_ai_nofix.joblib`** | `dock` (default) | **Headline ΔG** (`delta_g`, "Best pose ΔG"). Geometry-feature model, **no** size-fix. Tuned on real RAPiDock/AI poses. | `scoring/affinity_model.py` `_DEFAULT_ARTIFACT` |
-| **`data/affinity_crystal_ifp.joblib`** | `crystal-score` | Score an existing **crystal-quality** pose (geometry + interaction map). | `scoring/interaction_map.py` `_DEFAULT_ARTIFACT` |
-| **`data/pose_ranker_ml.joblib`** | Stage 2 ranking | Predicts per-pose native-RMSD to rank poses (**not** an affinity). | `scoring/pose_ranker_ml.py` `DEFAULT_MODEL_PATH` |
+| **`affinity_ai_nofix.joblib`** (packaged) | `dock` (default) | **Headline ΔG** (`delta_g`, "Best pose ΔG"). Geometry-feature model, **no** size-fix. Tuned on real RAPiDock/AI poses. | `scoring/affinity_model.py` `_DEFAULT_ARTIFACT` |
+| **`affinity_crystal_ifp.joblib`** (packaged) | `crystal-score` | Score an existing **crystal-quality** pose (geometry + interaction map). | `scoring/interaction_map.py` `_DEFAULT_ARTIFACT` |
+| **`pose_ranker_ml.joblib`** (packaged) | Stage 2 ranking | Predicts per-pose native-RMSD to rank poses (**not** an affinity). | `scoring/pose_ranker_ml.py` `DEFAULT_MODEL_PATH` |
 
 **Vina is clash-relief only. AD4 is off by default. Neither is the reported ΔG.**
 

@@ -178,7 +178,7 @@ def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
     """Score every pose with the AI-pose affinity model (the primary, default ΔG).
 
     Computes pocket+interface+MJ geometry features per pose and predicts ΔG with the
-    AI-pose-trained model (``data/affinity_ai_nofix.joblib`` via ``predict_affinity`` —
+    AI-pose-trained model (packaged ``affinity_ai_nofix.joblib`` via ``predict_affinity`` —
     the scoring function tuned for RAPiDock/AI-generated poses; NO Vina, NO AD4). This
     runs by DEFAULT and is the headline affinity number. Vina is retained upstream only
     for clash relief; AD4 is not used.

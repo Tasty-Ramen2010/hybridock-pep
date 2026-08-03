@@ -697,7 +697,7 @@ relaxation** on the top cluster representatives.
 ```
 
 **The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with the
-geometry-feature model tuned on real RAPiDock/AI poses (`data/affinity_ai_nofix.joblib`); that value is the
+geometry-feature model tuned on real RAPiDock/AI poses (`affinity_ai_nofix.joblib`, packaged in the wheel); that value is the
 `delta_g` column and the reported "Best pose ΔG". **Vina is retained only for clash relief** (Stage 2 —
 rescuing RAPiDock's clashing poses); its score is raw telemetry, never the affinity. **AD4 is off by
 default.** For a crystal-quality pose, the sibling crystal-tuned model is exposed as a standalone command —
@@ -826,7 +826,7 @@ hybridock-pep crystal-score \
 ```
 
 No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crystal model
-(`data/affinity_crystal_ifp.joblib`, override with `--artifact`) on the pose you give it.
+(`affinity_crystal_ifp.joblib` (packaged), override with `--artifact`) on the pose you give it.
 
 ### `prep` — pre-build a receptor PDBQT
 
