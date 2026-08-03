@@ -254,8 +254,12 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://files.pythonhosted.org/packages/d2/2a/6746ef5e57b1c643e9fb24ad9e4fa520add7338736d50954e0fbc12ae52e/vina-1.2.7.tar.gz" -OutFile vina-src.tar.gz
           tar xzf vina-src.tar.gz
-          (Get-Content vina-1.2.7\setup.py) -replace '"-std=c\+\+11"', '"-std=c++17"' | Set-Content vina-1.2.7\setup.py
-          Select-String -Path vina-1.2.7\setup.py -Pattern "std=c\+\+"
+          # The actual compile invocation (no -v) fails with zero diagnostic output even in
+          # the exact MSYS2 shell context that succeeded WITH -v moments earlier in manual
+          # testing (2026-08-03) — the one variable that differs. Add -v to vina's own
+          # compiler-options list too, so its real invocation matches what's proven to work.
+          (Get-Content vina-1.2.7\setup.py) -replace '"-std=c\+\+11"', '"-v", "-std=c++17"' | Set-Content vina-1.2.7\setup.py
+          Select-String -Path vina-1.2.7\setup.py -Pattern 'std=c\+\+'
 
       # Setting TMP/TEMP alone was NOT sufficient (confirmed 2026-08-03 — still zero compiler
       # output with the same command that produced full, real diagnostics when run through
