@@ -163,14 +163,18 @@ jobs:
       # (<CONDA_PREFIX>/include). conda-forge's Windows packages install under
       # <CONDA_PREFIX>\Library\include instead, so the same env spec that works on Linux
       # ARM64 still fails vina's Boost check here even though libboost-devel is genuinely
-      # installed. Bridge it with a junction (no admin rights needed, unlike a symlink) —
-      # BEFORE vina gets installed, unlike the first attempt at this fix.
-      - name: Windows — bridge conda's Library/include layout for vina's Boost search
+      # installed. A junction fails — the env already has a non-empty include/ (something
+      # else in score-env.yml populates it) and New-Item -Force won't replace a non-empty
+      # real directory — so merge-copy Library/include's contents in instead, which doesn't
+      # touch whatever's already there. Runs BEFORE vina gets installed.
+      - name: Windows — merge conda's Library/include into the Unix-style path vina's setup.py checks
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Junction -Path "$env:CONDA_PREFIX\include" -Target "$env:CONDA_PREFIX\Library\include" -Force
-          New-Item -ItemType Junction -Path "$env:CONDA_PREFIX\lib" -Target "$env:CONDA_PREFIX\Library\lib" -Force
+          New-Item -ItemType Directory -Path "$env:CONDA_PREFIX\include" -Force | Out-Null
+          Copy-Item -Path "$env:CONDA_PREFIX\Library\include\*" -Destination "$env:CONDA_PREFIX\include" -Recurse -Force
+          New-Item -ItemType Directory -Path "$env:CONDA_PREFIX\lib" -Force | Out-Null
+          Copy-Item -Path "$env:CONDA_PREFIX\Library\lib\*" -Destination "$env:CONDA_PREFIX\lib" -Recurse -Force
 
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
