@@ -222,22 +222,25 @@ jobs:
           Copy-Item -Path "C:\msys64\mingw64\include\boost" -Destination "$env:CONDA_PREFIX\include\boost" -Recurse -Force
           Get-ChildItem -Path "C:\msys64\mingw64\lib\libboost_thread*","C:\msys64\mingw64\lib\libboost_serialization*","C:\msys64\mingw64\lib\libboost_filesystem*","C:\msys64\mingw64\lib\libboost_program_options*" | Copy-Item -Destination "$env:CONDA_PREFIX\lib\" -Force
 
-      # Diagnostic only: pip's own build-isolation capture swallows g++'s actual stderr on
-      # failure even with -v (confirmed 2026-08-03 — the compile step fails in ~70ms, too
-      # fast to be a real template-heavy Boost compile, with zero diagnostic text). Reproduce
-      # the exact failing invocation directly, outside pip, so its stderr goes straight to
-      # this log with nothing in between.
-      - name: "Windows — diagnostic: run vina's exact failing g++ invocation directly"
+      # Diagnostic only: the previous attempt (raw PowerShell invocation of g++.exe, piped
+      # through Tee-Object) produced ZERO output — not even a warning — with exit code 1.
+      # That's not a compile error's signature, it's a process that never really ran its own
+      # error-printing code. Theory: mingw64 tools are designed to run inside an MSYS2 shell
+      # session (MSYSTEM=MINGW64 + its PATH/DLL-search setup active), not invoked bare from a
+      # foreign shell — g++.exe may be unable to locate its own cc1plus.exe backend or a
+      # required runtime DLL without that context. Test by running through MSYS2's own bash
+      # entry point instead, with -v added to g++ itself for maximum verbosity.
+      - name: "Windows — diagnostic: same g++ invocation, via MSYS2's own shell context"
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://files.pythonhosted.org/packages/d2/2a/6746ef5e57b1c643e9fb24ad9e4fa520add7338736d50954e0fbc12ae52e/vina-1.2.7.tar.gz" -OutFile vina-src.tar.gz
           tar xzf vina-src.tar.gz
-          cd vina-1.2.7
-          $inc = "$env:CONDA_PREFIX\include"
-          & "C:\msys64\mingw64\bin\g++.exe" -shared -O -Wall "-I$inc" "-Isrc/lib" -c src/lib/ad4cache.cpp -o test_ad4cache.o -std=c++11 -Wno-long-long -pedantic -DBOOST_ERROR_CODE_HEADER_ONLY 2>&1 | Tee-Object -Variable gccOut
-          Write-Host "=== g++ exit code: $LASTEXITCODE ==="
-          Write-Host "=== g++ full output above (should show the real compiler diagnostic) ==="
+          Write-Host "=== which g++ / cc1plus, from inside MSYS2 mingw64 shell ==="
+          & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd" -c "which g++; g++ --version; g++ -print-prog-name=cc1plus" 2>&1
+          Write-Host "=== now the actual failing compile, same context ==="
+          & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd\vina-1.2.7" -c "g++ -v -shared -O -Wall -I'$env:CONDA_PREFIX/include' -Isrc/lib -c src/lib/ad4cache.cpp -o test_ad4cache.o -std=c++11 -Wno-long-long -pedantic -DBOOST_ERROR_CODE_HEADER_ONLY" 2>&1
+          Write-Host "=== exit code: $LASTEXITCODE ==="
         continue-on-error: true
 
       - name: "Windows — install the pip packages score-env.yml would normally handle"
