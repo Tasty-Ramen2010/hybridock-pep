@@ -172,7 +172,7 @@ jobs:
           New-Item -ItemType Junction -Path "$env:CONDA_PREFIX\include" -Target "$env:CONDA_PREFIX\Library\include" -Force
           New-Item -ItemType Junction -Path "$env:CONDA_PREFIX\lib" -Target "$env:CONDA_PREFIX\Library\lib" -Force
 
-      - name: Windows — install the pip: packages score-env.yml would normally handle
+      - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
         run: pip install "pydantic>=2.0" "meeko>=0.7" "vina>=1.2.5" "gemmi>=0.6" "rcsbsearch==0.2.3"
 
