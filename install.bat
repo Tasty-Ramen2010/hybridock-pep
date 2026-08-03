@@ -17,6 +17,12 @@ echo ============================================================
 echo   HybriDock-Pep - Windows setup (via WSL2)
 echo ============================================================
 echo.
+echo This script is safe to run more than once. It will NOT create a second
+echo WSL distro if you already have one, and it will NOT recreate conda
+echo environments or re-download model weights that are already installed -
+echo install.sh checks for each of those before doing any work. If you already
+echo have WSL2 set up (any distro), it is reused as-is.
+echo.
 
 where wsl >nul 2>nul
 if errorlevel 1 (
@@ -67,6 +73,19 @@ if "%WSL_REPO_DIR%"=="" (
 wsl bash -lc "cd '%WSL_REPO_DIR%' && bash install.sh"
 
 echo.
-echo Done. Future runs: open an Ubuntu/WSL terminal and run:
-echo     cd '%WSL_REPO_DIR%' ^&^& ./launch_ui.sh
+echo ============================================================
+echo   Setup finished
+echo ============================================================
+echo.
+echo You do NOT need to run install.bat again for normal use - it is only
+echo the one-time (or occasional, e.g. after a git pull) setup step. For
+echo everyday use, open your WSL2/Ubuntu terminal directly ^(Start menu -^>
+echo Ubuntu, or run `wsl` from any Windows terminal^) and run:
+echo.
+echo     cd '%WSL_REPO_DIR%'
+echo     conda activate score-env
+echo     ./launch_ui.sh
+echo.
+echo Re-running install.bat later is harmless if you ever want to - it will
+echo detect everything that is already set up and skip straight past it.
 pause
