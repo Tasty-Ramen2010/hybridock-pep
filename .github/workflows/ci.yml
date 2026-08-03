@@ -183,6 +183,45 @@ jobs:
           New-Item -ItemType Directory -Path "$env:CONDA_PREFIX\lib" -Force | Out-Null
           Copy-Item -Path "$env:CONDA_PREFIX\Library\lib\*" -Destination "$env:CONDA_PREFIX\lib" -Recurse -Force
 
+      # Read vina's actual setup.py (pulled the real sdist to confirm, 2026-08-03) —
+      # build_extensions() unconditionally does self.compiler.compiler_so[0] = "g++",
+      # assuming a Unix-style (GCC) compiler object. Confirmed by the real CI error:
+      # "AttributeError: 'Compiler' object has no attribute 'compiler_so'" — Windows'
+      # default MSVCCompiler simply doesn't have that attribute; this code was never written
+      # with a Windows/MSVC path at all (its own classifiers list even has
+      # 'Operating System :: Microsoft :: Windows' commented out). The only way to make this
+      # build succeed is to give distutils a real GCC-family compiler class (mingw32) — and
+      # since that changes the ABI, it needs to link against a MinGW-built Boost too, not
+      # conda-forge's MSVC-built one copied in above (mixing ABIs fails at link time with
+      # unresolved C++ symbols). MSYS2 (pre-installed on GitHub's windows-latest runners at
+      # C:\msys64) ships a matched mingw-w64 GCC + Boost pair for exactly this.
+      - name: "Windows — install a matched-ABI MinGW-w64 GCC + Boost via MSYS2 (vina requires a GCC-family compiler; see above)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "C:\msys64\usr\bin\bash.exe" -lc "pacman -Sy --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-boost"
+          Add-Content -Path $env:GITHUB_PATH -Value "C:\msys64\mingw64\bin"
+
+      # Force distutils to select the mingw32 compiler class instead of the Windows default
+      # (msvc) for every package built from source in this job, not just vina — this is a
+      # per-user config file distutils reads regardless of pip's isolated build tempdir.
+      - name: "Windows — force distutils to use the mingw32 compiler class"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Set-Content -Path "$env:USERPROFILE\pydistutils.cfg" -Value "[build_ext]`ncompiler=mingw32`n" -Encoding ascii
+
+      # Point vina's locate_boost() (which checks CONDA_PREFIX first since we're in a conda
+      # env) at the MSYS2 MinGW-built Boost instead of the MSVC-built copy merged in above —
+      # ABI-matched with the g++ this job now uses, so the actual link step can resolve
+      # Boost's C++ symbols instead of failing on a name-mangling mismatch.
+      - name: "Windows — point vina's conda-env Boost lookup at the MSYS2 MinGW build (ABI-matched)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item -Path "$env:CONDA_PREFIX\include\boost" -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item -Path "C:\msys64\mingw64\include\boost" -Destination "$env:CONDA_PREFIX\include\boost" -Recurse -Force
+          Get-ChildItem -Path "C:\msys64\mingw64\lib\libboost_thread*","C:\msys64\mingw64\lib\libboost_serialization*","C:\msys64\mingw64\lib\libboost_filesystem*","C:\msys64\mingw64\lib\libboost_program_options*" | Copy-Item -Destination "$env:CONDA_PREFIX\lib\" -Force
+
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
         run: pip install "pydantic>=2.0" "meeko>=0.7" "vina>=1.2.5" "gemmi>=0.6" "rcsbsearch==0.2.3"
