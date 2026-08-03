@@ -409,13 +409,26 @@ def run_dock(
     # kept they force the grid to balloon (the PfLDH run-1 OOM at 180 Å came
     # from this). Filtering them out keeps Vina's memory footprint bounded
     # AND removes off-pocket scores that would pollute clustering.
-    n_before = len(records)
-    records = _filter_offpocket_poses(config, records)
-    if len(records) < n_before:
+    #
+    # Skipped under --blind, where site_coords is the receptor's own middle
+    # rather than a pocket. The cutoff is a fixed 35 Å radius, so on any
+    # receptor whose half-extent exceeds that it cannot reach its own surface:
+    # poses in a real groove at either end are dropped for being far from a
+    # centroid that never meant anything. The damage scales with receptor size,
+    # which silently makes results non-comparable across receptors.
+    if config.blind:
         logger.info(
-            "Stage 1.7a: off-pocket filter kept %d/%d poses",
-            len(records), n_before,
+            "Stage 1.7a: skipped (blind mode) — keeping all %d poses regardless "
+            "of distance from site_coords", len(records),
         )
+    else:
+        n_before = len(records)
+        records = _filter_offpocket_poses(config, records)
+        if len(records) < n_before:
+            logger.info(
+                "Stage 1.7a: off-pocket filter kept %d/%d poses",
+                len(records), n_before,
+            )
 
     # Stage 1.7b: Auto-expand box_size if pose spread exceeds user box.
     # The user's --box flag becomes a MINIMUM; capped at 100 Å for OOM safety.

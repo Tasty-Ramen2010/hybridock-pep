@@ -70,6 +70,15 @@ class DockConfig(BaseModel):
     mmgbsa_include_ie: bool = False   # add Interaction-Entropy −TΔS to ΔG_bind
     mmgbsa_3traj: bool = False        # 3-trajectory (relax unbound peptide+receptor)
     mmgbsa_solute_dielectric: float = 1.0  # GB εin; screen kept 1.0 (see mmgbsa.py)
+    # Blind docking: no pocket is known. Stage 1 sampling is receptor-wide either
+    # way — RAPiDock never receives site_coords — so this changes Stage 1.7a only:
+    # the off-pocket filter (drops poses whose Cα centroid is >35 Å from
+    # site_coords) is skipped. That filter exists to prune RAPiDock noise around a
+    # KNOWN pocket; with no pocket to point at, site_coords is just the receptor's
+    # middle and the filter deletes exactly the alternate-site poses a blind run
+    # exists to find. On an elongated receptor (armadillo/ankyrin repeats,
+    # coiled coils) it discards the real groove. See driver.py Stage 1.7a.
+    blind: bool = False
 
     @field_validator("peptide_sequence")
     @classmethod
