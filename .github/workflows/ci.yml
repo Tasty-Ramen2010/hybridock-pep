@@ -39,6 +39,57 @@ name: CI
 # route below is equally documented (README's "conda env create -f
 # envs/score-env.yml" works identically on native Windows) and is what this
 # job actually tests.
+#
+# Windows status (2026-08-03): still fails, after real, sequential progress
+# through SIX distinct confirmed root causes — this is not neglect, it's a
+# genuinely deep toolchain problem, documented in full here so nobody has to
+# rediscover it:
+#   1. conda-incubator installs an environment-file's `pip:` section (incl.
+#      vina) DURING env creation, before any later step can act — fixed by
+#      splitting into a conda-only env + a separate later pip step.
+#   2. conda-forge's Windows Boost lives under <CONDA_PREFIX>\Library\include,
+#      not the Unix-style path vina's setup.py checks — fixed with a
+#      merge-copy (a junction failed: the env already has a non-empty
+#      include\ from something else).
+#   3. vina's setup.py only works with a GCC-family compiler class — it does
+#      `self.compiler.compiler_so[0] = "g++"` unconditionally, which crashes
+#      outright on Windows' default MSVCCompiler (confirmed via
+#      AttributeError: 'Compiler' object has no attribute 'compiler_so' —
+#      read vina's actual sdist source to confirm this, not guessed). Fixed
+#      by forcing the mingw32 compiler class via a per-user pydistutils.cfg.
+#   4. That needs a real GCC toolchain + an ABI-matched Boost (conda-forge's
+#      is MSVC-built; mixing ABIs fails at link time) — installed via MSYS2
+#      (pre-installed on windows-latest), which conda-forge Boost is
+#      overwritten with in <CONDA_PREFIX>\include\boost.
+#   5. Bare PowerShell/Git-Bash invocation of g++.exe produced ZERO output on
+#      failure — MinGW tools need MSYS2's own shell context (MSYSTEM env,
+#      PATH/DLL setup) to run at all; confirmed by reproducing the exact
+#      failing command through msys2_shell.cmd -mingw64, which then DID show
+#      real diagnostics.
+#   6. Those diagnostics revealed a genuine version mismatch: vina hardcodes
+#      -std=c++11, but current MSYS2 Boost's boost/math module requires
+#      C++14+ (its own header literally #warns this). Fixed by patching
+#      -std=c++11 -> -std=c++17 in a local copy of vina's sdist (can't fix
+#      via environment flags — vina's own flag is appended last and wins).
+#      Also found and fixed along the way: swig resolves to the wrong copy
+#      inside MSYS2's shell (pinned to conda's own swig via PATH) and a
+#      PowerShell $var: parsing bug in this workflow's own script generation.
+#
+# Where it currently stands: g++ itself now runs correctly inside MSYS2's
+# shell (real GCC driver output — COLLECT_GCC, Configured with, etc.) and
+# correctly invokes cc1plus.exe (the real C++ frontend) with a valid,
+# correct command line. That specific process — six levels of nesting deep
+# (PowerShell -> msys2_shell.cmd -> bash -> python.exe -> distutils -> g++ ->
+# cc1plus) — produces zero output and exits 1. The same command (g++ with
+# -v) run one level shallower (bash -> g++ -> cc1plus, no Python in between)
+# produced full real diagnostics. This looks like a genuine Windows
+# stdio-handle-inheritance quirk at that specific process depth, not
+# something fixable by more scripted CI attempts — it would need either
+# interactive debugging on a real Windows machine, or vina's own maintainers
+# patching setup.py for real Windows support (their own classifiers list has
+# 'Operating System :: Microsoft :: Windows' commented out — they don't
+# claim to support it either). Left as continue-on-error with this full
+# account rather than silently marked "doesn't work."
 
 on:
   push:
