@@ -125,3 +125,60 @@ class TestExistingCondaIsFound:
             ln.startswith("curl") and "iniforge" in ln
             for ln in proc.calls.splitlines()  # type: ignore[attr-defined]
         ), f"no Miniforge download attempted; calls were:\n{proc.calls}"  # type: ignore[attr-defined]
+
+
+class TestSubmodulePointerIsFetchable:
+    """A recorded submodule SHA must exist on the submodule's remote.
+
+    An orphan gitlink is not the only way to break `git clone
+    --recurse-submodules`. Recording a submodule commit that was never *pushed*
+    to the submodule repo fails the same way, and is easier to do by accident —
+    it happens whenever the superproject is pushed but the submodule is not:
+
+        fatal: remote error: upload-pack: not our ref 1d103e07...
+        fatal: Fetched in submodule path 'third_party/RAPiDock', but it did not
+               contain 1d103e07... Direct fetching of that commit failed.
+
+    The clone then leaves third_party/RAPiDock empty, so Stage 1 has no sampler.
+    Network test: skipped when git or the network is unavailable.
+    """
+
+    def test_recorded_submodule_commits_exist_on_their_remotes(self):
+        git = shutil.which("git")
+        if git is None or not (REPO_ROOT / ".git").exists():
+            pytest.skip("not a git checkout")
+
+        listing = subprocess.run(
+            [git, "ls-files", "-s"],
+            cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        gitlinks = {
+            line.split("\t", 1)[1]: line.split()[1]
+            for line in listing.splitlines()
+            if line.startswith("160000")
+        }
+        if not gitlinks:
+            pytest.skip("no submodules")
+
+        unreachable = []
+        for path, sha in gitlinks.items():
+            url = subprocess.run(
+                [git, "config", "-f", ".gitmodules", f"submodule.{path}.url"],
+                cwd=REPO_ROOT, capture_output=True, text=True,
+            ).stdout.strip()
+            if not url:
+                continue  # covered by test_no_orphan_gitlinks
+            remote = subprocess.run(
+                [git, "ls-remote", url],
+                cwd=REPO_ROOT, capture_output=True, text=True, timeout=120,
+            )
+            if remote.returncode != 0:
+                pytest.skip(f"cannot reach {url}")
+            if sha not in remote.stdout:
+                unreachable.append(f"{path} -> {sha[:12]}")
+
+        assert not unreachable, (
+            f"submodule commit(s) not on their remote: {unreachable} — "
+            "`git clone --recurse-submodules` will fail and leave the submodule "
+            "empty. Push the submodule before pushing the superproject."
+        )
