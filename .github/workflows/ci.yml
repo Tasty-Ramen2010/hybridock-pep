@@ -67,11 +67,20 @@ jobs:
 
       - name: Install Boost (vina builds from source on this platform)
         if: matrix.boost == 'apt'
-        run: sudo apt-get update && sudo apt-get install -y 'libboost-dev'
+        run: |
+          sudo apt-get update && sudo apt-get install -y 'libboost-dev'
+          dpkg -L libboost-dev | grep -m1 'boost/version.hpp' || true
+          echo "CPATH=/usr/include" >> "$GITHUB_ENV"
 
       - name: Install Boost (vina builds from source on this platform)
         if: matrix.boost == 'brew'
-        run: brew install boost
+        run: |
+          brew install boost
+          # vina's setup.py only searches conda env, /usr/local/include, /usr/include —
+          # not Homebrew's /opt/homebrew (Apple Silicon) prefix, so `boost installed` alone
+          # still fails with "Boost library location was not found!". CPATH is honored by
+          # both clang and the Boost-finder logic.
+          echo "CPATH=$(brew --prefix boost)/include" >> "$GITHUB_ENV"
 
       - name: Install package (full dependency stack)
         run: |
