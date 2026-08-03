@@ -293,7 +293,13 @@ jobs:
       # marked failed by a shutdown-time crash outside pytest's own control.
       - name: Fast test suite (slow/GPU/ADFRsuite-dependent tests already self-skip)
         if: runner.os == 'Windows'
-        shell: bash -el {0}
+        # Login (-l, for conda activation) WITHOUT errexit (-e): "bash -el {0}" combines
+        # both short flags (bash treats -el as -e -l together), which aborts this whole
+        # script at the segfault line itself, before the recovery logic below ever runs -
+        # confirmed by a real CI run (2026-08-03) that never printed any of this script's
+        # own echo lines past the crash. The one thing this step must NOT do is die on the
+        # very failure it exists to inspect.
+        shell: bash -l {0}
         run: |
           set -o pipefail
           pytest -q \
@@ -329,7 +335,8 @@ jobs:
       # real success, exit code alone doesn't.
       - name: CLI entry points resolve
         if: runner.os == 'Windows'
-        shell: bash -el {0}
+        # Login without errexit - see the identical comment on the test-suite step above.
+        shell: bash -l {0}
         run: |
           set -o pipefail
           hybridock-pep --help 2>&1 | tee cli_help.log
