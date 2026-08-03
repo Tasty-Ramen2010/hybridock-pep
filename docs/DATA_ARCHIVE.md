@@ -28,6 +28,20 @@ already, or under a license that forbids redistribution:
 | `datasets/training_formatted_peppc/` (~28 GB) | Formatted PepPC training data | Not redistributed pending confirmation of PepPC's own license terms. Rebuild from `PepPC_raw_data.tar.gz` / `PepPC-F_raw_data.tar.gz` (kept locally, not in git) using the ingestion scripts in `experiments/`. |
 | `datasets/frag_raw_data_final/`, `nat_raw_data_final/` (~1.5 GB) | Processed PDB loop/helix fragment structures | Source database license not yet confirmed — do not redistribute until checked. |
 
+## Shipped model artifacts moved into the package (2026-08-02)
+
+Six files the default CLI paths load unconditionally — `affinity_ai_nofix.joblib`,
+`affinity_crystal_ifp.joblib`, `affinity_crystal_sizefix.joblib`, `pose_ranker_ml.joblib`,
+`ensemble_calibration.json`, `test_complexes_meta.csv` — moved from `data/` to
+`src/hybridock_pep/data/` (`git mv`, single canonical copy) so a real `pip install` wheel can
+find them; see `src/hybridock_pep/_paths.py`. **The `experiments/` scripts that build these
+artifacts** (`e204_build_ai_nofix.py`, `e206_build_pocket_models.py`, `e203_build_sizefix_artifacts.py`,
+`e216_build_routed_crystal.py`, `e22_ensemble_eval.py`, etc.) **still write to the old `ROOT /
+"data/..."` path** — rerunning one to regenerate an artifact writes a file the shipped package no
+longer reads (it prefers `src/hybridock_pep/data/` first). If you regenerate one of these, copy the
+result into `src/hybridock_pep/data/` afterward. Not fixed in the experiment scripts themselves —
+low-traffic, and touching them risks the validated numbers those scripts historically produced.
+
 ## Scripts
 
 Almost all scripts that produce or consume the above are in this git repo. **One known exception:**
