@@ -13,6 +13,22 @@ name: CI
 # CI can install them). Tests that need those already skip gracefully
 # (see tests/conftest.py's slow-marker skip and the meeko/ADFRsuite
 # not-installed skips) rather than fail.
+#
+# Boost: the `vina` PyPI package ships a prebuilt wheel for manylinux x86_64
+# only — every other platform/arch builds from source and needs Boost
+# headers (envs/score-env.yml already installs
+# conda-forge::libboost-devel<1.87 for exactly this reason; >=1.87 dropped
+# the std::enable_if_t shim vina's build relies on). CI installs the same
+# constraint via each platform's system package manager so this matrix tests
+# the real "can pip alone do this" question, not "did we get lucky with a
+# wheel".
+#
+# Windows: native Windows Python + pip was never the documented install
+# path — INSTALL.md/install.bat describe WSL2 (i.e. Linux underneath), which
+# GitHub's windows-latest runner cannot nest. Kept here anyway as a
+# non-blocking signal for the parts that don't need vina (CLI/TUI argument
+# parsing, pure-Python scoring logic); marked experimental rather than
+# required.
 
 on:
   push:
@@ -34,17 +50,28 @@ jobs:
             os: ubuntu-latest
           - name: Linux ARM64
             os: ubuntu-24.04-arm
-            experimental: true  # newer GA runner class; some deps may lack arm64 wheels
+            experimental: true  # newer GA runner class; boost fix is new+unverified here
+            boost: apt
           - name: macOS ARM64 (Apple Silicon)
             os: macos-14
-          - name: Windows x86_64
+            boost: brew
+          - name: Windows x86_64 (native — see header; WSL2 is the real target)
             os: windows-latest
+            experimental: true
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install Boost (vina builds from source on this platform)
+        if: matrix.boost == 'apt'
+        run: sudo apt-get update && sudo apt-get install -y 'libboost-dev'
+
+      - name: Install Boost (vina builds from source on this platform)
+        if: matrix.boost == 'brew'
+        run: brew install boost
 
       - name: Install package (full dependency stack)
         run: |
