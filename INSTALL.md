@@ -25,13 +25,20 @@ non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 >
 > **Windows users:** `install.bat` sets up WSL2 and runs the full pipeline
 > there (Stage 1 + Stage 2, CUDA passthrough) — this is the path to use if you
-> want everything working with one script. If you only need Stage 2 scoring
-> and would rather stay outside WSL2, `conda env create -f envs/score-env.yml`
-> now works directly in a native Windows conda prompt/PowerShell (Vina is
-> built from source there against a MinGW-w64 + Boost toolchain — see the
-> `conda-platforms` Windows job in `.github/workflows/ci.yml` for exactly how
-> CI does this, or run `scripts/patch_vina_windows_setup.py` yourself if
-> installing outside conda).
+> want everything working with one script. **After it finishes, run everything
+> else — `conda activate`, `hybridock-pep`, `./launch_ui.sh` — inside the
+> WSL2/Ubuntu terminal** (Start menu → search "Ubuntu", or type `wsl` in any
+> Windows terminal), not PowerShell/CMD; those commands aren't installed on
+> the Windows side. `install.bat` is safe to run again any time (e.g. after a
+> `git pull`) — it detects an existing WSL2 distro and skips conda
+> environments / model weights that are already present rather than
+> recreating them, and it does not need to be re-run for normal day-to-day
+> use. If you only need Stage 2 scoring and would rather stay outside WSL2,
+> `conda env create -f envs/score-env.yml` now works directly in a native
+> Windows conda prompt/PowerShell (Vina is built from source there against a
+> MinGW-w64 + Boost toolchain — see the `conda-platforms` Windows job in
+> `.github/workflows/ci.yml` for exactly how CI does this, or run
+> `scripts/patch_vina_windows_setup.py` yourself if installing outside conda).
 
 ---
 

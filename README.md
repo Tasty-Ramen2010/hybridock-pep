@@ -89,6 +89,17 @@ required; it is used automatically if you already have it on PATH — see [Insta
 Prefer to do it by hand, or just want to see what's happening under the hood? The full manual
 walkthrough is in [INSTALL.md](INSTALL.md).
 
+> **Windows:** double-click `install.bat` (or run it from PowerShell/CMD) once — it sets up WSL2 if
+> you don't have it, then runs `install.sh` inside it. **Everything else in this README —
+> `conda activate`, `hybridock-pep`, `pytest`, `./launch_ui.sh` — runs inside your WSL2/Ubuntu
+> terminal, not PowerShell or CMD.** Open it from the Start menu (search "Ubuntu") or by typing
+> `wsl` in any Windows terminal. `install.bat` is safe to run more than once — it reuses an
+> existing WSL2 distro and skips conda environments / model weights that are already installed
+> rather than recreating them. You do **not** need to run it again for everyday use: after the
+> first install, just open the WSL2/Ubuntu terminal and run `cd <repo-path> && ./launch_ui.sh`
+> (or `conda activate score-env` to use the CLI directly). See the platform table in
+> [INSTALL.md](INSTALL.md) for a native-Windows (non-WSL2) option if you only need Stage 2 scoring.
+
 ### Practice test — no GPU, no RAPiDock, no Vina needed
 
 Want to check your scoring environment works before touching the GPU stack at all? This scores a
@@ -162,6 +173,9 @@ to earlier installs.
 
 Everything you need, in the order you need it. Copy-paste safe on a brand-new machine.
 
+> **Windows:** run all of this inside your WSL2/Ubuntu terminal (after `install.bat`'s one-time
+> setup), not PowerShell/CMD.
+
 > 📺 Prefer to watch? **[Tutorial video — setup and first run](https://youtu.be/ro9CukQCW44)** covers
 > this whole section on a clean machine.
 
@@ -192,6 +206,12 @@ Then, in every new shell:
 ```bash
 conda activate score-env
 ```
+
+`./install.sh` / `install.bat` is a one-time (or occasional, e.g. after a `git pull`) step, not
+something you run before every use — it's idempotent (safe to re-run: it skips conda environments,
+weights, and WSL2 setup that already exist), but for day-to-day use you don't need to. Once
+installed, just open a terminal, `cd` into the repo, `conda activate score-env`, and run
+`./launch_ui.sh` or `hybridock-pep` directly.
 
 ### 2. Test
 
