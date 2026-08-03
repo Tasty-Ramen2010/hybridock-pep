@@ -222,30 +222,46 @@ jobs:
           Copy-Item -Path "C:\msys64\mingw64\include\boost" -Destination "$env:CONDA_PREFIX\include\boost" -Recurse -Force
           Get-ChildItem -Path "C:\msys64\mingw64\lib\libboost_thread*","C:\msys64\mingw64\lib\libboost_serialization*","C:\msys64\mingw64\lib\libboost_filesystem*","C:\msys64\mingw64\lib\libboost_program_options*" | Copy-Item -Destination "$env:CONDA_PREFIX\lib\" -Force
 
-      # Diagnostic only: the previous attempt (raw PowerShell invocation of g++.exe, piped
-      # through Tee-Object) produced ZERO output — not even a warning — with exit code 1.
-      # That's not a compile error's signature, it's a process that never really ran its own
-      # error-printing code. Theory: mingw64 tools are designed to run inside an MSYS2 shell
-      # session (MSYSTEM=MINGW64 + its PATH/DLL-search setup active), not invoked bare from a
-      # foreign shell — g++.exe may be unable to locate its own cc1plus.exe backend or a
-      # required runtime DLL without that context. Test by running through MSYS2's own bash
-      # entry point instead, with -v added to g++ itself for maximum verbosity.
-      - name: "Windows — diagnostic: same g++ invocation, via MSYS2's own shell context"
+      # Two real, confirmed root causes found by running vina's exact failing g++ invocation
+      # through MSYS2's own shell (2026-08-03), which is what finally surfaced the actual
+      # compiler diagnostics — bare PowerShell/Git-Bash invocation of g++.exe produced ZERO
+      # output on failure (a process that never reached its own error-printing code), so
+      # neither prior attempt could see this:
+      #
+      # 1. TMP/TEMP: g++ writes scratch files (e.g. the intermediate .s assembly) to the
+      #    shell's temp dir. MSYS2's own shell sets this to its own /tmp
+      #    (C:\msys64\tmp); the job's default Windows TEMP wasn't reliably usable by the
+      #    MinGW toolchain the same way. Set explicitly for every subsequent step.
+      # 2. vina's setup.py hardcodes `-std=c++11`, but the Boost this job installs (MSYS2's
+      #    current mingw-w64-boost) has a boost/math module that requires C++14
+      #    (boost/math/tools/config.hpp literally #warns "Boost.Math requires C++14", then
+      #    every std::xxx_t type-trait alias used downstream fails with "has not been
+      #    declared in std"). Not a config problem on our side — a real version mismatch
+      #    between what vina's 2023-era setup.py assumes and MSYS2's current Boost. Patch
+      #    the flag in a local copy of vina's sdist rather than the environment (an
+      #    externally-set -std= wouldn't win — vina's own flag is appended last).
+      - name: "Windows — set TMP/TEMP to MSYS2's own tmp dir (needed for MinGW g++ to run at all)"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "C:\msys64\tmp" -Force | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=C:\msys64\tmp"
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=C:\msys64\tmp"
+
+      - name: "Windows — patch vina's hardcoded -std=c++11 to -std=c++17 (Boost.Math needs C++14+)"
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://files.pythonhosted.org/packages/d2/2a/6746ef5e57b1c643e9fb24ad9e4fa520add7338736d50954e0fbc12ae52e/vina-1.2.7.tar.gz" -OutFile vina-src.tar.gz
           tar xzf vina-src.tar.gz
-          Write-Host "=== which g++ / cc1plus, from inside MSYS2 mingw64 shell ==="
-          & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd" -c "which g++; g++ --version; g++ -print-prog-name=cc1plus" 2>&1
-          Write-Host "=== now the actual failing compile, same context ==="
-          & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd\vina-1.2.7" -c "g++ -v -shared -O -Wall -I'$env:CONDA_PREFIX/include' -Isrc/lib -c src/lib/ad4cache.cpp -o test_ad4cache.o -std=c++11 -Wno-long-long -pedantic -DBOOST_ERROR_CODE_HEADER_ONLY" 2>&1
-          Write-Host "=== exit code: $LASTEXITCODE ==="
-        continue-on-error: true
+          (Get-Content vina-1.2.7\setup.py) -replace '"-std=c\+\+11"', '"-std=c++17"' | Set-Content vina-1.2.7\setup.py
+          Select-String -Path vina-1.2.7\setup.py -Pattern "std=c\+\+"
 
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
-        run: pip install "pydantic>=2.0" "meeko>=0.7" "vina>=1.2.5" "gemmi>=0.6" "rcsbsearch==0.2.3"
+        run: |
+          pip install "pydantic>=2.0" "meeko>=0.7" "gemmi>=0.6" "rcsbsearch==0.2.3"
+          pip install ./vina-1.2.7
 
       - name: Install package on top of the conda env (vina etc. already present)
         run: pip install -e ".[dev]"
