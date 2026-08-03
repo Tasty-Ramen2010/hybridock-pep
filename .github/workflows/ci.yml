@@ -270,7 +270,18 @@ jobs:
         shell: pwsh
         run: |
           $pythonExe = "$env:CONDA_PREFIX\python.exe"
-          Set-Content -Path vina-1.2.7\build_vina.sh -Value "#!/bin/bash`nset -e`n`"$pythonExe`" setup.py bdist_wheel`n" -Encoding ascii
+          # swig worked fine in every earlier (non-MSYS2-shell) attempt but just failed here —
+          # the mirror image of g++'s problem: MSYS2's shell resolves `swig` to something other
+          # than conda-forge's own copy this env installs. Prepend conda's own bin dirs (POSIX
+          # form, since this runs inside MSYS2 bash) so `swig` finds the one that's proven to
+          # work, ahead of anything MSYS2's own PATH would otherwise expose.
+          $condaPosix = "/" + $env:CONDA_PREFIX.Substring(0,1).ToLower() + $env:CONDA_PREFIX.Substring(2).Replace('\','/')
+          $scriptBody = "#!/bin/bash`nset -e`n" +
+                        "export PATH=`"$condaPosix/Library/bin:$condaPosix/Scripts:$condaPosix:`$PATH`"`n" +
+                        "which swig; swig -version`n" +
+                        "`"$pythonExe`" setup.py bdist_wheel`n"
+          Set-Content -Path vina-1.2.7\build_vina.sh -Value $scriptBody -Encoding ascii
+          Get-Content vina-1.2.7\build_vina.sh
           & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd\vina-1.2.7" -c "bash build_vina.sh"
           Write-Host "=== exit code: $LASTEXITCODE ==="
           Get-ChildItem vina-1.2.7\dist\*.whl
