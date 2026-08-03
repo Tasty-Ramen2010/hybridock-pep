@@ -367,8 +367,13 @@ jobs:
             echo "hybridock-pep --help did not print usage text - failing for real."
             exit 1
           fi
-          if ! grep -qi "usage" tui_help.log; then
-            echo "hybridock-tui --help did not print usage text - failing for real."
+          # hybridock-tui --help uses its own custom-formatted help screen (confirmed by a
+          # real CI run, 2026-08-03: real, complete help text - "HybriDock-Pep terminal
+          # UI...", "Ways to run:", etc. - just no literal "usage" anywhere, unlike
+          # argparse's default formatter that hybridock-pep uses). Check for the tool's own
+          # name instead, which any real help output naturally includes.
+          if ! grep -qi "hybridock-tui" tui_help.log; then
+            echo "hybridock-tui --help did not print its own help text - failing for real."
             exit 1
           fi
           echo "Both CLIs printed usage text - the previous step's crash-on-exit is not a real failure."
