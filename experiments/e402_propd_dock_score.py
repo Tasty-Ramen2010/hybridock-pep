@@ -150,7 +150,7 @@ def parse_score(out_dir: Path) -> dict | None:
     }
 
 
-def run_pair(rec: dict, geo: dict, n_samples: int, keep: bool, timeout: int) -> dict:
+def run_pair(rec: dict, geo: dict, n_samples: int, keep: bool, timeout: int, seed: int) -> dict:
     out_dir = RUNDIR / f"{rec['domain_id']}__{rec['peptide']}"
     if out_dir.exists():
         shutil.rmtree(out_dir, ignore_errors=True)
@@ -173,6 +173,19 @@ def run_pair(rec: dict, geo: dict, n_samples: int, keep: bool, timeout: int) -> 
         "--site", str(site[0]), str(site[1]), str(site[2]),
         "--box", str(geo["box"]),
         "--n-samples", str(n_samples),
+        # Fixed seed, for two reasons.
+        #
+        # Reproducibility: RAPiDock's default seed is None, so an unseeded run
+        # samples a different pose set every time. Measured on one KPNA4 pair,
+        # two unseeded runs that kept the identical pose count returned ΔG −7.8
+        # and −7.4 — a 0.4 kcal/mol swing from sampling alone. An AUC nobody can
+        # re-derive is not a result.
+        #
+        # Pairing: every negative reuses a peptide from some positive. With the
+        # seed fixed, that peptide enters both runs from the same random state,
+        # so the difference between its positive and negative pair is
+        # attributable to the receptor rather than to which draw it got.
+        "--seed", str(seed),
         "--output-dir", str(out_dir),
     ]
     t0 = time.time()
@@ -195,6 +208,7 @@ def run_pair(rec: dict, geo: dict, n_samples: int, keep: bool, timeout: int) -> 
         "box": geo.get("box"),
         "n_res": geo.get("n_res"),
         "n_samples": n_samples,
+        "seed": seed,
         "blind": True,
         "seconds": elapsed,
         "error": err if not scores.get("delta_g") else None,
@@ -208,6 +222,8 @@ def main() -> int:
     ap.add_argument("--n-samples", type=int, default=20)
     ap.add_argument("--timeout", type=int, default=1800, help="per-pair seconds")
     ap.add_argument("--keep-runs", action="store_true")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="RAPiDock seed, fixed so the benchmark is reproducible")
     args = ap.parse_args()
 
     if not PAIRS.is_file():
@@ -230,7 +246,7 @@ def main() -> int:
 
     print("=== E402 — dock + score ProP-PD specificity pairs ===")
     print(f"  {len(records)} pairs total · {len(done)} done · {len(todo)} this run")
-    print(f"  n_samples={args.n_samples}  timeout={args.timeout}s\n")
+    print(f"  n_samples={args.n_samples}  seed={args.seed}  timeout={args.timeout}s\n")
 
     RUNDIR.mkdir(parents=True, exist_ok=True)
     RESULTS.parent.mkdir(parents=True, exist_ok=True)
@@ -238,7 +254,10 @@ def main() -> int:
     ok = failed = 0
     started = time.time()
     for i, rec in enumerate(todo, 1):
-        res = run_pair(rec, index[rec["domain_id"]], args.n_samples, args.keep_runs, args.timeout)
+        res = run_pair(
+            rec, index[rec["domain_id"]], args.n_samples, args.keep_runs,
+            args.timeout, args.seed,
+        )
         with RESULTS.open("a") as fh:
             fh.write(json.dumps(res) + "\n")
         if res.get("delta_g") is not None:
