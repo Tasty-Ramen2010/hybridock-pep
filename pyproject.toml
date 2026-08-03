@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hybridock-pep"
-version = "0.1.0"
+version = "0.2.0"
 description = "Hybrid peptide docking tool (RAPiDock + physics-based rescoring)"
 license = { text = "MIT" }
 requires-python = ">=3.11,<3.12"  # pinned to match envs/score-env.yml — vina has no cp313 wheel yet
