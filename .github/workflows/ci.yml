@@ -1,0 +1,97 @@
+name: CI
+
+# Verifies what is honestly verifiable on GitHub-hosted runners: that the
+# score-env half of the package (src/, tests/) installs and its fast test
+# suite passes on each platform/arch, and that a real wheel build resolves
+# its packaged data + vendored scripts from a clean install with no repo
+# nearby (the exact bug fixed in commit 2c5912f).
+#
+# What this CANNOT verify, on any runner: the RAPiDock GPU sampling stage
+# (needs a second conda env with CUDA-pinned PyTorch/PyG and the
+# third_party/RAPiDock submodule) or the full physics pipeline (ADFRsuite,
+# AutoDock4, PULCHRA are non-redistributable per CLAUDE.md SS2.6 — no public
+# CI can install them). Tests that need those already skip gracefully
+# (see tests/conftest.py's slow-marker skip and the meeko/ADFRsuite
+# not-installed skips) rather than fail.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            os: ubuntu-latest
+          - name: Linux ARM64
+            os: ubuntu-24.04-arm
+            experimental: true  # newer GA runner class; some deps may lack arm64 wheels
+          - name: macOS ARM64 (Apple Silicon)
+            os: macos-14
+          - name: Windows x86_64
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package (full dependency stack)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Fast test suite (slow/GPU/ADFRsuite-dependent tests already self-skip)
+        run: pytest -q
+
+      - name: CLI entry points resolve
+        run: |
+          hybridock-pep --help
+          hybridock-tui --help
+
+      - name: Build wheel
+        run: |
+          pip install --quiet build
+          python -m build --wheel --outdir dist
+
+      - name: Verify wheel in total isolation (no repo checkout nearby)
+        shell: bash
+        run: |
+          set -e
+          VENV_DIR="$RUNNER_TEMP/wheel_isolation_test"
+          python -m venv "$VENV_DIR"
+          if [ -f "$VENV_DIR/bin/python" ]; then VENV_PY="$VENV_DIR/bin/python"; else VENV_PY="$VENV_DIR/Scripts/python.exe"; fi
+          WHEEL=$(ls dist/*.whl)
+          "$VENV_PY" -m pip install --quiet "$WHEEL"
+          cd "$RUNNER_TEMP"
+          "$VENV_PY" -c "
+          from hybridock_pep.scoring.affinity_model import _DEFAULT_ARTIFACT, _CRYSTAL_ARTIFACT
+          from hybridock_pep.scoring.pose_ranker_ml import DEFAULT_MODEL_PATH
+          from hybridock_pep.scoring.interaction_map import _DEFAULT_ARTIFACT as IFP_ARTIFACT
+          import joblib
+          for name, p in [('affinity_ai_nofix', _DEFAULT_ARTIFACT),
+                          ('affinity_crystal_sizefix', _CRYSTAL_ARTIFACT),
+                          ('pose_ranker_ml', DEFAULT_MODEL_PATH),
+                          ('affinity_crystal_ifp', IFP_ARTIFACT)]:
+              assert p.exists(), f'{name} artifact missing at {p}'
+              joblib.load(p)
+              print(f'{name}: OK ({p})')
+          from hybridock_pep._vendor import calibrate_alpha, benchmark
+          print('vendored calibrate_alpha, benchmark: import OK')
+          "
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: wheel
+          path: dist/*.whl
