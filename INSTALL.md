@@ -17,9 +17,21 @@ non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 > | WSL2 + CUDA passthrough | ✅ CUDA | ✅ |
 > | macOS Apple Silicon (M1–M4) | ✅ MPS (~10× slower than CUDA) | ✅ (native, no Rosetta) |
 > | macOS Intel | ✅ CPU (slow, use `--n-samples 10`) | ✅ |
+> | Native Windows (no WSL) | ❌ (needs the Linux/WSL2/macOS CUDA or MPS stack) | ✅ (`conda env create -f envs/score-env.yml` — CI-verified) |
 >
 > `--input-poses` lets you skip Stage 1 entirely and supply pre-generated poses
-> from a CUDA machine to run only Stage 2 scoring on any platform.
+> from a CUDA machine to run only Stage 2 scoring on any platform, including
+> native Windows.
+>
+> **Windows users:** `install.bat` sets up WSL2 and runs the full pipeline
+> there (Stage 1 + Stage 2, CUDA passthrough) — this is the path to use if you
+> want everything working with one script. If you only need Stage 2 scoring
+> and would rather stay outside WSL2, `conda env create -f envs/score-env.yml`
+> now works directly in a native Windows conda prompt/PowerShell (Vina is
+> built from source there against a MinGW-w64 + Boost toolchain — see the
+> `conda-platforms` Windows job in `.github/workflows/ci.yml` for exactly how
+> CI does this, or run `scripts/patch_vina_windows_setup.py` yourself if
+> installing outside conda).
 
 ---
 

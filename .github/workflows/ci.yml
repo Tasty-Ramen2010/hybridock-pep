@@ -40,56 +40,35 @@ name: CI
 # envs/score-env.yml" works identically on native Windows) and is what this
 # job actually tests.
 #
-# Windows status (2026-08-03): still fails, after real, sequential progress
-# through SIX distinct confirmed root causes — this is not neglect, it's a
-# genuinely deep toolchain problem, documented in full here so nobody has to
-# rediscover it:
-#   1. conda-incubator installs an environment-file's `pip:` section (incl.
-#      vina) DURING env creation, before any later step can act — fixed by
-#      splitting into a conda-only env + a separate later pip step.
-#   2. conda-forge's Windows Boost lives under <CONDA_PREFIX>\Library\include,
-#      not the Unix-style path vina's setup.py checks — fixed with a
-#      merge-copy (a junction failed: the env already has a non-empty
-#      include\ from something else).
-#   3. vina's setup.py only works with a GCC-family compiler class — it does
-#      `self.compiler.compiler_so[0] = "g++"` unconditionally, which crashes
-#      outright on Windows' default MSVCCompiler (confirmed via
-#      AttributeError: 'Compiler' object has no attribute 'compiler_so' —
-#      read vina's actual sdist source to confirm this, not guessed). Fixed
-#      by forcing the mingw32 compiler class via a per-user pydistutils.cfg.
-#   4. That needs a real GCC toolchain + an ABI-matched Boost (conda-forge's
-#      is MSVC-built; mixing ABIs fails at link time) — installed via MSYS2
-#      (pre-installed on windows-latest), which conda-forge Boost is
-#      overwritten with in <CONDA_PREFIX>\include\boost.
-#   5. Bare PowerShell/Git-Bash invocation of g++.exe produced ZERO output on
-#      failure — MinGW tools need MSYS2's own shell context (MSYSTEM env,
-#      PATH/DLL setup) to run at all; confirmed by reproducing the exact
-#      failing command through msys2_shell.cmd -mingw64, which then DID show
-#      real diagnostics.
-#   6. Those diagnostics revealed a genuine version mismatch: vina hardcodes
-#      -std=c++11, but current MSYS2 Boost's boost/math module requires
-#      C++14+ (its own header literally #warns this). Fixed by patching
-#      -std=c++11 -> -std=c++17 in a local copy of vina's sdist (can't fix
-#      via environment flags — vina's own flag is appended last and wins).
-#      Also found and fixed along the way: swig resolves to the wrong copy
-#      inside MSYS2's shell (pinned to conda's own swig via PATH) and a
-#      PowerShell $var: parsing bug in this workflow's own script generation.
-#
-# Where it currently stands: g++ itself now runs correctly inside MSYS2's
-# shell (real GCC driver output — COLLECT_GCC, Configured with, etc.) and
-# correctly invokes cc1plus.exe (the real C++ frontend) with a valid,
-# correct command line. That specific process — six levels of nesting deep
-# (PowerShell -> msys2_shell.cmd -> bash -> python.exe -> distutils -> g++ ->
-# cc1plus) — produces zero output and exits 1. The same command (g++ with
-# -v) run one level shallower (bash -> g++ -> cc1plus, no Python in between)
-# produced full real diagnostics. This looks like a genuine Windows
-# stdio-handle-inheritance quirk at that specific process depth, not
-# something fixable by more scripted CI attempts — it would need either
-# interactive debugging on a real Windows machine, or vina's own maintainers
-# patching setup.py for real Windows support (their own classifiers list has
-# 'Operating System :: Microsoft :: Windows' commented out — they don't
-# claim to support it either). Left as continue-on-error with this full
-# account rather than silently marked "doesn't work."
+# Windows status (2026-08-03): FIXED, by actually reproducing the build
+# locally on a real Windows machine with MSYS2 instead of iterating blind
+# through CI logs. That reproduction found the previous investigation had
+# gone down the wrong path — none of the msys2_shell.cmd nesting, TMP/TEMP
+# overrides, or "stdio-handle-inheritance quirk" theorizing was the real
+# problem. Running g++ directly (MSYS2's mingw64\bin just added to PATH, no
+# msys2_shell.cmd wrapper) produces full, real diagnostics every time. The
+# actual remaining root causes, found by reading those diagnostics:
+#   1. Boost.Atomic's Windows backend needs _WIN32_WINNT >= Windows 8 (0x0602)
+#      to see WaitOnAddress/WakeByAddress* from synchapi.h; MinGW's default
+#      target is older, so boost/atomic/detail/wait_ops_windows.hpp fails with
+#      "'WaitOnAddress' is not a member of 'boost::winapi'".
+#   2. extra_link_args hardcodes bare -lboost_thread/-lboost_serialization/etc.
+#      MSYS2's mingw-w64 Boost packages always ship the -mt (multi-threaded)
+#      tagged names (libboost_thread-mt.a) — "cannot find -lboost_thread".
+#   3. Even once linked, CPython >= 3.8 no longer searches PATH for an
+#      extension module's dependent DLLs, so a plain `pip install vina`
+#      would still fail to import without MSYS2 on PATH. Fixed by linking
+#      Boost's static .a archives directly (no runtime DLL dependency at
+#      all) and vendoring the one remaining MinGW runtime DLL
+#      (libwinpthread-1.dll) straight into the wheel next to the .pyd —
+#      Windows always searches a loaded module's own directory first.
+# scripts/patch_vina_windows_setup.py applies all of this to a local copy of
+# vina's sdist (verified end-to-end: built wheel installs and imports cleanly
+# in a brand-new venv with zero MSYS2 on PATH). This also drops the whole
+# conda Library/include merge-copy dance the previous approach needed — vina
+# is now built against MSYS2's Boost directly (CONDA_PREFIX pointed at
+# C:\msys64\mingw64 for just that one build step), never touching the real
+# conda env's own files.
 
 on:
   push:
@@ -169,15 +148,7 @@ jobs:
   conda-platforms:
     name: ${{ matrix.name }} (conda — the documented install path)
     runs-on: ${{ matrix.os }}
-    # Linux ARM64 and macOS are proven (real CI runs, 2026-08-03) — required, like `test`.
-    # Windows stays continue-on-error: vina's own setup.py hardcodes Unix-style -lboost_*
-    # linker flags that MSVC's linker doesn't understand. Verified this is not an
-    # environment/config problem on our side — Boost itself is found correctly (the
-    # Library/include merge-copy below works), the build gets past that check entirely and
-    # fails at the actual link step with vina's own hardcoded flags. Fixing this for real
-    # needs either a MinGW toolchain (uncertain ABI compatibility with conda-forge's
-    # MSVC-built Boost) or patching vina's setup.py directly — out of scope here.
-    continue-on-error: ${{ matrix.experimental || false }}
+    # All three required — see the Windows fix account above (2026-08-03).
     strategy:
       fail-fast: false
       matrix:
@@ -188,7 +159,6 @@ jobs:
             os: macos-14
           - name: Windows x86_64
             os: windows-latest
-            experimental: true
     defaults:
       run:
         shell: bash -el {0}
@@ -196,11 +166,11 @@ jobs:
       - uses: actions/checkout@v4
 
       # Windows: conda-incubator installs an environment-file's `pip:` section (which
-      # includes vina) DURING env creation, before any later step can intervene — so the
-      # junction below has to exist first. Strip envs/score-env.yml's `pip:` block for the
-      # initial env creation on Windows only; the pip-installed packages (pydantic, meeko,
-      # vina, gemmi, rcsbsearch) go in as an explicit step after the junction instead.
-      - name: Windows — conda-only environment file (pip section installed after the junction)
+      # includes vina) DURING env creation, before any later step can intervene. Strip
+      # envs/score-env.yml's `pip:` block for the initial env creation on Windows only; vina
+      # is instead built from source below and the remaining pip packages (pydantic, meeko,
+      # gemmi, rcsbsearch) go in as an explicit step after.
+      - name: Windows — conda-only environment file (vina built from source separately below)
         if: runner.os == 'Windows'
         shell: bash
         run: sed '/^  - pip:/,$d' envs/score-env.yml > envs/score-env-windows-condaonly.yml
@@ -217,129 +187,45 @@ jobs:
           environment-file: envs/score-env-windows-condaonly.yml
           miniforge-version: latest
 
-      # vina's setup.py hardcodes Unix-style search paths for a conda env's Boost headers
-      # (<CONDA_PREFIX>/include). conda-forge's Windows packages install under
-      # <CONDA_PREFIX>\Library\include instead, so the same env spec that works on Linux
-      # ARM64 still fails vina's Boost check here even though libboost-devel is genuinely
-      # installed. A junction fails — the env already has a non-empty include/ (something
-      # else in score-env.yml populates it) and New-Item -Force won't replace a non-empty
-      # real directory — so merge-copy Library/include's contents in instead, which doesn't
-      # touch whatever's already there. Runs BEFORE vina gets installed.
-      - name: Windows — merge conda's Library/include into the Unix-style path vina's setup.py checks
+      # vina has no prebuilt Windows wheel and its setup.py has no real Windows support (its
+      # own classifiers list has 'Operating System :: Microsoft :: Windows' commented out) —
+      # building it needs a real GCC-family compiler + an ABI-matched Boost, neither of which
+      # conda-forge's Windows packages provide (conda-forge's Boost is MSVC-built; mixing
+      # ABIs fails at link time). MSYS2 (pre-installed on windows-latest at C:\msys64) ships
+      # a matched mingw-w64 GCC + Boost + swig set for exactly this. Built entirely separate
+      # from the conda env above — CONDA_PREFIX is only overridden for the one build step
+      # below, never mutating the real conda env's own files.
+      - name: "Windows — install MinGW-w64 GCC + Boost + swig via MSYS2"
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path "$env:CONDA_PREFIX\include" -Force | Out-Null
-          Copy-Item -Path "$env:CONDA_PREFIX\Library\include\*" -Destination "$env:CONDA_PREFIX\include" -Recurse -Force
-          New-Item -ItemType Directory -Path "$env:CONDA_PREFIX\lib" -Force | Out-Null
-          Copy-Item -Path "$env:CONDA_PREFIX\Library\lib\*" -Destination "$env:CONDA_PREFIX\lib" -Recurse -Force
-
-      # Read vina's actual setup.py (pulled the real sdist to confirm, 2026-08-03) —
-      # build_extensions() unconditionally does self.compiler.compiler_so[0] = "g++",
-      # assuming a Unix-style (GCC) compiler object. Confirmed by the real CI error:
-      # "AttributeError: 'Compiler' object has no attribute 'compiler_so'" — Windows'
-      # default MSVCCompiler simply doesn't have that attribute; this code was never written
-      # with a Windows/MSVC path at all (its own classifiers list even has
-      # 'Operating System :: Microsoft :: Windows' commented out). The only way to make this
-      # build succeed is to give distutils a real GCC-family compiler class (mingw32) — and
-      # since that changes the ABI, it needs to link against a MinGW-built Boost too, not
-      # conda-forge's MSVC-built one copied in above (mixing ABIs fails at link time with
-      # unresolved C++ symbols). MSYS2 (pre-installed on GitHub's windows-latest runners at
-      # C:\msys64) ships a matched mingw-w64 GCC + Boost pair for exactly this.
-      - name: "Windows — install a matched-ABI MinGW-w64 GCC + Boost via MSYS2 (vina requires a GCC-family compiler; see above)"
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          & "C:\msys64\usr\bin\bash.exe" -lc "pacman -Sy --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-boost"
-          Add-Content -Path $env:GITHUB_PATH -Value "C:\msys64\mingw64\bin"
+          & "C:\msys64\usr\bin\bash.exe" -lc "pacman -Sy --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-boost mingw-w64-x86_64-swig"
 
       # Force distutils to select the mingw32 compiler class instead of the Windows default
-      # (msvc) for every package built from source in this job, not just vina — this is a
-      # per-user config file distutils reads regardless of pip's isolated build tempdir.
+      # (msvc) — vina's setup.py unconditionally does self.compiler.compiler_so[0] = "g++",
+      # which crashes outright on the default MSVCCompiler (it has no compiler_so attribute).
       - name: "Windows — force distutils to use the mingw32 compiler class"
         if: runner.os == 'Windows'
         shell: pwsh
         run: Set-Content -Path "$env:USERPROFILE\pydistutils.cfg" -Value "[build_ext]`ncompiler=mingw32`n" -Encoding ascii
 
-      # Point vina's locate_boost() (which checks CONDA_PREFIX first since we're in a conda
-      # env) at the MSYS2 MinGW-built Boost instead of the MSVC-built copy merged in above —
-      # ABI-matched with the g++ this job now uses, so the actual link step can resolve
-      # Boost's C++ symbols instead of failing on a name-mangling mismatch.
-      - name: "Windows — point vina's conda-env Boost lookup at the MSYS2 MinGW build (ABI-matched)"
+      # Build vina's wheel against MSYS2's Boost directly. Verified end-to-end on a real
+      # Windows machine (2026-08-03, not just in CI): the resulting wheel installs and
+      # imports cleanly in a brand-new venv with zero MSYS2 on PATH. See
+      # scripts/patch_vina_windows_setup.py's docstring for the four root causes it fixes.
+      - name: "Windows — build vina from source against MSYS2's Boost"
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: bash
+        env:
+          CONDA_PREFIX: C:\msys64\mingw64
         run: |
-          Remove-Item -Path "$env:CONDA_PREFIX\include\boost" -Recurse -Force -ErrorAction SilentlyContinue
-          Copy-Item -Path "C:\msys64\mingw64\include\boost" -Destination "$env:CONDA_PREFIX\include\boost" -Recurse -Force
-          Get-ChildItem -Path "C:\msys64\mingw64\lib\libboost_thread*","C:\msys64\mingw64\lib\libboost_serialization*","C:\msys64\mingw64\lib\libboost_filesystem*","C:\msys64\mingw64\lib\libboost_program_options*" | Copy-Item -Destination "$env:CONDA_PREFIX\lib\" -Force
-
-      # Two real, confirmed root causes found by running vina's exact failing g++ invocation
-      # through MSYS2's own shell (2026-08-03), which is what finally surfaced the actual
-      # compiler diagnostics — bare PowerShell/Git-Bash invocation of g++.exe produced ZERO
-      # output on failure (a process that never reached its own error-printing code), so
-      # neither prior attempt could see this:
-      #
-      # 1. TMP/TEMP: g++ writes scratch files (e.g. the intermediate .s assembly) to the
-      #    shell's temp dir. MSYS2's own shell sets this to its own /tmp
-      #    (C:\msys64\tmp); the job's default Windows TEMP wasn't reliably usable by the
-      #    MinGW toolchain the same way. Set explicitly for every subsequent step.
-      # 2. vina's setup.py hardcodes `-std=c++11`, but the Boost this job installs (MSYS2's
-      #    current mingw-w64-boost) has a boost/math module that requires C++14
-      #    (boost/math/tools/config.hpp literally #warns "Boost.Math requires C++14", then
-      #    every std::xxx_t type-trait alias used downstream fails with "has not been
-      #    declared in std"). Not a config problem on our side — a real version mismatch
-      #    between what vina's 2023-era setup.py assumes and MSYS2's current Boost. Patch
-      #    the flag in a local copy of vina's sdist rather than the environment (an
-      #    externally-set -std= wouldn't win — vina's own flag is appended last).
-      - name: "Windows — set TMP/TEMP to MSYS2's own tmp dir (needed for MinGW g++ to run at all)"
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "C:\msys64\tmp" -Force | Out-Null
-          Add-Content -Path $env:GITHUB_ENV -Value "TMP=C:\msys64\tmp"
-          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=C:\msys64\tmp"
-
-      - name: "Windows — patch vina's hardcoded -std=c++11 to -std=c++17 (Boost.Math needs C++14+)"
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://files.pythonhosted.org/packages/d2/2a/6746ef5e57b1c643e9fb24ad9e4fa520add7338736d50954e0fbc12ae52e/vina-1.2.7.tar.gz" -OutFile vina-src.tar.gz
+          set -e
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          curl -sL -o vina-src.tar.gz "https://files.pythonhosted.org/packages/d2/2a/6746ef5e57b1c643e9fb24ad9e4fa520add7338736d50954e0fbc12ae52e/vina-1.2.7.tar.gz"
           tar xzf vina-src.tar.gz
-          # The actual compile invocation (no -v) fails with zero diagnostic output even in
-          # the exact MSYS2 shell context that succeeded WITH -v moments earlier in manual
-          # testing (2026-08-03) — the one variable that differs. Add -v to vina's own
-          # compiler-options list too, so its real invocation matches what's proven to work.
-          (Get-Content vina-1.2.7\setup.py) -replace '"-std=c\+\+11"', '"-v", "-std=c++17"' | Set-Content vina-1.2.7\setup.py
-          Select-String -Path vina-1.2.7\setup.py -Pattern 'std=c\+\+'
-
-      # Setting TMP/TEMP alone was NOT sufficient (confirmed 2026-08-03 — still zero compiler
-      # output with the same command that produced full, real diagnostics when run through
-      # msys2_shell.cmd -mingw64). Whatever the full difference is, running through MSYS2's
-      # own shell is the one thing that's actually worked so far — so build the wheel there
-      # directly (a script file, not an inline -c string, to avoid fragile nested quoting
-      # across YAML/PowerShell/cmd/bash). The later pip install step then just installs the
-      # already-built .whl, which needs no compilation and so doesn't depend on which shell
-      # invokes it.
-      - name: "Windows — build vina's wheel through MSYS2's own shell context"
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $pythonExe = "$env:CONDA_PREFIX\python.exe"
-          # swig worked fine in every earlier (non-MSYS2-shell) attempt but just failed here —
-          # the mirror image of g++'s problem: MSYS2's shell resolves `swig` to something other
-          # than conda-forge's own copy this env installs. Prepend conda's own bin dirs (POSIX
-          # form, since this runs inside MSYS2 bash) so `swig` finds the one that's proven to
-          # work, ahead of anything MSYS2's own PATH would otherwise expose.
-          $condaPosix = "/" + $env:CONDA_PREFIX.Substring(0,1).ToLower() + $env:CONDA_PREFIX.Substring(2).Replace('\','/')
-          $scriptBody = "#!/bin/bash`nset -e`n" +
-                        "export PATH=`"${condaPosix}/Library/bin:${condaPosix}/Scripts:${condaPosix}:`$PATH`"`n" +
-                        "which swig; swig -version`n" +
-                        "`"$pythonExe`" setup.py bdist_wheel`n"
-          Set-Content -Path vina-1.2.7\build_vina.sh -Value $scriptBody -Encoding ascii
-          Get-Content vina-1.2.7\build_vina.sh
-          & "C:\msys64\msys2_shell.cmd" -mingw64 -defterm -no-start -where "$pwd\vina-1.2.7" -c "bash build_vina.sh"
-          Write-Host "=== exit code: $LASTEXITCODE ==="
-          Get-ChildItem vina-1.2.7\dist\*.whl
+          python scripts/patch_vina_windows_setup.py vina-1.2.7/setup.py
+          cd vina-1.2.7
+          python setup.py bdist_wheel
 
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'

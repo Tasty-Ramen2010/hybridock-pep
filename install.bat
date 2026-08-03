@@ -48,8 +48,21 @@ echo.
 REM Translate this script's own directory (the repo root) to a WSL path and
 REM run install.sh there, so it works whether the repo was cloned on the
 REM Windows side (C:\...) or already inside the WSL filesystem.
+REM %~dp0 always ends in a trailing backslash; passed straight through as
+REM "...\" the backslash escapes the closing quote before it reaches WSL's
+REM argv, so `wsl wslpath -a` gets a mangled/unterminated argument and fails
+REM (confirmed: errorlevel 2, no output) - leaving WSL_REPO_DIR empty and
+REM silently handing off install.sh to the wrong directory. Strip it first.
 set "REPO_DIR=%~dp0"
+if "%REPO_DIR:~-1%"=="\" set "REPO_DIR=%REPO_DIR:~0,-1%"
 for /f "usebackq delims=" %%p in (`wsl wslpath -a "%REPO_DIR%"`) do set "WSL_REPO_DIR=%%p"
+
+if "%WSL_REPO_DIR%"=="" (
+    echo Failed to translate the repo path into WSL. Make sure this script is
+    echo run from inside the cloned repo folder and try again.
+    pause
+    exit /b 1
+)
 
 wsl bash -lc "cd '%WSL_REPO_DIR%' && bash install.sh"
 
