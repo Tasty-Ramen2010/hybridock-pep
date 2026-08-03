@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
+from hybridock_pep._paths import data_file
+
 logger = logging.getLogger(__name__)
 
 # 16 geometry features, in the order the model was trained (matches geometry_features + mean_burial).
@@ -83,8 +85,8 @@ _SCALES = {
 #     crystal inputs. The size-fix residualises size-geometry vs length, fixing crystal vlong 0.07→0.16 and
 #     lifting short 0.46→0.49 (E203), and is applied at predict time via the artifact's size_regs.
 # Artifacts without size_regs (the AI model, plus legacy artifacts) load with no residualisation.
-_DEFAULT_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_ai_nofix.joblib"
-_CRYSTAL_ARTIFACT = Path(__file__).resolve().parents[3] / "data" / "affinity_crystal_sizefix.joblib"
+_DEFAULT_ARTIFACT = data_file("affinity_ai_nofix.joblib")
+_CRYSTAL_ARTIFACT = data_file("affinity_crystal_sizefix.joblib")
 
 
 def _approx_pI(seq: str) -> float:

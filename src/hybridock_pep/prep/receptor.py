@@ -265,9 +265,14 @@ def prepare_receptor_pdb(config: DockConfig) -> Path:
     # not the full protein. Without this crop the diffusion sampler ignores
     # site_coords and scatters poses across the whole surface, which then
     # silently blows the Vina grid bounds on extended/groove targets.
-    # Radius: half the Vina box edge + 5 Å margin, with a minimum of 12 Å
-    # (matches the prior PepSet-6 manual pocket files from May 27).
-    radius = max(12.0, config.box_size / 2.0 + 5.0)
+    # Radius: MUST be >= 20.0 A to match the fixed 20.0 A pocket-crop radius
+    # used to build every RAPiDock training example (scripts/format_propedia.py,
+    # RAPiDock's own pocket_trunction.py) — a smaller crop here is an unseen
+    # input distribution the model was never trained on. At the documented
+    # --box 20 default this was previously 15.0 A (train/inference mismatch,
+    # found 2026-08-02). Grows past 20 A only when a larger Vina box needs
+    # more receptor context for scoring; never shrinks below the training radius.
+    radius = max(20.0, config.box_size / 2.0 + 5.0)
     n_residues = crop_to_pocket(
         pdb_path=fixed_path,
         site_coords=config.site_coords,

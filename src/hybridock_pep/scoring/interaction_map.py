@@ -23,6 +23,8 @@ from pathlib import Path
 
 import numpy as np
 
+from hybridock_pep._paths import data_file
+
 logger = logging.getLogger(__name__)
 
 # --- atom classification ----------------------------------------------------------------------------
@@ -283,7 +285,9 @@ _CRYSTAL_GEOM_ORDER: tuple[str, ...] = (
     "org_density", "poc_eis", "poc_f_arom", "poc_f_hyd", "poc_n", "poc_net", "rg_per_L",
     "sasa_hb", "sasa_sb", "strength_bur",
 )
-_DEFAULT_ARTIFACT = "data/affinity_crystal_ifp.joblib"
+_DEFAULT_ARTIFACT = data_file("affinity_crystal_ifp.joblib")
+# Research/ablation artifact (MODEL_CARD.md), not wired into the default CLI path — left as a
+# repo-relative path since it's only ever invoked from experiments/ scripts run from a checkout.
 _RANK_ARTIFACT = "data/affinity_rank_ifp.joblib"
 _CRYSTAL_MODEL_CACHE: dict[str, object] = {}
 _RANK_MODEL_CACHE: dict[str, object] = {}

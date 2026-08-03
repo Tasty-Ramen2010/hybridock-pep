@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from hybridock_pep._paths import data_file
 from hybridock_pep.models import DockConfig, PoseRecord, ScoredPose
 from hybridock_pep.analysis.clustering import ClusterResult
 from hybridock_pep.sampling.rapidock_runner import run_sampling
@@ -198,16 +199,12 @@ def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
     if config.compute_ensemble:
         from hybridock_pep.scoring.ensemble import EnsembleCalibration  # noqa: PLC0415
         from hybridock_pep.scoring.ensemble import score as ensemble_score  # noqa: PLC0415
-        cal_path = config.ensemble_calibration or (
-            Path(__file__).resolve().parents[2] / "data" / "ensemble_calibration.json"
-        )
+        cal_path = config.ensemble_calibration or data_file("ensemble_calibration.json")
         if cal_path.exists():
             cal = EnsembleCalibration.load(cal_path)
             # Length router: short peptides (<= router.short_max_len) score via a lean hydrophobic
             # sub-model instead of the full ensemble (docs E85-E87, scoring/length_router.py).
-            router_path = (
-                Path(__file__).resolve().parents[2] / "data" / "calibration_length_router.json"
-            )
+            router_path = data_file("calibration_length_router.json")
             if router_path.exists():
                 from hybridock_pep.scoring.length_router import (  # noqa: PLC0415
                     LengthRouterCalibration,

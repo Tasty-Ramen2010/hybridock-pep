@@ -34,11 +34,12 @@ from typing import Any
 
 import numpy as np
 
+from hybridock_pep._paths import data_file
 from hybridock_pep.models import ScoredPose
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[2].parent / "data" / "pose_ranker_ml.joblib"
+DEFAULT_MODEL_PATH = data_file("pose_ranker_ml.joblib")
 
 RAMA_NAMES = ["rama_reg1", "rama_reg2", "rama_reg3", "rama_reg4",
               "phi_mean", "psi_mean", "phi_logp", "psi_logp"]
