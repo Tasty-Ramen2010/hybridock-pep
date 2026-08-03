@@ -149,6 +149,18 @@ jobs:
     name: ${{ matrix.name }} (conda — the documented install path)
     runs-on: ${{ matrix.os }}
     # All three required — see the Windows fix account above (2026-08-03).
+    #
+    # PYTHONUTF8: this repo's README.md and plenty of source comments use real
+    # UTF-8 characters (em dashes, arrows, Greek letters). Linux/macOS default to a
+    # UTF-8 locale so plain .read_text() already works there; Windows Python defaults
+    # to the system codepage (cp1252) instead, which cannot represent those bytes -
+    # confirmed by a real CI run failing tests/test_repro_claims.py with
+    # "UnicodeDecodeError: 'charmap' codec can't decode byte 0x81" while reading
+    # README.md. Forcing PEP 540 UTF-8 mode fixes this class of bug everywhere at
+    # once rather than auditing every read_text() call in the test suite for an
+    # explicit encoding="utf-8" (harmless on Linux/macOS, which are UTF-8 already).
+    env:
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:
