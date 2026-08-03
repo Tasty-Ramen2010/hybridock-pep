@@ -16,6 +16,12 @@ dependencies = [
     # unconditionally (scipy via scoring.entropy, openmm via prep.receptor, etc.),
     # so `pip install -e .` must pull them in for the package to import at all.
     "meeko>=0.5",
+    # meeko imports rdkit unconditionally at runtime (meeko/preparation.py) but does not
+    # declare it as an install dependency — it was only ever present here because
+    # envs/score-env.yml installs it separately via conda-forge. A plain `pip install`
+    # (no conda env) got meeko with no working receptor-prep backend; found via CI on a
+    # vanilla venv, 2026-08-02.
+    "rdkit>=2024.3.1",
     "vina>=1.2.5",
     "scipy>=1.11",
     "biopython>=1.81",
@@ -36,6 +42,7 @@ dependencies = [
 # still works — the packages are already pulled in by the base `dependencies` above.
 scoring = [
     "meeko>=0.5",
+    "rdkit>=2024.3.1",
     "vina>=1.2.5",
     "scipy>=1.11",
     "biopython>=1.81",
