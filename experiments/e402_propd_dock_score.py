@@ -81,7 +81,24 @@ def load_done() -> set[str]:
 
 
 def parse_score(out_dir: Path) -> dict | None:
-    """Read the best pose's scores out of a finished run."""
+    """Read the pose ensemble's scores out of a finished run.
+
+    Records more than the single best ΔG on purpose.
+
+    *Best-of-N is an extreme-value statistic.* Taking min(ΔG) over N poses gives
+    a pair with more successfully-converted poses more chances at a good score,
+    independent of whether it binds. Pose counts do vary here (Meeko conversion
+    yield differs run to run), so `mean_top3` and `median` are recorded as
+    discriminants whose expectation does not drift with N, and `n_poses_scored`
+    is kept so the bias can be tested for directly.
+
+    *Convergence tells sampling-limited from scoring-limited.* RAPiDock samples
+    blind and finds the right pocket roughly half the time on its own benchmark.
+    If the AUC comes out low, that is ambiguous between "the scorer cannot
+    discriminate" and "the sampler never found the site" — unless pose agreement
+    is recorded. When many poses land in one cluster, sampling converged on a
+    site; when they scatter, it did not. E403 stratifies on this.
+    """
     csv_path = out_dir / "ranked_poses.csv"
     if not csv_path.is_file():
         return None
@@ -102,12 +119,34 @@ def parse_score(out_dir: Path) -> dict | None:
                     pass
         return None
 
-    # ranked_poses.csv is sorted best-first by the pipeline.
-    best = rows[0]
+    dgs = [d for d in (_f(r, "delta_g", "dg", "affinity") for r in rows) if d is not None]
+    if not dgs:
+        return None
+    ordered = sorted(dgs)  # most negative first
+
+    # Cluster spread: how many distinct sites the poses landed on, and how much
+    # of the ensemble the top cluster holds.
+    clusters = [r.get("cluster_id") or r.get("cluster") for r in rows]
+    clusters = [c for c in clusters if c not in (None, "")]
+    n_clusters = len(set(clusters)) if clusters else None
+    top_frac = None
+    if clusters:
+        from collections import Counter
+
+        top_frac = round(Counter(clusters).most_common(1)[0][1] / len(clusters), 3)
+
+    mid = len(ordered) // 2
+    median = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
     return {
-        "delta_g": _f(best, "delta_g", "dg", "affinity"),
-        "vina": _f(best, "vina_score", "vina"),
+        "delta_g": ordered[0],
+        "mean_top3": round(sum(ordered[:3]) / min(3, len(ordered)), 4),
+        "median_dg": round(median, 4),
+        "dg_spread": round(ordered[-1] - ordered[0], 4),
+        "vina": _f(rows[0], "vina_score", "vina"),
         "n_poses_scored": len(rows),
+        "n_clusters": n_clusters,
+        "top_cluster_frac": top_frac,
     }
 
 
@@ -121,6 +160,16 @@ def run_pair(rec: dict, geo: dict, n_samples: int, keep: bool, timeout: int) -> 
         str(CLI), "dock",
         "--peptide", rec["peptide"],
         "--receptor", str(receptor),
+        # --blind is mandatory here, not a tuning choice. No pocket is known for
+        # any pair, and for the negatives none exists. Without it Stage 1.7a
+        # deletes every pose landing >35 Å from the domain centroid, which on
+        # the elongated receptors in this set (armadillo/ankyrin repeats, coiled
+        # coils) is where the real groove is — and it truncates more of the pose
+        # set the larger the receptor, making domains non-comparable.
+        "--blind",
+        # Site/box still bound the Stage 2 grid: E401 sized them to cover each
+        # cropped domain, which is cheaper than the blind default of 100 Å on
+        # every receptor and reaches the same surface.
         "--site", str(site[0]), str(site[1]), str(site[2]),
         "--box", str(geo["box"]),
         "--n-samples", str(n_samples),
@@ -144,7 +193,9 @@ def run_pair(rec: dict, geo: dict, n_samples: int, keep: bool, timeout: int) -> 
         "label": rec["label"],
         "plddt": geo.get("plddt"),
         "box": geo.get("box"),
+        "n_res": geo.get("n_res"),
         "n_samples": n_samples,
+        "blind": True,
         "seconds": elapsed,
         "error": err if not scores.get("delta_g") else None,
         **scores,
