@@ -287,21 +287,26 @@ jobs:
       # this is the first Windows build of vina with a statically-linked MinGW runtime (so
       # its atexit-registered C++ static destructors run in a DLL-unload order CPython
       # doesn't control) - the most likely source, though pinning the exact line would need
-      # a native debugger session. Since the crash is strictly post-results, gate on
-      # pytest's own reported summary line instead of the raw process exit code: a real
-      # regression still fails the step (grep for "N failed"), a clean run does not get
-      # marked failed by a shutdown-time crash outside pytest's own control.
-      - name: Fast test suite (slow/GPU/ADFRsuite-dependent tests already self-skip)
+      # a native debugger session.
+      #
+      # Two more real CI runs (2026-08-03) confirmed this isn't just a bad exit code: the
+      # crash tears down the *entire wrapper script process*, not merely pytest's - neither
+      # dropping errexit (bash -l vs -el) nor $PIPESTATUS inspection ever ran, because the
+      # script never got that far; whatever the crash corrupts (shared pipe/handle state
+      # through Git-Bash's Windows signal emulation, most likely) took the parent shell down
+      # with it. No in-script recovery is reachable after that point, by construction. So:
+      # run pytest with continue-on-error (a guarantee enforced by the Actions runner
+      # itself, independent of the shell), writing output straight to a file with plain
+      # redirection (not a `tee` pipe, in case the pipe itself is part of what's unstable);
+      # then a completely separate, freshly-started step reads that file and makes the real
+      # pass/fail call - a real regression still fails the job for real (grep for "N
+      # failed"), a clean run doesn't get marked failed by a shutdown-time crash the actual
+      # test results never depended on.
+      - name: "Windows — run the fast test suite (post-results shutdown crash tolerated below)"
         if: runner.os == 'Windows'
-        # Login (-l, for conda activation) WITHOUT errexit (-e): "bash -el {0}" combines
-        # both short flags (bash treats -el as -e -l together), which aborts this whole
-        # script at the segfault line itself, before the recovery logic below ever runs -
-        # confirmed by a real CI run (2026-08-03) that never printed any of this script's
-        # own echo lines past the crash. The one thing this step must NOT do is die on the
-        # very failure it exists to inspect.
+        continue-on-error: true
         shell: bash -l {0}
         run: |
-          set -o pipefail
           pytest -q \
             --deselect tests/test_sampling.py::TestRapidockRunner::test_command_construction \
             --deselect tests/test_sampling.py::TestRapidockRunner::test_nonzero_exit_raises \
@@ -311,18 +316,23 @@ jobs:
             --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_exactly_pepset_count \
             --deselect tests/test_install_script.py::TestExistingCondaIsFound::test_still_installs_miniforge_when_there_is_genuinely_no_conda \
             --deselect tests/test_sampling.py::TestComputeBatchSize::test_small_n_uses_single_batch \
-            2>&1 | tee pytest_output.log
-          PYTEST_EXIT="${PIPESTATUS[0]}"
+            > pytest_output.log 2>&1
+
+      - name: "Windows — verify the test suite actually passed"
+        if: runner.os == 'Windows'
+        shell: bash -l {0}
+        run: |
+          cat pytest_output.log
           if grep -qE '[0-9]+ failed' pytest_output.log; then
             echo "Real test failure(s) reported - failing for real."
             exit 1
           fi
           if grep -qE '[0-9]+ passed' pytest_output.log; then
-            echo "pytest reported a clean run; ignoring exit code $PYTEST_EXIT from the post-results shutdown crash."
+            echo "pytest reported a clean run - the previous step's crash-on-exit is not a real failure."
             exit 0
           fi
           echo "No pytest summary line found at all (crashed before finishing) - failing for real."
-          exit "$PYTEST_EXIT"
+          exit 1
 
       - name: CLI entry points resolve
         if: runner.os != 'Windows'
@@ -330,25 +340,35 @@ jobs:
           hybridock-pep --help
           hybridock-tui --help
 
-      # Same post-results shutdown crash as the test suite step above (importing the CLI
-      # pulls in the same vina extension) - tolerate it the same way: real output means
-      # real success, exit code alone doesn't.
-      - name: CLI entry points resolve
+      # Same post-results shutdown crash as the test suite above (importing the CLI pulls in
+      # the same vina extension) - same two-step tolerate-then-verify treatment. Each CLI
+      # gets its own continue-on-error step: if one crashes and takes the wrapper script
+      # down with it (see the test-suite step's comment above), the other must still get a
+      # chance to run rather than being silently skipped as collateral damage.
+      - name: "Windows — run hybridock-pep --help (crash tolerated below)"
         if: runner.os == 'Windows'
-        # Login without errexit - see the identical comment on the test-suite step above.
+        continue-on-error: true
+        shell: bash -l {0}
+        run: hybridock-pep --help > cli_help.log 2>&1
+
+      - name: "Windows — run hybridock-tui --help (crash tolerated below)"
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash -l {0}
+        run: hybridock-tui --help > tui_help.log 2>&1
+
+      - name: "Windows — verify CLI entry points actually resolved"
+        if: runner.os == 'Windows'
         shell: bash -l {0}
         run: |
-          set -o pipefail
-          hybridock-pep --help 2>&1 | tee cli_help.log
-          CLI_EXIT="${PIPESTATUS[0]}"
+          cat cli_help.log
+          cat tui_help.log
           if ! grep -qi "usage" cli_help.log; then
             echo "hybridock-pep --help did not print usage text - failing for real."
-            exit "${CLI_EXIT:-1}"
+            exit 1
           fi
-          hybridock-tui --help 2>&1 | tee tui_help.log
-          TUI_EXIT="${PIPESTATUS[0]}"
           if ! grep -qi "usage" tui_help.log; then
             echo "hybridock-tui --help did not print usage text - failing for real."
-            exit "${TUI_EXIT:-1}"
+            exit 1
           fi
-          echo "Both CLIs printed usage text; ignoring any post-results shutdown exit code."
+          echo "Both CLIs printed usage text - the previous step's crash-on-exit is not a real failure."
