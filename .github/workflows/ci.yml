@@ -277,7 +277,7 @@ jobs:
           # work, ahead of anything MSYS2's own PATH would otherwise expose.
           $condaPosix = "/" + $env:CONDA_PREFIX.Substring(0,1).ToLower() + $env:CONDA_PREFIX.Substring(2).Replace('\','/')
           $scriptBody = "#!/bin/bash`nset -e`n" +
-                        "export PATH=`"$condaPosix/Library/bin:$condaPosix/Scripts:$condaPosix:`$PATH`"`n" +
+                        "export PATH=`"${condaPosix}/Library/bin:${condaPosix}/Scripts:${condaPosix}:`$PATH`"`n" +
                         "which swig; swig -version`n" +
                         "`"$pythonExe`" setup.py bdist_wheel`n"
           Set-Content -Path vina-1.2.7\build_vina.sh -Value $scriptBody -Encoding ascii
