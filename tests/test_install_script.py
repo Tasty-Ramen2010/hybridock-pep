@@ -26,9 +26,31 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INSTALL_SH = REPO_ROOT / "install.sh"
 
 
+def _bash_exe() -> str:
+    """Locate a real POSIX bash to run install.sh's own tests against.
+
+    On native Windows CI runners, plain "bash" on $PATH can resolve to
+    C:\\Windows\\System32\\bash.exe — the WSL launcher stub, not a real shell —
+    depending on PATH order. With no WSL distro installed on that runner (it's
+    not needed; conda-platforms' Windows job never uses WSL), that stub just
+    prints "Windows Subsystem for Linux has no installed distributions" and
+    exits 1, which install.sh's own syntax has nothing to do with. Prefer Git
+    for Windows' real bash (always present alongside GitHub Actions' windows-*
+    runners, and needed for this repo's other bash-shell CI steps anyway).
+    """
+    if os.name == "nt":
+        for candidate in (
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ):
+            if os.path.isfile(candidate):
+                return candidate
+    return "bash"
+
+
 def test_install_script_is_syntactically_valid():
     result = subprocess.run(
-        ["bash", "-n", str(INSTALL_SH)], capture_output=True, text=True
+        [_bash_exe(), "-n", str(INSTALL_SH)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
 
@@ -68,6 +90,17 @@ class TestSubmoduleGitlinks:
         )
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason=(
+        "install.sh only ever runs on Linux/macOS/WSL2 (install.bat's whole job on "
+        "native Windows is to hand off to it inside WSL2, never to run it directly) "
+        "- this class's PATH stubbing is inherently POSIX (colon-joined, /usr/bin, "
+        "/bin), which native Windows can't interpret at all: a Windows absolute path "
+        "like C:\\...\\stubs already contains a colon, colliding with PATH's own "
+        "colon separator before the POSIX-only /usr/bin:/bin entries even matter."
+    ),
+)
 class TestExistingCondaIsFound:
     """An installed-but-not-on-PATH conda must be discovered, not reinstalled."""
 
