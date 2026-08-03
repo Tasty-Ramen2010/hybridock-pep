@@ -24,11 +24,21 @@ from hybridock_pep.driver import _OFFPOCKET_CENTROID_AA, _filter_offpocket_poses
 from hybridock_pep.models import DockConfig
 
 
+def _receptor(tmp_path):
+    """DockConfig validates that receptor_path exists, so write a real one."""
+    p = tmp_path / "r.pdb"
+    p.write_text(
+        "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00  0.00           C\n"
+        "END\n"
+    )
+    return p
+
+
 @pytest.fixture()
 def config(tmp_path):
     return DockConfig(
         peptide_sequence="ACDEFGHIK",
-        receptor_path=tmp_path / "r.pdb",
+        receptor_path=_receptor(tmp_path),
         site_coords=(0.0, 0.0, 0.0),
         box_size=100.0,
         output_dir=tmp_path / "out",
@@ -53,7 +63,7 @@ class TestBlindFlagDefaults:
     def test_blind_is_settable(self, tmp_path):
         c = DockConfig(
             peptide_sequence="ACDEFGHIK",
-            receptor_path=tmp_path / "r.pdb",
+            receptor_path=_receptor(tmp_path),
             site_coords=(0.0, 0.0, 0.0),
             box_size=100.0,
             output_dir=tmp_path / "out",
@@ -110,7 +120,7 @@ class TestDriverSkipsFilterWhenBlind:
         for blind in (True, False):
             cfg = DockConfig(
                 peptide_sequence="ACDEFGHIK",
-                receptor_path=tmp_path / "r.pdb",
+                receptor_path=_receptor(tmp_path),
                 site_coords=(0.0, 0.0, 0.0),
                 box_size=100.0,
                 output_dir=tmp_path / "out",
@@ -155,6 +165,7 @@ class TestCliWiring:
         parser = _build_parser()
         args = parser.parse_args([
             "dock", "--peptide", "ACDEFGHIK", "--receptor", "r.pdb", "--blind",
+            "--output-dir", "out",
         ])
         assert args.blind is True
         assert args.site is None and args.box is None
@@ -166,7 +177,7 @@ class TestCliWiring:
 
         args = _build_parser().parse_args([
             "dock", "--peptide", "ACDEFGHIK", "--receptor", "r.pdb", "--blind",
-            "--site", "1", "2", "3", "--box", "60",
+            "--site", "1", "2", "3", "--box", "60", "--output-dir", "out",
         ])
         assert args.blind is True
         assert args.site == [1.0, 2.0, 3.0]
