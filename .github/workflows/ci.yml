@@ -137,22 +137,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Windows: conda-incubator installs an environment-file's `pip:` section (which
+      # includes vina) DURING env creation, before any later step can intervene — so the
+      # junction below has to exist first. Strip envs/score-env.yml's `pip:` block for the
+      # initial env creation on Windows only; the pip-installed packages (pydantic, meeko,
+      # vina, gemmi, rcsbsearch) go in as an explicit step after the junction instead.
+      - name: Windows — conda-only environment file (pip section installed after the junction)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: sed '/^  - pip:/,$d' envs/score-env.yml > envs/score-env-windows-condaonly.yml
+
       - uses: conda-incubator/setup-miniconda@v3
+        if: runner.os != 'Windows'
         with:
           environment-file: envs/score-env.yml
+          miniforge-version: latest
+
+      - uses: conda-incubator/setup-miniconda@v3
+        if: runner.os == 'Windows'
+        with:
+          environment-file: envs/score-env-windows-condaonly.yml
           miniforge-version: latest
 
       # vina's setup.py hardcodes Unix-style search paths for a conda env's Boost headers
       # (<CONDA_PREFIX>/include). conda-forge's Windows packages install under
       # <CONDA_PREFIX>\Library\include instead, so the same env spec that works on Linux
       # ARM64 still fails vina's Boost check here even though libboost-devel is genuinely
-      # installed. Bridge it with a junction (no admin rights needed, unlike a symlink).
+      # installed. Bridge it with a junction (no admin rights needed, unlike a symlink) —
+      # BEFORE vina gets installed, unlike the first attempt at this fix.
       - name: Windows — bridge conda's Library/include layout for vina's Boost search
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Junction -Path "$env:CONDA_PREFIX\include" -Target "$env:CONDA_PREFIX\Library\include" -Force
           New-Item -ItemType Junction -Path "$env:CONDA_PREFIX\lib" -Target "$env:CONDA_PREFIX\Library\lib" -Force
+
+      - name: Windows — install the pip: packages score-env.yml would normally handle
+        if: runner.os == 'Windows'
+        run: pip install "pydantic>=2.0" "meeko>=0.7" "vina>=1.2.5" "gemmi>=0.6" "rcsbsearch==0.2.3"
 
       - name: Install package on top of the conda env (vina etc. already present)
         run: pip install -e ".[dev]"
