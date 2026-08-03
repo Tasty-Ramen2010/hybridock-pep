@@ -118,9 +118,15 @@ jobs:
   conda-platforms:
     name: ${{ matrix.name }} (conda — the documented install path)
     runs-on: ${{ matrix.os }}
-    # Safety net for this first real attempt at the conda route — will remove once a real
-    # run confirms all three genuinely pass, so this becomes fully required like `test`.
-    continue-on-error: true
+    # Linux ARM64 and macOS are proven (real CI runs, 2026-08-03) — required, like `test`.
+    # Windows stays continue-on-error: vina's own setup.py hardcodes Unix-style -lboost_*
+    # linker flags that MSVC's linker doesn't understand. Verified this is not an
+    # environment/config problem on our side — Boost itself is found correctly (the
+    # Library/include merge-copy below works), the build gets past that check entirely and
+    # fails at the actual link step with vina's own hardcoded flags. Fixing this for real
+    # needs either a MinGW toolchain (uncertain ABI compatibility with conda-forge's
+    # MSVC-built Boost) or patching vina's setup.py directly — out of scope here.
+    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -131,6 +137,7 @@ jobs:
             os: macos-14
           - name: Windows x86_64
             os: windows-latest
+            experimental: true
     defaults:
       run:
         shell: bash -el {0}
