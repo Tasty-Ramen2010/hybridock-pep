@@ -224,7 +224,11 @@ jobs:
 
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
-        run: pip install "pydantic>=2.0" "meeko>=0.7" "vina>=1.2.5" "gemmi>=0.6" "rcsbsearch==0.2.3"
+        # -v: the summarized build output silently drops g++'s actual compiler diagnostic on
+        # failure (confirmed 2026-08-03 — "command ... failed with exit code 1" with no
+        # error text at all above it); verbose mode surfaces the real error instead of
+        # guessing blind again.
+        run: pip install -v "pydantic>=2.0" "meeko>=0.7" "vina>=1.2.5" "gemmi>=0.6" "rcsbsearch==0.2.3"
 
       - name: Install package on top of the conda env (vina etc. already present)
         run: pip install -e ".[dev]"
