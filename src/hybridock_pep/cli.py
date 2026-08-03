@@ -243,7 +243,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         metavar="JSON",
-        help="Override the ensemble calibration JSON (default: data/ensemble_calibration.json).",
+        help="Override the ensemble calibration JSON (default: the packaged ensemble_calibration.json).",
     )
     p_dock.add_argument(
         "--free-entropy",
@@ -435,7 +435,7 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="Peptide sequence (single-letter codes).")
     p_cry.add_argument("--artifact", default=None, metavar="JOBLIB",
                        help="Override the crystal-IFP model artifact "
-                            "(default: data/affinity_crystal_ifp.joblib).")
+                            "(default: the packaged affinity_crystal_ifp.joblib).")
     p_cry.add_argument("--allow-clashes", action="store_true",
                        help="Score even if the pose sterically clashes with the receptor. By default a "
                             "physically invalid (overlapping) pose is refused, because the featurizer "

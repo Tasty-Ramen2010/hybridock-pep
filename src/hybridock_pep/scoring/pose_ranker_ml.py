@@ -20,8 +20,9 @@ Features (all computable from the pose alone — no Rescore+, no mordred, OSI/MI
 Approach adapted from PepScorerRMSD (A. G. Cavalli, 2025, MIT) — its non-OSI Rescore+ terms
 (PLANTS/APBS/CHARMM/X-Score) are deliberately omitted; only the computable subset is used.
 
-The model artifact lives at ``data/pose_ranker_ml.joblib`` (built by
-``scripts/train_pose_ranker_ml.py``). If it is missing or any dependency fails, scoring is a
+The model artifact ships packaged under ``hybridock_pep/data/pose_ranker_ml.joblib`` (see
+``_paths.py``; built by ``scripts/train_pose_ranker_ml.py``). If it is missing or any
+dependency fails, scoring is a
 silent no-op (``ml_pose_score`` stays None) and ranking falls back to BSA-fit — so the tool
 never crashes on a fresh install that hasn't built the artifact.
 """
@@ -149,7 +150,8 @@ def compute_ml_pose_scores(
 
     Args:
         poses: Scored poses from one dock run; mutated in place.
-        model_path: Override for the model artifact path (defaults to data/pose_ranker_ml.joblib).
+        model_path: Override for the model artifact path (defaults to the packaged
+            hybridock_pep/data/pose_ranker_ml.joblib).
 
     Returns:
         True if at least one pose received an ``ml_pose_score``, else False.

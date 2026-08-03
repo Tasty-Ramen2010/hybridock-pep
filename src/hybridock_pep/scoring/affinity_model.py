@@ -77,11 +77,12 @@ _SCALES = {
 }
 
 # Two SEPARATE scoring functions, each tuned to its regime (E203/E204):
-#   - AI / deployment (DEFAULT): trained on real RAPiDock poses, NO size-fix (data/affinity_ai_nofix.joblib).
+#   - AI / deployment (DEFAULT): trained on real RAPiDock poses, NO size-fix
+#     (affinity_ai_nofix.joblib, packaged under hybridock_pep/data/ — see _paths.py).
 #     The pipeline scores generated poses, so this is the default; the crystal model COLLAPSES on real poses
 #     (E152 "AI haircut"). The size-fix HELPS crystal but HURTS deployment on current data (real poses carry
 #     pose-quality signal in the geometry block), so the AI model deliberately omits it.
-#   - CRYSTAL: trained on crystal-925 WITH the size-fix (data/affinity_crystal_sizefix.joblib) — use only for
+#   - CRYSTAL: trained on crystal-925 WITH the size-fix (affinity_crystal_sizefix.joblib) — use only for
 #     crystal inputs. The size-fix residualises size-geometry vs length, fixing crystal vlong 0.07→0.16 and
 #     lifting short 0.46→0.49 (E203), and is applied at predict time via the artifact's size_regs.
 # Artifacts without size_regs (the AI model, plus legacy artifacts) load with no residualisation.
