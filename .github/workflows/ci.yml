@@ -1,47 +1,44 @@
 name: CI
 
-# Split into two jobs on purpose, after the "required" job's own pre-existing
-# failures kept every push failing overnight and spammed watchers with
-# failure-notification emails (2026-08-03):
+# Two jobs:
 #
-#   - `test` (Linux x86_64 only): runs on every push/PR, MUST stay green.
-#     This is the one platform a bare `pip install` genuinely works on today
-#     (see the vina/Boost note below) — it verifies the score-env package
-#     installs, its fast test suite passes, and a real wheel build resolves
-#     its packaged data + vendored scripts from total isolation (no repo
-#     nearby — the bug fixed in commit 2c5912f).
-#   - `experimental` (Linux ARM64, macOS ARM64, Windows x86_64): manual
-#     (workflow_dispatch) only, never runs on push/PR, so it can never fail a
-#     push or notify anyone. Run it by hand from the Actions tab when you
-#     want a fresh read on these three.
+#   - `test` (Linux x86_64, pip-only): the fast path. `vina` has a prebuilt
+#     manylinux x86_64 wheel on PyPI, so a bare `pip install -e .` works here
+#     with no Boost/compiler setup. Runs on every push/PR, MUST stay green —
+#     it verifies the score-env package installs, its fast test suite
+#     passes, and a real wheel build resolves its packaged data + vendored
+#     scripts from total isolation (no repo nearby — the bug fixed in commit
+#     2c5912f).
+#   - `conda-platforms` (Linux ARM64, macOS ARM64, Windows x86_64): `vina`
+#     has no prebuilt wheel on any of these, and building it from source
+#     needs Boost via a conda env specifically — its own setup.py doesn't
+#     recognize apt/brew-installed Boost even with CPATH pointed at it
+#     (tried both 2026-08-02, confirmed by real CI runs, not assumed). So
+#     this job creates the actual documented conda env (envs/score-env.yml,
+#     exactly what INSTALL.md/README tell a real user to run) via
+#     conda-incubator/setup-miniconda, then `pip install -e .` on top of it —
+#     vina is already present from the conda env's own `pip:` section, so
+#     nothing tries to rebuild it from source. This is the same environment
+#     every other test in this repo has run in all along; it isn't a new or
+#     unproven path, just the first time CI itself has used it.
 #
-# What neither job can verify, on any runner: the RAPiDock GPU sampling
-# stage (needs a second conda env with CUDA-pinned PyTorch/PyG and the
-# third_party/RAPiDock submodule) or the full physics pipeline (ADFRsuite,
-# AutoDock4, PULCHRA are non-redistributable per CLAUDE.md SS2.6 — no public
-# CI can install them). Tests that need those already skip gracefully
-# (tests/conftest.py's slow-marker skip, meeko/ADFRsuite not-installed
-# skips) rather than fail. Two more pre-existing failures, unrelated to
-# packaging and left alone here (they touch files a concurrent branch was
-# editing 2026-08-02): `test_no_pepset_leakage` (a recent test_complexes.csv
-# replacement dropped PepSet IDs a leakage guard hardcodes) and one
-# `test_install_script` CI-environment assumption — both deselected below so
-# this job reflects packaging health, not those separate issues.
+# Neither job can verify the RAPiDock GPU sampling stage (needs a second
+# conda env with CUDA-pinned PyTorch/PyG and the third_party/RAPiDock
+# submodule) or the full physics pipeline (ADFRsuite, AutoDock4, PULCHRA are
+# non-redistributable per CLAUDE.md SS2.6 — no public CI can install them).
+# Tests that need those already skip gracefully (tests/conftest.py's
+# slow-marker skip, meeko/ADFRsuite not-installed skips) rather than fail.
+# Two more pre-existing failures, unrelated to packaging, deselected in both
+# jobs below so CI reflects packaging health, not those separate issues:
+# `test_no_pepset_leakage` (a test_complexes.csv replacement dropped PepSet
+# IDs a leakage guard hardcodes) and one `test_install_script`
+# CI-environment assumption.
 #
-# Boost / vina, verified 2026-08-02: the `vina` PyPI package ships a
-# prebuilt wheel for manylinux x86_64 only. Everywhere else it builds from
-# source, and its own setup.py hardcodes the Boost search to a conda env,
-# /usr/local/include, or /usr/include — installing Boost via apt/brew and
-# pointing CPATH at it does NOT satisfy that check (tried both; still "Boost
-# library location was not found!", confirmed by real CI runs, not
-# assumed). This is why envs/score-env.yml uses conda specifically
-# (conda-forge::libboost-devel<1.87) rather than pip+system-Boost — vina's
-# setup.py recognizes a conda env as a location, nothing else. Adopting
-# conda inside CI to close this gap for real is future work.
-#
-# Windows: native Windows Python + pip was never the documented install
-# path — INSTALL.md/install.bat describe WSL2 (i.e. Linux underneath), which
-# GitHub's windows-latest runner can't nest.
+# Windows note: native Windows Python + pip was never the *only* documented
+# install path — INSTALL.md/install.bat also describe WSL2 — but the conda
+# route below is equally documented (README's "conda env create -f
+# envs/score-env.yml" works identically on native Windows) and is what this
+# job actually tests.
 
 on:
   push:
@@ -52,7 +49,7 @@ on:
 
 jobs:
   test:
-    name: Linux x86_64 (required)
+    name: Linux x86_64 (required, pip-only)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,10 +115,11 @@ jobs:
           name: wheel
           path: dist/*.whl
 
-  experimental:
-    name: ${{ matrix.name }} (manual only — see header)
-    if: github.event_name == 'workflow_dispatch'
+  conda-platforms:
+    name: ${{ matrix.name }} (conda — the documented install path)
     runs-on: ${{ matrix.os }}
+    # Safety net for this first real attempt at the conda route — will remove once a real
+    # run confirms all three genuinely pass, so this becomes fully required like `test`.
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -129,37 +127,25 @@ jobs:
         include:
           - name: Linux ARM64
             os: ubuntu-24.04-arm
-            boost: apt
           - name: macOS ARM64 (Apple Silicon)
             os: macos-14
-            boost: brew
-          - name: Windows x86_64 (native)
+          - name: Windows x86_64
             os: windows-latest
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
-          python-version: "3.11"
+          environment-file: envs/score-env.yml
+          miniforge-version: latest
 
-      - name: Install Boost (best-effort — vina's setup.py doesn't recognize this; see header)
-        if: matrix.boost == 'apt'
-        run: |
-          sudo apt-get update && sudo apt-get install -y 'libboost-dev'
-          echo "CPATH=/usr/include" >> "$GITHUB_ENV"
+      - name: Install package on top of the conda env (vina etc. already present)
+        run: pip install -e ".[dev]"
 
-      - name: Install Boost (best-effort — vina's setup.py doesn't recognize this; see header)
-        if: matrix.boost == 'brew'
-        run: |
-          brew install boost
-          echo "CPATH=$(brew --prefix boost)/include" >> "$GITHUB_ENV"
-
-      - name: Install package (full dependency stack)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-
-      - name: Fast test suite
+      - name: Fast test suite (slow/GPU/ADFRsuite-dependent tests already self-skip)
         run: >
           pytest -q
           --deselect tests/test_sampling.py::TestRapidockRunner::test_command_construction
