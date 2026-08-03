@@ -41,11 +41,15 @@ def compute_free_state_entropy(peptide_pdb: Path, prod_ps: int = 60) -> dict | N
     """
     import sys
 
-    # The MD helpers live in scripts/ (shared with the research pipeline). Add to path lazily so
-    # importing this module never hard-requires the scripts dir or OpenMM at import time.
-    scripts_dir = Path(__file__).resolve().parents[3] / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
+    # The MD helpers live in experiments/ (shared with the research pipeline; e18v2_md.py has
+    # never been part of scripts/ — this pointed at the wrong directory before 2026-08-02, so
+    # this branch always hit the except below and silently returned None). Add to path lazily
+    # so importing this module never hard-requires the experiments dir or OpenMM at import time.
+    # Only reachable from a source checkout — experiments/ is not packaged in a wheel install,
+    # matching its "reproducibility trail, not shipped runtime" role (docs/DATA_ARCHIVE.md).
+    experiments_dir = Path(__file__).resolve().parents[3] / "experiments"
+    if str(experiments_dir) not in sys.path:
+        sys.path.insert(0, str(experiments_dir))
     try:
         from e18v2_md import run_free_dynamics  # noqa: PLC0415
     except Exception as exc:  # noqa: BLE001

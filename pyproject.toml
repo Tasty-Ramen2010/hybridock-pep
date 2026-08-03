@@ -62,7 +62,10 @@ hybridock-tui = "hybridock_pep.ui.tui:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-hybridock_pep = ["py.typed"]
+# data/* ships the runtime-critical model artifacts + calibration/fixtures the
+# default `dock`/`crystal-score`/`benchmark` CLI paths load unconditionally
+# (see hybridock_pep/_paths.py) — must be in the wheel, not just the dev checkout.
+hybridock_pep = ["py.typed", "data/*.joblib", "data/*.json", "data/*.csv"]
 
 [tool.ruff]
 line-length = 100

@@ -544,13 +544,7 @@ def _run_calibrate(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
         args: Parsed CLI arguments from the calibrate subcommand.
         parser: Root ArgumentParser (unused; present for dispatch signature consistency).
     """
-    import sys as _sys
-    from pathlib import Path as _Path
-
-    scripts_dir = str(_Path(__file__).resolve().parents[2] / "scripts")
-    if scripts_dir not in _sys.path:
-        _sys.path.insert(0, scripts_dir)
-    import calibrate_alpha  # type: ignore[import]
+    from hybridock_pep._vendor import calibrate_alpha  # noqa: PLC0415
 
     ns = argparse.Namespace(
         training_csv=Path(args.training_csv),
@@ -696,25 +690,21 @@ def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) 
 def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Dispatch benchmark subcommand to scripts/benchmark.py:main().
 
-    Dynamically injects scripts/ onto sys.path and calls benchmark.main()
-    with an argparse.Namespace forwarding all relevant flags. Mirrors the
-    _run_calibrate() pattern.
+    Calls hybridock_pep._vendor.benchmark.main() with an argparse.Namespace
+    forwarding all relevant flags. Mirrors the _run_calibrate() pattern.
 
     Args:
         args: Parsed CLI arguments from the benchmark subcommand.
         parser: Root ArgumentParser (unused; present for dispatch signature consistency).
     """
-    import sys as _sys
     from pathlib import Path as _Path
 
-    scripts_dir = str(_Path(__file__).resolve().parents[2] / "scripts")
-    if scripts_dir not in _sys.path:
-        _sys.path.insert(0, scripts_dir)
-    import benchmark  # type: ignore[import]
+    from hybridock_pep._paths import data_file  # noqa: PLC0415
+    from hybridock_pep._vendor import benchmark  # noqa: PLC0415
 
     ns = argparse.Namespace(
         test_csv=_Path(args.test_csv),
-        meta_csv=_Path("data/test_complexes_meta.csv"),
+        meta_csv=data_file("test_complexes_meta.csv"),
         output_dir=_Path(args.output_dir),
         seed=args.seed,
         box_size=args.box_size,
