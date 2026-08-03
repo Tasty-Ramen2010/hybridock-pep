@@ -379,24 +379,53 @@ def run_dock(
     if input_poses_dir is None and records:
         scored_dir = (config.output_dir / "poses_scored").resolve()
         scored_dir.mkdir(parents=True, exist_ok=True)
+        copied = 0
         for record in records:
             dest = scored_dir / record.pdb_path.name
-            if not dest.exists():
+            if dest.exists():
+                continue
+            # A record can outlive its file: Stage 1.5 rewrites poses into
+            # poses_min/ and a pose whose minimization was rejected keeps a
+            # path that later stages may have cleaned up. This directory is a
+            # convenience for benchmark.py's vina-only rescore, so a missing
+            # source must not take the whole run down — it did, with
+            # FileNotFoundError on poses/pose_0.pdb, mid-way through a
+            # 1,185-pair benchmark.
+            try:
                 shutil.copy2(record.pdb_path, dest)
-        logger.debug("poses_scored/ written: %d files → %s", len(records), scored_dir)
+                copied += 1
+            except OSError as exc:
+                logger.warning(
+                    "poses_scored/: could not copy %s (%s) — continuing without it",
+                    record.pdb_path, exc,
+                )
+        logger.debug("poses_scored/ written: %d files → %s", copied, scored_dir)
 
     # Stage 1.7a: Drop off-pocket poses (Cα centroid > 35 Å from site_coords).
     # These are RAPiDock noise on tetrameric / extended-surface receptors; if
     # kept they force the grid to balloon (the PfLDH run-1 OOM at 180 Å came
     # from this). Filtering them out keeps Vina's memory footprint bounded
     # AND removes off-pocket scores that would pollute clustering.
-    n_before = len(records)
-    records = _filter_offpocket_poses(config, records)
-    if len(records) < n_before:
+    #
+    # Skipped under --blind, where site_coords is the receptor's own middle
+    # rather than a pocket. The cutoff is a fixed 35 Å radius, so on any
+    # receptor whose half-extent exceeds that it cannot reach its own surface:
+    # poses in a real groove at either end are dropped for being far from a
+    # centroid that never meant anything. The damage scales with receptor size,
+    # which silently makes results non-comparable across receptors.
+    if config.blind:
         logger.info(
-            "Stage 1.7a: off-pocket filter kept %d/%d poses",
-            len(records), n_before,
+            "Stage 1.7a: skipped (blind mode) — keeping all %d poses regardless "
+            "of distance from site_coords", len(records),
         )
+    else:
+        n_before = len(records)
+        records = _filter_offpocket_poses(config, records)
+        if len(records) < n_before:
+            logger.info(
+                "Stage 1.7a: off-pocket filter kept %d/%d poses",
+                len(records), n_before,
+            )
 
     # Stage 1.7b: Auto-expand box_size if pose spread exceeds user box.
     # The user's --box flag becomes a MINIMUM; capped at 100 Å for OOM safety.

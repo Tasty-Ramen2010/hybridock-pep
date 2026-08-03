@@ -362,6 +362,11 @@ def _env_has_binary(env_name: str, binary: str) -> bool:
 #   - no obabel    -> the last-resort ligand PDBQT converter is gone, but meeko
 #     is the primary path and ships wheels everywhere
 # Everything the pipeline genuinely cannot run without stays in the yml.
+#: Sibling env for tools that will not install into score-env itself.
+#: Must match hybridock_pep.toolpath.SIDECAR_ENV, which is where the
+#: pipeline looks for them.
+SIDECAR_ENV = "hdp-tools"
+
 OPTIONAL_SCORE_ENV_TOOLS = {
     "autogrid4": "autogrid>=4.2.9",   # AD4 grid maps (--scoring ad4)
     "obabel": "openbabel>=3.1",       # last-resort ligand PDBQT conversion
@@ -398,13 +403,43 @@ def _install_optional_score_env_tools(dry_run: bool) -> None:
         retries=1,
         optional=True,
     )
-    if not ok:
-        still_missing = [b for b in missing if not _env_has_binary("score-env", b)]
+    if ok:
+        return
+
+    still_missing = [b for b in missing if not _env_has_binary("score-env", b)]
+
+    # Retry, one tool per env, in a sidecar. A single conda transaction fails
+    # as a unit, so one unavailable package (autogrid on linux-aarch64) also
+    # blocks the one that *would* have installed. And openbabel specifically
+    # cannot enter score-env on ARM Linux at all: conda-forge builds it there
+    # only against Python 3.9. It installs fine in an env of its own, and
+    # `obabel` is a binary — the Python it was built against does not matter.
+    # hybridock_pep.toolpath.which looks in this env.
+    recovered = []
+    for binary in list(still_missing):
+        if _env_has_binary(SIDECAR_ENV, binary):
+            recovered.append(binary)
+            continue
+        print(f"  {binary} will not install into score-env — trying the {SIDECAR_ENV} env")
+        if _run(
+            ["conda", "create" if not _env_exists(SIDECAR_ENV) else "install",
+             "-n", SIDECAR_ENV, "-c", "conda-forge", "--yes", OPTIONAL_SCORE_ENV_TOOLS[binary]],
+            dry_run,
+            optional=True,
+        ) and _env_has_binary(SIDECAR_ENV, binary):
+            recovered.append(binary)
+
+    for binary in recovered:
+        still_missing.remove(binary)
+        print(f"  ✓ {binary} installed into the {SIDECAR_ENV} env")
+
+    if still_missing:
         print(
             f"  ! optional tooling unavailable on this platform: {', '.join(still_missing)}\n"
             "    The pipeline still works. Consequences:\n"
             "      autogrid4 missing -> `--scoring ad4` unavailable (off by default)\n"
-            "      obabel missing    -> no fallback ligand PDBQT converter (meeko is primary)"
+            "      obabel missing    -> no fallback ligand PDBQT converter (meeko is\n"
+            "                           primary, but converts fewer poses)"
         )
 
 

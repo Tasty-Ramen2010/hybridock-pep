@@ -74,18 +74,33 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_dock.add_argument(
         "--site",
-        required=True,
+        required=False,
+        default=None,
         nargs=3,
         type=float,
         metavar=("X", "Y", "Z"),
-        help="Grid box center coordinates in Angstroms (x y z).",
+        help="Grid box center coordinates in Angstroms (x y z). Required unless --blind.",
     )
     p_dock.add_argument(
         "--box",
-        required=True,
+        required=False,
+        default=None,
         type=float,
         metavar="ANGSTROMS",
-        help="Grid box edge length in Angstroms.",
+        help="Grid box edge length in Angstroms. Required unless --blind.",
+    )
+    p_dock.add_argument(
+        "--blind",
+        action="store_true",
+        default=False,
+        help=(
+            "No pocket is known: let the model find its own binding site. "
+            "Stage 1 sampling is receptor-wide either way (RAPiDock never sees "
+            "--site), so this only turns off the Stage 1.7a filter that drops "
+            "poses landing >35 A from --site. Give --site/--box to still bound "
+            "the Stage 2 grid, or omit both to use the receptor's centroid with "
+            "the 100 A safety-cap box."
+        ),
     )
     p_dock.add_argument(
         "--n-samples",
@@ -456,6 +471,44 @@ def _print_dock_banner(config: DockConfig) -> None:
     print("└" + "─" * inner + "┘", file=sys.stderr)
 
 
+#: Box edge used when --blind is given without --box. Matches driver.py's
+#: _AUTO_BOX_MAX_AA — the largest grid the auto-expansion will build, kept as an
+#: OOM guard.
+_AUTO_BOX_MAX_AA = 100.0
+
+
+def _receptor_geometric_center(receptor_path: Path) -> tuple[float, float, float]:
+    """Return the mean (x, y, z) of every ATOM/HETATM coordinate in a PDB.
+
+    Used by --blind to derive a neutral site_coords — the receptor's own middle —
+    instead of making the caller invent a pocket. Column offsets follow the
+    fixed-width PDB spec, the same slicing driver.py uses.
+
+    Args:
+        receptor_path: Path to the receptor PDB file.
+
+    Returns:
+        (x, y, z) centroid in Angstroms.
+
+    Raises:
+        ValueError: If the file has no parseable ATOM/HETATM coordinates.
+    """
+    xs, ys, zs = [], [], []
+    for line in Path(receptor_path).read_text().splitlines():
+        if not line.startswith(("ATOM", "HETATM")):
+            continue
+        try:
+            xs.append(float(line[30:38]))
+            ys.append(float(line[38:46]))
+            zs.append(float(line[46:54]))
+        except ValueError:
+            continue
+    if not xs:
+        raise ValueError(f"No ATOM/HETATM coordinates found in {receptor_path}")
+    n = len(xs)
+    return (sum(xs) / n, sum(ys) / n, sum(zs) / n)
+
+
 def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Validate inputs and orchestrate the full docking pipeline.
 
@@ -475,6 +528,26 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         )
     n_samples = args.n_samples if args.n_samples is not None else 100
 
+    # --site/--box are required unless --blind. Under --blind they stay optional:
+    # given, they bound the Stage 2 grid; omitted, they default to the receptor's
+    # centroid and the OOM-safety cap. Either way --blind turns off the Stage 1.7a
+    # off-pocket filter, which is the part that needs a real pocket to be correct.
+    if args.site is None or args.box is None:
+        if not args.blind:
+            parser.error("--site and --box are required unless --blind is given.")
+        if args.site is None:
+            site_coords = _receptor_geometric_center(Path(args.receptor).resolve())
+            logger.info(
+                "Blind mode: --site not given, using receptor centroid %s",
+                tuple(round(c, 2) for c in site_coords),
+            )
+        else:
+            site_coords = (args.site[0], args.site[1], args.site[2])
+        box_size = args.box if args.box is not None else _AUTO_BOX_MAX_AA
+    else:
+        site_coords = (args.site[0], args.site[1], args.site[2])
+        box_size = args.box
+
     # --ultra is the umbrella ACCURACY mode: auto-enable MM-GBSA refine (top-K) + interaction entropy, and
     # auto-detect charged residues → charged-residue correction. Expert flags still work standalone.
     eff_refine_topk = args.refine_topk
@@ -491,8 +564,9 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         config = DockConfig(
             peptide_sequence=args.peptide,
             receptor_path=Path(args.receptor).resolve(),
-            site_coords=(args.site[0], args.site[1], args.site[2]),
-            box_size=args.box,
+            site_coords=site_coords,
+            box_size=box_size,
+            blind=args.blind,
             n_samples=n_samples,
             seed=args.seed,
             scoring=set(args.scoring.split(",")),
