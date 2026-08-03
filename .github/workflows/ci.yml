@@ -215,17 +215,27 @@ jobs:
       # scripts/patch_vina_windows_setup.py's docstring for the four root causes it fixes.
       - name: "Windows — build vina from source against MSYS2's Boost"
         if: runner.os == 'Windows'
-        shell: bash
-        env:
-          CONDA_PREFIX: C:\msys64\mingw64
+        # Login shell (matching the job default) - a plain, non-login `shell: bash` here
+        # skips conda's activation hook entirely, so `python` resolves to something on the
+        # bare runner PATH with no setuptools instead of the conda env's own Python
+        # (confirmed by a real CI run, 2026-08-03: "ModuleNotFoundError: No module named
+        # 'setuptools'" - every other conda-dependent step in this job already relies on
+        # the job-level `bash -el {0}` default for exactly this reason).
+        shell: bash -el {0}
         run: |
           set -e
+          # Capture the real conda env's python *before* touching CONDA_PREFIX below -
+          # overriding it as a step-level `env:` risks being clobbered by the login
+          # shell's own conda activation (which runs at shell startup, after GitHub
+          # Actions applies step env but before this script body), so set it inline on
+          # the one command that actually needs it instead of relying on that ordering.
+          CONDA_PY="$(command -v python)"
           export PATH="/c/msys64/mingw64/bin:$PATH"
           curl -sL -o vina-src.tar.gz "https://files.pythonhosted.org/packages/d2/2a/6746ef5e57b1c643e9fb24ad9e4fa520add7338736d50954e0fbc12ae52e/vina-1.2.7.tar.gz"
           tar xzf vina-src.tar.gz
-          python scripts/patch_vina_windows_setup.py vina-1.2.7/setup.py
+          "$CONDA_PY" scripts/patch_vina_windows_setup.py vina-1.2.7/setup.py
           cd vina-1.2.7
-          python setup.py bdist_wheel
+          CONDA_PREFIX='C:\msys64\mingw64' "$CONDA_PY" setup.py bdist_wheel
 
       - name: "Windows — install the pip packages score-env.yml would normally handle"
         if: runner.os == 'Windows'
