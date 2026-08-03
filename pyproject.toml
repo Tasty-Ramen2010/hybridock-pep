@@ -28,6 +28,14 @@ dependencies = [
     "scikit-learn>=1.8,<1.9",
     "openmm>=8.1",
     "pdbfixer>=1.9",
+    # analysis/plotting.py imports this unconditionally (convergence/silhouette plots) —
+    # was only present via envs/score-env.yml's conda-forge matplotlib, never declared
+    # here. Found via CI on a vanilla venv, 2026-08-02.
+    "matplotlib>=3.8",
+    # meeko/chemtempgen.py imports gemmi unconditionally (same undeclared-transitive-dep
+    # pattern as rdkit above); envs/score-env.yml already carries it as a pip extra for
+    # exactly this reason. Found via CI, 2026-08-02.
+    "gemmi>=0.6",
     # launch_ui.sh / hybridock_pep.ui.tui (the guided terminal UI install.sh
     # auto-launches at the end of setup) imports this unconditionally.
     "prompt_toolkit>=3.0",
