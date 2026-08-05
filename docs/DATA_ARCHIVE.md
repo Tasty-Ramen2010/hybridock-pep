@@ -48,8 +48,8 @@ Almost all scripts that produce or consume the above are in this git repo. **One
 `e158_overfit_failure_analysis.py` was never committed, and 48 experiment scripts import it for
 `greedy_cluster()` and `pocket_seq()` — including the chain that regenerates
 `data/e180_protdcal3d.jsonl` (`e180_protdcal_925.py` → `e179_protdcal_3d.py` → `e158`). That makes
-the ours-vs-PPI-clone head-to-head unreproducible from a clean clone; see the note in the README's
-[Datasets](../README.md#datasets--download-and-test-for-yourself) section. Searched for and not
+the ours-vs-PPI-clone head-to-head unreproducible from a clean clone; see the note in RESULTS.md's
+[Datasets](../RESULTS.md#datasets--download-and-test-for-yourself) section. Searched for and not
 found on the Zenodo record, the DGX, or the RTX PRO 6000 box.
 
 Research/experiment scripts: [`experiments/`](../experiments/) (E0–E37x, cited
