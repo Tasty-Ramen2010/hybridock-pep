@@ -9,16 +9,13 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
 [![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/images/tui_form.png" alt="The guided terminal UI: input form pre-filled with the LISDAELEAIFEADC / PfLDH example"></td>
-<td width="50%"><img src="docs/images/tui_art_gallery.png" alt="A long RAPiDock wait gets a rotating gallery of science-themed ASCII art instead of a silent terminal"></td>
-</tr>
-</table>
+![The guided terminal UI mid-run: input form filled in, an 80% progress bar, and live scored-pose output](docs/images/tui_hero.png)
 
-The terminal UI (`./launch_ui.sh`) — real screenshots, not mockups. Left: the input form. Right:
-Stage 1 sampling is the one part of a run that's silent for a while, so it gets something to look
-at instead of a blinking cursor. More in [Command reference](#command-reference--install-test-run-ui).
+This is the real terminal UI (`./launch_ui.sh`) — a live screenshot, not a mockup: the input form
+on top, a progress bar and stage label in the middle, scored poses streaming in below. One command
+gets you here; see [Command reference](#command-reference--install-test-run-ui) for the full walkthrough
+(including what happens during the one real silent wait — Stage 1 sampling gets its own little
+ASCII-art gallery instead of a blinking cursor).
 
 ### 📺 Watch the tutorial
 
