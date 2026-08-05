@@ -37,26 +37,22 @@ Then run the 30-second offline sanity check: `make verify`. The full research le
 2. [Command reference — install, test, run, UI](#command-reference--install-test-run-ui)
 3. [Usage — the six subcommands](#usage)
 
-**Understand it** — the short version is [METHODS.md](METHODS.md)
-
+**Understand it**
 4. [Pipeline — the full workflow](#pipeline--the-full-workflow)
-5. [Evaluation methodology](#evaluation-methodology)
 
-**Check the claims**
-
-6. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
-7. [Why HybriDock-Pep — five conclusive tests](#why-hybridock-pep--five-conclusive-tests)
-8. [The claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)
-9. [Datasets — download and test for yourself](#datasets--download-and-test-for-yourself)
-10. [Reproduce every number in this README](#reproduce-every-number-in-this-readme)
+**Check the claims** — full evidence, every number, every script: [RESULTS.md](RESULTS.md)
+5. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
 
 **Reference**
+6. [Install — manual walkthrough](#install)
+7. [Repository structure](#repository-structure)
+8. [Testing](#testing)
+9. [Roadmap](#roadmap--to-do)
+10. [Project status](#project-status) · [Citations](#citations) · [License](#license)
 
-11. [Install — manual walkthrough](#install)
-12. [Repository structure](#repository-structure)
-13. [Testing](#testing)
-14. [Roadmap](#roadmap--to-do)
-15. [Project status](#project-status) · [Citations](#citations) · [License](#license)
+The short version of the *method* is [METHODS.md](METHODS.md); the short version of the *results* is
+[RESULTS.md](RESULTS.md). This page is the install + usage manual; the two linked pages carry what used
+to be duplicated here.
 
 ---
 
@@ -297,6 +293,30 @@ straight onto any path field.
 > the whole process group, so the `rapidock` sampling child dies too rather than being orphaned on
 > your GPU.
 
+**Real screenshots, captured from the actual terminal — first launch, the input form pre-filled with
+the PfLDH parent-project example, a finished `--demo` run, and the help screen:**
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/tui_welcome.png" alt="Guided welcome walkthrough on first launch"></td>
+<td width="50%"><img src="docs/images/tui_form.png" alt="Input form pre-filled with the LISDAELEAIFEADC / PfLDH example"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/tui_demo_run.png" alt="Finished --demo run showing the progress bar and result"></td>
+<td width="50%"><img src="docs/images/tui_help.png" alt="Built-in help screen, topic 0 of 10"></td>
+</tr>
+</table>
+
+And the two plots a real `dock` run writes to `--output-dir` — score-sorted convergence and the
+cluster-count silhouette check that picks `k`, both from the MDM2/p53 demo above:
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/convergence_plot.png" alt="Score-sorted convergence plot"></td>
+<td width="50%"><img src="docs/images/silhouette_plot.png" alt="Silhouette score vs. number of clusters"></td>
+</tr>
+</table>
+
 ### 6. Built-in guide (no UI needed)
 
 ```bash
@@ -317,454 +337,6 @@ hybridock-pep guide all
 
 > A full `dock` run uses the separate `rapidock` environment for Stage 1 sampling, which needs
 > `KMP_DUPLICATE_LIB_OK=TRUE`. `install.sh` configures that for you.
-
----
-
-## The claims, up front — measured in kcal/mol, leakage-free
->
-> **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer — with FEP-competitive
-> absolute error.**
-> On absolute cross-target peptide affinity it reaches **MAE ≈ 1.3–1.6 kcal/mol** under a rigorous 60%-sequence-identity
-> clustered split (the honest, leakage-free regime) — squarely inside the **ABFE (absolute FEP) accuracy band of
-> ~1.2–2.5 kcal/mol**, i.e. **FEP-competitive on absolute-ΔG error**, at ~1000× lower cost and with **no reference
-> peptide required** ([the claim, stated plainly](#the-claim-stated-plainly--and-why-it-holds-in-2026)).
->
-> **②  It beats a faithful clone of PPI-Affinity — the previous best published ML peptide scorer — on the identical
-> leakage-free split**, on *every* metric, with the margin **widening** once leakage is removed:
->
-> ```
->   matched n=865 PDBbind peptide-Kd · 60%-id clustered CV (leakage-free)
->   ───────────────────────────────────────────────────────────────────
->   model                       MAE↓    RMSE↓   Pearson r↑
->   HybriDock-Pep (ours)        1.35    1.69    0.352      ◀ WIN on all three
->   PPI-clone (ProtDCal+SVR)    1.46    1.84    0.210
->   ───────────────────────────────────────────────────────────────────
-> ```
->
-> Every number is measured, links to the script that reproduces it, and uses **MAE/RMSE in kcal/mol** as the
-> primary metric (r is secondary — it is fragile to the test set and capped near the field ceiling for *everyone*,
-> FEP included; see [Why absolute cross-target is hard for all methods](#why-absolute-cross-target-affinity-is-hard-for-everyone-fep-included)).
-> We report the full **accuracy-vs-identity-cutoff trend** with a placement-aware identity metric, including the
-> standard 30% cutoff (**MAE 1.39 / r 0.32**).
->
-> **Created by [Choppa Purandhar Ram](#project-status) (age 15)** — Head of Dry Lab, Denmark High School iGEM 2026.
-
-HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
-receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
-**selectivity primitive** (ΔΔG with bootstrap CI) for "does this peptide prefer target A over off-target B".
-Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets, minutes per
-peptide on commodity hardware.
-
-It is a **two-stage hybrid**: an AI diffusion model (RAPiDock-Reloaded) samples all-atom poses, then a
-physics + learned-geometry rescorer turns those poses into calibrated affinity, selectivity, and
-reference-anchored ΔG. Three things it does that off-the-shelf tools don't combine: **(1)** it is the best
-non-FEP/LIE protein–peptide *affinity* scorer we can find a fair baseline for; **(2)** it lifts within-receptor
-accuracy from *r*≈0.25 to ≈0.55 when anchored to a few measured references on-target (the relative regime FEP
-also works in); and **(3)** it ships a structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot
-provide. Everything below is measured, every claim links to the script that reproduces it, and every
-negative result is kept on the record in the development timeline archived on Zenodo:
-[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
-The whole thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plain CPU.
-
----
-
-## Why HybriDock-Pep — five conclusive tests
-
-**① We beat a faithful PPI-Affinity clone on the identical leakage-free split — measured in kcal/mol.**
-Both models score the *same* 865 PDBbind peptide-Kd complexes, clustered at 60% sequence identity (placement-aware
-alignment) with entire clusters held out per fold (CD-HIT-style; verified leakage-free — clustered r 0.35 < leaky
-random-CV r 0.44). `experiments/e331_ours_vs_ppiclone_clustered.py`:
-
-```
-  n=865 matched PDBbind peptide-Kd · MAE/RMSE in kcal/mol · leakage-free 60%-id clustered CV
-  ──────────────────────────────────────────────────────────────────────────────────────────
-  model                          MAE↓     RMSE↓    Pearson r↑    Spearman ρ↑
-  HybriDock-Pep (16 feats, GBT)  1.35     1.69     0.352         0.338        ◀ WIN on every metric
-  PPI-clone (ProtDCal-3D + SVR)  1.46     1.84     0.210         0.177
-  ──────────────────────────────────────────────────────────────────────────────────────────
-  margin holds under the honest split:  leaky random-CV Δr +0.11  →  clustered Δr +0.14
-  PPI-Affinity's own paper reports held-out sets (R≈0.5–0.77 on its benchmarks) — on DIFFERENT
-  datasets/splits, so not directly comparable; we therefore benchmark a faithful CLONE of its
-  method on our identical split. Its web server has been down since 2022, so the original cannot
-  be queried. This is a clone-on-our-split comparison, not a claim about their published numbers.
-```
-
-On the **full 925-complex set**, our leakage-free absolute number is **MAE 1.40 / RMSE 1.77 / r 0.321**
-(`experiments/e330_ours_pdbbind.py`) — modestly above zero-skill (mean-predictor MAE 1.47) and honest about the cap.
-
-**Accuracy vs sequence-identity cutoff — the full trend.** Because 30% identity is the more standard clustering
-cutoff and the *trend* across thresholds is more informative than any single split (cf. [Runs-and-Poses, bioRxiv
-2025.02.03.636309](https://www.biorxiv.org/content/10.1101/2025.02.03.636309v3)), we report every cutoff.
-Same 925 complexes, same 16-feature GBT, leave-cluster-out CV at each cutoff, using a **placement-aware identity
-metric** (`experiments/e366_identity_threshold_trend.py`, data in [`data/hybridock_identity_trend.csv`](data/hybridock_identity_trend.csv)):
-
-```
-  identity   clusters   MAE    RMSE    Pearson r      (kcal/mol; leave-cluster-out CV)
-  cutoff                (kcal/mol)                    r bar: each █ ≈ 0.03
-  ─────────────────────────────────────────────────────────────────────────────────
-  random       925      1.32   1.66    +0.446  ███████████████  ← leaky (near-twins split across folds)
-   100%        832      1.33   1.68    +0.422  ██████████████
-    90%        807      1.35   1.70    +0.406  █████████████
-    80%        737      1.36   1.73    +0.368  ████████████
-    70%        693      1.40   1.77    +0.317  ███████████
-    60%        644      1.40   1.77    +0.321  ███████████     ← we headline this
-    50%        592      1.40   1.77    +0.319  ███████████
-    40%        532      1.42   1.79    +0.289  ██████████
-    30%        410      1.39   1.76    +0.322  ███████████     ← standard cutoff
-  ─────────────────────────────────────────────────────────────────────────────────
-  MAE is flat (1.32→1.42 kcal/mol) across the whole sweep; r declines smoothly from 0.45 (leaky) and
-  levels off around 0.32 by the 30–70% cutoffs — the honest cross-target ceiling. That stability of the
-  kcal/mol error is the number we stand behind.
-```
-
-> **Metric note (fixed 2026-07-09).** Our first version used a free-gap alignment whose score reduced to
-> *longest-common-subsequence ÷ shorter length* — it ignored residue placement (it scored `GGA`≈`ACC` at 0.33
-> from one gapped residue) and collapsed the 925 peptides to just 21 clusters at 30%, giving a spuriously low
-> r≈0.23. We switched to a **placement-aware (gap-penalised)** identity (`GGA`/`ACC`→0, `GGA`/`CGG`→0.33); it
-> yields many more, cleaner clusters (410 at 30%) and a **steadier, slightly higher r (0.32)**. The before/after
-> is reproducible in [`experiments/e367_gap_penalized_trend.py`](experiments/e367_gap_penalized_trend.py). We report the
-> corrected numbers and flag the fix rather than bury it.
-
-At the stricter **30% cutoff (the standard clustering threshold), the honest numbers are MAE 1.39 / RMSE 1.76 /
-r 0.32** — inside the cross-target ABFE band, reported alongside our 60% headline rather than instead of it.
-
-**Independent-set check (PPIKB, a *different* database — the win generalizes).** Leakage-free (60%-id clustered),
-full feature stack (ProtDCal + pocket/physics), Kd/Ki-only:
-
-```
-  PPIKB independent, n=808, leakage-free clustered CV
-  ─────────────────────────────────────────────────────────
-  model                     r↑      MAE↓    RMSE↓
-  HybriDock-Pep (ours)      0.333   1.94    2.47    ◀ WIN, and comparable to our PDBbind r
-  PPI-clone (ProtDCal+SVR)  0.265   1.99    2.56
-  ─────────────────────────────────────────────────────────
-```
-
-We beat the PPI-clone on this second, independent database too (all-PPIKB, n=885: ours 0.336 vs clone 0.269). The
-higher *absolute* MAE (~1.9 vs ~1.4 on PDBbind) is **PPIKB's own label noise**, not our scorer: ~20% of PPIKB
-labels are IC50/EC50 (assay-specific, *not* thermodynamic — [JCIM 4c00049](https://pubs.acs.org/doi/10.1021/acs.jcim.4c00049):
-27% of IC50 pairs disagree by >1 log unit), and identical peptide sequences carry y-values differing by **up to
-10.8 kcal/mol**. Restricting to the curated Kd/Ki-only subset leaves the ranking unchanged (ours 0.333 vs clone
-0.265). Full diagnostic in the Zenodo research archive: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
-
-**Where we lose, stated up front: PPI-Affinity's own home test set (T100).** On the 48-complex set PPI-Affinity
-curated and tuned on, the *real published tool* (not our clone) beats us on ranking — this is the honest flip
-side of the leakage argument, and we lead with it rather than bury it (`experiments/e300_ifp_on_t100.py`,
-[`data/e300_ifp_t100.json`](data/e300_ifp_t100.json)):
-
-```
-  PPI-Affinity's OWN T100 set (n=48) — in-distribution for PPI, cold out-of-distribution for us
-  ────────────────────────────────────────────────────────────────────────────────────────────
-  method                          Pearson r    MAE (kcal/mol)
-  PPI-Affinity (real tool)          0.549          1.14         ◀ wins ON ITS HOME TURF
-  DFIRE (2002 potential)            0.437          9.37   ← note the MAE
-  Kdeep                             0.395         17.80   ← note the MAE
-  RF-Score                          0.388          1.85
-  HybriDock-Pep (+IFP, cold OOS)    0.225          1.54         ◀ us: worse rank, 2nd-best MAE
-  PRODIGY                           0.086          2.09
-  ────────────────────────────────────────────────────────────────────────────────────────────
-```
-
-Two honest reads: (1) on a scorer's *own* curated set it wins — which is exactly why in-distribution numbers
-(incl. PPI's published 0.55–0.63) are not comparable across tools, and why our headline uses a **matched
-leakage-free split** where we win (test ① above, Steiger p=0.002). (2) Even losing on rank here, our **MAE 1.54
-is second only to PPI's**, while DFIRE/Kdeep sit at 9–18 kcal/mol — calibrated absolute ΔG is a separate axis we
-hold. We show this table because a reviewer who finds it themselves should find nothing we didn't already report.
-
-**② Same-receptor *relative* mode — anchor to a few measured references** (the honest analogue of what FEP
-does: work relative to a reference so the per-receptor bias cancels). When you have ≥2–3 measured affinities
-on your actual target, subtract that offset and the cold within-receptor *r* jumps:
-
-```
-  within-receptor absolute (cold, no reference)   r ≈ 0.25 – 0.47   (dataset-dependent)
-  anchored to 2–3 measured references on-target    r ≈ 0.61 – 0.71   ← the same-receptor lever (E264/E280, re-verified)
-```
-
-Peptide–receptor binding is also largely **additive** — the coupling term in a 2×2 peptide×receptor grid is
-only ~1.1 kcal/mol std — so a thermodynamic-cycle estimate closes to about that error. The honest same-receptor
-win is the **anchoring** result above; we make **no relative-correlation claim** beyond it here.
-
-**③ The number you actually get on AI-generated poses** — no crystal handed to you, the honest deployment
-case. This is where we pull away from PPI-Affinity: **PPI is structure-free, so it is pose-blind** — it
-returns the *same* score for any pose and cannot tell a good AI pose from a bad one. We read the pose:
-
-```
-  POSE ACCURACY (Cα-RMSD, lower = better)     AFFINITY r — SCORING THE AI POSE (each █ = 0.025 r, full = 0.60)
-  ────────────────────────────────────────    ─────────────────────────────────────────────────────────────
-  best-of-top-25  2.49 Å · hit@5 91%          HybriDock-Pep · AI pose + interaction █████████████████████░░░ 0.53
-  MDM2/p53 1YCR   0.80 Å                      HybriDock-Pep · AI pose, geometry     ███████████████████░░░░░ 0.486
-   vs DiffPepDock 3.54 Å ◀ ~4× tighter        PPI-clone     · pose-blind*           █████████████░░░░░░░░░░░ 0.325
-                                              HybriDock-Pep · crystal (upper bound) ███████████████████████░ 0.585
-  * structure-free method (our faithful clone; the original server is dead): identical score for any pose,
-    so it cannot rank poses at all. Bars are each method's honest independent number.
-
-  AI-POSE MAE (kcal/mol) — pooled 151 real-pose complexes (cr65 + the98), LOCO CV
-  ─────────────────────────────────────────────────────────────────────────────
-  diffusion top-5 aggregation   MAE 1.51   RMSE 1.87   r 0.501
-  ML-best-5 aggregation         MAE 1.53   RMSE 1.87   r 0.501
-  `experiments/e106_combined_realpose_grade.py` (MAE not printed by the script; computed with its
-  own ridge/LOCO/router logic, verified against its printed r/RMSE before reporting here)
-```
-
-We turn the AI pose into a **0.49–0.53** signal; PPI cannot use the pose at all and is stuck at its
-structure-free **0.325**. Going fully structure-free costs us only ~0.05–0.09 in *r* (0.585 crystal → ~0.50
-on AI poses) — the haircut every structure-based scorer pays on non-native poses, and one of the few we
-publish. In absolute terms, scoring our own AI-generated poses (no crystal, the honest deployment case)
-lands **MAE ≈ 1.51–1.54 kcal/mol** — worse than the crystal-pose leakage-free headline (1.35–1.40) by the
-pose-quality tax you'd expect, since RAPiDock poses aren't perfect.
-
-**④ Real published complexes, scored blind.** 15 real peptide–protein structures (RCSB titles + primary
-citations pulled live from the PDB), each scored by a model that never saw its 60%-identity cluster —
-including real **peptide–MHC** (4PRN, HLA-B\*35:01). Aggregate over **all 925** such complexes, blind and
-leakage-free: **MAE 1.40 / RMSE 1.77 kcal/mol** (41% within 1.0, 77% within 2.0 kcal/mol).
-`experiments/e364_blind_demo.py` · [`data/hybridock_literature_complexes.csv`](data/hybridock_literature_complexes.csv).
-
-**⑤ An external benchmark we did *not* assemble.** The supplementary tables of **Wang et al., *Curr. Med. Chem.*
-2024, 31(31):4127** ([DOI](https://doi.org/10.2174/0929867331666230908102925); tables + PDF shipped in-repo so
-anyone can check). Their independently-published pK_d reproduces our ΔG labels to **corr 0.998**. 155 overlap
-complexes scored blind: **MAE 1.43 / RMSE 1.68**; and a **true external holdout of 43** complexes never in
-training (nor their 60%-id clusters): **MAE 1.60 / RMSE 1.90 / r 0.44.** `experiments/e365b_failure_analysis.py` ·
-[`data/hybridock_wang2024_external43.csv`](data/hybridock_wang2024_external43.csv).
-
-**Also vs Rosetta FlexPepDock** (the standard physics baseline), same 918 PDBbind complexes matched
-complex-for-complex: ours (leakage-free clustered CV) is **r 0.32 / MAE 1.40**, while unrelaxed ref2015
-interface energy calibrates to **r ≈ 0** — it collapses onto the mean-predictor, because REU has no native
-kcal/mol (a linear `ΔG=a·REU+b` fit is correlation-invariant). Interface-relax rescues ref2015 to r 0.18 —
-still below ours and below its own within-target 0.59. `experiments/e329_ref2015_pdbbind.py` ·
-`experiments/e331_relax_pdbbind.py`.
-
-Everything else stays honest: absolute charged Kd is capped at the non-FEP ceiling and we say so; selectivity
-ΔΔG (target vs off-target) lands r ≈ 0.30–0.45; MIT-licensed and runs on CUDA · Apple MPS · Intel · AMD · CPU.
-Full evidence and every negative result: development timeline archived on Zenodo
-([10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713)) ·
-[`docs/SCORING_COMPARISON.md`](docs/SCORING_COMPARISON.md) · reproduce them in
-[Reproduce the benchmarks](#reproduce-every-number-in-this-readme).
-
-### HybriDock-Pep vs FEP — when to use which
-
-Complementary tools, not rivals — a cheap triage layer and a precision layer. FEP is the gold standard where
-it applies; we cover the regime it can't afford to.
-
-| Reach for **FEP** when… | Reach for **HybriDock-Pep** when… |
-|---|---|
-| ranking close variants of a **known** binder on **one** target (RBFE lead-op) — **r ≈ 0.8–0.9, sub-kcal**, its home turf | screening **dozens of diverse candidates** fast — minutes each on one GPU (FEP can't screen; it re-derives per system) |
-| you can spend GPU-days + expert setup for a trusted number | you need **absolute cross-target** ΔG with **no reference** — both land ~1.3–2.5 kcal/mol, we're ~1000× cheaper |
-| lead optimization / final go-no-go affinity | you need **selectivity ΔΔG** or to **score AI-generated poses** — FEP doesn't do these cheaply |
-
-Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61–0.71**) — better than either cold-absolute option.
-
----
-
-## The claim, stated plainly — and why it holds in 2026
-
-**Among all non-FEP/LIE methods with a fair, leakage-free benchmark, HybriDock-Pep is the best
-protein–peptide ΔG scorer we can find — and the most efficient.** Two legs, both measured:
-
-**Speed.** End-to-end **scoring is ~2.8 s/pose** (prep + Vina clash-relief + geometry/interaction model;
-measured live, 100 poses in 282 s on an RTX 5070 box; the standalone `crystal-score` path is ~0.9 s/pose).
-Stage-1 pose *generation* is ~3 min for all 100 poses, so a full 100-pose dock-and-score is a few minutes —
-against **29.8 min for a single global peptide docking** by HPEPDOCK in the 2026 field review (Martins,
-Santos & Sousa, *J. Comput. Chem.* 47:5). No slower method that also emits a calibrated ΔG comes close.
-
-**It runs on a laptop, off battery.** Measured end-to-end on a **fanless MacBook Air M3 (16 GB RAM, Apple MPS,
-no discrete GPU)**: a full **100-pose MDM2/p53 dock** (peptide `ETFSDLWKLLPE`) completes in **under 15 minutes**,
-and the best-pose ΔG lands **~0.9 kcal/mol from experiment**. Honest caveat: that complex is a *neutral, short
-12-mer* — a favourable case for absolute accuracy; charged/long peptides sit at the cross-target ceiling
-discussed above. The point of this datapoint is the **efficiency**: no cluster, no CUDA, no discrete GPU.
-
-**Accuracy — and the field is empty of live rivals.**
-
-- **PPI-Affinity**, the prior best *published* ML peptide scorer, has been **unmaintained since 2022** (dead web
-  server). A faithful clone of its method (ProtDCal-3D + SVR), scored on the *identical* leakage-free split as ours,
-  loses on every metric — **MAE 1.46 vs our 1.35, r 0.210 vs our 0.352** (test ①; Steiger's Z=3.1, p=0.002, so
-  the gap is statistically significant, not a tie). Its published 0.55–0.63 is on different datasets/splits, so
-  not directly comparable — which is exactly why we benchmark a faithful clone on our *identical* split.
-- The only newer structure-based contender, **Boltz-2** (2025), is *not* a peptide-affinity replacement: a
-  dedicated fine-tune **underperforms sequence-based methods** on binding affinity
-  ([arXiv:2512.06592](https://arxiv.org/abs/2512.06592), Dec 2025), and an independent reliability audit
-  finds **incorrect bond lengths, wrong chirality and non-planar aromatics, with affinities that do not
-  track structural accuracy** ([arXiv:2603.05532](https://arxiv.org/abs/2603.05532), Mar 2026).
-- The 2026 peptide-docking review surveys 14 tools; **none report a benchmarked absolute-affinity capability**
-  — the lane HybriDock-Pep occupies.
-
-So the honest superlative is not "beats FEP" (nothing cheap does) — it is: **the best and fastest non-FEP/LIE
-protein–peptide ΔG scorer with a reproducible, leakage-free benchmark to stand on — at FEP-competitive absolute
-error** (MAE ~1.3–1.6 kcal/mol, inside the ~1.2–2.5 kcal/mol error band that absolute FEP itself reaches on
-peptides), for ~1000× less compute and with no
-reference peptide required.
-
-### Why absolute cross-target affinity is hard for everyone (FEP included)
-
-The reason no method — ours, FEP, or LIE — posts a high *absolute cross-target* correlation is a **regime** fact,
-not a skill gap, and it is worth stating plainly so our modest r isn't misread:
-
-- **FEP/LIE's famous ~1 kcal / r≈0.8 accuracy is a different problem:** *relative* free energy (RBFE) between
-  *similar* ligands on the *same* target. There, systematic errors **cancel**. *"Relative calculations benefit
-  from cancellation of systematic errors… absolute calculations accumulate all sources of error"*
-  ([Comm. Chem. 2023, s42004-023-01019-9](https://www.nature.com/articles/s42004-023-01019-9); maximal-accuracy
-  review [PMC10576784](https://pmc.ncbi.nlm.nih.gov/articles/PMC10576784/)).
-- **Absolute FEP (ABFE) itself only reaches ~1.2–2.5 kcal/mol**, and it needs the bound pose, heavy sampling, and
-  expert setup — degrading further cross-target. **LIE cannot even run without per-system fitted α/β/γ.** Neither is
-  a plug-and-play "peptide + protein → absolute kcal/mol" predictor.
-- **Enthalpy–entropy compensation** makes binding ΔG a *small net of large, mutually-cancelling terms* — so single
-  physics terms (electrostatics, desolvation, entropy) are individually large but compensate, and better physics
-  (polarization, QM) sharpens terms that cancel ([EEC review, ACS Omega 1c00485](https://pubs.acs.org/doi/10.1021/acsomega.1c00485)).
-- Consequently, **cross-target absolute peptide affinity is r≈0.15–0.55 for the entire field** (best ML ~0.6–0.7 on
-  large data; [ML-affinity review arXiv:2410.00709](https://arxiv.org/html/2410.00709v2)). Our leakage-free
-  0.26–0.39 sits squarely inside that band — mid-field, honest, and *reference-free*.
-
-**This is why we report kcal/mol MAE (stable, meaningful) as the headline and treat r as secondary.** Our full
-characterisation of this wall — proven from ~10 experimental angles — is archived on Zenodo:
-[10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
-
-### Fresh out-of-training check (2026-07-06)
-
-Blind scoring of three peptide–protein complexes pulled straight from the literature — deposited structures,
-**none in any training split** — via `crystal-score`:
-
-```
-  system            PDB    peptide         HybriDock-Pep ΔG    literature reference
-  ──────────────────────────────────────────────────────────────────────────────────────
-  MDM2 / p53        1YCR   ETFSDLWKLLPE         −9.28          −8.5   (exp, K_d 0.6 µM)
-  MDM2 / PMI        3EQS   TSFAEYWNLLS          −9.67          −12.7  (exp, K_d 0.49 nM)
-  importin-α / NLS  3VE6   EGPSAKKPKKEA         −9.77          −4.8 FEP / −5…−10 exp
-```
-
-Honest read: every prediction lands within a few kcal/mol of its reference, but they cluster near −9.5 while
-the true values span −4.8 to −12.7 — the **blind-absolute dynamic-range compression that caps every non-FEP
-method**, ours included (we publish it rather than hide it). This is exactly why the headline is a
-*leakage-free ranking* win (test ①) and *selectivity* — not a blind-absolute one.
-
-## Datasets — download and test for yourself
-
-These files are small, plain-text, and MIT-licensed (derived features + public experimental
-affinities — no redistributed third-party structures). All of them ship in this repo except one,
-called out in the table and explained under it.
-
-> **One gap, stated plainly.** `data/e180_protdcal3d.jsonl` — the ProtDCal-3D feature file for the
-> PPI-Affinity clone — is **not in this repository**, so test ① (the ours-vs-clone head-to-head) is
-> **not currently reproducible from a clean clone**. The file is `.gitignore`d, and its generator
-> `experiments/e180_protdcal_925.py` cannot run either: it imports
-> `e158_overfit_failure_analysis`, which was never committed (48 experiment scripts depend on that
-> module for `greedy_cluster()` and `pocket_seq()`). Every other number on this page — the 925-complex
-> headline, the identity sweep, PPIKB, the Wang 2024 external holdout — reproduces from what is here.
-> `tests/test_repro_claims.py` guards the rest of the table so this cannot happen silently again, and
-> carries a strict `xfail` that flips green the moment the missing module is restored.
-
-| File | What it is | Rows |
-|---|---|---|
-| [`data/pdbbind_peptides.jsonl`](data/pdbbind_peptides.jsonl) | 925 PDBbind protein–peptide complexes with experimental K_d/K_i, our 16 structural features + sequence per complex | 925 |
-| `data/e180_protdcal3d.jsonl` — **not shipped, see below** | PPI-Affinity-clone features (37 ProtDCal-3D intra-peptide descriptors) per complex — the head-to-head baseline | ~900 |
-| [`data/e331_matched_pdbids.json`](data/e331_matched_pdbids.json) | The exact 865 PDB IDs in the leakage-free ours-vs-PPI-clone head-to-head (both models can score) | 865 |
-| [`data/e329_ref2015_pdbbind.json`](data/e329_ref2015_pdbbind.json) | Rosetta ref2015 / FlexPepDock unrelaxed interface-ΔG (REU) for 918 of those complexes | 918 |
-| [`data/e331_relax_pdbbind.json`](data/e331_relax_pdbbind.json) | Unrelaxed vs interface-relaxed ref2015 interface-ΔG on a 40-complex spread | 40 |
-| [`data/benchmark_crystal.json`](data/benchmark_crystal.json) | The crystal-65 reference set (PDB paths + experimental ΔG) used across the scoring campaign | 65 |
-
-The **865-complex leakage-free head-to-head** (810 K_d + 55 K_i, peptide length 3–19, ΔG −14.2 to −3.7 kcal/mol,
-clustered into 379 groups at 60% identity) is the fairest peptide-affinity comparison we can run: both HybriDock-Pep
-and the PPI-Affinity clone score every complex, on identical folds.
-
-The raw PDBbind structures themselves are **not** redistributed (PDBbind licensing) — register at
-[pdbbind.org.cn](http://www.pdbbind.org.cn/) for the v2020 general set; `experiments/e108_ingest_pdbbind.py`
-rebuilds `pdbbind_peptides.jsonl` from it. To re-score the head-to-head from the shipped features alone
-(no structures needed):
-
-```bash
-conda activate score-env
-python experiments/e330_ours_pdbbind.py     # ours + matched ref2015 head-to-head → r / RMSE / MAE
-```
-
----
-
-## Pipeline — the full workflow
-
-The diagram below is the *actual* code path (`driver.py::run_dock`), with the two distinct relaxation steps
-called out explicitly — a restrained **clash-relief** minimization on every pose, and a full **MM-GBSA
-relaxation** on the top cluster representatives.
-
-```
-  Peptide sequence + Receptor PDB
-           │   (receptor cleaned with PDBFixer first)
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 1 — Diffusion sampling (RAPiDock-Reloaded)                           │
-  │   N stochastic SE(3)-equivariant passes → N all-atom pose PDBs             │
-  │   (~3 min to GENERATE all N=100 on RTX 5070; scoring adds ~2.8 s/pose)     │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 1.5 — RELAX #1: restrained clash-relief minimization (OpenMM)        │
-  │   heavy-atom harmonic restraints (k=50 000) → relieve intra-pose clashes   │
-  │   that hurt downstream scoring; poses moving >Å threshold are reverted     │
-  │ STAGE 1.7 — drop off-pocket poses · auto-expand search box if needed       │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 2 — Pose prep + structural ranking                                   │
-  │   receptor→PDBQT · ligand→PDBQT · Vina = CLASH RELIEF only (not the score) │
-  │   · BSA-fit + ML pose rankers (predicted native RMSD)  [AD4 off; research] │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 3 — Cα-RMSD agglomerative clustering → cluster representatives       │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 3.5 — RELAX #2: MM-GBSA on the top-K cluster reps (--refine-topk)    │
-  │   minimize each complex in AMBER ff14SB + GBn2 implicit solvent, then      │
-  │   ΔG_bind = E(complex) − E(receptor) − E(peptide)   ← most accurate ΔG     │
-  │ STAGE 3.6 — PRIMARY ΔG: AI-pose affinity model (geometry features, NO      │
-  │   Vina/AD4; length-routed, short peptides → hydrophobic sub-model)         │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-           ▼
-  ranked_poses.csv · best_pose.pdb · cluster_summary.csv · convergence.png ·
-  dendrogram.png · run_metadata.json   (git SHA, seeds, versions, input hashes)
-```
-
-**The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with the
-geometry-feature model tuned on real RAPiDock/AI poses (`affinity_ai_nofix.joblib`, packaged in the wheel); that value is the
-`delta_g` column and the reported "Best pose ΔG". **Vina is retained only for clash relief** (Stage 2 —
-rescuing RAPiDock's clashing poses); its score is raw telemetry, never the affinity. **AD4 is off by
-default.** For a crystal-quality pose, the sibling crystal-tuned model is exposed as a standalone command —
-see [`crystal-score`](#crystal-score--score-an-existing-crystal-pose).
-
-**Yes — `--refine-topk K` actually relaxes the top poses.** Stage 3.5 takes one representative per cluster
-(best hybrid score), keeps the top *K* by cluster mean, and **energy-minimizes each receptor+peptide complex
-in GBn2 implicit solvent** before reading ΔG — that minimization *is* the relaxation, and the MM-GBSA ΔG is
-the pipeline's physically-grounded *absolute*-energy estimate (it does not out-rank the learned scorer — see
-the `--refine-topk` note below). `--mmgbsa-3traj` additionally relaxes the unbound receptor and
-peptide to capture reorganization energy. (Stage 1.5 is a *separate*, lighter, restrained relax that only
-relieves clashes without changing the binding mode.)
-
----
-
-## Install
-
-> Almost everyone should use the one-command installer in
-> [Quick start](#quick-start--one-command) — it auto-detects your OS/GPU, creates both
-> environments, downloads the model weights, and runs the smoke test. Re-running it is safe.
-> This section is the manual equivalent, for when you want control over each step or the
-> script doesn't fit your setup.
-
-**Manual, step by step:**
-
-```bash
-# 1. Scoring + analysis environment (the package itself)
-conda env create -f envs/score-env.yml
-conda activate score-env
-pip install -e .
-
-# 2. GPU sampling environment (Stage 1) — pick your platform
-conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
-# conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
-```
-
-**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko`,
-declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps come from
-conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
-conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
-unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
-reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
-automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
-affects a backbone-rebuild path.
-
-Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
-walkthrough.
 
 ---
 
@@ -914,7 +486,7 @@ speed. Vina/AD4, the geometry model, and the calibrated ΔG are **pure-CPU and i
 only Stage 1 sampling and the OpenMM relaxations change speed with hardware. No local NVIDIA GPU? Sample
 Stage 1 elsewhere (or on CPU) and run scoring locally with `dock --input-poses poses_dir/`. **The Apple path is
 not theoretical:** a full 100-pose MDM2/p53 run finishes in **<15 min on a fanless MacBook Air M3 (16 GB, MPS)** —
-see [Speed](#the-claim-stated-plainly--and-why-it-holds-in-2026) above.
+see [Speed](RESULTS.md#the-claim-stated-plainly--and-why-it-holds-in-2026) in RESULTS.md.
 
 ### Outputs
 
@@ -938,6 +510,178 @@ validation write-up archived on Zenodo: [10.5281/zenodo.21764713](https://doi.or
 you can re-score it directly: `hybridock-pep crystal-score --receptor R.pdb --peptide-pdb <out>/best_pose.pdb
 --peptide SEQ`. (A `best_pose_vina_relaxed.pdb` with the Vina clash-relieved geometry is also written for
 visualization; it is ligand-format and not meant for re-scoring.)
+
+
+---
+
+## Pipeline — the full workflow
+
+The diagram below is the *actual* code path (`driver.py::run_dock`), with the two distinct relaxation steps
+called out explicitly — a restrained **clash-relief** minimization on every pose, and a full **MM-GBSA
+relaxation** on the top cluster representatives.
+
+```
+  Peptide sequence + Receptor PDB
+           │   (receptor cleaned with PDBFixer first)
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 1 — Diffusion sampling (RAPiDock-Reloaded)                           │
+  │   N stochastic SE(3)-equivariant passes → N all-atom pose PDBs             │
+  │   (~3 min to GENERATE all N=100 on RTX 5070; scoring adds ~2.8 s/pose)     │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 1.5 — RELAX #1: restrained clash-relief minimization (OpenMM)        │
+  │   heavy-atom harmonic restraints (k=50 000) → relieve intra-pose clashes   │
+  │   that hurt downstream scoring; poses moving >Å threshold are reverted     │
+  │ STAGE 1.7 — drop off-pocket poses · auto-expand search box if needed       │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 2 — Pose prep + structural ranking                                   │
+  │   receptor→PDBQT · ligand→PDBQT · Vina = CLASH RELIEF only (not the score) │
+  │   · BSA-fit + ML pose rankers (predicted native RMSD)  [AD4 off; research] │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 3 — Cα-RMSD agglomerative clustering → cluster representatives       │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+  ┌────────▼──────────────────────────────────────────────────────────────────┐
+  │ STAGE 3.5 — RELAX #2: MM-GBSA on the top-K cluster reps (--refine-topk)    │
+  │   minimize each complex in AMBER ff14SB + GBn2 implicit solvent, then      │
+  │   ΔG_bind = E(complex) − E(receptor) − E(peptide)   ← most accurate ΔG     │
+  │ STAGE 3.6 — PRIMARY ΔG: AI-pose affinity model (geometry features, NO      │
+  │   Vina/AD4; length-routed, short peptides → hydrophobic sub-model)         │
+  └────────┬──────────────────────────────────────────────────────────────────┘
+           ▼
+  ranked_poses.csv · best_pose.pdb · cluster_summary.csv · convergence.png ·
+  dendrogram.png · run_metadata.json   (git SHA, seeds, versions, input hashes)
+```
+
+**The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with the
+geometry-feature model tuned on real RAPiDock/AI poses (`affinity_ai_nofix.joblib`, packaged in the wheel); that value is the
+`delta_g` column and the reported "Best pose ΔG". **Vina is retained only for clash relief** (Stage 2 —
+rescuing RAPiDock's clashing poses); its score is raw telemetry, never the affinity. **AD4 is off by
+default.** For a crystal-quality pose, the sibling crystal-tuned model is exposed as a standalone command —
+see [`crystal-score`](#crystal-score--score-an-existing-crystal-pose).
+
+**Yes — `--refine-topk K` actually relaxes the top poses.** Stage 3.5 takes one representative per cluster
+(best hybrid score), keeps the top *K* by cluster mean, and **energy-minimizes each receptor+peptide complex
+in GBn2 implicit solvent** before reading ΔG — that minimization *is* the relaxation, and the MM-GBSA ΔG is
+the pipeline's physically-grounded *absolute*-energy estimate (it does not out-rank the learned scorer — see
+the `--refine-topk` note below). `--mmgbsa-3traj` additionally relaxes the unbound receptor and
+peptide to capture reorganization energy. (Stage 1.5 is a *separate*, lighter, restrained relax that only
+relieves clashes without changing the binding mode.)
+
+
+---
+
+## Evaluation methodology
+
+Benchmarks follow standard leakage-control practice: leave-cluster-out CV on every headline number, the
+standard 30% sequence-identity clustering cutoff reported alongside our 60% number, and the full
+accuracy-vs-identity-threshold trend rather than a single split. Full methodology, numbers, and reproduction
+commands: [RESULTS.md](RESULTS.md).
+
+---
+
+## The claims, up front — measured in kcal/mol, leakage-free
+
+HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
+receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
+**selectivity primitive** (ΔΔG with bootstrap CI) for "does this peptide prefer target A over off-target B".
+Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets, minutes per
+peptide on commodity hardware.
+
+It is a **two-stage hybrid** (see [Pipeline](#pipeline--the-full-workflow) above): an AI diffusion model
+(RAPiDock-Reloaded) samples all-atom poses, then a physics + learned-geometry rescorer turns those poses
+into calibrated affinity, selectivity, and reference-anchored ΔG. Three things it does that off-the-shelf
+tools don't combine: **(1)** it is the best non-FEP/LIE protein–peptide *affinity* scorer we can find a fair
+baseline for; **(2)** it lifts within-receptor accuracy from *r*≈0.25 to ≈0.55 when anchored to a few
+measured references on-target (the relative regime FEP also works in); and **(3)** it ships a
+structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot provide. The whole
+thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plain CPU.
+
+>
+> **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer — with FEP-competitive
+> absolute error.**
+> On absolute cross-target peptide affinity it reaches **MAE ≈ 1.3–1.6 kcal/mol** under a rigorous 60%-sequence-identity
+> clustered split (the honest, leakage-free regime) — squarely inside the **ABFE (absolute FEP) accuracy band of
+> ~1.2–2.5 kcal/mol**, i.e. **FEP-competitive on absolute-ΔG error**, at ~1000× lower cost and with **no reference
+> peptide required**.
+>
+> **②  It beats a faithful clone of PPI-Affinity — the previous best published ML peptide scorer — on the identical
+> leakage-free split**, on *every* metric, with the margin **widening** once leakage is removed:
+>
+> ```
+>   matched n=865 PDBbind peptide-Kd · 60%-id clustered CV (leakage-free)
+>   ───────────────────────────────────────────────────────────────────
+>   model                       MAE↓    RMSE↓   Pearson r↑
+>   HybriDock-Pep (ours)        1.35    1.69    0.352      ◀ WIN on all three
+>   PPI-clone (ProtDCal+SVR)    1.46    1.84    0.210
+>   ───────────────────────────────────────────────────────────────────
+> ```
+>
+> Every number is measured, links to the script that reproduces it, and uses **MAE/RMSE in kcal/mol** as the
+> primary metric (r is secondary — it is fragile to the test set and capped near the field ceiling for *everyone*,
+> FEP included). We report the full **accuracy-vs-identity-cutoff trend** with a placement-aware identity metric,
+> including the standard 30% cutoff (**MAE 1.39 / r 0.32**).
+>
+> **Created by [Choppa Purandhar Ram](#project-status) (age 15)** — Head of Dry Lab, Denmark High School iGEM 2026.
+
+**Full evidence for both claims — the five-test breakdown, the FEP-competitive analysis, why absolute
+cross-target affinity is hard for everyone, a fresh out-of-training check, the raw datasets, and a
+command-to-number reproduction table — lives in [RESULTS.md](RESULTS.md).** Everything there is measured,
+every claim links to the script that reproduces it, and every negative result is kept on the record in the
+development timeline archived on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
+
+---
+
+### HybriDock-Pep vs FEP — when to use which
+
+Complementary tools, not rivals — a cheap triage layer and a precision layer. FEP is the gold standard where
+it applies; we cover the regime it can't afford to.
+
+| Reach for **FEP** when… | Reach for **HybriDock-Pep** when… |
+|---|---|
+| ranking close variants of a **known** binder on **one** target (RBFE lead-op) — **r ≈ 0.8–0.9, sub-kcal**, its home turf | screening **dozens of diverse candidates** fast — minutes each on one GPU (FEP can't screen; it re-derives per system) |
+| you can spend GPU-days + expert setup for a trusted number | you need **absolute cross-target** ΔG with **no reference** — both land ~1.3–2.5 kcal/mol, we're ~1000× cheaper |
+| lead optimization / final go-no-go affinity | you need **selectivity ΔΔG** or to **score AI-generated poses** — FEP doesn't do these cheaply |
+
+Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61–0.71**) — better than either cold-absolute option.
+
+
+---
+
+## Install
+
+> Almost everyone should use the one-command installer in
+> [Quick start](#quick-start--one-command) — it auto-detects your OS/GPU, creates both
+> environments, downloads the model weights, and runs the smoke test. Re-running it is safe.
+> This section is the manual equivalent, for when you want control over each step or the
+> script doesn't fit your setup.
+
+**Manual, step by step:**
+
+```bash
+# 1. Scoring + analysis environment (the package itself)
+conda env create -f envs/score-env.yml
+conda activate score-env
+pip install -e .
+
+# 2. GPU sampling environment (Stage 1) — pick your platform
+conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
+# conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
+```
+
+**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko`,
+declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps come from
+conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
+conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
+unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
+reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
+automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
+affects a backbone-rebuild path.
+
+Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
+walkthrough.
+
 
 ---
 
@@ -973,6 +717,7 @@ hybridock-pep/
 └── data/                          # calibration files, benchmark sets, shipped fixture PDBs
 ```
 
+
 ---
 
 ## Testing
@@ -994,31 +739,6 @@ pytest --cov=hybridock_pep       # coverage
 > installed — they are skips, not failures. `pytest -m slow` runs the real-Vina, real-OpenMM and
 > real-terminal tests, and takes roughly 55 minutes.
 
-## Reproduce every number in this README
-
-Every headline number maps to one committed script that prints the exact *r* / MAE table and writes a JSON
-beside it for line-by-line checking. Download PDBbind v2020 ([pdbbind.org.cn](http://www.pdbbind.org.cn))
-and PPIKB / the PPI-Affinity SI first (the large/external inputs are gitignored; the small IFP caches ship
-in `data/`). Run each with `OMP_NUM_THREADS=1` on this machine for the speed the docs assume.
-
-| Number in this README | Command | Writes |
-|---|---|---|
-| **ours MAE 1.35 / r 0.352  vs  PPI-clone MAE 1.46 / r 0.210** (leakage-free head-to-head, test ①; Steiger p=0.002) | `OMP_NUM_THREADS=1 python experiments/e331_ours_vs_ppiclone_clustered.py` | [`data/e331_ours_vs_ppiclone.json`](data/e331_ours_vs_ppiclone.json) (random + clustered, both models) |
-| **ours full-set leakage-free MAE 1.40 / RMSE 1.77 / r 0.321** + matched ref2015 | `OMP_NUM_THREADS=1 python experiments/e330_ours_pdbbind.py` | stdout table (leaky vs clustered vs length-stratified) |
-| **0.480 / 0.291** PDBbind crystal + IFP (charged 0.401 / 0.146) — legacy test ① | `python experiments/e298_ppi_vs_ifp.py` | `data/e298_ppi_vs_ifp.json` |
-| **PPIKB independent, leakage-free: ours r 0.333 / MAE 1.94  vs  PPI-clone 0.265 / 1.99** (Kd/Ki-only, full stack) | `OMP_NUM_THREADS=1 python experiments/e332b_ppikb_headtohead.py` | stdout |
-| **0.25 → 0.52–0.61** same-receptor anchoring — test ② | `python experiments/e264_ppikb_anchor_fusion.py` | `data/e264_ppikb_results.json` |
-| **0.225 ← 0.045** IFP rescue on PPI's own T100 — § ideas | `python experiments/e300_ifp_on_t100.py` | `data/e300_ifp_t100.json` |
-| **0.437 / 0.399** train IFP on all 973 / 1405 crystals — § ideas | `python experiments/e304_ifp_mega_everything.py` | `data/e304_ifp_mega.json` |
-| full non-FEP/LIE scorecard on 156 complexes | `python experiments/e90_full_scorecard.py` | stdout table |
-| **0.486 → 0.53** affinity *r* on real RAPiDock poses (MAE 1.51–1.54) — test ③ | `python experiments/e106_combined_realpose_grade.py` | per-complex CSV |
-| **2.49 Å** best-of-top-25 pose RMSD, hit@5 91% — test ③ | `hybridock-pep benchmark --test-csv data/test_complexes.csv --report bench.md` | `bench.md` |
-| reference-anchoring **math** (thermodynamic cycle closes by construction; not a prediction claim) | `pytest tests/test_anchoring.py tests/test_double_difference.py -q` | green = the anchoring/cycle math holds |
-| **ΔΔG selectivity** primitive end-to-end | `pytest tests/test_selectivity.py -q` | green |
-
-Rebuild the IFP training cache from raw structures (the 437 new PPIKB complexes) with
-`python experiments/e303_build_ppikb_ifp.py`. The full experiment ledger (E0–E304, every win and every refuted
-idea) is archived on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
 ---
 
@@ -1049,17 +769,8 @@ idea) is archived on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/z
 - [x] ~~Breaking absolute cross-target r past the field ceiling with more physics~~ — fundamental wall (see docs)
 - [x] ~~Raw electrostatic/entropy terms as absolute-ΔG features~~ — charge-count/near-cancellation artifacts
 
+
 ---
-
-## Evaluation methodology
-
-Our benchmarks follow standard leakage-control practice, and we hold ourselves to it explicitly:
-
-- benchmarks **control for train/test sequence leakage** — every headline number is leave-cluster-out CV;
-- we report the **standard 30% sequence-identity clustering cutoff** alongside our 60% number;
-- we show the **accuracy trend across identity thresholds** rather than a single split (cf.
-  [Runs-and-Poses, bioRxiv 2025.02.03.636309](https://www.biorxiv.org/content/10.1101/2025.02.03.636309v3)) — the
-  [identity-threshold sweep](#why-hybridock-pep--five-conclusive-tests) above.
 
 ## Project status
 
