@@ -4,7 +4,7 @@ A short, self-contained description of what HybriDock-Pep does and how it was
 validated. Written to be read start-to-finish in a few minutes; every claim
 links to the script that produces it.
 
-For *how to run it*, see [README §Quick start](README.md#quick-start--one-command).
+For *how to run it*, see [README §Get started](README.md#get-started).
 For the full research ledger, including refuted ideas, see the development timeline
 in the v0.1.0 source snapshot on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
 
