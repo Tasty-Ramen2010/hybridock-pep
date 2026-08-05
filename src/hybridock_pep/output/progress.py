@@ -206,8 +206,9 @@ class PipelineProgress:
                     self._write("\r" + " " * 40 + "\r")
                     _art.animate_gallery_piece(self.stream, shown)
                     shown += 1
-                spin = _art.spin_frame(elapsed) if art_on else ""
-                suffix = f"  {spin}" if spin else ""
+                spin = _art.braille_spin(elapsed) if art_on else ""
+                verb = _art.spinner_word(elapsed) if art_on else ""
+                suffix = f"  {spin} {verb}" if art_on else ""
                 self._write(f"\r   … still working ({elapsed:.0f}s elapsed){suffix}")
 
         try:

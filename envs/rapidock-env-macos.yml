@@ -8,6 +8,14 @@ name: rapidock
 #     conda run -n rapidock pip install \
 #         torch-scatter torch-sparse torch-cluster torch_geometric
 #
+#     Optional, Apple Silicon only — a real speedup, not required:
+#       conda run -n rapidock pip install git+https://github.com/Tasty-Ramen2010/metal-e3nn.git
+#     A separate, standalone project (fused Metal kernels for e3nn's tensor
+#     products): 3.1-6.7x faster than stock e3nn on Apple GPUs per its own
+#     benchmarks. run_rapidock.py patches it in automatically if it's
+#     installed — nothing here depends on it, and METAL_E3NN_DISABLE=1
+#     turns it back off for A/B comparison.
+#
 #   macOS Intel (CPU only):
 #     conda run -n rapidock pip install torch torchvision torchaudio
 #     conda run -n rapidock pip install \

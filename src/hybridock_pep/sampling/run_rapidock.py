@@ -202,6 +202,31 @@ def _disable_jit_fusion_if_arch_unsupported(torch):
     return True
 
 
+def _try_patch_metal_e3nn():
+    # type: () -> str
+    """Patch e3nn's tensor products with metal-e3nn's fused Metal kernel, if
+    that package happens to be installed. It is never a required dependency
+    of this project — it's a standalone library
+    (github.com/Tasty-Ramen2010/metal-e3nn), optional on macOS/MPS only, and
+    this call must never be the reason a run fails: any problem here (not
+    installed, incompatible e3nn/PyTorch version, mid-project API change)
+    falls straight through to stock e3nn.
+
+    Returns a short label suffix for logging: " + metal-e3nn" if the patch
+    was actually applied, "" otherwise (including when the user opted out
+    via METAL_E3NN_DISABLE=1).
+    """
+    if os.environ.get("METAL_E3NN_DISABLE"):
+        return ""
+    try:
+        import metal_e3nn  # type: ignore[import-not-found]
+
+        metal_e3nn.patch_()
+    except Exception:  # pragma: no cover - optional dependency, any failure is silent
+        return ""
+    return " + metal-e3nn"
+
+
 def _optimize_backends():
     # type: () -> str
     """Apply per-backend performance knobs for whichever device PyTorch will use.
@@ -219,7 +244,12 @@ def _optimize_backends():
     - XPU (Intel GPU): import intel-extension-for-pytorch (ipex) if present, which
       registers fused kernels and the XPU device; tune matmul precision.
     - MPS (Apple Silicon): set PYTORCH_ENABLE_MPS_FALLBACK so the rare op MPS
-      lacks falls back to CPU instead of aborting the run.
+      lacks falls back to CPU instead of aborting the run, then patch e3nn's
+      tensor products with metal-e3nn (github.com/Tasty-Ramen2010/metal-e3nn)
+      if it's installed — a separate, standalone project, not bundled here.
+      3.1-6.7x faster on Apple GPUs per its own benchmarks; purely additive
+      (falls through to stock e3nn if the package is absent, or if
+      METAL_E3NN_DISABLE=1 is set) so nothing here depends on it existing.
     - CPU: pin intra-op threads to the physical core count for steady throughput.
 
     Returns:
@@ -259,7 +289,7 @@ def _optimize_backends():
         return "XPU (Intel)"
 
     if getattr(getattr(torch.backends, "mps", None), "is_available", lambda: False)():
-        return "MPS (Apple, op-fallback enabled)"
+        return "MPS (Apple, op-fallback enabled)" + _try_patch_metal_e3nn()
 
     # CPU: pin to physical cores (os.cpu_count() counts logical; halve if SMT).
     try:
