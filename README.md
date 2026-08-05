@@ -9,11 +9,12 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
 [![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
 
-![The guided terminal UI mid-run: input form filled in, an 80% progress bar, and live scored-pose output](docs/images/tui_hero.png)
+![The DNA double helix from the ASCII art gallery, spinning through its four real animation frames — shown during the one part of a run that's genuinely silent, Stage 1 sampling](docs/images/tui_hero.gif)
 
-This is the real terminal UI (`./launch_ui.sh`) — a live screenshot, not a mockup: the input form
-on top, a progress bar and stage label in the middle, scored poses streaming in below. One command
-gets you here — see [Get started](#get-started).
+Long waits get more than a blinking cursor: this is one of the four pieces in the built-in ASCII
+art gallery, actually spinning (not a mockup — these are the real animation frames, generated
+once and cycled in place). It shows up during Stage 1 sampling on both the CLI and the terminal
+UI. One command gets you the whole pipeline — see [Get started](#get-started).
 
 ## Table of contents
 
