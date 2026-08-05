@@ -27,6 +27,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from hybridock_pep.output import art
 from hybridock_pep.ui import help_content
 
 AA = set("ACDEFGHIKLMNPQRSTVWY")
@@ -352,6 +353,13 @@ def demo_lines(n=100):
     yield ("Stage 1: RAPiDock-Reloaded sampling — device: mps", 0.15)
     for i in range(1, n + 1):
         yield (f"  pose {i}/{n} sampled", 0.010)
+    # A deliberate pause here, not inside the fast per-pose loop above: a real
+    # Stage 1 wait is the one part of a run that's genuinely silent for a
+    # while, and 100 lines landing at 10ms apart would scroll straight
+    # through a gallery piece before a human — or a terminal repaint — ever
+    # caught it.
+    title, piece = art.gallery_piece(0)
+    yield (f"\n   · {title}\n" + piece.strip("\n") + "\n", 1.8)
     yield (f"Stage 1 complete: {n} poses parsed", 0.1)
     yield ("Stage 1.5: OpenMM minimization", 0.1)
     yield (f"Stage 1.5 complete: {n} poses minimized", 0.1)
@@ -503,6 +511,29 @@ def run_fullscreen(auto_demo=False):
         append(f"▶ {title}" if title else "▶ run")
         if not demo:
             append("$ " + " ".join(shlex.quote(c) for c in cmd))
+        egg = art.easter_egg_for_peptide(vals().get("peptide", ""))
+        if egg:
+            append(egg)
+
+        def art_ticker():
+            """Drop a gallery piece into the log every ~30s spent in Stage 1 —
+            the one real, silent wait (see PipelineProgress.heartbeat in
+            output/progress.py, which does the same thing for the plain CLI).
+            Stops itself once the run leaves the 'sample' stage or finishes.
+            """
+            shown, stage_t0, last_stage = 0, None, None
+            while state["running"] and not state["cancel"]:
+                time.sleep(1.0)
+                p = progress["p"]
+                if p is None or p.finished:
+                    return
+                if p.stage != last_stage:
+                    last_stage, stage_t0, shown = p.stage, time.time(), 0
+                if (p.stage == "sample" and stage_t0 is not None
+                        and time.time() - stage_t0 >= (shown + 1) * 30.0):
+                    shown += 1
+                    title, piece = art.gallery_piece(shown - 1)
+                    append(f"\n   · {title}\n" + piece.strip("\n") + "\n")
 
         def worker():
             try:
@@ -528,6 +559,8 @@ def run_fullscreen(auto_demo=False):
                         start_new_session=(os.name != "nt"),
                     )
                     state["proc"] = proc
+                    if art.art_enabled(sys.stdout):
+                        threading.Thread(target=art_ticker, daemon=True).start()
                     for line in proc.stdout:
                         progress["p"].feed(line)
                         append(line)
@@ -822,6 +855,19 @@ def run_fullscreen(auto_demo=False):
     @kb.add("c-t", filter=not_picker)
     def _(e):
         start_stream(None, demo=True, title="DEMO (simulated, no GPU)")
+
+    @kb.add("c-a", filter=not_picker)
+    def _(e):
+        # Undocumented on purpose — a small gallery/easter-egg peek, any time,
+        # run or no run. `random` (not a seeded rng) is deliberate: this has
+        # no effect on anything scored or reproducible.
+        import random as _random  # noqa: PLC0415
+        egg = art.maybe_rare()
+        if egg:
+            append(egg)
+        else:
+            title, piece = art.gallery_piece(_random.randrange(len(art.GALLERY)))
+            append(f"\n   · {title}\n" + piece.strip("\n") + "\n")
 
     @kb.add("c-b", filter=not_picker)
     def _(e):
