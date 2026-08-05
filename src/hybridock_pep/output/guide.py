@@ -240,16 +240,20 @@ Environment switches:
       (21.1 -> 4.3 s/pose). NOT on by default -- it shifts ΔG by up to
       ~4.5 kcal/mol and can reorder poses, so re-benchmark before relying on it.
 
-  RAPIDOCK_DISABLE_METAL_TP=1
-      Disables the fused Metal tensor-product kernel and falls back to stock
-      e3nn. The kernel is ~3.2x faster on Apple GPUs and numerically identical
-      (3.6e-07 max relative error); this switch exists for A/B testing.
+  METAL_E3NN_DISABLE=1
+      If metal-e3nn (github.com/Tasty-Ramen2010/metal-e3nn) is installed,
+      run_rapidock.py patches its fused Metal kernel into e3nn's tensor
+      products automatically on MPS. This switch turns that back off and
+      falls back to stock e3nn, for A/B testing. metal-e3nn is a separate,
+      standalone project -- not bundled here, not a hard dependency; its own
+      benchmarks report 3.1-6.7x faster than stock e3nn on Apple GPUs
+      (largest gains on smaller batches) and 3.6e-07 max relative error
+      against it. Install with:
+        pip install git+https://github.com/Tasty-Ramen2010/metal-e3nn.git
 
 What is already fast, so you need not tune it:
   * OpenMM runs on the Apple GPU through its OpenCL platform, ~10.7x the CPU
     platform. That is automatic.
-  * The e3nn tensor products run a fused Metal kernel at ~76 GB/s, essentially
-    the M3's memory bandwidth ceiling.
 
 Known limits on Apple silicon:
   * No fp64 anywhere on the GPU, so MM-GBSA is single-precision only and is not

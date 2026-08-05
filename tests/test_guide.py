@@ -227,7 +227,7 @@ class TestQuotedNumbersAreTheRealOnes:
     def test_tuning_documents_the_env_switches(self):
         _, out = _render("tuning")
         for var in ("HYBRIDOCK_RAPIDOCK_BATCH", "HYBRIDOCK_MMGBSA_FAST",
-                    "RAPIDOCK_DISABLE_METAL_TP"):
+                    "METAL_E3NN_DISABLE"):
             assert var in out
 
     def test_env_switches_actually_exist_in_the_code(self):
@@ -235,7 +235,7 @@ class TestQuotedNumbersAreTheRealOnes:
         from pathlib import Path
         src = Path(__file__).parent.parent / "src"
         blob = "\n".join(p.read_text(errors="ignore") for p in src.rglob("*.py"))
-        for var in ("HYBRIDOCK_RAPIDOCK_BATCH", "HYBRIDOCK_MMGBSA_FAST"):
+        for var in ("HYBRIDOCK_RAPIDOCK_BATCH", "HYBRIDOCK_MMGBSA_FAST", "METAL_E3NN_DISABLE"):
             assert var in blob, f"{var} is documented but read nowhere"
 
     def test_reproducibility_warns_about_nondeterminism(self):

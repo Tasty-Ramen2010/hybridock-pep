@@ -3,10 +3,20 @@
 Stage 1 (RAPiDock sampling) is the one part of a `dock` run that can sit
 silent for 2+ minutes with no output at default verbosity — exactly the
 "is it frozen?" gap :mod:`hybridock_pep.output.progress` was written to
-close. This module gives that wait something to look at: a short rotating
-gallery of science-themed ASCII art (most of it lightly animated — the DNA
-strand rotates, the alpha helix turns, the diffusion piece actually shows
-noise resolving into a pose), plus a couple of easter eggs.
+close. This module gives that wait something to look at:
+
+- A rotating gallery of science-themed ASCII animations, each one a real
+  parametric model (a rotating double helix, a coiling alpha-helix ribbon,
+  a peptide docking into a pocket, diffusion noise resolving into a pose) —
+  not hand-typed frames swapped in and out. Every frame of a piece is
+  generated from the same formula at a different phase/time step, which is
+  what makes the motion read as continuous rotation/motion instead of a
+  slideshow.
+- A cycling "verb" spinner (``Diffusing…``, ``Helixing…``, ``Docking…`` — the
+  same idea as a chat assistant's own "Thinking…"/"Pondering…" ticker,
+  themed to this pipeline's wet-lab/dry-lab vocabulary) for the plain
+  in-place heartbeat line.
+- A couple of easter eggs.
 
 Every function here is decorative only:
 
@@ -16,9 +26,10 @@ Every function here is decorative only:
 - Every entry point degrades to a no-op off a TTY, under ``HYBRIDOCK_NO_ART``,
   or on any internal error — the same "must not break a run" rule
   :mod:`hybridock_pep.output.progress` follows.
-- Frame data is generated once at import time from plain math (a fixed
-  random seed for the diffusion piece), not hand-typed per frame, so every
-  frame of an animation shares the same line count and column alignment.
+- Frame data is generated once at import time from plain math (fixed random
+  seeds where randomness is involved), not hand-typed per frame, so every
+  frame of an animation shares the same line count — required for the
+  in-place cursor-redraw trick both the CLI and the TUI use to animate it.
 """
 from __future__ import annotations
 
@@ -54,98 +65,435 @@ def art_enabled(stream: TextIO | None = None) -> bool:
 # Gallery — rotates during a long wait (Stage 1 sampling)
 # ---------------------------------------------------------------------------
 
-_DNA_BASE = (
-    "        A\u2508\u2508\u2508\u2508\u2508T\n"
-    "         \\    /\n"
-    "          \\  /\n"
-    "    G\u2508\u2508\u2508\u2508\u2508\u2508\u2573\u2508\u2508\u2508\u2508\u2508\u2508\u2508C\n"
-    "          /  \\\n"
-    "         /    \\\n"
-    "        C      G\n"
-    "         \\    /\n"
-    "          \\  /\n"
-    "    T\u2508\u2508\u2508\u2508\u2508\u2508\u2573\u2508\u2508\u2508\u2508\u2508\u2508\u2508A\n"
-    "          /  \\\n"
-    "         /    \\\n"
-    "        G      C"
-)
+#: The parent iGEM project's real target peptide (see CLAUDE.md / README) —
+#: a malaria rapid-diagnostic candidate against PfLDH. Also the sequence the
+#: peptide-backbone gallery piece actually draws (see ``_peptide_frames``
+#: below) — the real molecule, not a generic placeholder.
+PARENT_PROJECT_PEPTIDE = "LISDAELEAIFEADC"
 
 
-def _dna_frames() -> tuple[str, ...]:
-    """A believable spin: base-pair view -> edge-on -> 180 deg -> edge-on."""
-    edge_on = "".join("\u2022" if c in "ATGC" else c for c in _DNA_BASE)
-    swapped = _DNA_BASE.translate(str.maketrans({"A": "T", "T": "A", "G": "C", "C": "G"}))
-    return (_DNA_BASE, edge_on, swapped, edge_on)
+def _dna_frames(n_frames: int = 8) -> tuple[str, ...]:
+    """A double helix actually rotating around its own axis.
 
-
-def _alpha_helix_frames() -> tuple[str, ...]:
-    """One coil, phase-shifted a quarter turn per frame — a rotating sine wave."""
+    One parametric model, not swapped characters: each of the two backbone
+    strands traces ``x = center + amplitude * cos(angle)`` down the length of
+    the molecule, phase-offset by pi from each other. ``angle``'s sign of
+    ``sin`` gives which strand is nearer the viewer at that row, so the near
+    strand draws solid (``●``) and the far strand draws faint (``·``) —
+    that's what actually sells "rotating in depth" instead of "wiggling in
+    place". Rungs (base pairs) fill the gap between the two strands on every
+    row. Advancing ``phase`` by a fixed step per frame is the entire
+    animation — no per-frame special-casing.
+    """
+    rows = 15
+    turns = 1.55
+    amp = 9.0
+    center = 10
+    width = center * 2 + 3
     frames = []
-    width = 10
-    for phase in (0.0, 1.1, 2.2, 3.3):
-        lines = ["   N-term"]
-        for i in range(14):
-            x = int(round(width / 2 * (1 + math.sin(i * 0.9 + phase))))
-            ch = "@" if i % 2 == 0 else "o"
-            lines.append(" " * x + ch)
-        lines.append("           C-term")
+    for f in range(n_frames):
+        phase = f * (2 * math.pi / n_frames)
+        lines = []
+        for r in range(rows):
+            angle = phase + r * (turns * 2 * math.pi / rows)
+            x1 = center + amp * math.cos(angle)
+            x2 = center + amp * math.cos(angle + math.pi)
+            depth1 = math.sin(angle)
+            i1, i2 = int(round(x1)), int(round(x2))
+            row = [" "] * width
+            lo, hi = sorted((i1, i2))
+            if hi - lo > 2:
+                for x in range(lo + 1, hi):
+                    row[x] = "\u2500"  # ─
+            near, far = ("\u25cf", "\u00b7") if depth1 >= 0 else ("\u00b7", "\u25cf")
+            row[i1], row[i2] = near, far
+            lines.append("".join(row))
         frames.append("\n".join(lines))
     return tuple(frames)
 
 
-_BINDING_POCKET = (
-    " ________________________\n"
-    "/                        \\\n"
-    "|                        |\n"
-    "|  key  \u21e2   \u2b21   \u21e0  lock  |\n"
-    "|                        |\n"
-    "|   peptide  \u21e2  pocket   |\n"
-    "|   receptor \u21e2  pocket   |\n"
-    "|                        |\n"
-    " \\________________________/"
+# ---------------------------------------------------------------------------
+# Peptide backbone — the actual parent-project sequence, one continuous
+# chain, with a side chain per residue drawn from its real chemical class.
+#
+# Earlier versions of this piece tried an arbitrary generic helix, then a
+# fictional 3-helix tertiary bundle. Both were wrong for the same reason: a
+# 15-residue linear peptide with no crosslinks does not fold into a compact
+# tertiary bundle — that's not what RAPiDock is actually generating. The
+# honest picture is simpler: the real 15-mer, PARENT_PROJECT_PEPTIDE, as one
+# helical chain, each side chain shaped by what that residue actually is.
+# ---------------------------------------------------------------------------
+
+#: Real amino-acid classes, keyed by one-letter code — decide the *shape* of
+#: the drawn side chain, not just its presence. Every one of the 20 standard
+#: residues falls into exactly one bucket; anything not listed (a stray
+#: symbol) falls through to the SMALL default rather than raising.
+_RING = set("FWYH")        # aromatic — drawn as a small hexagon
+_BRANCHED = set("LIVTM")   # bulky/branched aliphatic — drawn as a two-pronged fork
+_CHARGED = set("DEKRQN")   # acidic/basic/amide — drawn as a longer, double-forked chain
+
+
+def _sidechain_kit(
+    aa: str, backbone_pt: tuple[float, float, float], u: tuple[float, float], v: tuple[float, float]
+) -> tuple[list[tuple[float, float, float]], list[tuple[int, int]]]:
+    """A small local side-chain "graph" (points + edges between them) whose
+    shape depends on ``aa``'s chemical class. ``u`` is the unit direction
+    radially outward from the helix axis at this residue, ``v`` the
+    in-plane perpendicular to ``u`` — together they place fork/ring points
+    without needing a full local coordinate frame.
+
+    Point 0 is always the backbone atom itself (edge (0, 1) is the bond into
+    the side chain); every other point gets a drawn "bead" by the caller.
+    """
+    p = backbone_pt
+
+    def at(scale_u: float, scale_v: float = 0.0, scale_y: float = 0.0) -> tuple[float, float, float]:
+        return (p[0] + u[0] * scale_u + v[0] * scale_v,
+                p[1] + scale_y,
+                p[2] + u[1] * scale_u + v[1] * scale_v)
+
+    if aa in _RING:
+        cb = at(1.3)
+        center = at(2.1)
+        ring = [
+            (center[0] + v[0] * 0.85 * math.cos(k * math.pi / 3),
+             center[1] + 0.55 * math.sin(k * math.pi / 3),
+             center[2] + v[1] * 0.85 * math.cos(k * math.pi / 3))
+            for k in range(6)
+        ]
+        points = [p, cb, *ring]
+        edges = [(0, 1), (1, 2), *((2 + k, 2 + (k + 1) % 6) for k in range(6))]
+        return points, edges
+
+    if aa in _BRANCHED:
+        cb = at(1.3)
+        tip1 = at(0.7, 0.9)
+        tip2 = at(0.7, -0.9)
+        return [p, cb, tip1, tip2], [(0, 1), (1, 2), (1, 3)]
+
+    if aa in _CHARGED:
+        cb = at(1.3)
+        cg = (cb[0] + u[0] * 1.0, cb[1], cb[2] + u[1] * 1.0)
+        tip1 = (cg[0] + v[0] * 0.7, cg[1] + 0.15, cg[2] + v[1] * 0.7)
+        tip2 = (cg[0] - v[0] * 0.7, cg[1] + 0.15, cg[2] - v[1] * 0.7)
+        return [p, cb, cg, tip1, tip2], [(0, 1), (1, 2), (2, 3), (2, 4)]
+
+    # SMALL (A, G, S, C, P) and anything unclassified — a short stub, plain.
+    return [p, at(1.05)], [(0, 1)]
+
+
+def peptide_backbone_model(
+    sequence: str, radius: float = 2.3, rise: float = 1.55, twist_deg: float = 100.0
+) -> tuple[
+    tuple[tuple[float, float, float], ...],
+    tuple[tuple[list[tuple[float, float, float]], list[tuple[int, int]]], ...],
+]:
+    """Backbone xyz coordinates for ``sequence`` on a right-handed alpha
+    helix (textbook radius / rise-per-residue / twist-per-residue), plus one
+    :func:`_sidechain_kit` graph per residue built from its real letter.
+    """
+    twist = math.radians(twist_deg)
+    n = len(sequence)
+    backbone, thetas = [], []
+    for i in range(n):
+        theta = i * twist
+        thetas.append(theta)
+        backbone.append((radius * math.cos(theta), i * rise, radius * math.sin(theta)))
+    y_mid = backbone[n // 2][1]
+    backbone = tuple((x, y - y_mid, z) for x, y, z in backbone)
+
+    decorations = []
+    for i, aa in enumerate(sequence):
+        theta = thetas[i]
+        u = (math.cos(theta), math.sin(theta))
+        v = (-math.sin(theta), math.cos(theta))
+        decorations.append(_sidechain_kit(aa, backbone[i], u, v))
+    return backbone, tuple(decorations)
+
+
+def _rotate_yz(pt: tuple[float, float, float], yaw: float, pitch: float) -> tuple[float, float, float]:
+    """Yaw (around the vertical axis) then pitch (around the horizontal axis)."""
+    x, y, z = pt
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    x1, z1 = x * cy + z * sy, -x * sy + z * cy
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    y2, z2 = y * cp - z1 * sp, y * sp + z1 * cp
+    return x1, y2, z2
+
+
+_RIBBON_NEAR = ["░", "▓", "█", "▓", "░"]
+_RIBBON_MID = ["·", "▒", "▒", "▒", "·"]
+_RIBBON_FAR = [" ", "·", "·", "·", " "]
+_RIBBON_OFFSETS = [-1.1, -0.55, 0.0, 0.55, 1.1]
+
+
+def render_peptide_frame(
+    backbone: tuple[tuple[float, float, float], ...],
+    decorations: tuple[tuple[list[tuple[float, float, float]], list[tuple[int, int]]], ...],
+    yaw: float,
+    pitch: float,
+    width: int = 48,
+    height: int = 24,
+    scale: float = 2.15,
+) -> str:
+    """One ASCII frame: the backbone as a thick shaded ribbon (a real-width
+    perpendicular sweep with a 5-tone block profile, so it reads as a lit
+    round tube rather than a wire), each residue's side chain drawn as thin
+    bonded strokes ending in small beads — a hexagon for a ring, a fork for
+    branched/charged residues, a single bead for a small one. Every stroke
+    and bead across the whole molecule is collected and painted in one
+    depth-sorted (far-to-near) pass so nearer geometry always visibly wins
+    an overlap, then backbone atoms are stamped on top of everything else
+    (a residue marker hidden behind a bond reads as a broken chain).
+    """
+
+    def project(pt: tuple[float, float, float]) -> tuple[float, float, float]:
+        x, y, z = _rotate_yz(pt, yaw, pitch)
+        col = width / 2 + x * scale
+        row = height / 2 - y * scale * 0.5  # terminal cells are ~2x taller than wide
+        return col, row, z
+
+    pb = [project(p) for p in backbone]
+    proj_deco = [([project(p) for p in pts], edges) for pts, edges in decorations]
+
+    zs = [p[2] for p in pb] + [p[2] for pts, _ in proj_deco for p in pts]
+    zmin, zspan = min(zs), max(max(zs) - min(zs), 1e-6)
+
+    def ribbon_profile(z: float) -> list[str]:
+        f = (z - zmin) / zspan
+        return _RIBBON_NEAR if f > 0.62 else (_RIBBON_MID if f > 0.3 else _RIBBON_FAR)
+
+    def bucket(z: float, near: str, mid: str, far: str) -> str:
+        f = (z - zmin) / zspan
+        return near if f > 0.62 else (mid if f > 0.3 else far)
+
+    draws: list[tuple[float, float, float, str]] = []
+
+    # Backbone: a real-width ribbon, not a single-cell line — at every point
+    # along each segment, sweep a short perpendicular span filled with a
+    # 5-tone profile so it reads as a lit tube.
+    for i in range(len(pb) - 1):
+        c0, r0, z0 = pb[i]
+        c1, r1, z1 = pb[i + 1]
+        dc, dr = c1 - c0, r1 - r0
+        seg_len = max((dc**2 + dr**2) ** 0.5, 1e-6)
+        tx, ty = dc / seg_len, dr / seg_len
+        px, py = -ty, tx  # perpendicular unit vector
+        steps = max(int(round(seg_len)), 1)
+        for s in range(steps + 1):
+            t = s / steps
+            cx, cy = c0 + dc * t, r0 + dr * t
+            z = z0 + (z1 - z0) * t
+            for off, ch in zip(_RIBBON_OFFSETS, ribbon_profile(z)):
+                if ch == " ":
+                    continue
+                draws.append((z, cx + px * off, cy + py * off * 0.6, ch))
+
+    # Side chains: thin bonded strokes + beads, shaped by _sidechain_kit().
+    for pts, edges in proj_deco:
+        for a, b in edges:
+            c0, r0, z0 = pts[a]
+            c1, r1, z1 = pts[b]
+            zmid = (z0 + z1) / 2
+            ch = bucket(zmid, "#", "+", ".")
+            seg_len = max(((c1 - c0) ** 2 + (r1 - r0) ** 2) ** 0.5, 1e-6)
+            steps = max(int(round(seg_len)), 1)
+            for s in range(steps + 1):
+                t = s / steps
+                draws.append((zmid, c0 + (c1 - c0) * t, r0 + (r1 - r0) * t, ch))
+        for c, r, z in pts[1:]:  # point 0 is the backbone atom, drawn separately below
+            draws.append((z + 1e-3, c, r, bucket(z, "@", "o", ".")))
+
+    grid = [[" "] * width for _ in range(height)]
+
+    def put(col: float, row: float, ch: str) -> None:
+        ci, ri = int(round(col)), int(round(row))
+        if 0 <= ri < height and 0 <= ci < width:
+            grid[ri][ci] = ch
+
+    for _z, col, row, ch in sorted(draws, key=lambda d: d[0]):
+        put(col, row, ch)
+    for col, row, z in sorted(pb, key=lambda p: p[2]):
+        put(col, row, bucket(z, "●", "o", "·"))
+
+    return "\n".join("".join(row) for row in grid)
+
+
+def _peptide_frames(n_frames: int = 16) -> tuple[str, ...]:
+    """The gallery piece: the real parent-project peptide (see
+    ``PARENT_PROJECT_PEPTIDE`` below), spun through a full turn at a fixed
+    downward tilt so it reads as a 3D object rotating in space.
+
+    Sized smaller than :func:`render_peptide_frame`'s own default: at 15
+    real residues this piece is inherently taller than the other three
+    gallery pieces, and the terminal UI's output panel is a compact, fixed
+    box — a piece too tall for it just scrolls its own title out of view
+    before the animation finishes. 19 rows keeps it in the same ballpark as
+    the rest of the gallery while still reading clearly as a full molecule.
+    """
+    backbone, decorations = peptide_backbone_model(PARENT_PROJECT_PEPTIDE)
+    pitch = 0.38
+    return tuple(
+        render_peptide_frame(backbone, decorations, f * (2 * math.pi / n_frames), pitch,
+                              width=44, height=19, scale=1.7)
+        for f in range(n_frames)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Docking — a small 2D scene: a rounded pocket and a bent tripeptide ligand
+# swinging into it along a curved path, turning to face the pocket as it
+# settles (the same "key turning into a lock" idea as induced fit).
+# ---------------------------------------------------------------------------
+
+_POCKET = (
+    "     .------------------.",
+    "    /                    \\",
+    "   |                      |",
+    "   |                      |",
+    "    \\                    /",
+    "     '------------------'",
+)
+_POCKET_BOUND = (
+    "     +==================+",
+    "    /                    \\",
+    "   #                      #",
+    "   #                      #",
+    "    \\                    /",
+    "     +==================+",
 )
 
 
+def _bezier(t: float, p0, p1, p2) -> tuple[float, float]:
+    x = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t**2 * p2[0]
+    y = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t**2 * p2[1]
+    return x, y
+
+
+def _rotate2d(pt: tuple[float, float], angle: float) -> tuple[float, float]:
+    x, y = pt
+    c, s = math.cos(angle), math.sin(angle)
+    return x * c - y * s, x * s + y * c
+
+
+def _docking_frames(n_frames: int = 7) -> tuple[str, ...]:
+    width = max(len(line) for line in _POCKET) + 2
+    pocket_top_row = 3
+    height = pocket_top_row + len(_POCKET)
+    cup_center = (13.0, float(pocket_top_row) + 2.5)
+    start = (3.0, 0.0)
+    control = (11.0, 0.0)
+    # A shallow bent tripeptide (three backbone points) plus one visible
+    # side-chain stub off the middle residue — small enough to read clearly
+    # at this scale, but unmistakably a chain, not a blob.
+    ligand_local = ((-2.3, -0.7), (0.0, 0.4), (2.3, -0.7))
+    sidechain_local = (0.0, 1.7)
+
+    frames = []
+    for f in range(n_frames):
+        t = (f / (n_frames - 1)) ** 0.65
+        bound = f == n_frames - 1
+        cx, cy = _bezier(t, start, control, cup_center)
+        angle = math.radians(70.0 * (1.0 - t))  # turns to face the pocket as it settles
+
+        grid = [[" "] * width for _ in range(height)]
+        for r, line in enumerate(_POCKET_BOUND if bound else _POCKET):
+            for c, ch in enumerate(line):
+                grid[pocket_top_row + r][c] = ch
+
+        def put(x: float, y: float, ch: str) -> None:
+            xi, yi = int(round(x)), int(round(y))
+            if 0 <= yi < height and 0 <= xi < width:
+                grid[yi][xi] = ch
+
+        pts = [(cx + dx, cy + dy) for dx, dy in (_rotate2d(p, angle) for p in ligand_local)]
+        side = (cx + _rotate2d(sidechain_local, angle)[0], cy + _rotate2d(sidechain_local, angle)[1])
+
+        for i in range(len(pts) - 1):
+            (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+            for s in range(4):
+                tt = s / 3
+                put(x0 + (x1 - x0) * tt, y0 + (y1 - y0) * tt, "-")
+        mx, my = pts[1]
+        for s in range(3):
+            tt = s / 2
+            put(mx + (side[0] - mx) * tt, my + (side[1] - my) * tt, ":")
+        for x, y in pts:
+            put(x, y, "●")
+
+        lines = ["".join(row) for row in grid]
+        lines.append("      * induced fit -- bound" if bound else " ")
+        frames.append("\n".join(lines))
+    return tuple(frames)
+
+
 def _diffusion_frames() -> tuple[str, ...]:
-    """Noise literally resolving into a pose — points move from scattered
-    starting positions to a target ring shape over four interpolation steps,
-    which is what a diffusion model (RAPiDock's Stage 1) actually does.
-    Fixed seed: deterministic, testable, identical on every machine.
+    """What Stage 1 (RAPiDock's diffusion model) is actually doing: a cloud
+    of scattered points converging onto a target backbone shape over several
+    denoising steps, and — on the final step — those points connecting into
+    a closed loop, because a real diffusion model's output isn't just dots in
+    the right place, it's a bonded chain.
+
+    Each point converges at its own slightly randomized rate (a fixed-seed
+    per-point speed jitter) rather than all in perfect lockstep — closer to
+    how an actual reverse-diffusion trajectory looks, and considerably less
+    mechanical-looking than a uniform linear interpolation. Fixed seed:
+    deterministic, testable, identical on every machine.
     """
-    cols, rows, n = 23, 7, 14
+    cols, rows, n = 29, 10, 18
     cx, cy = cols / 2, rows / 2
     target = [
-        (cx + 7.5 * math.cos(2 * math.pi * i / n), cy + 2.4 * math.sin(2 * math.pi * i / n))
+        (cx + 10.0 * math.cos(2 * math.pi * i / n), cy + 3.2 * math.sin(2 * math.pi * i / n))
         for i in range(n)
     ]
     rng = random.Random(7)
     noise = [(rng.uniform(1, cols - 2), rng.uniform(1, rows - 2)) for _ in range(n)]
+    speed = [rng.uniform(0.75, 1.35) for _ in range(n)]  # per-point convergence-rate jitter
+    steps = [
+        (0.0, "pure noise"),
+        (0.15, "denoising."),
+        (0.35, "denoising.."),
+        (0.55, "denoising..."),
+        (0.75, "resolving...."),
+        (0.92, "resolving....."),
+        (1.0, "pose (backbone closed)"),
+    ]
 
-    def render(t: float, glyph: str) -> str:
+    def render(t: float, label: str) -> str:
         grid = [[" "] * cols for _ in range(rows)]
-        for (nx, ny), (tx, ty) in zip(noise, target):
-            x = nx + (tx - nx) * t
-            y = ny + (ty - ny) * t
+        pts = []
+        for (nx, ny), (tx, ty), sp in zip(noise, target, speed):
+            tt = min(1.0, t * sp)
+            pts.append((nx + (tx - nx) * tt, ny + (ty - ny) * tt))
+        if t >= 0.999:
+            for i in range(n):
+                x0, y0 = pts[i]
+                x1, y1 = pts[(i + 1) % n]
+                for s in range(4):
+                    xi = int(round(x0 + (x1 - x0) * s / 4))
+                    yi = int(round(y0 + (y1 - y0) * s / 4))
+                    if 0 <= yi < rows and 0 <= xi < cols:
+                        grid[yi][xi] = "·"
+        for (x, y), sp in zip(pts, speed):
+            settled = t >= 0.999
+            glyph = "●" if settled else ("o" if t * sp >= 0.55 else "·")
             xi, yi = int(round(x)), int(round(y))
             if 0 <= yi < rows and 0 <= xi < cols:
                 grid[yi][xi] = glyph
-        return "\n".join("".join(row) for row in grid)
+        body = "\n".join("".join(r) for r in grid)
+        return f"{body}\n      {label}"
 
-    steps = [(0.0, "\u00b7"), (0.35, "\u00b7"), (0.7, "o"), (1.0, "\u25cf")]
-    caption = "      noise " + "".join("\u00b7" for _ in range(3))
-    frames = [render(t, g) + f"\n{caption}" for t, g in steps]
-    frames[-1] = frames[-1].rsplit("\n", 1)[0] + "\n      noise  ->  pose"
-    return tuple(frames)
+    return tuple(render(t, label) for t, label in steps)
 
 
-#: (caption, frames) pairs, rotated in order during a long wait. Single-frame
-#: entries (a tuple of length 1) just render once — not every piece needs to
-#: animate to earn a place in the gallery.
+#: (title, frames) pairs, rotated in order during a long wait. Every piece
+#: here animates — a science-themed slideshow with no motion wasn't earning
+#: its place on screen during a wait that's supposed to feel alive.
 GALLERY: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("DNA — double helix", _dna_frames()),
-    ("Peptide backbone — one alpha-helix turn", _alpha_helix_frames()),
-    ("Induced fit — key, lock, pocket", (_BINDING_POCKET,)),
-    ("Stage 1 — noise resolving into a pose", _diffusion_frames()),
+    ("DNA — double helix, rotating", _dna_frames()),
+    ("Peptide — LISDAELEAIFEADC, real sequence, rotating", _peptide_frames()),
+    ("Induced fit — peptide docking into the receptor pocket", _docking_frames()),
+    ("Stage 1 — diffusion: noise resolving into a pose", _diffusion_frames()),
 )
 
 
@@ -155,7 +503,7 @@ def gallery_piece(index: int) -> tuple[str, tuple[str, ...]]:
 
 
 def animate_gallery_piece(
-    stream: TextIO, index: int, indent: str = "   ", frame_delay: float = 0.28
+    stream: TextIO, index: int, indent: str = "   ", frame_delay: float = 0.16
 ) -> None:
     """Write one gallery piece to ``stream``, animating in place if it has
     more than one frame, then leave the final frame on screen.
@@ -188,10 +536,24 @@ def animate_gallery_piece(
 
 
 # ---------------------------------------------------------------------------
-# Ambient spinner — a tiny chain-forming animation for the in-place ticker
+# Ambient spinner — a braille spin glyph + a cycling domain-flavored verb
 # ---------------------------------------------------------------------------
 
 _SPIN_CHAIN = ["o", "o-o", "o-o-o", "o-o-o-o", "o-o-o", "o-o", "o"]
+_BRAILLE = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
+
+#: Cycling ticker text for the in-place "still working" line — the same idea
+#: as a chat assistant's own rotating "Thinking…"/"Pondering…" verb, themed
+#: to this pipeline's wet-lab/dry-lab vocabulary instead of a generic one.
+#: Purely cosmetic: never parsed, never logged to run_metadata.json.
+SPINNER_WORDS: tuple[str, ...] = (
+    "Diffusing", "Helixing", "Folding", "Docking", "Annealing", "Ligating",
+    "Base-pairing", "Sequencing", "Transforming", "Titrating", "Centrifuging",
+    "Denaturing", "Renaturing", "Incubating", "Pipetting", "Vortexing",
+    "Electrophoresing", "PCR-cycling", "Culturing", "Autoclaving",
+    "Plasmid-prepping", "Cloning", "Expressing", "Purifying", "Crystallizing",
+    "Clustering", "Minimizing", "Rescoring", "Solvating", "Equilibrating",
+)
 
 
 def spin_frame(t: float | None = None) -> str:
@@ -204,13 +566,27 @@ def spin_frame(t: float | None = None) -> str:
     return _SPIN_CHAIN[int(now * 3) % len(_SPIN_CHAIN)]
 
 
+def braille_spin(t: float | None = None) -> str:
+    """One frame of a small braille dot spinner — smoother-looking than an
+    ASCII chain at the ~10fps a heartbeat line redraws at. Deterministic in
+    ``t`` for the same testability reason as :func:`spin_frame`.
+    """
+    now = t if t is not None else time.time()
+    return _BRAILLE[int(now * 10) % len(_BRAILLE)]
+
+
+def spinner_word(t: float | None = None, period_s: float = 2.2) -> str:
+    """A cycling domain-flavored verb (``'Diffusing…'``, ``'Helixing…'``, …).
+    Deterministic in ``t`` (seconds) so it's testable without a clock.
+    """
+    now = t if t is not None else time.time()
+    word = SPINNER_WORDS[int(now / period_s) % len(SPINNER_WORDS)]
+    return f"{word}\u2026"
+
+
 # ---------------------------------------------------------------------------
 # Easter eggs
 # ---------------------------------------------------------------------------
-
-#: The parent iGEM project's real target peptide (see CLAUDE.md / README) —
-#: a malaria rapid-diagnostic candidate against PfLDH.
-PARENT_PROJECT_PEPTIDE = "LISDAELEAIFEADC"
 
 _MOSQUITO = r"""
               __
@@ -238,10 +614,10 @@ _IGEM_EGG = r"""
       Denmark High School . Dry Lab
 """
 
-_SHINY = r"""
-      *  .  *    ·  .  *
+_SHINY = """
+      *  .  *    \u00b7  .  *
    .    *   you found a shiny pose!   .
-      ·         (this is rare)        *
+      \u00b7         (this is rare)        *
    *  .    keep this run's seed     .
 """
 

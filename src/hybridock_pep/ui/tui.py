@@ -462,7 +462,7 @@ def run_fullscreen(auto_demo=False):
         output.text = "\n".join(state["lines"][-2000:])
         output.buffer.cursor_position = len(output.text)
 
-    def show_art(index, delay=0.28):
+    def show_art(index, delay=0.16):
         """Animate one gallery piece into the output log, frame by frame.
 
         Blocks the calling thread between frames (same trick as
@@ -523,6 +523,7 @@ def run_fullscreen(auto_demo=False):
             progress_ctrl.text = [("class:dim", "  idle — no run in progress")]
             return
         spin = "" if p.finished else _SPINNER[int(time.time() * 10) % len(_SPINNER)]
+        verb = "" if p.finished else art.spinner_word(time.time())
         frac = p.fraction()
         cls = "class:okbar" if p.finished else "class:bar"
         cnt = p.counter()
@@ -530,7 +531,8 @@ def run_fullscreen(auto_demo=False):
                                ("class:pct", f" {int(frac*100):3d}% "), ("class:dim", spin), ("", "\n"),
                                ("class:dim", "  stage: "), ("class:stage", p.label()),
                                ("class:dim", f"   {cnt}" if cnt else ""),
-                               ("class:dim", f"   ·  {p.elapsed()}s")])
+                               ("class:dim", f"   ·  {p.elapsed()}s"),
+                               ("class:verb", f"   {verb}" if verb else "")])
 
     # ----- run machinery -----
     def start_stream(cmd, demo=False, title=""):
@@ -867,7 +869,6 @@ def run_fullscreen(auto_demo=False):
                           Window(FormattedTextControl([("class:footer",
                                  " ↑/↓ move · Enter open folder or pick file · U use this folder · Esc cancel ")]),
                                  height=1, style="class:footerbar")])
-
     def current_view():
         return {"help": help_view, "picker": picker_view,
                 "welcome": welcome_view}.get(view["mode"], main_view)
@@ -1000,6 +1001,7 @@ def run_fullscreen(auto_demo=False):
         "output": "bg:#0a0e14 #b6f0c4", "help": "bg:#0d1830 #d3e2ff", "picker": "bg:#0a0e14 #d3e2ff",
         "pickersel": "bg:#0d3b66 #ffffff bold", "pickerdir": "#7fd0ff", "pickerfile": "#b6f0c4",
         "bar": "#39c0ff", "okbar": "#4ade80", "pct": "bold #ffffff", "stage": "bold #ffd166",
+        "verb": "italic #7fd0ff",
         "dim": "#7f8c9b", "err": "#ff6b6b bold", "ok": "#4ade80 bold", "footerbar": "bg:#11151c",
         "footer": "#9fb3c8", "key": "bg:#0d3b66 #ffffff bold", "frame.border": "#2b6cb0",
         "button": "#cfe3ff", "button.focused": "bg:#0d3b66 #ffffff bold",

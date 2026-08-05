@@ -1,20 +1,23 @@
 # HybriDock-Pep
 
-> **peptide → AI poses → calibrated ΔG (kcal/mol) → selectivity ΔΔG** · diffusion sampling + physics/learned-geometry rescoring · MIT · CUDA│ROCm│oneAPI│Metal│CPU · leakage-free benchmarked
-
-**A general protein–peptide docking and scoring tool: AI diffusion sampling + a learned-geometry affinity model (+ optional MM-GBSA) — fused into a single CLI, MIT-licensed, cross-platform.**
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
 [![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
 
-![The DNA double helix from the ASCII art gallery, spinning through its four real animation frames — shown during the one part of a run that's genuinely silent, Stage 1 sampling](docs/images/tui_hero.gif)
+<table>
+<tr>
+<td width="50%"><img src="docs/images/tui_peptide.gif" alt="The parent project's real peptide, LISDAELEAIFEADC, drawn as one continuous helical chain with class-correct side chains — a hexagon for the aromatic F, forks for branched and charged residues — actually rotating, not a mockup"></td>
+<td width="50%"><img src="docs/images/tui_form.png" alt="The terminal UI's input form, pre-filled with the LISDAELEAIFEADC / PfLDH example and ready to run"></td>
+</tr>
+</table>
 
-Long waits get more than a blinking cursor: this is one of the four pieces in the built-in ASCII
-art gallery, actually spinning (not a mockup — these are the real animation frames, generated
-once and cycled in place). It shows up during Stage 1 sampling on both the CLI and the terminal
-UI. One command gets you the whole pipeline — see [Get started](#get-started).
+HybriDock-Pep is a general protein–peptide docking and selectivity-scoring tool: point it at a
+peptide sequence and a receptor PDB, and one command runs an AI diffusion model plus a
+physics-and-learned-geometry rescorer, end to end, from either the CLI or the terminal UI pictured
+above. MIT-licensed, cross-platform (CUDA, ROCm, oneAPI, Apple Metal, or plain CPU), and
+leakage-free benchmarked against real binding data — see [Get started](#get-started) to run it
+yourself.
 
 ## Table of contents
 
@@ -111,6 +114,17 @@ opening the guided terminal UI.
 | `--force` | recreate the conda environments from scratch |
 | `--skip-rapidock` | scoring environment only, skips the GPU sampling environment |
 
+**Already installed and want the latest?** From inside the `hybridock-pep` folder:
+
+```bash
+git pull
+git submodule update --init --recursive
+./install.sh
+```
+
+`git pull` gets the new code, `git submodule update` catches up the bundled RAPiDock submodule if
+it moved too, and re-running `install.sh` is safe — it only touches whatever actually changed.
+
 ### 2. Check it worked
 
 ```bash
@@ -161,19 +175,17 @@ spending GPU time on one:
 ./launch_ui.sh --demo
 ```
 
-Real screenshots, not mockups — first launch, the form, a long-wait ASCII art break mid-run, a
-finished demo, and the help screen:
+Real screenshots, not mockups — the form is up top; here's first launch, a long-wait ASCII art
+break mid-run, a finished demo, and the help screen:
 
 <table>
 <tr>
-<td width="33%"><img src="docs/images/tui_welcome.png" alt="Guided welcome walkthrough on first launch"></td>
-<td width="33%"><img src="docs/images/tui_form.png" alt="Input form pre-filled with the LISDAELEAIFEADC / PfLDH example"></td>
-<td width="33%"><img src="docs/images/tui_art_gallery.png" alt="A rotating gallery of ASCII art during the one real silent wait — Stage 1 sampling"></td>
+<td width="50%"><img src="docs/images/tui_welcome.png" alt="Guided welcome walkthrough on first launch"></td>
+<td width="50%"><img src="docs/images/tui_art_gallery.gif" alt="The diffusion gallery piece animating — scattered noise points resolving into a closed peptide backbone, mirroring what Stage 1 sampling is actually doing during the wait"></td>
 </tr>
 <tr>
-<td width="33%"><img src="docs/images/tui_demo_run.png" alt="Finished --demo run showing the progress bar and result"></td>
-<td width="33%"><img src="docs/images/tui_help.png" alt="Built-in help screen, topic 0 of 10"></td>
-<td width="33%"></td>
+<td width="50%"><img src="docs/images/tui_demo_run.png" alt="Finished --demo run showing the progress bar and result"></td>
+<td width="50%"><img src="docs/images/tui_help.png" alt="Built-in help screen, topic 0 of 10"></td>
 </tr>
 </table>
 
@@ -221,7 +233,7 @@ installed.
 |---|---|
 | `HYBRIDOCK_RAPIDOCK_BATCH=N` | poses per diffusion step (default derived from RAM) |
 | `HYBRIDOCK_MMGBSA_FAST=1` | 5.4× faster MM-GBSA; shifts ΔG by up to ~4.5 kcal/mol |
-| `RAPIDOCK_DISABLE_METAL_TP=1` | disable the fused Metal kernel (A/B testing) |
+| `METAL_E3NN_DISABLE=1` | disable the optional [metal-e3nn](https://github.com/Tasty-Ramen2010/metal-e3nn) kernel (A/B testing) |
 | `HYBRIDOCK_NO_ART=1` | turn off the ASCII art gallery during long waits |
 
 ---
@@ -360,7 +372,7 @@ fastest silicon available and tuned for it, centralized in `hybridock_pep/hardwa
 
 | Stage (engine) | NVIDIA (CUDA) | AMD (ROCm) | Intel (oneAPI) | Apple (Metal) | CPU |
 |---|---|---|---|---|---|
-| **Stage 1 — RAPiDock (torch)** | TF32 fast path (`matmul_precision('high')`, `allow_tf32`) | ROCm via the CUDA API, same TF32 path | XPU + `intel-extension-for-pytorch` (ipex) | MPS + op-fallback | physical-core threads |
+| **Stage 1 — RAPiDock (torch)** | TF32 fast path (`matmul_precision('high')`, `allow_tf32`) | ROCm via the CUDA API, same TF32 path | XPU + `intel-extension-for-pytorch` (ipex) | MPS + op-fallback, + [metal-e3nn](https://github.com/Tasty-Ramen2010/metal-e3nn) if installed | physical-core threads |
 | **Stage 1.5 / 3.5 — OpenMM** | CUDA, mixed precision | **HIP**, mixed precision | OpenCL | OpenCL | thread-pinned CPU |
 | **Stage 2 — Vina / AD4** | CPU (`cpu=`physical cores) | CPU | CPU | CPU | CPU |
 
@@ -370,7 +382,12 @@ speed. Vina/AD4, the geometry model, and the calibrated ΔG are **pure-CPU and i
 only Stage 1 sampling and the OpenMM relaxations change speed with hardware. No local NVIDIA GPU? Sample
 Stage 1 elsewhere (or on CPU) and run scoring locally with `dock --input-poses poses_dir/`. **The Apple path is
 not theoretical:** a full 100-pose MDM2/p53 run finishes in **<15 min on a fanless MacBook Air M3 (16 GB, MPS)** —
-see [Speed](RESULTS.md#the-claim-stated-plainly--and-why-it-holds-in-2026) in RESULTS.md.
+see [Speed](RESULTS.md#the-claim-stated-plainly--and-why-it-holds-in-2026) in RESULTS.md. On Apple Silicon,
+`run_rapidock.py` also auto-patches in **[metal-e3nn](https://github.com/Tasty-Ramen2010/metal-e3nn)** — a
+standalone, from-scratch fused-Metal-kernel replacement for e3nn's tensor products — if it's installed;
+it's optional (`pip install git+https://github.com/Tasty-Ramen2010/metal-e3nn.git`), not bundled, and never
+required — its own benchmarks report 3.1–6.7× faster tensor products on Apple GPUs, falling straight back to
+stock e3nn if it's absent or `METAL_E3NN_DISABLE=1` is set.
 
 ### Outputs
 

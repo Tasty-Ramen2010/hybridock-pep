@@ -121,6 +121,69 @@ class TestArchGuard:
         assert mod._disable_jit_fusion_if_arch_unsupported(_Broken) is False
 
 
+class TestMetalE3nnHook:
+    """metal-e3nn (github.com/Tasty-Ramen2010/metal-e3nn) is a separate,
+    standalone project — never a hard dependency here. This is purely
+    additive: absent, disabled, or broken must all fall through to stock
+    e3nn silently, and only an actually-successful patch_() call earns the
+    "+ metal-e3nn" label suffix on the MPS backend line."""
+
+    def test_absent_is_a_silent_noop(self, monkeypatch):
+        import sys
+
+        mod = _load_shim()
+        monkeypatch.delenv("METAL_E3NN_DISABLE", raising=False)
+        monkeypatch.setitem(sys.modules, "metal_e3nn", None)  # simulate ImportError
+        assert mod._try_patch_metal_e3nn() == ""
+
+    def test_disabled_via_env_var_even_if_installed(self, monkeypatch):
+        import sys
+
+        mod = _load_shim()
+
+        class _FakeMetalE3nn:
+            patched = False
+
+            def patch_(self):
+                self.patched = True
+
+        fake = _FakeMetalE3nn()
+        monkeypatch.setitem(sys.modules, "metal_e3nn", fake)
+        monkeypatch.setenv("METAL_E3NN_DISABLE", "1")
+        assert mod._try_patch_metal_e3nn() == ""
+        assert fake.patched is False
+
+    def test_applies_and_labels_when_installed(self, monkeypatch):
+        import sys
+
+        mod = _load_shim()
+        monkeypatch.delenv("METAL_E3NN_DISABLE", raising=False)
+
+        class _FakeMetalE3nn:
+            patched = False
+
+            def patch_(self):
+                self.patched = True
+
+        fake = _FakeMetalE3nn()
+        monkeypatch.setitem(sys.modules, "metal_e3nn", fake)
+        assert mod._try_patch_metal_e3nn() == " + metal-e3nn"
+        assert fake.patched is True
+
+    def test_a_broken_patch_call_falls_through_silently(self, monkeypatch):
+        import sys
+
+        mod = _load_shim()
+        monkeypatch.delenv("METAL_E3NN_DISABLE", raising=False)
+
+        class _BrokenMetalE3nn:
+            def patch_(self):
+                raise RuntimeError("incompatible e3nn version")
+
+        monkeypatch.setitem(sys.modules, "metal_e3nn", _BrokenMetalE3nn())
+        assert mod._try_patch_metal_e3nn() == ""
+
+
 class TestZeroPoseErrorQuotesStderr:
     """"Check stderr logs above" was useless: stderr is logged at DEBUG, so at
     the default level there was nothing above to check."""
