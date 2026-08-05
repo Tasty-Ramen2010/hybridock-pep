@@ -13,124 +13,128 @@
 
 This is the real terminal UI (`./launch_ui.sh`) — a live screenshot, not a mockup: the input form
 on top, a progress bar and stage label in the middle, scored poses streaming in below. One command
-gets you here; see [Command reference](#command-reference--install-test-run-ui) for the full walkthrough
-(including what happens during the one real silent wait — Stage 1 sampling gets its own little
-ASCII-art gallery instead of a blinking cursor).
-
-### 📺 Watch the tutorial
-
-**[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** · start here if you have
-never used a docking tool before. It goes from a clean machine through install, the first scored
-result, and the guided terminal UI. The written version is [Command
-reference](#command-reference--install-test-run-ui) below.
-
-**New here? Read these three, in this order:**
-
-| | |
-|---|---|
-| **[METHODS.md](METHODS.md)** | What it does and how it was validated — the whole method in a few minutes. **Start here.** |
-| **[RESULTS.md](RESULTS.md)** | Every leakage-free number, and the command that reproduces each one. |
-| **[MODEL_CARD.md](MODEL_CARD.md)** | Which of the 10 `data/*.joblib` actually ship, and the honest limits. |
-
-Then run the 30-second offline sanity check: `make verify`. The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/) and [`docs/`](docs/README.md). In-depth data, training sets, and everything too large for git: [`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — MD trajectory cache on Zenodo [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573), research ledger in the v0.1.0 source snapshot [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
-
-> **Tests:** 676 pass, 66 skip with a standard `score-env` (`pytest`; see [Testing](#testing)).
-> No hosted CI yet — run them locally. **License:** *our code* is MIT; the pipeline depends on external tools
-> with their own licenses (AutoDock4, PULCHRA, RAPiDock, and optionally ADFRsuite) — see [`INSTALL.md`](INSTALL.md).
+gets you here — see [Get started](#get-started).
 
 ## Table of contents
 
-**Get it running**
-1. [Quick start — one command](#quick-start--one-command)
-2. [Command reference — install, test, run, UI](#command-reference--install-test-run-ui)
-3. [Usage — the six subcommands](#usage)
-
-**Understand it**
-4. [Pipeline — the full workflow](#pipeline--the-full-workflow)
-
-**Check the claims** — full evidence, every number, every script: [RESULTS.md](RESULTS.md)
-5. [The claims, up front](#the-claims-up-front--measured-in-kcalmol-leakage-free)
-
-**Reference**
-6. [Install — manual walkthrough](#install)
-7. [Repository structure](#repository-structure)
-8. [Testing](#testing)
+1. [What this does](#what-this-does)
+2. [How it works — the pipeline](#how-it-works--the-pipeline)
+3. [Get started](#get-started)
+4. [Usage — the six subcommands](#usage--the-six-subcommands)
+5. [Advanced / manual install](#advanced--manual-install)
+6. [Repository structure](#repository-structure)
+7. [Testing](#testing)
+8. [The claims — measured in kcal/mol, leakage-free](#the-claims--measured-in-kcalmol-leakage-free)
 9. [Roadmap](#roadmap--to-do)
 10. [Project status](#project-status) · [Citations](#citations) · [License](#license)
 
-The short version of the *method* is [METHODS.md](METHODS.md); the short version of the *results* is
-[RESULTS.md](RESULTS.md). This page is the install + usage manual; the two linked pages carry what used
-to be duplicated here.
+---
+
+## What this does
+
+Give it a peptide sequence and a protein structure (a PDB file). It hands back ranked 3D poses of
+how the peptide binds, a calibrated binding strength (**ΔG**, in kcal/mol — more negative means it
+sticks tighter), and — its standout feature — a **selectivity score**: does this peptide prefer
+target A over target B? That last one matters for things like a diagnostic peptide that needs to
+grab onto a parasite protein but leave the human version alone.
+
+Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets,
+minutes per peptide, on a single GPU or even a laptop CPU.
+
+## How it works — the pipeline
+
+Two stages chained together: an AI diffusion model proposes 3D poses, then a physics + learned-geometry
+rescorer turns those poses into a real, comparable ΔG. This diagram is the *actual* code path
+(`driver.py::run_dock`), not a simplified sketch:
+
+```
+  Peptide sequence  +  Receptor PDB
+           │
+  ┌────────▼─────────────────────────────────────────────────┐
+  │ STAGE 1 · Diffusion sampling (RAPiDock-Reloaded)          │
+  │   generates N candidate 3D poses   (~3 min for N=100)     │
+  └────────┬─────────────────────────────────────────────────┘
+  ┌────────▼─────────────────────────────────────────────────┐
+  │ STAGE 1.5 · Clash-relief minimization (OpenMM)            │
+  │   gently fixes atom overlaps left over in each pose       │
+  └────────┬─────────────────────────────────────────────────┘
+  ┌────────▼─────────────────────────────────────────────────┐
+  │ STAGE 2 · Structural ranking (Vina clash-check + ML)      │
+  │   Vina here is clash-relief only — NOT the final score    │
+  └────────┬─────────────────────────────────────────────────┘
+  ┌────────▼─────────────────────────────────────────────────┐
+  │ STAGE 3 · Cα-RMSD clustering → cluster representatives    │
+  └────────┬─────────────────────────────────────────────────┘
+  ┌────────▼─────────────────────────────────────────────────┐
+  │ STAGE 3.5 · (optional) MM-GBSA refinement --refine-topk   │
+  │ STAGE 3.6 · PRIMARY ΔG — the AI-pose affinity model       │
+  └────────┬─────────────────────────────────────────────────┘
+           ▼
+  ranked_poses.csv · best_pose.pdb · cluster_summary.csv ·
+  convergence.png · run_metadata.json  (git SHA, seeds, versions)
+```
+
+**The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with a
+geometry-feature model tuned on real RAPiDock/AI poses; that's the `delta_g` column and the
+"Best pose ΔG" you see printed. **Vina only does clash relief** (Stage 2, rescuing RAPiDock's
+occasionally-clashing poses) — its own score is raw telemetry, never the reported affinity, and
+**AD4 is off by default**. Already have a crystal-quality pose and want to skip docking entirely?
+[`crystal-score`](#crystal-score--score-an-existing-crystal-pose) runs the sibling crystal-tuned
+model directly on it.
+
+`--refine-topk K` genuinely relaxes the top poses: Stage 3.5 energy-minimizes the top-*K* cluster
+representatives in GBn2 implicit solvent and reports that as a physically-grounded absolute-energy
+estimate — a sanity check on final candidates, not a replacement ranking (see
+[Usage](#dock--end-to-end-docking--scoring) for why it doesn't out-rank the learned scorer).
+
+It's a **two-stage hybrid**, not a from-scratch model: an AI diffusion model (RAPiDock-Reloaded)
+samples poses, a physics + learned-geometry rescorer turns those into ΔG. Three things it does that
+off-the-shelf tools don't combine: **(1)** it's the best non-FEP/LIE peptide affinity scorer we can
+find a fair baseline for; **(2)** anchoring to a few measured references on-target lifts within-receptor
+accuracy from *r*≈0.25 to ≈0.55; and **(3)** it ships a structure-based *selectivity* ΔΔG a
+sequence-only ML scorer structurally can't provide. Full evidence: [The claims](#the-claims--measured-in-kcalmol-leakage-free).
 
 ---
 
-## Quick start — one command
+## Get started
+
+Prefer a video? **[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** covers
+everything in this section on a clean machine.
+
+### 1. Install
+
+**macOS, Linux, or WSL2:**
 
 ```bash
-git clone --recursive https://github.com/Tasty-Ramen2010/hybridock-pep.git
+git clone --recurse-submodules https://github.com/Tasty-Ramen2010/hybridock-pep.git
 cd hybridock-pep
-./install.sh          # Linux / WSL2 / macOS — installs conda if needed, both
-                       # environments, model weights, and runs a smoke test
-# install.bat          # Windows — sets up WSL2, then runs install.sh inside it
+./install.sh
 ```
 
-That's it for most machines: `install.sh` auto-detects your OS/GPU, creates both conda
-environments with the right PyTorch build, downloads the RAPiDock model weights, and finishes by
-launching a guided terminal UI (`./launch_ui.sh`) that walks you through your first run. Every step
-is automated — there is no license click-through. Receptor prep uses [meeko](https://github.com/forlilab/Meeko)
-(`mk_prepare_receptor.py`), installed for you and native on Apple Silicon. ADFRsuite is **not**
-required; it is used automatically if you already have it on PATH — see [Install](#install).
+**Windows:** double-click `install.bat` (or run it from PowerShell/CMD) once — it sets up WSL2 for
+you, then runs `install.sh` inside it. After that, open the WSL2/Ubuntu terminal (search "Ubuntu"
+in the Start menu, or type `wsl` in any Windows terminal) — **every command in this README runs
+there**, not in PowerShell or CMD.
 
-> **Be patient — this genuinely takes 10–30 minutes**, most of it two long, silent `conda`
-> dependency-solve steps and a PyTorch download (hundreds of MB). If the terminal looks frozen on
-> a line like `Solving environment: \` for several minutes, that is normal — conda just doesn't
-> print progress during a solve. Don't Ctrl-C it. You don't need to open a second terminal, run
-> `conda activate` yourself, or launch anything by hand — the script does that, and drops you
-> straight into the guided UI when it's done. (That last step needs a real terminal window you
-> typed the command into directly — it won't work piped into a file or run over some restricted
-> remote shells.)
+`install.sh` does everything: installs conda if you don't have it, creates both conda environments
+with the right PyTorch build for your GPU, downloads and checksum-verifies the RAPiDock model
+weights (~55 MB, from Zenodo), checks the receptor-prep tooling, runs a smoke test, and finishes by
+opening the guided terminal UI.
 
-Prefer to do it by hand, or just want to see what's happening under the hood? The full manual
-walkthrough is in [INSTALL.md](INSTALL.md).
+1. Budget **15–30 minutes** — most of it is conda quietly solving dependencies plus a PyTorch
+   download. If it looks frozen on a line like `Solving environment: \` for a few minutes, that's
+   normal; don't Ctrl-C it.
+2. It's safe to re-run any time, e.g. after `git pull` — it skips whatever's already installed
+   instead of redoing it.
+3. In every *new* terminal after that, run `conda activate score-env` before using the CLI.
 
-> **Windows:** double-click `install.bat` (or run it from PowerShell/CMD) once — it sets up WSL2 if
-> you don't have it, then runs `install.sh` inside it. **Everything else in this README —
-> `conda activate`, `hybridock-pep`, `pytest`, `./launch_ui.sh` — runs inside your WSL2/Ubuntu
-> terminal, not PowerShell or CMD.** Open it from the Start menu (search "Ubuntu") or by typing
-> `wsl` in any Windows terminal. `install.bat` is safe to run more than once — it reuses an
-> existing WSL2 distro and skips conda environments / model weights that are already installed
-> rather than recreating them. You do **not** need to run it again for everyday use: after the
-> first install, just open the WSL2/Ubuntu terminal and run `cd <repo-path> && ./launch_ui.sh`
-> (or `conda activate score-env` to use the CLI directly). See the platform table in
-> [INSTALL.md](INSTALL.md) for a native-Windows (non-WSL2) option if you only need Stage 2 scoring.
+| flag | effect |
+|---|---|
+| `--no-ui` | don't auto-launch the UI at the end — useful for scripted or headless installs |
+| `--force` | recreate the conda environments from scratch |
+| `--skip-rapidock` | scoring environment only, skips the GPU sampling environment |
 
-### Practice test — no GPU, no RAPiDock, no Vina needed
-
-Want to check your scoring environment works before touching the GPU stack at all? This scores a
-**pre-supplied, known-good complex that ships in this repository** — a real, published structure
-(MDM2 bound to a p53-derived peptide, PDB entry `1YCR`) — using only the base scoring environment.
-
-### Step 1: Install the scoring environment
-
-```bash
-conda env create -f envs/score-env.yml
-conda activate score-env
-pip install -e .
-```
-
-### Step 2: Run the offline sanity check (30 seconds, no data needed)
-
-```bash
-make verify
-```
-
-This runs the math-only tests (double-difference, anchoring, selectivity) and proves the core
-scoring machinery is correct without downloading anything.
-
-### Step 3: Score the shipped practice complex
-
-The receptor and the bound peptide pose for `1YCR` are already in `data/pdbs/`. Score them with
-`crystal-score`:
+### 2. Check it worked
 
 ```bash
 hybridock-pep crystal-score \
@@ -139,170 +143,49 @@ hybridock-pep crystal-score \
     --peptide ETFSDLWKLLPE
 ```
 
-### Step 4: Check the result
+Expect `Crystal ΔG = -9.28 kcal/mol`. Anything from **−8 to −11** means a healthy install — the
+published experimental value for this real complex (MDM2/p53, PDB `1YCR`) is about −8.5. This
+scores an already-known pose directly (no GPU needed), so it's the fastest way to confirm the
+scoring stack works. Repeated runs on the same machine give you the exact same number.
 
-The command prints one line:
+Want to prove the core math holds too, with zero downloads? `make verify` runs the offline,
+30-second sanity checks (double-difference, anchoring, selectivity).
 
-```
-Crystal ΔG = -9.28 kcal/mol  (1YCR_mdm2.pdb + 1YCR_peptide.pdb, 12-mer)
-```
+### 3. Run something real
 
-The published experimental value for this complex is about **−8.5 kcal/mol** (K_d ≈ 0.6 µM).
-Anything in the **−8 to −11** range confirms your install works correctly. The exact figure shifts
-by up to ~1 kcal/mol depending on your resolved `scikit-learn`/`numpy` versions (the model is a
-GBT and its geometry/interaction features are version-sensitive), so a small difference is not a
-sign anything is broken. On a given pinned stack the result is deterministic — repeated runs agree
-exactly.
-
-Note this command does **not** exercise receptor PDBQT preparation; it scores the pose you give it
-directly. It validates the scoring stack, not `meeko`/`autogrid4`. Use `hybridock-pep prep` for those.
-
-**What you just ran:** `crystal-score` scores an existing, already-docked peptide pose. It skips
-pose generation (RAPiDock), clash-relief (Vina), and MM-GBSA entirely — the fastest way to confirm
-the install and to score any bound pose you already have. To generate new poses from a peptide
-sequence alone, run a real end-to-end dock on the same shipped receptor:
-
-```bash
-make demo   # hybridock-pep dock on 1YCR, 20 RAPiDock passes — needs the rapidock env, see below
-```
-
-That needs the second environment (GPU pose sampling) — see [Install](#install). Stage 2 receptor
-prep uses meeko's `mk_prepare_receptor.py`, and `--scoring ad4` uses conda-forge `autogrid` — no
-ADFRsuite needed. If ADFRsuite happens to be on PATH it is preferred, which keeps results identical
-to earlier installs.
-
----
-
-## Command reference — install, test, run, UI
-
-Everything you need, in the order you need it. Copy-paste safe on a brand-new machine.
-
-> **Windows:** run all of this inside your WSL2/Ubuntu terminal (after `install.bat`'s one-time
-> setup), not PowerShell/CMD.
-
-> 📺 Prefer to watch? **[Tutorial video — setup and first run](https://youtu.be/ro9CukQCW44)** covers
-> this whole section on a clean machine.
-
-### 1. Install (one command)
-
-```bash
-git clone --recurse-submodules https://github.com/Tasty-Ramen2010/hybridock-pep.git
-cd hybridock-pep
-./install.sh
-```
-
-`install.sh` installs conda if missing, initialises the RAPiDock submodule, creates both conda
-environments with the right PyTorch build for your GPU, **downloads and checksum-verifies the
-model weights (~55 MB) from Zenodo**, checks the receptor-prep tooling, runs a smoke test, and
-opens the UI.
-
-Budget **15–30 minutes**, mostly conda solving. It is quiet for long stretches — that is normal.
-
-| flag | effect |
-|---|---|
-| `--no-ui` | don't auto-launch the UI at the end |
-| `--force` | recreate the conda environments from scratch |
-| `--skip-rapidock` | scoring environment only (no GPU sampling) |
-| `-h` | full flag list |
-
-Then, in every new shell:
-
-```bash
-conda activate score-env
-```
-
-`./install.sh` / `install.bat` is a one-time (or occasional, e.g. after a `git pull`) step, not
-something you run before every use — it's idempotent (safe to re-run: it skips conda environments,
-weights, and WSL2 setup that already exist), but for day-to-day use you don't need to. Once
-installed, just open a terminal, `cd` into the repo, `conda activate score-env`, and run
-`./launch_ui.sh` or `hybridock-pep` directly.
-
-### 2. Test
-
-```bash
-pytest                  # fast suite — expect 670 passed, 55 skipped, ~18 s
-pytest -m slow          # real Vina / OpenMM / terminal tests, ~55 min
-pytest tests/test_tui.py    # just the UI
-pytest -k mmgbsa            # one area
-```
-
-Skips are **not** failures — they are the `slow` tier plus tests for optional tools.
-
-### 3. Check the install actually works
-
-```bash
-hybridock-pep crystal-score \
-    --receptor    data/pdbs/1YCR_mdm2.pdb \
-    --peptide-pdb data/pdbs/1YCR_peptide.pdb \
-    --peptide     ETFSDLWKLLPE
-```
-
-Expect **`Crystal ΔG = -9.28 kcal/mol`**. Anything from −8 to −11 means a healthy install. The
-result is deterministic — repeated runs agree exactly.
-
-### 4. Run a real docking job
+The plain command line:
 
 ```bash
 hybridock-pep dock \
-    --peptide ETFSDLWKLLPE \
-    --receptor data/pdbs/1YCR_mdm2.pdb \
-    --site 25.20 -25.61 -7.97 --box 30 \
-    --n-samples 100 \
+    --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
+    --site 25.20 -25.61 -7.97 --box 30 --n-samples 20 \
     --output-dir runs/demo
 ```
 
-About 2 minutes on an Apple M3. You will see live progress bars for each stage:
+About 2 minutes on an Apple M3. This is the one part of a run that needs the GPU sampling
+environment (already installed above, unless you passed `--skip-rapidock`). Results land in
+`runs/demo/best_pose.pdb` and `runs/demo/ranked_poses.csv`.
 
-```
-▶ [1/4] Generating poses…
-   [##############--------------]  50.0%  56/112 denoising steps  ETA 34s
-   ✓ Generating poses  (64s)
-▶ [2/4] Preparing receptor & ligands…
-   [############################] 100.0%  100/100 ligands prepared
-```
+> `--site` is the **centre of the binding pocket**, in ångströms, and must match the receptor you
+> passed — getting it wrong is the most common mistake (the run finishes but searched empty space).
+> See `hybridock-pep guide dock`, or help topic 8 in the UI.
 
-Results land in `runs/demo/best_pose.pdb` and `runs/demo/ranked_poses.csv`.
-
-> `--site` is the **centre of the binding pocket**, in ångströms, and it must match the receptor
-> you passed. Getting it wrong is the most common mistake: the run completes but searches empty
-> space. See `hybridock-pep guide dock`, or help topic 8 in the UI.
-
-Add `--refine-topk 10` for MM-GBSA refinement (slower, more accurate), or `-v` for full logs
-instead of progress bars.
-
-### 5. The terminal UI
+Same thing, guided — the terminal UI:
 
 ```bash
-./launch_ui.sh              # full-screen guided UI
-./launch_ui.sh --demo       # simulated run, no GPU — the best place to start
-./launch_ui.sh --print      # build the command without running it
-./launch_ui.sh --cli        # plain wizard, for SSH or dumb terminals
-hybridock-tui               # identical to ./launch_ui.sh
+./launch_ui.sh
 ```
 
-**The first time you open it you get a guided walkthrough automatically.** After that:
+walks you through the same fields with a live progress bar. Its `--demo` mode simulates a full run
+in a few seconds with **no GPU at all** — the fastest way to see what a real run looks like before
+spending GPU time on one:
 
-| key | action |
-|---|---|
-| `↑` / `↓` | move between form fields (Tab / Shift-Tab also work) |
-| `Ctrl-C` | **STOP** — abort a running job and everything it spawned |
-| `Ctrl-G` | help — 10 topics, including selectivity, crystal scoring, AI vs physics scoring, calibration |
-| `Ctrl-W` | reopen the welcome walkthrough |
-| `Ctrl-T` | Demo run (no GPU) |
-| `Ctrl-R` | Full run |
-| `Ctrl-B` | browse for a file |
-| `Ctrl-Q` | quit |
+```bash
+./launch_ui.sh --demo
+```
 
-The field you are editing is marked with a `▶` and a yellow label, so you can always see where you
-are. Inside help, press `0`–`9` to jump between topics. You can also drag a `.pdb` file from Finder
-straight onto any path field.
-
-> `Ctrl-C` **stops the run, it does not quit the program** — quitting is `Ctrl-Q`. The stop signals
-> the whole process group, so the `rapidock` sampling child dies too rather than being orphaned on
-> your GPU.
-
-**The full walkthrough, all real screenshots:** first launch, the input form, a long-wait ASCII
-art break mid-run, a finished `--demo`, and the help screen.
+Real screenshots, not mockups — first launch, the form, a long-wait ASCII art break mid-run, a
+finished demo, and the help screen:
 
 <table>
 <tr>
@@ -317,35 +200,56 @@ art break mid-run, a finished `--demo`, and the help screen.
 </tr>
 </table>
 
-> The ASCII gallery isn't just decoration for the demo — the plain CLI (`hybridock-pep dock`)
-> shows the same rotating gallery in its heartbeat ticker during a real Stage 1 wait, and there
-> are a couple of easter eggs in the terminal UI if you go looking (`Ctrl-A`, or try a familiar
-> peptide sequence). Set `HYBRIDOCK_NO_ART=1` to turn all of it off.
+| key | action |
+|---|---|
+| `↑` / `↓` | move between form fields (Tab / Shift-Tab also work) |
+| `Ctrl-C` | **STOP** — abort a running job and everything it spawned |
+| `Ctrl-G` | help — 10 topics, including selectivity, crystal scoring, AI vs physics scoring |
+| `Ctrl-T` | Demo run (no GPU) |
+| `Ctrl-R` | Full run |
+| `Ctrl-B` | browse for a file (or just drag a `.pdb` onto any path field) |
+| `Ctrl-Q` | quit — `Ctrl-C` only stops the current run |
 
-### 6. Built-in guide (no UI needed)
+> The ASCII gallery isn't just for the demo — the plain CLI shows the same rotating gallery during
+> a real Stage 1 wait. There are a couple of easter eggs in the terminal UI too, if you go looking
+> (`Ctrl-A`, or try a familiar peptide sequence). Set `HYBRIDOCK_NO_ART=1` to turn all of it off.
+
+### 4. Built-in help, right in the terminal
+
+No UI needed — worked examples with real measured numbers:
 
 ```bash
-hybridock-pep guide           # overview
-hybridock-pep guide dock      # one command, with measured numbers
-hybridock-pep guide prep      # receptor prep, and why the backend doesn't change your ΔG
-hybridock-pep guide tuning    # environment switches and Apple Silicon notes
+hybridock-pep guide dock      # one worked example + measured timing
+hybridock-pep guide prep      # receptor prep, why the backend doesn't change your ΔG
+hybridock-pep guide tuning    # environment switches, Apple Silicon notes
 hybridock-pep guide all
 ```
 
-### 7. Environment switches
+![hybridock-pep guide dock — a real terminal screenshot of the built-in worked example](docs/images/cli_guide.png)
+
+### 5. Run the test suite
+
+```bash
+pytest                  # fast suite — 730 passed, 72 skipped, ~20-40s
+pytest -m slow          # + real Vina/OpenMM/terminal integration tests, ~55 min
+pytest -k mmgbsa        # just one area
+```
+
+Skips aren't failures — they're the `slow` tier plus tests for optional tools you may not have
+installed.
+
+### Environment switches
 
 | variable | effect |
 |---|---|
 | `HYBRIDOCK_RAPIDOCK_BATCH=N` | poses per diffusion step (default derived from RAM) |
 | `HYBRIDOCK_MMGBSA_FAST=1` | 5.4× faster MM-GBSA; shifts ΔG by up to ~4.5 kcal/mol |
 | `RAPIDOCK_DISABLE_METAL_TP=1` | disable the fused Metal kernel (A/B testing) |
-
-> A full `dock` run uses the separate `rapidock` environment for Stage 1 sampling, which needs
-> `KMP_DUPLICATE_LIB_OK=TRUE`. `install.sh` configures that for you.
+| `HYBRIDOCK_NO_ART=1` | turn off the ASCII art gallery during long waits |
 
 ---
 
-## Usage
+## Usage — the six subcommands
 
 HybriDock-Pep is one CLI with six subcommands: **`dock`**, **`selectivity`**, **`reproducibility`**,
 **`prep`**, **`calibrate`**, **`benchmark`**. Run `hybridock-pep <command> --help` for the full flag list.
@@ -362,8 +266,6 @@ hybridock-pep dock \
     --refine-topk 10 \            # MM-GBSA on the top-10 cluster reps
     --output-dir runs/mdm2_p53
 ```
-
-Key options:
 
 The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-relief only, AD4 is off.
 
@@ -516,64 +418,93 @@ you can re-score it directly: `hybridock-pep crystal-score --receptor R.pdb --pe
 --peptide SEQ`. (A `best_pose_vina_relaxed.pdb` with the Vina clash-relieved geometry is also written for
 visualization; it is ligand-format and not meant for re-scoring.)
 
+---
+
+## Advanced / manual install
+
+Almost everyone should use `./install.sh` in [Get started](#get-started) — it auto-detects your
+OS/GPU, creates both environments, downloads the model weights, and runs the smoke test, and it's
+safe to re-run any time. This is the manual equivalent, for full control over each step:
+
+```bash
+# 1. Scoring + analysis environment (the package itself)
+conda env create -f envs/score-env.yml
+conda activate score-env
+pip install -e .
+
+# 2. GPU sampling environment (Stage 1) — pick your platform
+conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
+# conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
+```
+
+**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko`,
+declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps come from
+conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
+conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
+unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
+reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
+automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
+affects a backbone-rebuild path.
+
+Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
+walkthrough. Full walkthrough with every platform edge case: [INSTALL.md](INSTALL.md).
 
 ---
 
-## Pipeline — the full workflow
-
-The diagram below is the *actual* code path (`driver.py::run_dock`), with the two distinct relaxation steps
-called out explicitly — a restrained **clash-relief** minimization on every pose, and a full **MM-GBSA
-relaxation** on the top cluster representatives.
+## Repository structure
 
 ```
-  Peptide sequence + Receptor PDB
-           │   (receptor cleaned with PDBFixer first)
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 1 — Diffusion sampling (RAPiDock-Reloaded)                           │
-  │   N stochastic SE(3)-equivariant passes → N all-atom pose PDBs             │
-  │   (~3 min to GENERATE all N=100 on RTX 5070; scoring adds ~2.8 s/pose)     │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 1.5 — RELAX #1: restrained clash-relief minimization (OpenMM)        │
-  │   heavy-atom harmonic restraints (k=50 000) → relieve intra-pose clashes   │
-  │   that hurt downstream scoring; poses moving >Å threshold are reverted     │
-  │ STAGE 1.7 — drop off-pocket poses · auto-expand search box if needed       │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 2 — Pose prep + structural ranking                                   │
-  │   receptor→PDBQT · ligand→PDBQT · Vina = CLASH RELIEF only (not the score) │
-  │   · BSA-fit + ML pose rankers (predicted native RMSD)  [AD4 off; research] │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 3 — Cα-RMSD agglomerative clustering → cluster representatives       │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-  ┌────────▼──────────────────────────────────────────────────────────────────┐
-  │ STAGE 3.5 — RELAX #2: MM-GBSA on the top-K cluster reps (--refine-topk)    │
-  │   minimize each complex in AMBER ff14SB + GBn2 implicit solvent, then      │
-  │   ΔG_bind = E(complex) − E(receptor) − E(peptide)   ← most accurate ΔG     │
-  │ STAGE 3.6 — PRIMARY ΔG: AI-pose affinity model (geometry features, NO      │
-  │   Vina/AD4; length-routed, short peptides → hydrophobic sub-model)         │
-  └────────┬──────────────────────────────────────────────────────────────────┘
-           ▼
-  ranked_poses.csv · best_pose.pdb · cluster_summary.csv · convergence.png ·
-  dendrogram.png · run_metadata.json   (git SHA, seeds, versions, input hashes)
+hybridock-pep/
+├── README.md · RESULTS.md · MODEL_CARD.md   # start here — quickstart, benchmarks, shipped models
+├── SM_TableS1.xls · SM_TableS2.xls           # supplementary data tables
+├── INSTALL.md                     # environment setup + optional license-restricted extras (PULCHRA)
+├── Makefile                       # make setup / verify / demo / reproduce / test
+├── LICENSE                        # MIT
+├── pyproject.toml                 # score-env package definition
+├── docs/                          # architecture notes, dev timeline, diagnostics, images/
+├── envs/
+│   ├── score-env.yml
+│   ├── rapidock-env.yml           # Linux/WSL2 + CUDA
+│   └── rapidock-env-macos.yml     # Apple Silicon (MPS)
+├── src/hybridock_pep/
+│   ├── cli.py                     # argparse entry point (6 subcommands + crystal-score)
+│   ├── driver.py                  # orchestrates Stage 1 + Stage 2 across both envs
+│   ├── hardware.py                # per-accelerator backend selection (CUDA/ROCm/oneAPI/MPS/CPU)
+│   ├── models.py                  # validated run configs (pydantic)
+│   ├── prep/                      # receptor + ligand PDBQT preparation
+│   ├── sampling/                  # RAPiDock subprocess wrapper, pose I/O
+│   ├── scoring/                   # Vina, AD4, MM-GBSA, entropy, geometry/affinity models
+│   ├── analysis/                  # RMSD clustering, ensemble statistics, plotting
+│   ├── output/                    # progress bars, ASCII art, CSV + metadata writers
+│   ├── ui/                        # terminal UI (prompt_toolkit) + built-in guide text
+│   └── selectivity.py             # ΔΔG selectivity primitive
+├── third_party/RAPiDock/          # RAPiDock-Reloaded submodule
+├── experiments/                   # the E0–E37x research ledger — every script cited in RESULTS.md
+├── scripts/                       # calibration, smoke test, and other operational tooling
+├── tests/                         # pytest suite (fast + `-m slow` integration tests)
+└── data/                          # calibration files, benchmark sets, shipped fixture PDBs
 ```
 
-**The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with the
-geometry-feature model tuned on real RAPiDock/AI poses (`affinity_ai_nofix.joblib`, packaged in the wheel); that value is the
-`delta_g` column and the reported "Best pose ΔG". **Vina is retained only for clash relief** (Stage 2 —
-rescuing RAPiDock's clashing poses); its score is raw telemetry, never the affinity. **AD4 is off by
-default.** For a crystal-quality pose, the sibling crystal-tuned model is exposed as a standalone command —
-see [`crystal-score`](#crystal-score--score-an-existing-crystal-pose).
+---
 
-**Yes — `--refine-topk K` actually relaxes the top poses.** Stage 3.5 takes one representative per cluster
-(best hybrid score), keeps the top *K* by cluster mean, and **energy-minimizes each receptor+peptide complex
-in GBn2 implicit solvent** before reading ΔG — that minimization *is* the relaxation, and the MM-GBSA ΔG is
-the pipeline's physically-grounded *absolute*-energy estimate (it does not out-rank the learned scorer — see
-the `--refine-topk` note below). `--mmgbsa-3traj` additionally relaxes the unbound receptor and
-peptide to capture reorganization energy. (Stage 1.5 is a *separate*, lighter, restrained relax that only
-relieves clashes without changing the binding mode.)
+## Testing
 
+```bash
+pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
+pytest                           # fast suite — 730 passed, 72 skipped, ~20-40s
+pytest -m slow                   # + integration tests (real Vina/OpenMM/pty, ~55 min)
+pytest --cov=hybridock_pep       # coverage
+```
+
+> **WSL2 / CUDA:** the MM-GBSA test runs real OpenMM. Export the WSL CUDA path so it finds the GPU:
+> `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`. `OMP_NUM_THREADS=1` keeps the sklearn-heavy
+> scoring tests fast.
+>
+> **Full disclosure on the count:** the pass/skip split depends on which optional tools you have.
+> With a standard `score-env` (meeko, autogrid4, openbabel, ADFRsuite) the fast suite is **730
+> passed, 72 skipped, 1 expected-fail**. The skips are the `slow`-marked tier plus tests needing
+> tools you may not have installed — they are skips, not failures. `pytest -m slow` runs the
+> real-Vina, real-OpenMM and real-terminal tests, and takes roughly 55 minutes.
 
 ---
 
@@ -584,24 +515,15 @@ standard 30% sequence-identity clustering cutoff reported alongside our 60% numb
 accuracy-vs-identity-threshold trend rather than a single split. Full methodology, numbers, and reproduction
 commands: [RESULTS.md](RESULTS.md).
 
----
+## The claims — measured in kcal/mol, leakage-free
 
-## The claims, up front — measured in kcal/mol, leakage-free
+**New here? Read these three, in this order:**
 
-HybriDock-Pep predicts how short peptides bind to protein receptors. Give it a peptide sequence and a
-receptor PDB; it returns ranked binding poses, a calibrated ΔG, and — uniquely — a first-class
-**selectivity primitive** (ΔΔG with bootstrap CI) for "does this peptide prefer target A over off-target B".
-Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets, minutes per
-peptide on commodity hardware.
-
-It is a **two-stage hybrid** (see [Pipeline](#pipeline--the-full-workflow) above): an AI diffusion model
-(RAPiDock-Reloaded) samples all-atom poses, then a physics + learned-geometry rescorer turns those poses
-into calibrated affinity, selectivity, and reference-anchored ΔG. Three things it does that off-the-shelf
-tools don't combine: **(1)** it is the best non-FEP/LIE protein–peptide *affinity* scorer we can find a fair
-baseline for; **(2)** it lifts within-receptor accuracy from *r*≈0.25 to ≈0.55 when anchored to a few
-measured references on-target (the relative regime FEP also works in); and **(3)** it ships a
-structure-based *selectivity* ΔΔG that a sequence-only ML scorer structurally cannot provide. The whole
-thing is MIT-licensed and runs on CUDA, Apple MPS, Intel, AMD, or plain CPU.
+| | |
+|---|---|
+| **[METHODS.md](METHODS.md)** | What it does and how it was validated — the whole method in a few minutes. **Start here.** |
+| **[RESULTS.md](RESULTS.md)** | Every leakage-free number, and the command that reproduces each one. |
+| **[MODEL_CARD.md](MODEL_CARD.md)** | Which of the 10 `data/*.joblib` actually ship, and the honest limits. |
 
 >
 > **①  The best *available*, fastest, reference-free non-FEP/LIE protein–peptide ΔG scorer — with FEP-competitive
@@ -635,8 +557,10 @@ cross-target affinity is hard for everyone, a fresh out-of-training check, the r
 command-to-number reproduction table — lives in [RESULTS.md](RESULTS.md).** Everything there is measured,
 every claim links to the script that reproduces it, and every negative result is kept on the record in the
 development timeline archived on Zenodo: [10.5281/zenodo.21764713](https://doi.org/10.5281/zenodo.21764713).
-
----
+The full research ledger (E0–E37x, every refuted idea) lives in [`experiments/`](experiments/) and
+[`docs/`](docs/README.md). In-depth data, training sets, and everything too large for git:
+[`docs/DATA_ARCHIVE.md`](docs/DATA_ARCHIVE.md) — MD trajectory cache on Zenodo
+[10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573).
 
 ### HybriDock-Pep vs FEP — when to use which
 
@@ -651,109 +575,9 @@ it applies; we cover the regime it can't afford to.
 
 Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61–0.71**) — better than either cold-absolute option.
 
-
----
-
-## Install
-
-> Almost everyone should use the one-command installer in
-> [Quick start](#quick-start--one-command) — it auto-detects your OS/GPU, creates both
-> environments, downloads the model weights, and runs the smoke test. Re-running it is safe.
-> This section is the manual equivalent, for when you want control over each step or the
-> script doesn't fit your setup.
-
-**Manual, step by step:**
-
-```bash
-# 1. Scoring + analysis environment (the package itself)
-conda env create -f envs/score-env.yml
-conda activate score-env
-pip install -e .
-
-# 2. GPU sampling environment (Stage 1) — pick your platform
-conda env create -f envs/rapidock-env.yml            # Linux/WSL2 + CUDA
-# conda env create -f envs/rapidock-env-macos.yml    # Apple Silicon (MPS)
-```
-
-**Nothing else to download.** ADFRsuite is *not* required: receptor PDBQT comes from `meeko`,
-declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps come from
-conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
-conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
-unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
-reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
-automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
-affects a backbone-rebuild path.
-
-Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
-walkthrough.
-
-
----
-
-## Repository structure
-
-```
-hybridock-pep/
-├── README.md · RESULTS.md · MODEL_CARD.md   # start here — quickstart, benchmarks, shipped models
-├── CLAUDE.md                      # AI-assistant project instructions
-├── INSTALL.md                     # environment setup + optional license-restricted extras (PULCHRA)
-├── Makefile                       # make install / verify / demo / reproduce / test
-├── LICENSE                        # MIT
-├── pyproject.toml                 # score-env package definition
-├── docs/                          # architecture notes, dev timeline, diagnostics
-├── envs/
-│   ├── score-env.yml
-│   ├── rapidock-env.yml           # Linux/WSL2 + CUDA
-│   └── rapidock-env-macos.yml     # Apple Silicon (MPS)
-├── src/hybridock_pep/
-│   ├── cli.py                     # argparse entry point (6 subcommands + crystal-score)
-│   ├── driver.py                  # orchestrates Stage 1 + Stage 2 across both envs
-│   ├── hardware.py                # per-accelerator backend selection (CUDA/ROCm/oneAPI/MPS/CPU)
-│   ├── prep/                      # receptor + ligand PDBQT preparation
-│   ├── sampling/                  # RAPiDock subprocess wrapper, pose I/O
-│   ├── scoring/                   # Vina, AD4, MM-GBSA, entropy, geometry/affinity models
-│   ├── analysis/                  # RMSD clustering, ensemble statistics, plotting
-│   ├── output/                    # CSV + metadata writers
-│   └── selectivity.py             # ΔΔG selectivity primitive
-├── third_party/RAPiDock/          # RAPiDock-Reloaded submodule
-├── experiments/                   # the E0–E37x research ledger — every script cited in RESULTS.md
-├── scripts/                       # calibration, smoke test, and other operational tooling
-├── tests/                         # pytest suite (fast + `-m slow` integration tests)
-└── data/                          # calibration files, benchmark sets, shipped fixture PDBs
-```
-
-
----
-
-## Testing
-
-```bash
-pip install -e ".[dev]"          # pytest + dev tools (the runtime install omits them)
-pytest                           # fast suite — 670 passed, 55 skipped, ~18 s
-pytest -m slow                   # + integration tests (real Vina/OpenMM/pty, ~55 min)
-pytest --cov=hybridock_pep       # coverage
-```
-
-> **WSL2 / CUDA:** the MM-GBSA test runs real OpenMM. Export the WSL CUDA path so it finds the GPU:
-> `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`. `OMP_NUM_THREADS=1` keeps the sklearn-heavy
-> scoring tests fast.
->
-> **Full disclosure on the count:** the pass/skip split depends on which optional tools you have.
-> With a standard `score-env` (meeko, autogrid4, openbabel) the fast suite is **670 passed,
-> 55 skipped**. The skips are the `slow`-marked tier plus tests needing tools you may not have
-> installed — they are skips, not failures. `pytest -m slow` runs the real-Vina, real-OpenMM and
-> real-terminal tests, and takes roughly 55 minutes.
-
-
 ---
 
 ## Roadmap / to-do
-
-```
-  ┌───────────────────────────────────────────────────────────────────────┐
-  │  HybriDock-Pep  ·  where we are and where we're going                   │
-  └───────────────────────────────────────────────────────────────────────┘
-```
 
 **Done ✓**
 - [x] Two-stage pipeline (RAPiDock-Reloaded sampling → physics/geometry rescoring), MIT, cross-platform
@@ -762,6 +586,7 @@ pytest --cov=hybridock_pep       # coverage
 - [x] Selectivity ΔΔG primitive (target vs off-target) with bootstrap CI
 - [x] Rigorous characterisation of the absolute-cross-target wall (why it's hard for FEP too)
 - [x] `--ultra` verification tier scoped (MM-GBSA + charged/entropy physics; honest limits documented)
+- [x] Guided terminal UI with live progress bars and a no-GPU demo mode
 
 **In progress / next**
 - [ ] Trajectory cache (`e363`) — simulate once, re-derive any physics term offline (near done)
@@ -774,14 +599,13 @@ pytest --cov=hybridock_pep       # coverage
 - [x] ~~Breaking absolute cross-target r past the field ceiling with more physics~~ — fundamental wall (see docs)
 - [x] ~~Raw electrostatic/entropy terms as absolute-ΔG features~~ — charge-count/near-cancellation artifacts
 
-
 ---
 
 ## Project status
 
 Built for the **iGEM 2026 Best Software Tool** award by the Denmark High School Dry Lab team. Target-agnostic;
 the initial test case is a malaria rapid-diagnostic peptide selectivity check (PfLDH vs hLDH). Stable,
-MIT-licensed, 419 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
+MIT-licensed, 730 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
 pipeline spec.
 
 **Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); designed and built at
