@@ -204,7 +204,7 @@ class PipelineProgress:
                 elapsed = time.time() - start
                 if art_on and elapsed >= (shown + 1) * art_interval_s:
                     self._write("\r" + " " * 40 + "\r")
-                    _art.write_gallery_piece(self.stream, shown)
+                    _art.animate_gallery_piece(self.stream, shown)
                     shown += 1
                 spin = _art.spin_frame(elapsed) if art_on else ""
                 suffix = f"  {spin}" if spin else ""

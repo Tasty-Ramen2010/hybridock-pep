@@ -357,9 +357,9 @@ def demo_lines(n=100):
     # Stage 1 wait is the one part of a run that's genuinely silent for a
     # while, and 100 lines landing at 10ms apart would scroll straight
     # through a gallery piece before a human — or a terminal repaint — ever
-    # caught it.
-    title, piece = art.gallery_piece(0)
-    yield (f"\n   · {title}\n" + piece.strip("\n") + "\n", 1.8)
+    # caught it. "__ART__:0" is a sentinel worker() recognizes and hands to
+    # show_art() instead of appending literally — that's what animates it.
+    yield ("__ART__:0", 0.3)
     yield (f"Stage 1 complete: {n} poses parsed", 0.1)
     yield ("Stage 1.5: OpenMM minimization", 0.1)
     yield (f"Stage 1.5 complete: {n} poses minimized", 0.1)
@@ -454,6 +454,39 @@ def run_fullscreen(auto_demo=False):
         output.text = "\n".join(state["lines"][-2000:])
         output.buffer.cursor_position = len(output.text)
 
+    def replace_tail(n, lines):
+        if n:
+            state["lines"][-n:] = lines
+        else:
+            state["lines"].extend(lines)
+        output.text = "\n".join(state["lines"][-2000:])
+        output.buffer.cursor_position = len(output.text)
+
+    def show_art(index, delay=0.28):
+        """Animate one gallery piece into the output log, frame by frame.
+
+        Blocks the calling thread between frames (same trick as
+        art.animate_gallery_piece for the plain CLI, minus the raw ANSI —
+        here we just rewrite the tail of state["lines"]). Callers on a
+        background thread (art_ticker, the worker thread) can call this
+        directly; a keybinding handler (Ctrl-A) runs on the main event loop
+        and must wrap it in its own thread instead, or it would freeze the UI.
+        """
+        try:
+            title, frames = art.gallery_piece(index)
+            first = frames[0].splitlines()
+            append(f"\n   · {title}")
+            replace_tail(0, [f"   {line}" for line in first])
+            n = len(first)
+            for frame in frames[1:]:
+                time.sleep(delay)
+                lines = frame.splitlines()
+                replace_tail(n, [f"   {line}" for line in lines])
+                n = len(lines)
+            append("")
+        except Exception:
+            pass
+
     hint = FormattedTextControl(text="")
 
     def refresh_hint():
@@ -532,8 +565,7 @@ def run_fullscreen(auto_demo=False):
                 if (p.stage == "sample" and stage_t0 is not None
                         and time.time() - stage_t0 >= (shown + 1) * 30.0):
                     shown += 1
-                    title, piece = art.gallery_piece(shown - 1)
-                    append(f"\n   · {title}\n" + piece.strip("\n") + "\n")
+                    show_art(shown - 1)
 
         def worker():
             try:
@@ -541,8 +573,11 @@ def run_fullscreen(auto_demo=False):
                     for text, delay in demo_lines(int(vals()["n_samples"] or 100)):
                         if state["cancel"]:
                             break
-                        progress["p"].feed(text)
-                        append(text)
+                        if text.startswith("__ART__:"):
+                            show_art(int(text.split(":", 1)[1]))
+                        else:
+                            progress["p"].feed(text)
+                            append(text)
                         time.sleep(delay)
                     state["rc"] = 0
                 else:
@@ -860,14 +895,17 @@ def run_fullscreen(auto_demo=False):
     def _(e):
         # Undocumented on purpose — a small gallery/easter-egg peek, any time,
         # run or no run. `random` (not a seeded rng) is deliberate: this has
-        # no effect on anything scored or reproducible.
+        # no effect on anything scored or reproducible. show_art() sleeps
+        # between frames, so it runs on its own thread — this handler fires
+        # on the main event loop and must not block it.
         import random as _random  # noqa: PLC0415
         egg = art.maybe_rare()
         if egg:
             append(egg)
         else:
-            title, piece = art.gallery_piece(_random.randrange(len(art.GALLERY)))
-            append(f"\n   · {title}\n" + piece.strip("\n") + "\n")
+            threading.Thread(
+                target=lambda: show_art(_random.randrange(len(art.GALLERY))), daemon=True
+            ).start()
 
     @kb.add("c-b", filter=not_picker)
     def _(e):

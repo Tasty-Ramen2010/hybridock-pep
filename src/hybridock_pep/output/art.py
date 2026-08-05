@@ -4,7 +4,9 @@ Stage 1 (RAPiDock sampling) is the one part of a `dock` run that can sit
 silent for 2+ minutes with no output at default verbosity — exactly the
 "is it frozen?" gap :mod:`hybridock_pep.output.progress` was written to
 close. This module gives that wait something to look at: a short rotating
-gallery of science-themed ASCII art, plus a couple of easter eggs.
+gallery of science-themed ASCII art (most of it lightly animated — the DNA
+strand rotates, the alpha helix turns, the diffusion piece actually shows
+noise resolving into a pose), plus a couple of easter eggs.
 
 Every function here is decorative only:
 
@@ -14,9 +16,13 @@ Every function here is decorative only:
 - Every entry point degrades to a no-op off a TTY, under ``HYBRIDOCK_NO_ART``,
   or on any internal error — the same "must not break a run" rule
   :mod:`hybridock_pep.output.progress` follows.
+- Frame data is generated once at import time from plain math (a fixed
+  random seed for the diffusion piece), not hand-typed per frame, so every
+  frame of an animation shares the same line count and column alignment.
 """
 from __future__ import annotations
 
+import math
 import os
 import random
 import sys
@@ -48,86 +54,133 @@ def art_enabled(stream: TextIO | None = None) -> bool:
 # Gallery — rotates during a long wait (Stage 1 sampling)
 # ---------------------------------------------------------------------------
 
-_DNA_HELIX = r"""
-        A┈┈┈┈┈T
-         \    /
-          \  /
-    G┈┈┈┈┈┈╳┈┈┈┈┈┈C
-          /  \
-         /    \
-        C      G
-         \    /
-          \  /
-    T┈┈┈┈┈┈╳┈┈┈┈┈┈A
-          /  \
-         /    \
-        G      C
-"""
-
-_ALPHA_HELIX = r"""
-   N-term
-     @
-         o
-          @
-       o
-   @
-o
- @
-     o
-         @
-          o
-       @
-   o
-@
- o
-           C-term
-   (one turn ~= 3.6 residues)
-"""
-
-_BINDING_POCKET = r"""
- ________________________
-/                        \
-|                        |
-|  key  ⇢   ⬡   ⇠  lock  |
-|                        |
-|   peptide  ⇢  pocket   |
-|   receptor ⇢  pocket   |
-|                        |
- \________________________/
-"""
-
-_DIFFUSION = r"""
-        .   .    .
-      .   ·   ·    .
-    .   ·  ·  ·   ·   .
-      ·  ·  ○  ·  ·
-    .   ·  ·  ·   ·   .
-      .   ·   ·    .
-        .   .    .
-      noise  ->  pose
-"""
-
-#: (caption, art) pairs, rotated in order during a long wait.
-GALLERY: tuple[tuple[str, str], ...] = (
-    ("DNA — double helix", _DNA_HELIX),
-    ("Peptide backbone — one alpha-helix turn", _ALPHA_HELIX),
-    ("Induced fit — key, lock, pocket", _BINDING_POCKET),
-    ("Stage 1 — noise to pose", _DIFFUSION),
+_DNA_BASE = (
+    "        A\u2508\u2508\u2508\u2508\u2508T\n"
+    "         \\    /\n"
+    "          \\  /\n"
+    "    G\u2508\u2508\u2508\u2508\u2508\u2508\u2573\u2508\u2508\u2508\u2508\u2508\u2508\u2508C\n"
+    "          /  \\\n"
+    "         /    \\\n"
+    "        C      G\n"
+    "         \\    /\n"
+    "          \\  /\n"
+    "    T\u2508\u2508\u2508\u2508\u2508\u2508\u2573\u2508\u2508\u2508\u2508\u2508\u2508\u2508A\n"
+    "          /  \\\n"
+    "         /    \\\n"
+    "        G      C"
 )
 
 
-def gallery_piece(index: int) -> tuple[str, str]:
-    """The ``index``-th gallery piece, cycling."""
+def _dna_frames() -> tuple[str, ...]:
+    """A believable spin: base-pair view -> edge-on -> 180 deg -> edge-on."""
+    edge_on = "".join("\u2022" if c in "ATGC" else c for c in _DNA_BASE)
+    swapped = _DNA_BASE.translate(str.maketrans({"A": "T", "T": "A", "G": "C", "C": "G"}))
+    return (_DNA_BASE, edge_on, swapped, edge_on)
+
+
+def _alpha_helix_frames() -> tuple[str, ...]:
+    """One coil, phase-shifted a quarter turn per frame — a rotating sine wave."""
+    frames = []
+    width = 10
+    for phase in (0.0, 1.1, 2.2, 3.3):
+        lines = ["   N-term"]
+        for i in range(14):
+            x = int(round(width / 2 * (1 + math.sin(i * 0.9 + phase))))
+            ch = "@" if i % 2 == 0 else "o"
+            lines.append(" " * x + ch)
+        lines.append("           C-term")
+        frames.append("\n".join(lines))
+    return tuple(frames)
+
+
+_BINDING_POCKET = (
+    " ________________________\n"
+    "/                        \\\n"
+    "|                        |\n"
+    "|  key  \u21e2   \u2b21   \u21e0  lock  |\n"
+    "|                        |\n"
+    "|   peptide  \u21e2  pocket   |\n"
+    "|   receptor \u21e2  pocket   |\n"
+    "|                        |\n"
+    " \\________________________/"
+)
+
+
+def _diffusion_frames() -> tuple[str, ...]:
+    """Noise literally resolving into a pose — points move from scattered
+    starting positions to a target ring shape over four interpolation steps,
+    which is what a diffusion model (RAPiDock's Stage 1) actually does.
+    Fixed seed: deterministic, testable, identical on every machine.
+    """
+    cols, rows, n = 23, 7, 14
+    cx, cy = cols / 2, rows / 2
+    target = [
+        (cx + 7.5 * math.cos(2 * math.pi * i / n), cy + 2.4 * math.sin(2 * math.pi * i / n))
+        for i in range(n)
+    ]
+    rng = random.Random(7)
+    noise = [(rng.uniform(1, cols - 2), rng.uniform(1, rows - 2)) for _ in range(n)]
+
+    def render(t: float, glyph: str) -> str:
+        grid = [[" "] * cols for _ in range(rows)]
+        for (nx, ny), (tx, ty) in zip(noise, target):
+            x = nx + (tx - nx) * t
+            y = ny + (ty - ny) * t
+            xi, yi = int(round(x)), int(round(y))
+            if 0 <= yi < rows and 0 <= xi < cols:
+                grid[yi][xi] = glyph
+        return "\n".join("".join(row) for row in grid)
+
+    steps = [(0.0, "\u00b7"), (0.35, "\u00b7"), (0.7, "o"), (1.0, "\u25cf")]
+    caption = "      noise " + "".join("\u00b7" for _ in range(3))
+    frames = [render(t, g) + f"\n{caption}" for t, g in steps]
+    frames[-1] = frames[-1].rsplit("\n", 1)[0] + "\n      noise  ->  pose"
+    return tuple(frames)
+
+
+#: (caption, frames) pairs, rotated in order during a long wait. Single-frame
+#: entries (a tuple of length 1) just render once — not every piece needs to
+#: animate to earn a place in the gallery.
+GALLERY: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("DNA — double helix", _dna_frames()),
+    ("Peptide backbone — one alpha-helix turn", _alpha_helix_frames()),
+    ("Induced fit — key, lock, pocket", (_BINDING_POCKET,)),
+    ("Stage 1 — noise resolving into a pose", _diffusion_frames()),
+)
+
+
+def gallery_piece(index: int) -> tuple[str, tuple[str, ...]]:
+    """The ``index``-th gallery piece (title, frames), cycling."""
     return GALLERY[index % len(GALLERY)]
 
 
-def write_gallery_piece(stream: TextIO, index: int, indent: str = "   ") -> None:
-    """Write one indented gallery piece to ``stream``. Never raises."""
+def animate_gallery_piece(
+    stream: TextIO, index: int, indent: str = "   ", frame_delay: float = 0.28
+) -> None:
+    """Write one gallery piece to ``stream``, animating in place if it has
+    more than one frame, then leave the final frame on screen.
+
+    TTY-only in spirit (the caller already gates on that — see
+    :meth:`hybridock_pep.output.progress.PipelineProgress.heartbeat`): uses
+    plain ANSI cursor-up + line-clear to redraw, which only makes sense on a
+    real terminal. Never raises — a broken animation must not break a run.
+    """
     try:
-        title, art = gallery_piece(index)
-        stream.write(f"\n{indent}· {title}\n")
-        for line in art.strip("\n").splitlines():
+        title, frames = gallery_piece(index)
+        first = frames[0].splitlines()
+        stream.write(f"\n{indent}\u00b7 {title}\n")
+        for line in first:
             stream.write(f"{indent}{line}\n")
+        stream.flush()
+        n = len(first)
+        for frame in frames[1:]:
+            time.sleep(frame_delay)
+            lines = frame.splitlines()
+            stream.write(f"\x1b[{n}A")
+            for line in lines:
+                stream.write(f"\x1b[2K{indent}{line}\n")
+            stream.flush()
+            n = len(lines)
         stream.write("\n")
         stream.flush()
     except Exception:
