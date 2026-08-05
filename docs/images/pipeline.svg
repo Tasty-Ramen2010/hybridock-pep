@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 854" role="img" aria-label="HybriDock-Pep dock pipeline: peptide and receptor go through GPU pose sampling in the rapidock environment, then CPU clash-relief, ranking, clustering, and the primary AI-pose affinity ΔG in the score environment, ending in ranked_poses.csv and related output files.">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#5c656b"/>
+  </marker>
+</defs>
+<rect x="0" y="0" width="1000" height="1000" fill="#12161a"/>
+<rect x="170.0" y="40" width="318.0" height="46" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="170.0" y="40" width="5" height="46" rx="2.5" fill="#8ea3c9"/>
+<text x="194.0" y="69" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" font-weight="600" fill="#e9ece9" text-anchor="start">Peptide sequence</text>
+<rect x="512.0" y="40" width="318.0" height="46" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="512.0" y="40" width="5" height="46" rx="2.5" fill="#8ea3c9"/>
+<text x="536.0" y="69" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" font-weight="600" fill="#e9ece9" text-anchor="start">Receptor PDB</text>
+<line x1="329.0" y1="86" x2="500.0" y2="120" stroke="#5c656b" stroke-width="1.6"/>
+<line x1="671.0" y1="86" x2="500.0" y2="120" stroke="#5c656b" stroke-width="1.6"/>
+<rect x="170.0" y="120" width="660" height="54" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="170.0" y="120" width="5" height="54" rx="2.5" fill="#8ea3c9"/>
+<text x="500.0" y="143" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14.5" font-weight="600" fill="#e9ece9" text-anchor="middle">hybridock-pep dock  (CLI)</text>
+<text x="500.0" y="162" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="500" fill="#9aa3a0" text-anchor="middle">or the same fields, guided — the terminal UI</text>
+<line x1="500.0" y1="174" x2="500.0" y2="205" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="514.0" y="198.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="500" fill="#9aa3a0" text-anchor="start">validates inputs before spawning anything</text>
+<rect x="170.0" y="214" width="660" height="44" rx="10" fill="#14181c" stroke="#3a4147" stroke-width="1.2"/>
+<rect x="170.0" y="214" width="660" height="44" rx="10" fill="none" stroke="#3a4147" stroke-width="1.2" stroke-dasharray="3,4"/>
+<text x="500.0" y="241" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" fill="#9aa3a0" text-anchor="middle">driver.py — orchestrates two conda environments</text>
+<line x1="500.0" y1="258" x2="500.0" y2="285" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="170.0" y="294" width="660" height="62" rx="10" fill="#191f24" stroke="#2c343a" stroke-width="1.3"/>
+<rect x="170.0" y="294" width="5" height="62" rx="2.5" fill="#e6935a"/>
+<rect x="667.4" y="301" width="146.60000000000002" height="19" rx="9.5" fill="none" stroke="#e6935a" stroke-width="1.2"/>
+<circle cx="681.4" cy="310.5" r="3" fill="#e6935a"/>
+<text x="690.4" y="314" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="600" fill="#e6935a" text-anchor="start">rapidock env · GPU</text>
+<text x="194.0" y="321" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" font-weight="600" fill="#e9ece9" text-anchor="start">STAGE 1 · Diffusion sampling (RAPiDock-Reloaded)</text>
+<text x="194.0" y="341" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="500" fill="#9aa3a0" text-anchor="start">generates N candidate 3D poses  ·  ~3 min for N=100 on an RTX 5070</text>
+<line x1="500.0" y1="356" x2="500.0" y2="391" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="514.0" y="372" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="600" fill="#e6935a" text-anchor="start">N pose PDBs</text>
+<text x="514.0" y="388" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="500" fill="#9aa3a0" text-anchor="start">handed to score-env</text>
+<rect x="170.0" y="400" width="660" height="54" rx="10" fill="#191f24" stroke="#2c343a" stroke-width="1.3"/>
+<rect x="170.0" y="400" width="5" height="54" rx="2.5" fill="#4fd1c5"/>
+<rect x="687.5" y="406" width="126.5" height="19" rx="9.5" fill="none" stroke="#4fd1c5" stroke-width="1.2"/>
+<circle cx="701.5" cy="415.5" r="3" fill="#4fd1c5"/>
+<text x="710.5" y="419" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="600" fill="#4fd1c5" text-anchor="start">score-env · CPU</text>
+<text x="194.0" y="425" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" font-weight="600" fill="#e9ece9" text-anchor="start">STAGE 1.5 · Clash-relief minimization (OpenMM)</text>
+<text x="194.0" y="443" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="500" fill="#9aa3a0" text-anchor="start">gently fixes atom overlaps left over in each pose</text>
+<line x1="500.0" y1="454" x2="500.0" y2="477" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="170.0" y="486" width="660" height="54" rx="10" fill="#191f24" stroke="#2c343a" stroke-width="1.3"/>
+<rect x="170.0" y="486" width="5" height="54" rx="2.5" fill="#4fd1c5"/>
+<rect x="687.5" y="492" width="126.5" height="19" rx="9.5" fill="none" stroke="#4fd1c5" stroke-width="1.2"/>
+<circle cx="701.5" cy="501.5" r="3" fill="#4fd1c5"/>
+<text x="710.5" y="505" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="600" fill="#4fd1c5" text-anchor="start">score-env · CPU</text>
+<text x="194.0" y="511" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" font-weight="600" fill="#e9ece9" text-anchor="start">STAGE 2 · Structural ranking (Vina clash-check + ML)</text>
+<text x="194.0" y="529" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="500" fill="#9aa3a0" text-anchor="start">Vina here is clash relief only — NOT the final score</text>
+<line x1="500.0" y1="540" x2="500.0" y2="563" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="170.0" y="572" width="660" height="54" rx="10" fill="#191f24" stroke="#2c343a" stroke-width="1.3"/>
+<rect x="170.0" y="572" width="5" height="54" rx="2.5" fill="#4fd1c5"/>
+<rect x="687.5" y="578" width="126.5" height="19" rx="9.5" fill="none" stroke="#4fd1c5" stroke-width="1.2"/>
+<circle cx="701.5" cy="587.5" r="3" fill="#4fd1c5"/>
+<text x="710.5" y="591" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="600" fill="#4fd1c5" text-anchor="start">score-env · CPU</text>
+<text x="194.0" y="597" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" font-weight="600" fill="#e9ece9" text-anchor="start">STAGE 3 · Cα-RMSD clustering</text>
+<text x="194.0" y="615" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="500" fill="#9aa3a0" text-anchor="start">groups poses → one representative per cluster</text>
+<line x1="500.0" y1="626" x2="500.0" y2="649" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="170.0" y="658" width="660" height="78" rx="10" fill="#191f24" stroke="#2c343a" stroke-width="1.3"/>
+<rect x="170.0" y="658" width="5" height="78" rx="2.5" fill="#4fd1c5"/>
+<rect x="687.5" y="664" width="126.5" height="19" rx="9.5" fill="none" stroke="#4fd1c5" stroke-width="1.2"/>
+<circle cx="701.5" cy="673.5" r="3" fill="#4fd1c5"/>
+<text x="710.5" y="677" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="600" fill="#4fd1c5" text-anchor="start">score-env · CPU</text>
+<text x="194.0" y="683" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" fill="#9aa3a0" text-anchor="start">STAGE 3.5 · optional MM-GBSA refinement (--refine-topk)</text>
+<line x1="186.0" y1="695" x2="814.0" y2="695" stroke="#2c343a" stroke-width="1"/>
+<text x="194.0" y="716" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14.5" font-weight="700" fill="#7fd08a" text-anchor="start">STAGE 3.6 · PRIMARY ΔG</text>
+<text x="194.0" y="732" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="500" fill="#9aa3a0" text-anchor="start">the AI-pose affinity model — this is the headline number, not Vina</text>
+<line x1="500.0" y1="736" x2="500.0" y2="763" stroke="#5c656b" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="170.0" y="772" width="151.5" height="48" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="170.0" y="772" width="5" height="48" rx="2.5" fill="#7fd08a"/>
+<text x="182.0" y="793" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">ranked_</text>
+<text x="182.0" y="809" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">poses.csv</text>
+<rect x="339.5" y="772" width="151.5" height="48" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="339.5" y="772" width="5" height="48" rx="2.5" fill="#7fd08a"/>
+<text x="351.5" y="793" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">best_</text>
+<text x="351.5" y="809" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">pose.pdb</text>
+<rect x="509.0" y="772" width="151.5" height="48" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="509.0" y="772" width="5" height="48" rx="2.5" fill="#7fd08a"/>
+<text x="521.0" y="793" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">cluster_</text>
+<text x="521.0" y="809" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">summary.csv</text>
+<rect x="678.5" y="772" width="151.5" height="48" rx="10" fill="#161b20" stroke="#39424a" stroke-width="1.3"/>
+<rect x="678.5" y="772" width="5" height="48" rx="2.5" fill="#7fd08a"/>
+<text x="690.5" y="793" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">run_</text>
+<text x="690.5" y="809" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.8" font-weight="600" fill="#e9ece9" text-anchor="start">metadata.json</text>
+<text x="500.0" y="834" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#9aa3a0" text-anchor="middle">+ run_metadata.json also logs git SHA, seeds, and software versions</text>
+</svg>

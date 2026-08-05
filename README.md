@@ -44,35 +44,11 @@ minutes per peptide, on a single GPU or even a laptop CPU.
 ## How it works — the pipeline
 
 Two stages chained together: an AI diffusion model proposes 3D poses, then a physics + learned-geometry
-rescorer turns those poses into a real, comparable ΔG. This diagram is the *actual* code path
-(`driver.py::run_dock`), not a simplified sketch:
+rescorer turns those poses into a real, comparable ΔG. This is the *actual* code path
+(`driver.py::run_dock`), not a simplified sketch — including which of the two conda environments
+each stage actually runs in, and exactly where Vina's role ends and the real score begins:
 
-```
-  Peptide sequence  +  Receptor PDB
-           │
-  ┌────────▼─────────────────────────────────────────────────┐
-  │ STAGE 1 · Diffusion sampling (RAPiDock-Reloaded)          │
-  │   generates N candidate 3D poses   (~3 min for N=100)     │
-  └────────┬─────────────────────────────────────────────────┘
-  ┌────────▼─────────────────────────────────────────────────┐
-  │ STAGE 1.5 · Clash-relief minimization (OpenMM)            │
-  │   gently fixes atom overlaps left over in each pose       │
-  └────────┬─────────────────────────────────────────────────┘
-  ┌────────▼─────────────────────────────────────────────────┐
-  │ STAGE 2 · Structural ranking (Vina clash-check + ML)      │
-  │   Vina here is clash-relief only — NOT the final score    │
-  └────────┬─────────────────────────────────────────────────┘
-  ┌────────▼─────────────────────────────────────────────────┐
-  │ STAGE 3 · Cα-RMSD clustering → cluster representatives    │
-  └────────┬─────────────────────────────────────────────────┘
-  ┌────────▼─────────────────────────────────────────────────┐
-  │ STAGE 3.5 · (optional) MM-GBSA refinement --refine-topk   │
-  │ STAGE 3.6 · PRIMARY ΔG — the AI-pose affinity model       │
-  └────────┬─────────────────────────────────────────────────┘
-           ▼
-  ranked_poses.csv · best_pose.pdb · cluster_summary.csv ·
-  convergence.png · run_metadata.json  (git SHA, seeds, versions)
-```
+<img src="docs/images/pipeline.svg" alt="HybriDock-Pep dock pipeline: peptide and receptor go into the CLI or UI, driver.py orchestrates Stage 1 GPU sampling in the rapidock environment, then Stage 1.5 through 3.6 CPU clash-relief, ranking, clustering, and the primary AI-pose affinity ΔG in the score environment, ending in ranked_poses.csv and related output files.">
 
 **The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with a
 geometry-feature model tuned on real RAPiDock/AI poses; that's the `delta_g` column and the
