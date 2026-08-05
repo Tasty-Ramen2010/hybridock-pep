@@ -173,7 +173,7 @@ class PipelineProgress:
             self.clear_line()
 
     @contextlib.contextmanager
-    def heartbeat(self, interval_s: float = 15.0):
+    def heartbeat(self, interval_s: float = 15.0, art_interval_s: float = 30.0):
         """Tick an in-place elapsed-time indicator while a long, silent call
         runs under the current stage (e.g. the RAPiDock sampling subprocess,
         which can run 2+ minutes with no output at default verbosity). TTY-only
@@ -181,17 +181,34 @@ class PipelineProgress:
         there. No-op if disabled. Never lets a heartbeat-thread problem break
         the wrapped call — same "must not break a run" rule as the rest of
         this module.
+
+        Every ``art_interval_s`` seconds the in-place ticker is joined by one
+        piece from :mod:`hybridock_pep.output.art`'s gallery, printed on its
+        own lines so a long real wait has something to look at beyond a
+        growing number. Purely cosmetic — set ``HYBRIDOCK_NO_ART=1`` to get
+        the plain elapsed-time ticker back.
         """
         if not self.enabled or not self.tty:
             yield
             return
+        from hybridock_pep.output import art as _art  # noqa: PLC0415
+
+        art_on = _art.art_enabled(self.stream)
         stop = threading.Event()
         start = time.time()
+        shown = 0
 
         def _tick() -> None:
+            nonlocal shown
             while not stop.wait(interval_s):
                 elapsed = time.time() - start
-                self._write(f"\r   … still working ({elapsed:.0f}s elapsed)")
+                if art_on and elapsed >= (shown + 1) * art_interval_s:
+                    self._write("\r" + " " * 40 + "\r")
+                    _art.write_gallery_piece(self.stream, shown)
+                    shown += 1
+                spin = _art.spin_frame(elapsed) if art_on else ""
+                suffix = f"  {spin}" if spin else ""
+                self._write(f"\r   … still working ({elapsed:.0f}s elapsed){suffix}")
 
         try:
             t = threading.Thread(target=_tick, daemon=True)

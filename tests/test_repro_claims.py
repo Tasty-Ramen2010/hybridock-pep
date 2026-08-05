@@ -1,15 +1,17 @@
-"""Guards on what the README promises an outside reader can reproduce.
+"""Guards on what the docs promise an outside reader can reproduce.
 
-The README's "Datasets — download and test for yourself" section says
+RESULTS.md's "Datasets — download and test for yourself" section says
 "Everything above is reproducible from data shipped in this repo" and links each
 file. Nothing checked that, and one of the links —
 `data/e180_protdcal3d.jsonl`, the feature file behind the flagship
 ours-vs-PPI-clone head-to-head — pointed at a path that is in .gitignore and
-has never been committed. A reader following the README got a 404 on the one
+has never been committed. A reader following the docs got a 404 on the one
 number the project leads with.
 
 These tests make that class of failure loud at test time instead of at
-reader time.
+reader time. (The Datasets section itself moved from README.md into
+RESULTS.md so the landing page leads with architecture, not proof — see
+RESULTS.md's own "How we benchmark" framing. This file follows it there.)
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
-README = REPO / "README.md"
+RESULTS = REPO / "RESULTS.md"
 
 
 def _tracked_paths() -> set[str] | None:
@@ -41,10 +43,10 @@ def _tracked_paths() -> set[str] | None:
 
 
 def _dataset_table_links() -> list[str]:
-    """Repo-relative paths linked from the datasets section of the README."""
-    text = README.read_text()
+    """Repo-relative paths linked from the datasets section of RESULTS.md."""
+    text = RESULTS.read_text()
     start = text.find("## Datasets")
-    assert start != -1, "README lost its Datasets section"
+    assert start != -1, "RESULTS.md lost its Datasets section"
     end = text.find("\n## ", start + 1)
     section = text[start:end if end != -1 else len(text)]
     return [
@@ -64,7 +66,7 @@ class TestReadmeDatasetsShip:
         if tracked is None:
             pytest.skip("not a git checkout")
         assert rel in tracked, (
-            f"README links {rel} as shipped data, but git does not track it — "
+            f"RESULTS.md links {rel} as shipped data, but git does not track it — "
             "a reader who clones this repo gets a broken link and cannot "
             "reproduce whatever it backs. Either commit the file or stop "
             "presenting it as shipped."

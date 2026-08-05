@@ -470,6 +470,13 @@ def _print_dock_banner(config: DockConfig) -> None:
     print("│" + title.center(inner) + "│", file=sys.stderr)
     print("└" + "─" * inner + "┘", file=sys.stderr)
 
+    from hybridock_pep.output import art  # noqa: PLC0415
+
+    if art.art_enabled(sys.stderr):
+        egg = art.easter_egg_for_peptide(config.peptide_sequence)
+        if egg:
+            print(egg, file=sys.stderr)
+
 
 #: Box edge used when --blind is given without --box. Matches driver.py's
 #: _AUTO_BOX_MAX_AA — the largest grid the auto-expansion will build, kept as an

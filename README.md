@@ -9,6 +9,17 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
 [![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
 
+<table>
+<tr>
+<td width="50%"><img src="docs/images/tui_form.png" alt="The guided terminal UI: input form pre-filled with the LISDAELEAIFEADC / PfLDH example"></td>
+<td width="50%"><img src="docs/images/tui_art_gallery.png" alt="A long RAPiDock wait gets a rotating gallery of science-themed ASCII art instead of a silent terminal"></td>
+</tr>
+</table>
+
+The terminal UI (`./launch_ui.sh`) — real screenshots, not mockups. Left: the input form. Right:
+Stage 1 sampling is the one part of a run that's silent for a while, so it gets something to look
+at instead of a blinking cursor. More in [Command reference](#command-reference--install-test-run-ui).
+
 ### 📺 Watch the tutorial
 
 **[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** · start here if you have
@@ -293,29 +304,26 @@ straight onto any path field.
 > the whole process group, so the `rapidock` sampling child dies too rather than being orphaned on
 > your GPU.
 
-**Real screenshots, captured from the actual terminal — first launch, the input form pre-filled with
-the PfLDH parent-project example, a finished `--demo` run, and the help screen:**
+**The full walkthrough, all real screenshots:** first launch, the input form, a long-wait ASCII
+art break mid-run, a finished `--demo`, and the help screen.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/tui_welcome.png" alt="Guided welcome walkthrough on first launch"></td>
-<td width="50%"><img src="docs/images/tui_form.png" alt="Input form pre-filled with the LISDAELEAIFEADC / PfLDH example"></td>
+<td width="33%"><img src="docs/images/tui_welcome.png" alt="Guided welcome walkthrough on first launch"></td>
+<td width="33%"><img src="docs/images/tui_form.png" alt="Input form pre-filled with the LISDAELEAIFEADC / PfLDH example"></td>
+<td width="33%"><img src="docs/images/tui_art_gallery.png" alt="A rotating gallery of ASCII art during the one real silent wait — Stage 1 sampling"></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/tui_demo_run.png" alt="Finished --demo run showing the progress bar and result"></td>
-<td width="50%"><img src="docs/images/tui_help.png" alt="Built-in help screen, topic 0 of 10"></td>
+<td width="33%"><img src="docs/images/tui_demo_run.png" alt="Finished --demo run showing the progress bar and result"></td>
+<td width="33%"><img src="docs/images/tui_help.png" alt="Built-in help screen, topic 0 of 10"></td>
+<td width="33%"></td>
 </tr>
 </table>
 
-And the two plots a real `dock` run writes to `--output-dir` — score-sorted convergence and the
-cluster-count silhouette check that picks `k`, both from the MDM2/p53 demo above:
-
-<table>
-<tr>
-<td width="50%"><img src="docs/images/convergence_plot.png" alt="Score-sorted convergence plot"></td>
-<td width="50%"><img src="docs/images/silhouette_plot.png" alt="Silhouette score vs. number of clusters"></td>
-</tr>
-</table>
+> The ASCII gallery isn't just decoration for the demo — the plain CLI (`hybridock-pep dock`)
+> shows the same rotating gallery in its heartbeat ticker during a real Stage 1 wait, and there
+> are a couple of easter eggs in the terminal UI if you go looking (`Ctrl-A`, or try a familiar
+> peptide sequence). Set `HYBRIDOCK_NO_ART=1` to turn all of it off.
 
 ### 6. Built-in guide (no UI needed)
 
