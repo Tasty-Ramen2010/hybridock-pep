@@ -289,7 +289,7 @@ def _optimize_backends():
         return "XPU (Intel)"
 
     if getattr(getattr(torch.backends, "mps", None), "is_available", lambda: False)():
-        return "MPS (Apple, op-fallback enabled)" + _try_patch_metal_e3nn()
+        return "MPS (Apple, op-fallback enabled)"  # metal-e3nn patching disabled due to hang bug
 
     # CPU: pin to physical cores (os.cpu_count() counts logical; halve if SMT).
     try:
