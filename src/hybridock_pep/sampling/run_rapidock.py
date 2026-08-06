@@ -85,29 +85,43 @@ def _default_batch_cap():
 
     Batching more poses per denoising step cuts MPS dispatch overhead, but each
     batched pose costs roughly 0.5 GB of peak working set (GPU-side activations
-    plus the CPU-side graph copies sampling.py holds). Exceed physical RAM and
-    the run does not degrade gracefully -- it falls off a cliff into swap.
+    plus the CPU-side graph copies sampling.py holds). Exceed available memory
+    and the run does not degrade gracefully -- it falls off a cliff into swap.
 
-    Measured on a 16 GB M3, --n-samples 100, 1YCR/MDM2 + 12-mer:
+    Original measurement, mostly-idle 16 GB M3, --n-samples 100, 1YCR/MDM2 + 12-mer:
 
         batch   4    8   16   20    24    32
         wall   98s  70s  62s  64s   83s  398s
         swap  -24M -80M -32M +638M +1.8G +4.8G
 
-    Batch 32 is 6.4x slower than batch 16 purely from paging, and worse than
-    the batch of 4 this wrapper used to hardcode.
+    That budgeted 45% of *total* physical RAM, which is only valid when the
+    rest of the machine is idle. Re-measured on the same 16 GB M3 (17.2 GB
+    reported) with a typical desktop session open (browser, IDE, other apps
+    -- ~4.7 GB already resident, 12.5 GB free per psutil), the cliff moved:
 
-    Note how asymmetric that curve is. Undershooting the optimum costs ~15%
-    (batch 8 is 70s against 62s); overshooting costs 640%. The throughput
-    curve is nearly flat from 8 to 20 and then falls off a cliff, so this
-    deliberately aims *below* the measured optimum: budget 45% of physical
-    memory at ~0.5 GB/pose, giving 15 on this 16 GB machine (which reports
-    17.2 GB) against a measured optimum of 16 and first swapping at 20.
-    Guessing low is nearly free; guessing high is not.
+        batch    5    8   15
+        calls/60s  89   43    3   (n=100, 16 steps -> 320/208/112 total calls)
+        est. wall  19m  5m  37m
 
-    Override with HYBRIDOCK_RAPIDOCK_BATCH if you know your machine.
+    Batch 15 -- what the old total-RAM-based formula picked on this exact
+    machine -- collapsed to 3% of batch 8's throughput. The *total* RAM the
+    old formula budgeted against was never the free RAM actually available to
+    this process; on a machine with anything else open, it dramatically
+    overshoots. This version budgets against currently-available memory
+    (psutil, falls back to a conservative fraction of total if psutil is
+    unavailable) at a lower fraction (30% vs 45%) of the true cost-per-pose,
+    since GPU/Metal-shared memory contention from other apps isn't fully
+    visible to the OS-level "available" figure. Guessing low is nearly free;
+    guessing high is not -- see the asymmetry above.
+
+    Override with HYBRIDOCK_RAPIDOCK_BATCH if you know your machine and workload.
     """
-    cap = int((_total_ram_gb() * 0.45) / 0.5)
+    try:
+        import psutil  # type: ignore[import-not-found]
+        available_gb = psutil.virtual_memory().available / 1e9
+    except Exception:  # pragma: no cover - psutil missing/broken
+        available_gb = _total_ram_gb() * 0.6  # assume ~60% free, conservative
+    cap = int((available_gb * 0.30) / 0.5)
     return max(2, min(32, cap))
 
 
@@ -355,13 +369,34 @@ def _install_progress_probe(rd_inference, rd_args):
         state = {"n": 0}
         _orig_forward = model.forward
 
+        # MPS's caching allocator does not return freed GPU memory to the OS
+        # on its own -- it holds it for reuse, growing across the run since
+        # RAPiDock (written CUDA-first) never calls torch.mps.empty_cache().
+        # Measured: system-wide available memory fell from 4.8 GB to <1 GB in
+        # 35s / 56 forward calls on a 17 GB M3 with a typical desktop session
+        # open, while this process's own RSS stayed flat -- the growth is in
+        # the MPS driver's cache, invisible to ps/RSS but very visible to the
+        # rest of the machine. Clearing it every forward call is cheap next
+        # to an actual diffusion step and keeps the run from starving the OS.
+        try:
+            import torch as _torch  # noqa: PLC0415
+            _is_mps = next(model.parameters()).device.type == "mps"
+        except Exception:
+            _is_mps = False
+
         def _counting_forward(*fa, **fkw):
             state["n"] += 1
             # stdout is the parent's structured channel; RAPiDock's own chatter
             # goes to stderr, so these lines never interleave with it.
             print("%s %d %d" % (PROGRESS_PREFIX, min(state["n"], total), total))
             sys.stdout.flush()
-            return _orig_forward(*fa, **fkw)
+            result = _orig_forward(*fa, **fkw)
+            if _is_mps:
+                try:
+                    _torch.mps.empty_cache()
+                except Exception:
+                    pass
+            return result
 
         model.forward = _counting_forward
         try:
