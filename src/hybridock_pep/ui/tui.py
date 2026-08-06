@@ -603,12 +603,15 @@ def run_fullscreen(auto_demo=False):
         progress_ctrl.text = lines
 
     # ----- run machinery -----
+    _run_lock = threading.Lock()  # Prevent race condition on Ctrl+R spam
+
     def start_stream(cmd, demo=False, title=""):
-        if state["running"]:
-            append("… a run is already in progress")
-            return
-        state["running"], state["rc"] = True, None
-        state["cancel"], state["proc"] = False, None
+        with _run_lock:  # Atomic check + set to prevent dual-spawn on Ctrl+R spam
+            if state["running"]:
+                append("… a run is already in progress")
+                return
+            state["running"], state["rc"] = True, None
+            state["cancel"], state["proc"] = False, None
         progress["p"] = PipelineProgress()
         append("")
         append(f"▶ {title}" if title else "▶ run")
@@ -937,16 +940,18 @@ def run_fullscreen(auto_demo=False):
     kb = KeyBindings()
     in_picker = Condition(lambda: view["mode"] == "picker")
     not_picker = Condition(lambda: view["mode"] != "picker")
+    not_running = Condition(lambda: not state["running"])
+    not_picker_or_running = Condition(lambda: view["mode"] != "picker" and not state["running"])
 
     @kb.add("c-q")
     def _(e):
         e.app.exit(result=0)
 
-    @kb.add("c-r", filter=not_picker)
+    @kb.add("c-r", filter=not_picker_or_running)
     def _(e):
         run_dock(100, "vina,ad4", 10, "Full run (n=100, vina+ad4, MM-GBSA)")
 
-    @kb.add("c-t", filter=not_picker)
+    @kb.add("c-t", filter=not_picker_or_running)
     def _(e):
         start_stream(None, demo=True, title="DEMO (simulated, no GPU)")
 
