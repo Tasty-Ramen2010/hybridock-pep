@@ -197,6 +197,67 @@ class TestBarDrawsWithoutTqdm:
         prog.render_bar(0, 0, "poses")
 
 
+class TestRenderBarOffTty:
+    """render_bar() (unlike .bar()) is called directly from Stage 1's
+    denoising-step tick loop (rapidock_runner.py -> output.progress.tick()),
+    which is the longest silent stretch of a real run. Driven through the
+    terminal UI, the CLI's stderr is a pipe, never a TTY -- so a piped run
+    must still get *some* signal here, or Stage 1 looks completely frozen
+    for minutes at a time (this was a real, reported bug: the old
+    TTY-only guard made this the *only* thing the CLI ever writes during
+    Stage 1, so nothing did)."""
+
+    def test_off_tty_emits_plain_newline_terminated_lines(self) -> None:
+        out = _FakePipeStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("Generating poses")
+        before = out.getvalue()
+        prog.render_bar(1, 100, "denoising steps")
+        text = out.getvalue()
+        assert text != before, "off-tty render_bar must not be a silent no-op"
+        assert text.endswith("\n"), "must be a complete line a line-oriented reader can see"
+        assert "\r" not in text, "off-tty output must not rely on in-place carriage-return redraw"
+        assert "1/100" in text and "denoising steps" in text
+
+    def test_off_tty_is_throttled_to_whole_percent_buckets(self) -> None:
+        """Thousands of per-step ticks over a 100-pose run must not become
+        thousands of lines in a piped log or in the TUI's parsed output."""
+        out = _FakePipeStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("Generating poses")
+        before = out.getvalue()
+        for done in range(1, 101):  # every 1% tick, same as a real run would send
+            prog.render_bar(done, 100, "denoising steps")
+        bar_lines = [ln for ln in out.getvalue()[len(before):].splitlines() if ln.strip()]
+        assert len(bar_lines) <= 11, f"expected ~10 throttled bar lines (0-100%), got {len(bar_lines)}"
+
+    def test_off_tty_reaches_100_percent(self) -> None:
+        out = _FakePipeStream()
+        prog = PipelineProgress(enabled=True, total=1, stream=out)
+        prog.step("Generating poses")
+        for done in range(1, 101):
+            prog.render_bar(done, 100, "denoising steps")
+        assert "100/100" in out.getvalue()
+
+    def test_a_new_step_resets_the_throttle(self) -> None:
+        """Stage 2 must announce its own 0% again, not silently inherit
+        Stage 1's "already at 100%" bucket and suppress its first line."""
+        out = _FakePipeStream()
+        prog = PipelineProgress(enabled=True, total=2, stream=out)
+        prog.step("Generating poses")
+        prog.render_bar(100, 100, "denoising steps")
+        before = out.getvalue()
+        prog.step("Scoring poses")
+        prog.render_bar(1, 50, "poses scored")
+        assert out.getvalue() != before
+
+    def test_disabled_stays_fully_silent_off_tty(self) -> None:
+        out = _FakePipeStream()
+        prog = PipelineProgress(enabled=False, total=1, stream=out)
+        prog.render_bar(1, 100, "denoising steps")
+        assert out.getvalue() == ""
+
+
 class TestAmbientSink:
     def test_tick_is_a_noop_with_no_reporter(self) -> None:
         P.tick(1, 10, "poses")
