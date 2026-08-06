@@ -125,6 +125,10 @@ git submodule update --init --recursive
 `git pull` gets the new code, `git submodule update` catches up the bundled RAPiDock submodule if
 it moved too, and re-running `install.sh` is safe — it only touches whatever actually changed.
 
+**Want it gone?** `./uninstall.sh` removes the two conda environments and the downloaded model
+weights (asks for confirmation first); `./uninstall.sh --all` also deletes this entire folder.
+Your conda/Miniforge installation itself is left alone on purpose — see `./uninstall.sh --help`.
+
 ### 2. Check it worked
 
 ```bash

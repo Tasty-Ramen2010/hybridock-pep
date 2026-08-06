@@ -446,8 +446,17 @@ def run_fullscreen(auto_demo=False):
     def vals():
         return {k: ta.text for k, ta in inputs.items()}
 
+    # wrap_lines=True: with wrapping off, a long line (the echoed `$ hybridock-pep
+    # dock --peptide ... --output-dir ...` command, well over 100 columns) drags the
+    # buffer's horizontal scroll far enough right to keep the cursor in view that
+    # every *shorter* line above it scrolls out of view along with it — the whole
+    # pane's horizontal offset is shared, not per-line. The visible symptom was
+    # short status lines reduced to a trailing fragment ("p.", "/ selectivity).")
+    # with everything before that scroll offset invisible. Wrapping avoids the
+    # shared horizontal scroll entirely; the ASCII art gallery's widest frame
+    # (~56 cols) still fits unwrapped in any reasonably-sized terminal.
     output = TextArea(text="\n".join(state["lines"]), read_only=True, scrollbar=True,
-                      style="class:output", focus_on_click=True, wrap_lines=False)
+                      style="class:output", focus_on_click=True, wrap_lines=True)
 
     def append(line):
         state["lines"].append(line.rstrip("\n"))

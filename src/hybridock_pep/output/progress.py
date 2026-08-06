@@ -80,6 +80,7 @@ class PipelineProgress:
         self._n = 0
         self._open: str | None = None
         self._t: float = 0.0
+        self._last_bar_bucket: int = -1
 
     def _write(self, s: str) -> None:
         try:
@@ -104,6 +105,7 @@ class PipelineProgress:
         self._write(f"▶ {tag}{label}…\n")
         self._open = label
         self._t = time.time()
+        self._last_bar_bucket = -1
 
     def note(self, msg: str) -> None:
         """A sub-line under the current stage (e.g. a detail the user should see)."""
@@ -111,7 +113,9 @@ class PipelineProgress:
             self._write(f"   • {msg}\n")
 
     def render_bar(self, done: int, total: int, label: str, *, width: int = 28) -> None:
-        """Draw/redraw one in-place ASCII progress bar. TTY-only.
+        """Draw/redraw one in-place ASCII progress bar on a real terminal —
+        or, off a TTY, emit the same information as plain, throttled,
+        newline-terminated lines instead.
 
         Deliberately hand-rolled rather than tqdm: tqdm is not a dependency of
         score-env, so the previous tqdm-backed implementation silently degraded
@@ -119,14 +123,32 @@ class PipelineProgress:
         the "is it frozen?" experience this module exists to prevent. Plain
         ASCII also renders identically everywhere (SSH, Terminal.app, tmux,
         screen recordings) with no font or Unicode-width surprises.
+
+        The non-TTY branch exists because "no progress output at all" was
+        also exactly what happened here: this is the *only* thing the CLI
+        ever writes during the longest stretch of a run (potentially
+        thousands of denoising-step ticks over a 100-pose Stage 1 sample),
+        and the terminal UI drives the CLI as a subprocess through a plain
+        pipe — never a TTY — specifically so it can parse this progress back
+        out. A `\\r`-redrawn bar with no trailing newline is invisible to a
+        line-oriented reader (`for line in proc.stdout`) *and* silently
+        skipped by the old TTY-only guard, so a real run looked completely
+        frozen in the UI for the entire sampling stage. Throttled to whole
+        10% steps so a non-interactive log doesn't get a line per tick.
         """
-        if not self.enabled or not self.tty:
+        if not self.enabled:
             return
         total = max(1, int(total))
         done = max(0, min(int(done), total))
+        pct = 100.0 * done / total
+        if not self.tty:
+            bucket = int(pct // 10)
+            if bucket != self._last_bar_bucket:
+                self._last_bar_bucket = bucket
+                self._write(f"   {done}/{total} {label} ({pct:.0f}%)\n")
+            return
         filled = int(width * done / total)
         bar = "#" * filled + "-" * (width - filled)
-        pct = 100.0 * done / total
         elapsed = time.time() - self._t if self._t else 0.0
         eta = ""
         if done and done < total and elapsed > 1.0:
