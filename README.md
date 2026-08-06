@@ -204,8 +204,8 @@ break mid-run, a finished demo, and the help screen:
 | `Ctrl-Q` | quit — `Ctrl-C` only stops the current run |
 
 > The ASCII gallery isn't just for the demo — the plain CLI shows the same rotating gallery during
-> a real Stage 1 wait. There are a couple of easter eggs in the terminal UI too, if you go looking
-> (`Ctrl-A`, or try a familiar peptide sequence). Set `HYBRIDOCK_NO_ART=1` to turn all of it off.
+> a real Stage 1 wait. There's a small easter egg in the terminal UI too, if you go looking
+> (`Ctrl-A`). Set `HYBRIDOCK_NO_ART=1` to turn all of it off.
 
 ### 4. Built-in help, right in the terminal
 
