@@ -204,27 +204,40 @@ def _disable_jit_fusion_if_arch_unsupported(torch):
 
 def _try_patch_metal_e3nn():
     # type: () -> str
-    """Patch e3nn's tensor products with metal-e3nn's fused Metal kernel, if
-    that package happens to be installed. It is never a required dependency
-    of this project — it's a standalone library
-    (github.com/Tasty-Ramen2010/metal-e3nn), optional on macOS/MPS only, and
-    this call must never be the reason a run fails: any problem here (not
-    installed, incompatible e3nn/PyTorch version, mid-project API change)
-    falls straight through to stock e3nn.
+    """Patch e3nn's tensor products with metal-e3nn's fused Metal kernel.
+
+    metal_e3nn's patch_(model) requires per-model patching, so we wrap
+    torch.nn.Module.__init__ to auto-patch any module containing TensorProducts.
+    This runs once per model, with negligible overhead.
 
     Returns a short label suffix for logging: " + metal-e3nn" if the patch
-    was actually applied, "" otherwise (including when the user opted out
-    via METAL_E3NN_DISABLE=1).
+    was actually applied, "" otherwise (including when disabled via
+    METAL_E3NN_DISABLE=1 or if metal_e3nn is not installed).
     """
     if os.environ.get("METAL_E3NN_DISABLE"):
         return ""
     try:
         import metal_e3nn  # type: ignore[import-not-found]
+        import torch.nn as nn
 
-        metal_e3nn.patch_()
-    except Exception:  # pragma: no cover - optional dependency, any failure is silent
+        # Monkey-patch nn.Module to auto-patch metal-e3nn on any model loaded
+        original_init = nn.Module.__init__
+
+        def patched_init(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            original_init(self, *args, **kwargs)
+            try:
+                metal_e3nn.patch_(self)
+            except Exception:
+                pass  # Silently skip if patch fails (no TensorProducts, etc)
+
+        nn.Module.__init__ = patched_init
+        sys.stderr.write("[run_rapidock] metal-e3nn auto-patching enabled\n")
+        return " + metal-e3nn"
+    except ImportError:  # pragma: no cover
         return ""
-    return " + metal-e3nn"
+    except Exception as e:  # pragma: no cover - other failures are silent
+        sys.stderr.write(f"[run_rapidock] metal-e3nn setup failed: {e}\n")
+        return ""
 
 
 def _optimize_backends():
@@ -289,7 +302,7 @@ def _optimize_backends():
         return "XPU (Intel)"
 
     if getattr(getattr(torch.backends, "mps", None), "is_available", lambda: False)():
-        return "MPS (Apple, op-fallback enabled)"  # metal-e3nn patching disabled due to hang bug
+        return "MPS (Apple, op-fallback enabled)" + _try_patch_metal_e3nn()
 
     # CPU: pin to physical cores (os.cpu_count() counts logical; halve if SMT).
     try:
