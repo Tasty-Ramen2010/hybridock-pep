@@ -588,21 +588,6 @@ def spinner_word(t: float | None = None, period_s: float = 2.2) -> str:
 # Easter eggs
 # ---------------------------------------------------------------------------
 
-_MOSQUITO = r"""
-              __
-             /  \
-        ,---(    )---.
-       /     \__/     \
-      (  o          o  )
-       \      /\      /
-        \    /  \    /
-    -----)--(    )--(-----
-        /    \  /    \
-       (      \/      )
-        \_____/\_____/
-      PfLDH · Plasmodium falciparum
-"""
-
 _IGEM_EGG = r"""
         .---.
        /     \
@@ -625,10 +610,8 @@ _SHINY = """
 def easter_egg_for_peptide(sequence: str) -> str | None:
     """A special art block for a small, fixed set of trigger sequences.
 
-    Case-insensitive, whitespace-stripped. Two triggers, both harmless if
-    you don't know they exist:
+    Case-insensitive, whitespace-stripped. One trigger:
 
-    - The parent iGEM project's real peptide (a nod, not a feature).
     - ``IGEM`` — which is also, conveniently, a real valid tetrapeptide
       (Ile-Gly-Glu-Met), so it passes normal sequence validation on its
       own merits and isn't a special-cased input.
@@ -638,8 +621,6 @@ def easter_egg_for_peptide(sequence: str) -> str | None:
     if not sequence:
         return None
     seq = sequence.strip().upper()
-    if seq == PARENT_PROJECT_PEPTIDE:
-        return _MOSQUITO
     if seq == "IGEM":
         return _IGEM_EGG
     return None

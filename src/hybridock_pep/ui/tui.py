@@ -223,6 +223,32 @@ DOCK_KEYS = ["peptide", "receptor", "site", "box", "n_samples", "scoring", "refi
 SEL_KEYS = DOCK_KEYS + ["offtarget_receptor", "offtarget_site", "offtarget_box"]
 
 
+def _resolve_exe(name: str) -> str | None:
+    """Find `name` to actually execute, tolerating a PATH that doesn't
+    include the current environment's bin/ directory.
+
+    launch_ui.sh locates the right Python interpreter for score-env by
+    searching common conda install locations and execs it by full path —
+    but that alone does not add that environment's bin/ to PATH for the
+    process it starts. Every real run in this UI shells out to the bare
+    name "hybridock-pep" (kept bare deliberately in build_dock_command /
+    build_selectivity_command so the *echoed* command a user sees or
+    copies stays clean), so a plain shutil.which() lookup against an
+    unmodified PATH can fail even though the TUI itself is running
+    correctly from inside score-env — the exact "not on PATH" error a
+    freshly-launched UI hit right after install. sys.executable is always
+    correct (it's this very interpreter), so its sibling in the same
+    bin/ directory is the real `name`, regardless of what PATH says.
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    sibling = Path(sys.executable).parent / name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+    return None
+
+
 def clean_dropped_path(s: str) -> str:
     """Normalise a path a terminal produced from a file-drop (quotes, file://, escaped spaces)."""
     s = s.strip()
@@ -400,10 +426,12 @@ def run_cli_wizard(print_only=False):
     if prompt("  Run it now? [y/N] ").strip().lower() not in {"y", "yes"}:
         print("  Not run.")
         return 0
-    if shutil.which(cmd[0]) is None:
+    exe_path = _resolve_exe(cmd[0])
+    if exe_path is None:
         print(f"  ✗ '{cmd[0]}' not on PATH — run `conda activate score-env` first.")
         return 127
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    proc = subprocess.Popen([exe_path, *cmd[1:]], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, bufsize=1)
     for line in proc.stdout:
         sys.stdout.write("  " + line)
     return proc.wait()
@@ -476,10 +504,14 @@ def run_fullscreen(auto_demo=False):
 
         Blocks the calling thread between frames (same trick as
         art.animate_gallery_piece for the plain CLI, minus the raw ANSI —
-        here we just rewrite the tail of state["lines"]). Callers on a
-        background thread (art_ticker, the worker thread) can call this
-        directly; a keybinding handler (Ctrl-A) runs on the main event loop
-        and must wrap it in its own thread instead, or it would freeze the UI.
+        here we just rewrite the tail of state["lines"]). Used for one-off
+        showings only (the demo's single scripted appearance, the Ctrl-A
+        peek) — a *real* run's Stage 1 animation is continuous and lives in
+        the progress panel instead (see refresh_progress), driven by
+        elapsed time on every redraw tick rather than by dropping repeated
+        copies into this scrolling log. The Ctrl-A keybinding handler runs
+        on the main event loop and must wrap this in its own thread, or it
+        would freeze the UI while it sleeps between frames.
         """
         try:
             title, frames = art.gallery_piece(index)
@@ -536,12 +568,39 @@ def run_fullscreen(auto_demo=False):
         frac = p.fraction()
         cls = "class:okbar" if p.finished else "class:bar"
         cnt = p.counter()
-        progress_ctrl.text = ([("class:dim", "  "), (cls, _bar(frac, 34)),
-                               ("class:pct", f" {int(frac*100):3d}% "), ("class:dim", spin), ("", "\n"),
-                               ("class:dim", "  stage: "), ("class:stage", p.label()),
-                               ("class:dim", f"   {cnt}" if cnt else ""),
-                               ("class:dim", f"   ·  {p.elapsed()}s"),
-                               ("class:verb", f"   {verb}" if verb else "")])
+        lines = [("class:dim", "  "), (cls, _bar(frac, 34)),
+                 ("class:pct", f" {int(frac*100):3d}% "), ("class:dim", spin), ("", "\n"),
+                 ("class:dim", "  stage: "), ("class:stage", p.label()),
+                 ("class:dim", f"   {cnt}" if cnt else ""),
+                 ("class:dim", f"   ·  {p.elapsed()}s"),
+                 ("class:verb", f"   {verb}" if verb else "")]
+
+        # One piece, animating continuously in place for the duration of
+        # Stage 1 — not a periodic log entry. Driven purely by elapsed time
+        # on every redraw tick (same mechanism as the spinner/verb above):
+        # no thread, no appending to the output log, so it cannot interleave
+        # badly with concurrently-arriving progress lines or accumulate
+        # without bound no matter how long Stage 1 runs. A version of this
+        # that dropped a fresh copy into the scrolling log every 30s was
+        # exactly the "the log keeps growing / scrolling never catches up"
+        # bug on a real, long run.
+        if p.stage == "sample" and not p.finished:
+            if state.get("art_stage") != "sample":
+                state["art_stage"] = "sample"
+                state["art_stage_t0"] = time.time()
+            idx = state.get("art_piece_idx", 0)
+            title, frames = art.gallery_piece(idx)
+            frame_delay = 0.32
+            elapsed_in_stage = time.time() - state["art_stage_t0"]
+            fi = int(elapsed_in_stage / frame_delay) % len(frames)
+            lines.append(("", "\n"))
+            lines.append(("class:dim", f"  · {title}\n"))
+            for art_line in frames[fi].splitlines():
+                lines.append(("class:artline", f"  {art_line}\n"))
+        else:
+            state["art_stage"] = p.stage
+
+        progress_ctrl.text = lines
 
     # ----- run machinery -----
     def start_stream(cmd, demo=False, title=""):
@@ -559,24 +618,15 @@ def run_fullscreen(auto_demo=False):
         if egg:
             append(egg)
 
-        def art_ticker():
-            """Drop a gallery piece into the log every ~30s spent in Stage 1 —
-            the one real, silent wait (see PipelineProgress.heartbeat in
-            output/progress.py, which does the same thing for the plain CLI).
-            Stops itself once the run leaves the 'sample' stage or finishes.
-            """
-            shown, stage_t0, last_stage = 0, None, None
-            while state["running"] and not state["cancel"]:
-                time.sleep(1.0)
-                p = progress["p"]
-                if p is None or p.finished:
-                    return
-                if p.stage != last_stage:
-                    last_stage, stage_t0, shown = p.stage, time.time(), 0
-                if (p.stage == "sample" and stage_t0 is not None
-                        and time.time() - stage_t0 >= (shown + 1) * 30.0):
-                    shown += 1
-                    show_art(shown - 1)
+        # One gallery piece, picked once for this run, animated continuously
+        # in the progress panel for the whole of Stage 1 (see refresh_progress)
+        # — not dropped into the scrolling output log on a timer. state["art_stage"]
+        # is reset here so a re-entry into "sample" (there's only ever one, but
+        # this keeps the animation's own clock starting fresh per run) restarts
+        # its clock from frame 0 instead of carrying over a stale timestamp.
+        import random as _random  # noqa: PLC0415
+        state["art_piece_idx"] = _random.randrange(len(art.GALLERY))
+        state["art_stage"] = None
 
         def worker():
             try:
@@ -592,7 +642,8 @@ def run_fullscreen(auto_demo=False):
                         time.sleep(delay)
                     state["rc"] = 0
                 else:
-                    if shutil.which(cmd[0]) is None:
+                    exe_path = _resolve_exe(cmd[0])
+                    if exe_path is None:
                         append(f"✗ '{cmd[0]}' not on PATH — run `conda activate score-env` first.")
                         state["rc"] = 127
                         return
@@ -600,13 +651,11 @@ def run_fullscreen(auto_demo=False):
                     # rapidock sampling child it spawns. See
                     # terminate_process_tree().
                     proc = subprocess.Popen(
-                        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        [exe_path, *cmd[1:]], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         text=True, bufsize=1,
                         start_new_session=(os.name != "nt"),
                     )
                     state["proc"] = proc
-                    if art.art_enabled(sys.stdout):
-                        threading.Thread(target=art_ticker, daemon=True).start()
                     for line in proc.stdout:
                         progress["p"].feed(line)
                         append(line)
@@ -849,7 +898,7 @@ def run_fullscreen(auto_demo=False):
         height=1, style="class:footerbar")
 
     main_view = HSplit([title, Frame(form, title="inputs"),
-                        Frame(Window(progress_ctrl, height=2), title="progress"),
+                        Frame(Window(progress_ctrl, height=D(min=2, max=24)), title="progress"),
                         Frame(output, title="output", height=D(min=3, weight=1)),
                         run_row, tool_row, footer])
     # Both of these must own a FOCUSABLE window. prompt_toolkit requires the
@@ -1010,7 +1059,7 @@ def run_fullscreen(auto_demo=False):
         "output": "bg:#0a0e14 #b6f0c4", "help": "bg:#0d1830 #d3e2ff", "picker": "bg:#0a0e14 #d3e2ff",
         "pickersel": "bg:#0d3b66 #ffffff bold", "pickerdir": "#7fd0ff", "pickerfile": "#b6f0c4",
         "bar": "#39c0ff", "okbar": "#4ade80", "pct": "bold #ffffff", "stage": "bold #ffd166",
-        "verb": "italic #7fd0ff",
+        "verb": "italic #7fd0ff", "artline": "#6fa88e",
         "dim": "#7f8c9b", "err": "#ff6b6b bold", "ok": "#4ade80 bold", "footerbar": "bg:#11151c",
         "footer": "#9fb3c8", "key": "bg:#0d3b66 #ffffff bold", "frame.border": "#2b6cb0",
         "button": "#cfe3ff", "button.focused": "bg:#0d3b66 #ffffff bold",

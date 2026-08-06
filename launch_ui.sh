@@ -34,4 +34,15 @@ if [ -z "$PY" ]; then
     exit 1
 fi
 
+# $PY may have been found by full path (a candidate above) rather than via
+# PATH — which means score-env's bin/ (where the `hybridock-pep` console
+# script actually lives) is not necessarily on PATH for the process this
+# starts. The TUI shells out to `hybridock-pep` by bare name for every real
+# run, so without this it launches fine and then every run fails with
+# "'hybridock-pep' not on PATH" — the UI *looks* broken right after a fresh
+# install even though the install itself succeeded. tui.py also has its own
+# sys.executable-relative fallback for this, but fixing PATH here means any
+# other tool on that same bin/ (vina, etc.) resolves correctly too.
+export PATH="$(dirname "$PY"):$PATH"
+
 exec "$PY" -m hybridock_pep.ui.tui "$@"

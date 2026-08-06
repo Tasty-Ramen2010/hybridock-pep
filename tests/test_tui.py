@@ -199,6 +199,48 @@ class TestBuildSelectivityCommand:
         assert all(isinstance(a, str) for a in tui.build_selectivity_command(_values()))
 
 
+class TestResolveExe:
+    """Real bug, from a screenshot: right after a fresh install, every run
+    failed with "'hybridock-pep' not on PATH" even though the install had
+    succeeded. launch_ui.sh finds the correct score-env *Python interpreter*
+    by full path (searching common conda locations) and execs it directly —
+    but that alone never puts that environment's bin/ on PATH for the
+    process it starts, and every real run shells out to the bare name
+    "hybridock-pep". _resolve_exe() is the fallback: sys.executable is
+    always correct (it's this very interpreter), so its sibling in the same
+    bin/ directory must be the real executable, regardless of PATH."""
+
+    def test_finds_it_on_path_first(self, monkeypatch):
+        monkeypatch.setattr(tui.shutil, "which", lambda name: f"/usr/bin/{name}")
+        assert tui._resolve_exe("hybridock-pep") == "/usr/bin/hybridock-pep"
+
+    def test_falls_back_to_sys_executables_sibling_when_not_on_path(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(tui.shutil, "which", lambda name: None)
+        fake_python = tmp_path / "python"
+        fake_python.write_text("#!/bin/sh\n")
+        fake_exe = tmp_path / "hybridock-pep"
+        fake_exe.write_text("#!/bin/sh\n")
+        fake_exe.chmod(0o755)
+        monkeypatch.setattr(tui.sys, "executable", str(fake_python))
+        assert tui._resolve_exe("hybridock-pep") == str(fake_exe)
+
+    def test_returns_none_when_truly_not_installed(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(tui.shutil, "which", lambda name: None)
+        monkeypatch.setattr(tui.sys, "executable", str(tmp_path / "python"))
+        assert tui._resolve_exe("hybridock-pep") is None
+
+    def test_sibling_must_actually_be_executable(self, monkeypatch, tmp_path):
+        """A same-named non-executable file (or directory) next to the
+        interpreter must not be handed to subprocess.Popen."""
+        monkeypatch.setattr(tui.shutil, "which", lambda name: None)
+        fake_python = tmp_path / "python"
+        fake_python.write_text("#!/bin/sh\n")
+        not_executable = tmp_path / "hybridock-pep"
+        not_executable.write_text("not a real executable")  # no chmod +x
+        monkeypatch.setattr(tui.sys, "executable", str(fake_python))
+        assert tui._resolve_exe("hybridock-pep") is None
+
+
 # --------------------------------------------------------------------------- #
 # form validation
 # --------------------------------------------------------------------------- #
