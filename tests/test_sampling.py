@@ -502,38 +502,80 @@ class TestComputeBatchSize:
                 import sys as _sys
                 _sys.modules["run_rapidock"] = orig_rr
 
+    @staticmethod
+    def _mock_available_ram_gb(gb):
+        """Patch psutil.virtual_memory().available, the figure
+        _default_batch_cap() now budgets off of (2026-08-06 fix: budgeting off
+        *total* RAM alone caused a 6.4x swap-induced slowdown when other apps
+        already held memory). psutil is a real top-level package here (a
+        declared dependency — see pyproject.toml), not something
+        run_rapidock.py holds a private reference to, so patching it at the
+        package level is what actually reaches the local `import psutil`
+        inside _default_batch_cap()."""
+        import psutil  # noqa: PLC0415
+
+        return mock.patch.object(
+            psutil, "virtual_memory", return_value=mock.Mock(available=gb * 1e9)
+        )
+
     def test_small_n_uses_single_batch(self) -> None:
         """A typical exploratory run gets one batch — the original speedup
         fix: previously this would have been split into ceil(n/4) separate
-        MPS forward passes per diffusion step."""
+        MPS forward passes per diffusion step.
+
+        The cap is RAM-derived (see _default_batch_cap), so this mocks a
+        generous available-RAM figure rather than asserting against whatever
+        the test host happens to have free — a real CI runner under memory
+        pressure can otherwise clamp the cap below 10 and fail this for a
+        reason that has nothing to do with the behavior being tested."""
         rr = self._import_run_rapidock()
         assert rr._compute_batch_size(1) == 1
-        assert rr._compute_batch_size(10) == 10
+        with self._mock_available_ram_gb(32.0):
+            assert rr._compute_batch_size(10) == 10
 
     def test_large_n_is_capped(self) -> None:
         """A large production run is capped, not batched unboundedly."""
         rr = self._import_run_rapidock()
-        cap = rr._default_batch_cap()
-        assert rr._compute_batch_size(100) == cap
-        assert rr._compute_batch_size(1000) == cap
-        assert cap < 100
+        with self._mock_available_ram_gb(16.0):
+            cap = rr._default_batch_cap()
+            assert rr._compute_batch_size(100) == cap
+            assert rr._compute_batch_size(1000) == cap
+            assert cap < 100
 
     def test_cap_is_derived_from_physical_ram(self) -> None:
-        """The cap tracks RAM and deliberately sits just below the measured
-        optimum, because overshooting costs 640% and undershooting ~15%."""
+        """The cap tracks *available* RAM (not total — see the 2026-08-06 fix)
+        and deliberately sits just below the measured optimum, because
+        overshooting costs 640% and undershooting ~15%."""
         rr = self._import_run_rapidock()
-        orig = rr._total_ram_gb
-        try:
-            rr._total_ram_gb = lambda: 16.0
-            assert rr._default_batch_cap() == 14
-            rr._total_ram_gb = lambda: 8.0
-            assert rr._default_batch_cap() == 7
-            rr._total_ram_gb = lambda: 128.0
+        with self._mock_available_ram_gb(16.0):
+            assert rr._default_batch_cap() == 9
+        with self._mock_available_ram_gb(8.0):
+            assert rr._default_batch_cap() == 4
+        with self._mock_available_ram_gb(128.0):
             assert rr._default_batch_cap() == 32   # absolute ceiling
-            rr._total_ram_gb = lambda: 1.0
+        with self._mock_available_ram_gb(1.0):
             assert rr._default_batch_cap() == 2    # floor, never 0
+
+    def test_falls_back_to_total_ram_if_psutil_is_unavailable(self) -> None:
+        """psutil is a declared dependency (see pyproject.toml) so this
+        should never trigger in a real install, but the formula must still
+        degrade gracefully — not crash — if it's somehow missing."""
+        rr = self._import_run_rapidock()
+        import sys
+
+        orig_psutil = sys.modules.get("psutil")
+        orig_total = rr._total_ram_gb
+        try:
+            sys.modules["psutil"] = None  # forces `import psutil` to raise
+            rr._total_ram_gb = lambda: 16.0
+            # fallback formula: int((total * 0.6) * 0.30 / 0.5) = int(9.6*0.3/0.5) = 5
+            assert rr._default_batch_cap() == 5
         finally:
-            rr._total_ram_gb = orig
+            rr._total_ram_gb = orig_total
+            if orig_psutil is not None:
+                sys.modules["psutil"] = orig_psutil
+            else:
+                sys.modules.pop("psutil", None)
 
     def test_env_override_wins(self) -> None:
         """HYBRIDOCK_RAPIDOCK_BATCH is the documented escape hatch."""

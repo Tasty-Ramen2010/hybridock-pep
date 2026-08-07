@@ -39,6 +39,14 @@ dependencies = [
     # launch_ui.sh / hybridock_pep.ui.tui (the guided terminal UI install.sh
     # auto-launches at the end of setup) imports this unconditionally.
     "prompt_toolkit>=3.0",
+    # sampling/run_rapidock.py's _default_batch_cap() imports this unconditionally to
+    # budget the per-step diffusion batch size off *available* (not total) RAM — the
+    # whole point of the 2026-08-06 batch-cap fix (see its commit message: budgeting off
+    # total RAM alone caused a 6.4x swap-induced slowdown). Undeclared here, a bare `pip
+    # install` silently fell through to a much more conservative fallback formula instead
+    # of the intended one, with no warning. Same undeclared-transitive-dep pattern as
+    # rdkit/gemmi/matplotlib above; found via CI on Linux x86_64, 2026-08-06.
+    "psutil>=5.9",
     # make verify / make test (the documented judge-facing path) need pytest present
     # right after `pip install -e .` — no separate dev-extras step should be required.
     "pytest>=8.0",
