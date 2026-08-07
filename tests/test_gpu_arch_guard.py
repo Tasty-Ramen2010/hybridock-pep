@@ -38,6 +38,30 @@ def _load_shim():
     return mod
 
 
+def _fake_torch_nn():
+    """A minimal torch.nn stand-in so `import torch.nn as nn` succeeds inside
+    _try_patch_metal_e3nn() without a real torch install — score-env
+    deliberately has no torch (RAPiDock's PyTorch stack lives in the separate
+    rapidock conda env; this module only ever runs under score-env's
+    interpreter in tests, imported by path — see _load_shim above).
+
+    Returns a fresh (torch_module, nn_module) pair per call so each test gets
+    its own isolated nn.Module class — patching Module.__init__ in one test
+    must not leak into another.
+    """
+    import types
+
+    class Module:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    nn_mod = types.ModuleType("torch.nn")
+    nn_mod.Module = Module
+    torch_mod = types.ModuleType("torch")
+    torch_mod.nn = nn_mod
+    return torch_mod, nn_mod
+
+
 class _FakeC:
     def __init__(self):
         self.calls = {}
@@ -158,30 +182,52 @@ class TestMetalE3nnHook:
 
         mod = _load_shim()
         monkeypatch.delenv("METAL_E3NN_DISABLE", raising=False)
+        # torch isn't installed in score-env (see _fake_torch_nn's docstring);
+        # _try_patch_metal_e3nn's `import torch.nn as nn` needs a stand-in or
+        # it hits its own `except ImportError: return ""` before ever
+        # touching metal_e3nn at all, silently masking this test's premise.
+        torch_mod, nn_mod = _fake_torch_nn()
+        monkeypatch.setitem(sys.modules, "torch", torch_mod)
+        monkeypatch.setitem(sys.modules, "torch.nn", nn_mod)
 
         class _FakeMetalE3nn:
-            patched = False
+            patched_model = None
 
-            def patch_(self):
-                self.patched = True
+            def patch_(self, model):  # real metal_e3nn.patch_(model) takes the model
+                self.patched_model = model
 
         fake = _FakeMetalE3nn()
         monkeypatch.setitem(sys.modules, "metal_e3nn", fake)
         assert mod._try_patch_metal_e3nn() == " + metal-e3nn"
-        assert fake.patched is True
+
+        # The label only promises the hook got wired up -- patch_() itself
+        # only actually runs once some model is instantiated (see
+        # run_rapidock.py's patched_init). Verify that wiring is real, not
+        # just that the label string came back right.
+        instance = nn_mod.Module()
+        assert fake.patched_model is instance
 
     def test_a_broken_patch_call_falls_through_silently(self, monkeypatch):
         import sys
 
         mod = _load_shim()
         monkeypatch.delenv("METAL_E3NN_DISABLE", raising=False)
+        torch_mod, nn_mod = _fake_torch_nn()
+        monkeypatch.setitem(sys.modules, "torch", torch_mod)
+        monkeypatch.setitem(sys.modules, "torch.nn", nn_mod)
 
         class _BrokenMetalE3nn:
-            def patch_(self):
+            def patch_(self, model):
                 raise RuntimeError("incompatible e3nn version")
 
         monkeypatch.setitem(sys.modules, "metal_e3nn", _BrokenMetalE3nn())
-        assert mod._try_patch_metal_e3nn() == ""
+        # The wrap itself succeeds regardless of whether any given model's
+        # patch_() call will work -- that's only knowable lazily, per model,
+        # at construction time (see patched_init's own try/except).
+        assert mod._try_patch_metal_e3nn() == " + metal-e3nn"
+        # The real behavior under test: a broken patch_() must be swallowed,
+        # not propagate and crash model construction.
+        nn_mod.Module()  # must not raise
 
 
 class TestZeroPoseErrorQuotesStderr:
