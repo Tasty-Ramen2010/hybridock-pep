@@ -7,11 +7,15 @@ Cross-platform (Windows / macOS / Linux) via prompt_toolkit — no curses, no br
     hybridock-tui --cli      # plain step-by-step wizard (no full-screen; SSH / dumb terminals)
     hybridock-tui --print    # build & print the `hybridock-pep dock` command, run nothing
 
-Run modes (buttons + keys): Full (n=100, vina+ad4, MM-GBSA), Half (n=50), Quick (n=20, vina),
-Selectivity ΔΔG (target vs off-target), and Demo. A built-in file/folder browser (Browse button /
-Ctrl-B) fills any path field; you can also just drag a file onto a path field. Controls are
-mouse-clickable buttons + universal Ctrl-key accelerators (no Mac/Windows-only function keys).
-The layout resizes with the terminal. Dependency-light (prompt_toolkit only).
+Run modes (buttons + keys): Full (n=100, MM-GBSA), Half (n=50), Quick (n=20) — all three run the
+AI-pose docking pipeline (Scoring mode "ai"); the physics backends (Vina for clash relief, AD4 for
+optional telemetry) are chosen automatically per preset and are never a user-facing setting.
+Selectivity ΔΔG (target vs off-target) and Demo run the same "ai" pipeline. Crystal Score runs the
+other mode: score an EXISTING bound pose (a crystal structure, no sampling) with the crystal-tuned
+model — see the "Scoring mode" field. A built-in file/folder browser (Browse button / Ctrl-B) fills
+any path field; you can also just drag a file onto a path field. Controls are mouse-clickable
+buttons + universal Ctrl-key accelerators (no Mac/Windows-only function keys). The layout resizes
+with the terminal. Dependency-light (prompt_toolkit only).
 """
 from __future__ import annotations
 
@@ -147,11 +151,15 @@ def _valid_peptide(v):
     return None
 
 
-def _valid_receptor(v):
+def _valid_pdb_file(v):
     v = v.strip()
     if not v:
-        return "receptor PDB path is required"
+        return "path is required"
     return None if Path(v).expanduser().is_file() else "file not found"
+
+
+def _valid_receptor(v):
+    return _valid_pdb_file(v)
 
 
 def _valid_site(v):
@@ -175,10 +183,18 @@ def _posint(minv, maxv):
     return f
 
 
-def _valid_scoring(v):
-    ok = {"vina", "ad4"}
-    toks = [t.strip() for t in v.split(",") if t.strip()]
-    return None if toks and all(t in ok for t in toks) else "use vina, ad4, or vina,ad4"
+#: The two things a user can actually ask this tool to do — NOT the vina/ad4
+#: physics backends, which run automatically underneath "ai" and are never a
+#: user-facing choice (see docs/guide topic 7, "AI scoring vs physics"; Vina's
+#: score is raw clash-relief telemetry, not calibrated ΔG). "ai" runs the full
+#: RAPiDock-sampling + affinity-model pipeline (`dock`); "crystal" scores an
+#: EXISTING bound pose with the crystal-tuned model, no sampling (`crystal-score`).
+_MODES = {"ai", "crystal"}
+
+
+def _valid_mode(v):
+    v = v.strip().lower()
+    return None if v in _MODES else "use ai or crystal"
 
 
 def _valid_dir(v):
@@ -203,10 +219,16 @@ FIELDS = [
               "On-target cubic box edge (Å). 30 for 12-mers+.", _posint(10, 60)),
     FormField("n_samples", "N samples", "100",
               "RAPiDock diffusion poses to generate (per receptor).", _posint(1, 500)),
-    FormField("scoring", "Scoring", "vina,ad4",
-              "Physics rescoring: vina, ad4, or vina,ad4.", _valid_scoring),
+    FormField("mode", "Scoring mode", "ai",
+              "ai = AI-pose docking (default; runs RAPiDock sampling + the affinity model — "
+              "Full/Half/Quick/Selectivity/Demo). crystal = score an EXISTING bound pose "
+              "(a crystal structure) with the crystal-tuned model, no sampling — "
+              "Crystal Score, needs Peptide pose PDB below.", _valid_mode),
+    FormField("peptide_pdb", "Peptide pose PDB (crystal mode)", "",
+              "crystal mode only: the bound peptide PDB (a crystal/native pose) to score.",
+              _optional(_valid_pdb_file), is_path=True, optional=True),
     FormField("refine_topk", "Refine top-K (MM-GBSA)", "0",
-              "MM-GBSA on top-K clusters (0 = off; dock mode only).", _posint(0, 50)),
+              "MM-GBSA on top-K clusters (0 = off; ai mode only).", _posint(0, 50)),
     FormField("output_dir", "Output dir", "runs/tui_run",
               "Where results are written — Browse (Ctrl-B) to pick a folder.", _valid_dir,
               is_path=True, is_dir=True),
@@ -219,8 +241,11 @@ FIELDS = [
               "Selectivity only: off-target box edge (Å).", _optional(_posint(10, 60)), optional=True),
 ]
 FIELD = {f.key: f for f in FIELDS}
-DOCK_KEYS = ["peptide", "receptor", "site", "box", "n_samples", "scoring", "refine_topk", "output_dir"]
+DOCK_KEYS = ["peptide", "receptor", "site", "box", "n_samples", "refine_topk", "output_dir"]
 SEL_KEYS = DOCK_KEYS + ["offtarget_receptor", "offtarget_site", "offtarget_box"]
+#: Fields needed by "crystal" mode (score an existing bound pose — no site/box/
+#: n_samples/output_dir; see build_crystal_command()).
+CRYSTAL_KEYS = ["peptide", "receptor", "peptide_pdb"]
 
 
 def _resolve_exe(name: str) -> str | None:
@@ -260,12 +285,19 @@ def clean_dropped_path(s: str) -> str:
     return s.replace("\\ ", " ").replace("\\~", "~").replace("\\(", "(").replace("\\)", ")").strip()
 
 
-def build_dock_command(v, exe="hybridock-pep"):
+def build_dock_command(v, scoring="vina,ad4", exe="hybridock-pep"):
+    """Build an ``ai``-mode (`dock`) command line.
+
+    ``scoring`` is the vina/ad4 physics-backend selection — NOT a user-facing
+    field (see the "Scoring mode" FormField, which is ai/crystal). Callers pick
+    it programmatically per run preset (see run_dock()'s Full/Half/Quick
+    presets); it is never read from form input.
+    """
     x, y, z = v["site"].split()
     cmd = [exe, "dock", "--peptide", v["peptide"].strip().upper(),
            "--receptor", str(Path(v["receptor"]).expanduser()),
            "--site", x, y, z, "--box", v["box"].strip(),
-           "--n-samples", v["n_samples"].strip(), "--scoring", v["scoring"].strip(),
+           "--n-samples", v["n_samples"].strip(), "--scoring", scoring,
            "--output-dir", v["output_dir"].strip()]
     # .strip() before the truthiness test: "   " is truthy but int("   ")
     # raises, which crashed command building when a field was typed into and
@@ -276,7 +308,20 @@ def build_dock_command(v, exe="hybridock-pep"):
     return cmd
 
 
-def build_selectivity_command(v, exe="hybridock-pep"):
+def build_crystal_command(v, exe="hybridock-pep"):
+    """Build a ``crystal``-mode (`crystal-score`) command line: score an
+    existing bound pose with the crystal-tuned model. No sampling, no
+    site/box/n-samples/output-dir — see CRYSTAL_KEYS."""
+    return [exe, "crystal-score",
+            "--receptor", str(Path(v["receptor"]).expanduser()),
+            "--peptide-pdb", str(Path(v["peptide_pdb"]).expanduser()),
+            "--peptide", v["peptide"].strip().upper()]
+
+
+def build_selectivity_command(v, scoring="vina,ad4", exe="hybridock-pep"):
+    """Build a selectivity command line. Selectivity is ai-mode only (it docks
+    against two receptors); ``scoring`` is the automatic physics-backend
+    selection, same caveat as build_dock_command()."""
     tx, ty, tz = v["site"].split()
     ox, oy, oz = v["offtarget_site"].split()
     return [exe, "selectivity", "--peptide", v["peptide"].strip().upper(),
@@ -284,7 +329,7 @@ def build_selectivity_command(v, exe="hybridock-pep"):
             "--target-site", tx, ty, tz, "--target-box", v["box"].strip(),
             "--offtarget-receptor", str(Path(v["offtarget_receptor"]).expanduser()),
             "--offtarget-site", ox, oy, oz, "--offtarget-box", v["offtarget_box"].strip(),
-            "--n-samples", v["n_samples"].strip(), "--scoring", v["scoring"].strip(),
+            "--n-samples", v["n_samples"].strip(), "--scoring", scoring,
             "--output-dir", v["output_dir"].strip()]
 
 
@@ -313,6 +358,26 @@ _LABEL = {k: l for k, l, _ in STAGES}
 _COUNT = re.compile(r"(\d+)\s*(?:/|of)\s*(\d+)")
 _PCT = re.compile(r"(\d+)\s*%")
 
+#: A real run's unambiguous stage announcements — the exact text
+#: output/progress.py's PipelineProgress.step() writes ("▶ [n/total] <label>…"),
+#: keyed by LABELS' phrasing (lowercased substring match) → this module's
+#: 5-bucket stage model. Matched ONLY against lines that start with the "▶"
+#: marker itself (see feed() below) — never against warnings, per-item
+#: progress-tick lines, or other incidental output, which is what let
+#: "%d poses failed Vina scoring" (a WARNING driver.py logs whenever any pose
+#: fails scoring — not rare) match a loose "pose" substring check and yank
+#: p.stage back to "sample" mid-Stage-2, corrupting fraction() and making the
+#: Stage-1 gallery animation spuriously restart partway through a real run.
+_STEP_LABEL_TO_STAGE = {
+    "generating poses": "sample",
+    "loading input poses": "sample",
+    "scoring poses": "score",
+    "clustering poses": "cluster",
+    "refining top poses": "affinity",       # "Refining top poses (MM-GBSA + entropy)"
+    "charged-residue correction": "affinity",
+    "final ranking": "affinity",            # "Final ranking & ΔG"
+}
+
 
 class PipelineProgress:
     def __init__(self):
@@ -337,16 +402,29 @@ class PipelineProgress:
             self.finished = True
             self.done.update(_ORDER)
             return
-        if "stage 3.6" in low or ("affinity" in low and "δg" in low) or "gbsa" in low or "stage 3.5" in low:
+
+        if line.strip().startswith("▶"):
+            # A real run's own unambiguous stage announcement — trust this
+            # over any loose keyword match (see _STEP_LABEL_TO_STAGE).
+            for phrase, stage_key in _STEP_LABEL_TO_STAGE.items():
+                if phrase in low:
+                    self._enter(stage_key)
+                    break
+        # Below: demo_lines()'s literal "Stage N[.M]:" markers only — these are
+        # synthetic text this module fully controls, not real subprocess
+        # output, so there is no risk of an incidental substring elsewhere
+        # (a warning, a per-item progress tick) matching by accident.
+        elif "stage 3.6" in low or "stage 3.5" in low:
             self._enter("affinity")
-        elif "stage 3" in low or "cluster" in low:
+        elif "stage 3" in low:
             self._enter("cluster")
-        elif "stage 2" in low or ("scor" in low and "fail" not in low):
+        elif "stage 2" in low:
             self._enter("score")
-        elif "stage 1.5" in low or "minimi" in low:
+        elif "stage 1.5" in low:
             self._enter("min")
-        elif "stage 1" in low or "rapidock" in low or "sampl" in low or "pose" in low:
+        elif "stage 1" in low:
             self._enter("sample")
+
         if "complete" in low and self.stage:
             self.done.add(self.stage)
             self.cur = self.total or self.cur
@@ -512,6 +590,11 @@ def run_fullscreen(auto_demo=False):
         copies into this scrolling log. The Ctrl-A keybinding handler runs
         on the main event loop and must wrap this in its own thread, or it
         would freeze the UI while it sleeps between frames.
+
+        The first frame lingers an extra art.HOLD_FIRST_FRAME_S before the
+        animation starts moving, and the completed last frame lingers an
+        extra art.HOLD_LAST_FRAME_S before this returns — same idea as
+        art.animate_gallery_piece for the plain CLI.
         """
         try:
             title, frames = art.gallery_piece(index)
@@ -519,21 +602,35 @@ def run_fullscreen(auto_demo=False):
             append(f"\n   · {title}")
             replace_tail(0, [f"   {line}" for line in first])
             n = len(first)
-            for frame in frames[1:]:
-                time.sleep(delay)
+            for i, frame in enumerate(frames[1:], start=1):
+                time.sleep(delay + (art.HOLD_FIRST_FRAME_S if i == 1 else 0.0))
                 lines = frame.splitlines()
                 replace_tail(n, [f"   {line}" for line in lines])
                 n = len(lines)
+            time.sleep(art.HOLD_LAST_FRAME_S)
             append("")
         except Exception:
             pass
 
     hint = FormattedTextControl(text="")
 
+    def current_mode() -> str:
+        return inputs["mode"].text.strip().lower()
+
     def refresh_hint():
-        errs = validate(vals(), DOCK_KEYS)
+        # What the ✓/✗ line checks tracks the "Scoring mode" field: ai needs
+        # the dock fields (site/box/n-samples/output-dir), crystal needs
+        # peptide_pdb instead and ignores those. Full/Half/Quick/Selectivity/
+        # Demo force mode back to "ai" before they validate (see run_dock()),
+        # so this only actually matters while the user has typed "crystal".
+        if current_mode() == "crystal":
+            errs = validate(vals(), CRYSTAL_KEYS)
+            ready = "  ✓ ready — Crystal Score ⚗ (Ctrl-Y)"
+        else:
+            errs = validate(vals(), DOCK_KEYS)
+            ready = "  ✓ ready — Full ▶ (Ctrl-R) or Demo ▷ (Ctrl-T)"
         hint.text = ([("class:err", "  ✗ " + errs[0])] if errs
-                     else [("class:ok", "  ✓ ready — Full ▶ (Ctrl-R) or Demo ▷ (Ctrl-T)")])
+                     else [("class:ok", ready)])
 
     _busy = {"on": False}
 
@@ -592,7 +689,11 @@ def run_fullscreen(auto_demo=False):
             title, frames = art.gallery_piece(idx)
             frame_delay = 0.32
             elapsed_in_stage = time.time() - state["art_stage_t0"]
-            fi = int(elapsed_in_stage / frame_delay) % len(frames)
+            # frame_index_for_elapsed (not a plain modulo) gives the first and
+            # last frame of the loop an extra beat before/after the motion —
+            # a uniform per-frame delay here made the loop snap straight from
+            # last frame back to first with no beat at either end.
+            fi = art.frame_index_for_elapsed(len(frames), elapsed_in_stage, frame_delay)
             lines.append(("", "\n"))
             lines.append(("class:dim", f"  · {title}\n"))
             for art_line in frames[fi].splitlines():
@@ -699,25 +800,54 @@ def run_fullscreen(auto_demo=False):
         ).start()
 
     def run_dock(n, scoring, refine, title):
-        inputs["n_samples"].text, inputs["scoring"].text, inputs["refine_topk"].text = str(n), scoring, str(refine)
+        # Full/Half/Quick are ai-mode presets — force the mode field back to
+        # "ai" so pressing one of these always runs the dock pipeline even if
+        # the user had typed "crystal" into Scoring mode. `scoring` (vina/ad4)
+        # is chosen here per preset and never surfaced as a field.
+        inputs["mode"].text = "ai"
+        inputs["n_samples"].text, inputs["refine_topk"].text = str(n), str(refine)
         errs = validate(vals(), DOCK_KEYS)
         if errs:
             append("")
             append("✗ fix before running:")
             [append("    - " + e) for e in errs]
             return
-        start_stream(build_dock_command(vals()), title=title)
+        start_stream(build_dock_command(vals(), scoring=scoring), title=title)
 
     def run_selectivity():
+        inputs["mode"].text = "ai"
         errs = validate(vals(), SEL_KEYS)
         if errs:
             append("")
             append("✗ Selectivity needs the 3 Off-target fields filled:")
             [append("    - " + e) for e in errs]
             return
-        start_stream(build_selectivity_command(vals()), title="Selectivity ΔΔG (target vs off-target)")
+        start_stream(build_selectivity_command(vals(), scoring="vina,ad4"),
+                     title="Selectivity ΔΔG (target vs off-target)")
+
+    def run_crystal():
+        # The other mode: score an EXISTING bound pose (a crystal structure)
+        # with the crystal-tuned model. No sampling, no site/box/n-samples —
+        # see CRYSTAL_KEYS and build_crystal_command().
+        inputs["mode"].text = "crystal"
+        errs = validate(vals(), CRYSTAL_KEYS)
+        if errs:
+            append("")
+            append("✗ Crystal Score needs:")
+            [append("    - " + e) for e in errs]
+            return
+        start_stream(build_crystal_command(vals()), title="Crystal score (existing bound pose)")
 
     def do_print():
+        if current_mode() == "crystal":
+            errs = validate(vals(), CRYSTAL_KEYS)
+            if errs:
+                append("✗ " + errs[0])
+                return
+            append("")
+            append("$ " + " ".join(shlex.quote(c) for c in build_crystal_command(vals())))
+            append("(printed only — press Crystal Score ⚗ / Ctrl-Y to run)")
+            return
         errs = validate(vals(), DOCK_KEYS)
         if errs:
             append("✗ " + errs[0])
@@ -833,10 +963,11 @@ def run_fullscreen(auto_demo=False):
         return Button(text, handler=handler, width=w)
 
     run_row = VSplit([
-        B("Full ▶", lambda: run_dock(100, "vina,ad4", 10, "Full run (n=100, vina+ad4, MM-GBSA)"), 10),
-        B("Half", lambda: run_dock(50, "vina,ad4", 0, "Half run (n=50, vina+ad4)"), 8),
-        B("Quick", lambda: run_dock(20, "vina", 0, "Quick run (n=20, vina)"), 9),
+        B("Full ▶", lambda: run_dock(100, "vina,ad4", 10, "Full run (n=100, MM-GBSA)"), 10),
+        B("Half", lambda: run_dock(50, "vina,ad4", 0, "Half run (n=50)"), 8),
+        B("Quick", lambda: run_dock(20, "vina", 0, "Quick run (n=20)"), 9),
         B("Selectivity ⚖", run_selectivity, 16),
+        B("Crystal ⚗", run_crystal, 11),
         B("Demo ▷", lambda: start_stream(None, demo=True, title="DEMO (simulated, no GPU)"), 10),
     ], padding=1, height=1)
     tool_row = VSplit([
@@ -895,6 +1026,7 @@ def run_fullscreen(auto_demo=False):
         height=1, align=WindowAlign.LEFT, style="class:titlebar")
     footer = Window(FormattedTextControl(
         [("class:key", " Ctrl-R "), ("class:footer", "Full "), ("class:key", " Ctrl-T "), ("class:footer", "Demo "),
+         ("class:key", " Ctrl-Y "), ("class:footer", "Crystal "),
          ("class:key", " Ctrl-C "), ("class:footer", "STOP "), ("class:key", " Ctrl-B "), ("class:footer", "Browse "),
          ("class:key", " Ctrl-G "), ("class:footer", "Help "), ("class:key", " Ctrl-Q "), ("class:footer", "Quit "),
          ("class:footer", " · ↑↓ or Tab move between fields · drag a .pdb onto a path field ")]),
@@ -949,11 +1081,15 @@ def run_fullscreen(auto_demo=False):
 
     @kb.add("c-r", filter=not_picker_or_running)
     def _(e):
-        run_dock(100, "vina,ad4", 10, "Full run (n=100, vina+ad4, MM-GBSA)")
+        run_dock(100, "vina,ad4", 10, "Full run (n=100, MM-GBSA)")
 
     @kb.add("c-t", filter=not_picker_or_running)
     def _(e):
         start_stream(None, demo=True, title="DEMO (simulated, no GPU)")
+
+    @kb.add("c-y", filter=not_picker_or_running)
+    def _(e):
+        run_crystal()
 
     @kb.add("c-a", filter=not_picker)
     def _(e):

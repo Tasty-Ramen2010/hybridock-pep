@@ -83,7 +83,7 @@ MM-GBSA on the top clusters, or --ultra for the full accuracy path.
 
 What you get:
     runs/demo/best_pose.pdb        the top-ranked pose
-    runs/demo/scored_poses.csv     every pose with its scores
+    runs/demo/ranked_poses.csv     every pose with its scores
     and a "Best pose: ΔG = ..." line on stdout
 
 Timing, measured on {_MACHINE}, 12-mer vs a 705-atom receptor:

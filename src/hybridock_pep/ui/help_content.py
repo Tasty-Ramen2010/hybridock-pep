@@ -144,8 +144,20 @@ TOPICS: list[tuple[str, str, str]] = [
    How many candidate poses to generate. More = slower but more thorough.
    20 = quick look, 100 = standard.
 
- Scoring
-   Which physics engines to run. Leave as-is unless you have a reason.
+ Scoring mode
+   ai (default) — generate poses with RAPiDock and score them with the AI
+   affinity model. This is what Full ▶ / Half / Quick / Selectivity ⚖ / Demo
+   ▷ all run; the physics backends (Vina, AD4) run automatically underneath
+   and are never something you pick by hand. See topic 7.
+
+   crystal — you already have a bound pose (a crystal structure, or an
+   equally accurate model) and just want its binding energy, no pose
+   generation. Switches this field to "crystal" and fills in Peptide pose
+   PDB below, then press Crystal Score ⚗ (Ctrl-Y). See topic 6.
+
+ Peptide pose PDB (crystal mode)
+   Only used when Scoring mode = crystal: the bound peptide pose to score.
+   Blank and ignored in ai mode.
 
  Refine top-K (MM-GBSA)
    Runs a slower, more accurate energy calculation on the best K poses.
@@ -158,22 +170,31 @@ TOPICS: list[tuple[str, str, str]] = [
     ("3", "Run modes", """\
  RUN MODES  (the buttons along the bottom)
 
+ Full ▶ / Half / Quick / Selectivity ⚖ / Demo ▷ all run "ai" mode (RAPiDock
+ pose generation + the AI affinity model, Scoring mode = ai). They differ
+ only in how many poses and how much refinement:
+
    Demo ▷        Simulated run. No GPU, no real computation, seconds.
                  Always safe. Start here.
 
-   Quick         20 poses, Vina scoring only. Fastest real answer.
+   Quick         20 poses. Fastest real answer.
                  Good for "is this peptide worth looking at?"
 
-   Half          50 poses, Vina + AD4. A middle option.
+   Half          50 poses. A middle option.
 
-   Full ▶        100 poses, Vina + AD4, MM-GBSA on the top 10.
+   Full ▶        100 poses, MM-GBSA refinement on the top 10.
                  The standard production run.
 
    Selectivity ⚖ Docks against TWO proteins and compares them.
                  See topic 5.
 
+ Crystal Score ⚗ is the other mode: score an EXISTING bound pose (a crystal
+ structure, no sampling). Needs Scoring mode = crystal and Peptide pose PDB
+ filled in first — see topic 2 and topic 6.
+
  Rough timings on a laptop (Apple M3): Quick about a minute, Full about
  two minutes, plus roughly 3.5 minutes if MM-GBSA refinement is on.
+ Crystal Score is seconds — it does no pose generation at all.
  A slower machine, or a large protein, can take considerably longer.
 """),
 
@@ -242,6 +263,11 @@ TOPICS: list[tuple[str, str, str]] = [
  minutes, and it uses a model tuned specifically for crystal-quality
  structures.
 
+ In this UI
+   1. Set Scoring mode to  crystal.
+   2. Fill in Target receptor PDB, Peptide pose PDB, and Peptide sequence.
+   3. Press  Crystal Score ⚗  (Ctrl-Y).
+
  From the command line:
 
    hybridock-pep crystal-score \\
@@ -254,14 +280,17 @@ TOPICS: list[tuple[str, str, str]] = [
 
  Important: do NOT use crystal scoring on a pose that came out of a
  docking run. It assumes the geometry is essentially perfect, and a
- docked pose is not. For docked poses the normal pipeline already picks
- the right model automatically.
+ docked pose is not. For docked poses (Scoring mode = ai) the normal
+ pipeline already picks the right model automatically.
 """),
 
     ("7", "AI scoring vs physics", """\
  AI SCORING vs PHYSICS SCORING — which number is the answer?
 
- You will see several numbers in the output CSV. Only one is the answer.
+ This is about what happens INSIDE ai mode (Scoring mode = ai, topic 2), not
+ a choice you make yourself: Vina and AD4 always run automatically as
+ internal physics backends. You will see several numbers in the output CSV.
+ Only one is the answer.
 
  The answer
    The headline ΔG comes from the AI affinity model. It reads the shape
