@@ -66,8 +66,19 @@ step "Checking for conda"
 if ! command -v conda >/dev/null 2>&1; then
     for _base in "$HOME/miniforge3" "$HOME/miniconda3" "$HOME/anaconda3" "/opt/conda"; do
         if [ -f "$_base/etc/profile.d/conda.sh" ]; then
+            # conda's own shell-integration script isn't written to be
+            # `set -u`-clean, and sourcing it can run OTHER packages'
+            # activate.d/deactivate.d hooks as a side effect (found on a real
+            # Windows CI run of uninstall.sh, same sourcing pattern: a
+            # stale/partial nested-shell state made a khronos-opencl-icd-loader
+            # deactivate hook reference a backup variable that was never set
+            # in this process, aborting the whole script under -u). Not this
+            # project's bug to fix -- relax nounset only around this one
+            # third-party sourcing call.
+            set +u
             # shellcheck disable=SC1091
             source "$_base/etc/profile.d/conda.sh"
+            set -u
             break
         fi
     done
@@ -105,8 +116,11 @@ else
     curl -fsSL "$MF_URL" -o "$MF_INSTALLER"
     bash "$MF_INSTALLER" -b -p "$HOME/miniforge3"
     rm -rf "$MF_TMPDIR"
+    # See the nounset note on the sourcing call above -- same reasoning.
+    set +u
     # shellcheck disable=SC1091
     source "$HOME/miniforge3/etc/profile.d/conda.sh"
+    set -u
     ok "Miniforge installed at $HOME/miniforge3"
     echo "  (add 'source \$HOME/miniforge3/etc/profile.d/conda.sh' to your shell rc" \
          "for future sessions, or run 'conda init')"
