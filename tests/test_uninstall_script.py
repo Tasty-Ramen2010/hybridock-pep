@@ -7,26 +7,60 @@ environment it's running in would be worse than no test at all.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UNINSTALL_SH = REPO_ROOT / "uninstall.sh"
 
 
+def _bash_exe() -> str:
+    """Locate a real POSIX bash to run uninstall.sh's own tests against.
+
+    On native Windows CI runners, plain "bash" on $PATH can resolve to
+    C:\\Windows\\System32\\bash.exe — the WSL launcher stub, not a real shell —
+    depending on PATH order. With no WSL distro installed on that runner (it's
+    not needed; conda-platforms' Windows job never uses WSL), that stub just
+    prints "Windows Subsystem for Linux has no installed distributions" and
+    exits 1, which uninstall.sh's own syntax has nothing to do with. Prefer Git
+    for Windows' real bash (always present alongside GitHub Actions' windows-*
+    runners). Same fix as test_install_script.py's _bash_exe() — this file
+    just never got it when it was added later.
+    """
+    if os.name == "nt":
+        for candidate in (
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ):
+            if os.path.isfile(candidate):
+                return candidate
+    return "bash"
+
+
 def _run(args, **kwargs):
     return subprocess.run(
-        ["bash", str(UNINSTALL_SH), *args],
+        [_bash_exe(), str(UNINSTALL_SH), *args],
         cwd=REPO_ROOT, capture_output=True, text=True, timeout=30, **kwargs,
     )
 
 
 def test_uninstall_script_is_syntactically_valid():
-    result = subprocess.run(["bash", "-n", str(UNINSTALL_SH)], capture_output=True, text=True)
+    result = subprocess.run(
+        [_bash_exe(), "-n", str(UNINSTALL_SH)], capture_output=True, text=True
+    )
     assert result.returncode == 0, result.stderr
 
 
 def test_uninstall_script_is_executable():
+    """Windows has no POSIX executable bit, so st_mode's owner-execute bit is
+    not a meaningful signal there — install.sh (this script's sibling, same
+    git history) is real-world proof git preserves the +x bit through a
+    Windows checkout without needing it re-asserted per-file."""
+    if os.name == "nt":
+        pytest.skip("no POSIX executable bit on Windows")
     assert UNINSTALL_SH.stat().st_mode & 0o111, "uninstall.sh must be chmod +x, same as install.sh"
 
 

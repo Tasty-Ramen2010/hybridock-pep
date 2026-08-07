@@ -251,6 +251,14 @@ class TestResolveExe:
         monkeypatch.setattr(tui.sys, "executable", str(tmp_path / "python"))
         assert tui._resolve_exe("hybridock-pep") is None
 
+    @pytest.mark.skipif(
+        tui.sys.platform == "win32",
+        reason="os.access(path, os.X_OK) has no POSIX permission-bit concept "
+               "to check on Windows and returns True for any existing file "
+               "regardless of chmod state, so this specific guard is a no-op "
+               "there — not a bug in _resolve_exe, just not a meaningful "
+               "check on this platform.",
+    )
     def test_sibling_must_actually_be_executable(self, monkeypatch, tmp_path):
         """A same-named non-executable file (or directory) next to the
         interpreter must not be handed to subprocess.Popen."""
