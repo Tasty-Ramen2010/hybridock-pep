@@ -285,7 +285,7 @@ def clean_dropped_path(s: str) -> str:
     return s.replace("\\ ", " ").replace("\\~", "~").replace("\\(", "(").replace("\\)", ")").strip()
 
 
-def build_dock_command(v, scoring="vina,ad4", exe="hybridock-pep"):
+def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
     """Build an ``ai``-mode (`dock`) command line.
 
     ``scoring`` is the vina/ad4 physics-backend selection — NOT a user-facing
@@ -974,7 +974,7 @@ def run_fullscreen(auto_demo=False):
         return Button(text, handler=handler, width=w)
 
     run_row = VSplit([
-        B("Full ▶", lambda: run_dock(100, "vina,ad4", "Full run (n=100)"), 10),
+        B("Full ▶", lambda: run_dock(100, "vina", "Full run (n=100)"), 10),
         B("Half", lambda: run_dock(50, "vina,ad4", "Half run (n=50)"), 8),
         B("Quick", lambda: run_dock(20, "vina", "Quick run (n=20)"), 9),
         B("Selectivity ⚖", run_selectivity, 16),
@@ -1092,7 +1092,7 @@ def run_fullscreen(auto_demo=False):
 
     @kb.add("c-r", filter=not_picker_or_running)
     def _(e):
-        run_dock(100, "vina,ad4", "Full run (n=100)")
+        run_dock(100, "vina", "Full run (n=100)")
 
     @kb.add("c-t", filter=not_picker_or_running)
     def _(e):
