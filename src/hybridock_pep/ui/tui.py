@@ -799,20 +799,31 @@ def run_fullscreen(auto_demo=False):
             daemon=True,
         ).start()
 
-    def run_dock(n, scoring, refine, title):
+    def run_dock(n, scoring, base_title):
         # Full/Half/Quick are ai-mode presets — force the mode field back to
         # "ai" so pressing one of these always runs the dock pipeline even if
         # the user had typed "crystal" into Scoring mode. `scoring` (vina/ad4)
         # is chosen here per preset and never surfaced as a field.
+        #
+        # refine_topk is deliberately NOT overridden here — it's the user's
+        # "Refine top-K (MM-GBSA)" field (default "0" = off, per its own
+        # hint). It used to be force-set to 10 for Full/Ctrl-R regardless of
+        # what the user had typed or left at the default, so MM-GBSA silently
+        # ran even when the field said off. The field's current value is
+        # exactly what build_dock_command() reads, so it now actually governs
+        # every run button, not just do_print()'s preview.
         inputs["mode"].text = "ai"
-        inputs["n_samples"].text, inputs["refine_topk"].text = str(n), str(refine)
+        inputs["n_samples"].text = str(n)
         errs = validate(vals(), DOCK_KEYS)
         if errs:
             append("")
             append("✗ fix before running:")
             [append("    - " + e) for e in errs]
             return
-        start_stream(build_dock_command(vals(), scoring=scoring), title=title)
+        v = vals()
+        topk = (v.get("refine_topk") or "").strip()
+        title = base_title + (f", MM-GBSA top-{topk}" if topk and topk.isdigit() and int(topk) > 0 else "")
+        start_stream(build_dock_command(v, scoring=scoring), title=title)
 
     def run_selectivity():
         inputs["mode"].text = "ai"
@@ -963,9 +974,9 @@ def run_fullscreen(auto_demo=False):
         return Button(text, handler=handler, width=w)
 
     run_row = VSplit([
-        B("Full ▶", lambda: run_dock(100, "vina,ad4", 10, "Full run (n=100, MM-GBSA)"), 10),
-        B("Half", lambda: run_dock(50, "vina,ad4", 0, "Half run (n=50)"), 8),
-        B("Quick", lambda: run_dock(20, "vina", 0, "Quick run (n=20)"), 9),
+        B("Full ▶", lambda: run_dock(100, "vina,ad4", "Full run (n=100)"), 10),
+        B("Half", lambda: run_dock(50, "vina,ad4", "Half run (n=50)"), 8),
+        B("Quick", lambda: run_dock(20, "vina", "Quick run (n=20)"), 9),
         B("Selectivity ⚖", run_selectivity, 16),
         B("Crystal ⚗", run_crystal, 11),
         B("Demo ▷", lambda: start_stream(None, demo=True, title="DEMO (simulated, no GPU)"), 10),
@@ -1081,7 +1092,7 @@ def run_fullscreen(auto_demo=False):
 
     @kb.add("c-r", filter=not_picker_or_running)
     def _(e):
-        run_dock(100, "vina,ad4", 10, "Full run (n=100, MM-GBSA)")
+        run_dock(100, "vina,ad4", "Full run (n=100)")
 
     @kb.add("c-t", filter=not_picker_or_running)
     def _(e):
@@ -1207,7 +1218,7 @@ def run_fullscreen(auto_demo=False):
     })
 
     app = Application(layout=layout, key_bindings=kb, style=style, full_screen=True,
-                      mouse_support=True, refresh_interval=0.15)
+                      mouse_support=True)
     # Focus must match the view we are actually opening on. Focusing a form
     # input while the welcome tour is on screen makes prompt_toolkit reject the
     # layout outright and the app silently degrades to the --cli wizard.
@@ -1220,6 +1231,33 @@ def run_fullscreen(auto_demo=False):
         if view["mode"] == "picker":
             refresh_picker()
     app.before_render += _tick
+
+    def _animating() -> bool:
+        """True while the spinner/progress bar/gallery actually need to move."""
+        p = progress["p"]
+        return state["running"] or (p is not None and not p.finished)
+
+    def _ticker():
+        # progress_ctrl/hint are plain FormattedTextControls, not Buffers, so
+        # (unlike the output log's TextArea) changing their .text does not
+        # auto-invalidate the app — something has to periodically force a
+        # redraw for the time-driven spinner/progress-bar/gallery animation
+        # to move at all. A flat Application(refresh_interval=0.15) used to
+        # do that unconditionally, 24/7, which meant a full-screen redraw
+        # ~6.7x/sec forever even with the TUI just sitting open and idle —
+        # the process kept measurably burning CPU long after any run (or
+        # Ctrl-C, which only stops the run, not the app — Ctrl-Q quits).
+        # Tick fast only while something is actually animating; otherwise
+        # back off to an occasional idle nudge (picker navigation and typing
+        # already invalidate on their own via key-press handling).
+        while True:
+            time.sleep(0.15 if _animating() else 0.5)
+            try:
+                app.invalidate()
+            except Exception:  # noqa: BLE001 — a missed tick must never kill the app
+                pass
+
+    threading.Thread(target=_ticker, daemon=True).start()
 
     if auto_demo:
         threading.Thread(target=lambda: (time.sleep(0.4),
