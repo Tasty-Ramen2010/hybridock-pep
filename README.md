@@ -24,7 +24,7 @@ yourself.
 1. [What this does](#what-this-does)
 2. [How it works — the pipeline](#how-it-works--the-pipeline)
 3. [Get started](#get-started)
-4. [Usage — the six subcommands](#usage--the-six-subcommands)
+4. [Usage — the seven subcommands](#usage--the-seven-subcommands)
 5. [Advanced / manual install](#advanced--manual-install)
 6. [Repository structure](#repository-structure)
 7. [Testing](#testing)
@@ -200,8 +200,18 @@ break mid-run, a finished demo, and the help screen:
 | `Ctrl-G` | help — 10 topics, including selectivity, crystal scoring, AI vs physics scoring |
 | `Ctrl-T` | Demo run (no GPU) |
 | `Ctrl-R` | Full run |
+| `Ctrl-Y` | Crystal Score — score an existing bound pose, no sampling (see below) |
 | `Ctrl-B` | browse for a file (or just drag a `.pdb` onto any path field) |
 | `Ctrl-Q` | quit — `Ctrl-C` only stops the current run |
+
+The **Scoring mode** field picks between the UI's two capabilities: `ai` (default — Full ▶ / Half /
+Quick / Selectivity ⚖ / Demo ▷ all run RAPiDock sampling + the AI affinity model; the Vina/AD4
+physics backends run automatically underneath and are never a field you fill in) and `crystal`
+(score an existing bound pose directly with the crystal-tuned model — no sampling, seconds instead
+of minutes; fill in **Peptide pose PDB** and press **Crystal Score ⚗** / `Ctrl-Y`). Same underlying
+commands as [`dock`](#dock--end-to-end-docking--scoring) and
+[`crystal-score`](#crystal-score--score-an-existing-crystal-pose) below — the UI just fills them in
+for you.
 
 > The ASCII gallery isn't just for the demo — the plain CLI shows the same rotating gallery during
 > a real Stage 1 wait. There's a small easter egg in the terminal UI too, if you go looking
@@ -242,10 +252,11 @@ installed.
 
 ---
 
-## Usage — the six subcommands
+## Usage — the seven subcommands
 
-HybriDock-Pep is one CLI with six subcommands: **`dock`**, **`selectivity`**, **`reproducibility`**,
-**`prep`**, **`calibrate`**, **`benchmark`**. Run `hybridock-pep <command> --help` for the full flag list.
+HybriDock-Pep is one CLI with seven subcommands: **`dock`**, **`selectivity`**, **`reproducibility`**,
+**`crystal-score`**, **`prep`**, **`calibrate`**, **`benchmark`**. Run `hybridock-pep <command> --help`
+for the full flag list.
 
 ### `dock` — end-to-end docking + scoring
 

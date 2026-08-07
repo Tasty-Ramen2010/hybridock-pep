@@ -486,15 +486,58 @@ def _diffusion_frames() -> tuple[str, ...]:
     return tuple(render(t, label) for t, label in steps)
 
 
+def _pad_frame(frame: str, width: int, height: int) -> str:
+    """Pad one frame to a fixed (width, height) canvas, centered.
+
+    First equalizes ragged line lengths within the frame itself (the docking
+    and diffusion pieces append a caption line shorter than their art lines
+    above it, so raw frames from those two are not even internally
+    rectangular), then centers that block inside the shared canvas with
+    blank padding.
+    """
+    lines = frame.split("\n")
+    own_width = max((len(ln) for ln in lines), default=0)
+    lines = [ln.ljust(own_width) for ln in lines]
+    pad_left = max(0, (width - own_width) // 2)
+    pad_right = max(0, width - own_width - pad_left)
+    lines = [(" " * pad_left) + ln + (" " * pad_right) for ln in lines]
+    pad_top = max(0, (height - len(lines)) // 2)
+    pad_bottom = max(0, height - len(lines) - pad_top)
+    blank = " " * width
+    return "\n".join([blank] * pad_top + lines + [blank] * pad_bottom)
+
+
+def _normalize_gallery_canvas(
+    pieces: tuple[tuple[str, tuple[str, ...]], ...]
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Pad every frame of every gallery piece to one shared canvas size.
+
+    Without this, the four pieces render at wildly different sizes (DNA
+    23x15, peptide 44x19, docking/diffusion up to 29 wide with a shorter
+    caption line) — so the TUI's surrounding "progress" panel border visibly
+    resized depending on which piece start_stream() happened to pick at
+    random for a given run, and the docking/diffusion pieces even resized
+    frame-to-frame within themselves.
+    """
+    width = max(len(ln) for _t, frames in pieces for f in frames for ln in f.split("\n"))
+    height = max(len(f.split("\n")) for _t, frames in pieces for f in frames)
+    return tuple(
+        (title, tuple(_pad_frame(f, width, height) for f in frames))
+        for title, frames in pieces
+    )
+
+
 #: (title, frames) pairs, rotated in order during a long wait. Every piece
 #: here animates — a science-themed slideshow with no motion wasn't earning
-#: its place on screen during a wait that's supposed to feel alive.
-GALLERY: tuple[tuple[str, tuple[str, ...]], ...] = (
+#: its place on screen during a wait that's supposed to feel alive. Every
+#: frame of every piece shares one canvas size (see _normalize_gallery_canvas)
+#: so the surrounding UI panel doesn't resize when the gallery rotates.
+GALLERY: tuple[tuple[str, tuple[str, ...]], ...] = _normalize_gallery_canvas((
     ("DNA — double helix, rotating", _dna_frames()),
     ("Peptide — LISDAELEAIFEADC, real sequence, rotating", _peptide_frames()),
     ("Induced fit — peptide docking into the receptor pocket", _docking_frames()),
     ("Stage 1 — diffusion: noise resolving into a pose", _diffusion_frames()),
-)
+))
 
 
 def gallery_piece(index: int) -> tuple[str, tuple[str, ...]]:
@@ -502,11 +545,56 @@ def gallery_piece(index: int) -> tuple[str, tuple[str, ...]]:
     return GALLERY[index % len(GALLERY)]
 
 
+HOLD_FIRST_FRAME_S = 1.0
+HOLD_LAST_FRAME_S = 1.0
+
+
+def frame_index_for_elapsed(
+    n_frames: int,
+    elapsed: float,
+    frame_delay: float = 0.32,
+    hold_first: float = HOLD_FIRST_FRAME_S,
+    hold_last: float = HOLD_LAST_FRAME_S,
+) -> int:
+    """Which frame (0..n_frames-1) should be showing `elapsed` seconds into
+    a continuously-looping gallery animation, given the first and last frame
+    each linger `hold_first`/`hold_last` seconds longer than the rest.
+
+    Pure function of elapsed time (deterministic, testable without a clock or
+    a thread) - used by the TUI's Stage-1 progress panel, which redraws from
+    wall-clock elapsed time on every render tick rather than sleeping between
+    frames. A uniform per-frame delay there made the loop snap straight from
+    the last frame back to the first with no beat at either end, which read
+    as too fast / mechanical over a long wait.
+    """
+    if n_frames <= 1:
+        return 0
+    durations = [frame_delay] * n_frames
+    durations[0] += hold_first
+    durations[-1] += hold_last
+    total = sum(durations)
+    if total <= 0:
+        return 0
+    t = elapsed % total
+    acc = 0.0
+    for i, d in enumerate(durations):
+        acc += d
+        if t < acc:
+            return i
+    return n_frames - 1
+
+
 def animate_gallery_piece(
     stream: TextIO, index: int, indent: str = "   ", frame_delay: float = 0.16
 ) -> None:
     """Write one gallery piece to ``stream``, animating in place if it has
     more than one frame, then leave the final frame on screen.
+
+    The first frame lingers an extra HOLD_FIRST_FRAME_S before the animation
+    starts moving, and the completed last frame lingers an extra
+    HOLD_LAST_FRAME_S before this function returns - the same "give both ends
+    of the loop a beat" idea as frame_index_for_elapsed, applied to a one-shot
+    player instead of a continuous one.
 
     TTY-only in spirit (the caller already gates on that — see
     :meth:`hybridock_pep.output.progress.PipelineProgress.heartbeat`): uses
@@ -521,14 +609,15 @@ def animate_gallery_piece(
             stream.write(f"{indent}{line}\n")
         stream.flush()
         n = len(first)
-        for frame in frames[1:]:
-            time.sleep(frame_delay)
+        for i, frame in enumerate(frames[1:], start=1):
+            time.sleep(frame_delay + (HOLD_FIRST_FRAME_S if i == 1 else 0.0))
             lines = frame.splitlines()
             stream.write(f"\x1b[{n}A")
             for line in lines:
                 stream.write(f"\x1b[2K{indent}{line}\n")
             stream.flush()
             n = len(lines)
+        time.sleep(HOLD_LAST_FRAME_S)
         stream.write("\n")
         stream.flush()
     except Exception:
@@ -575,9 +664,15 @@ def braille_spin(t: float | None = None) -> str:
     return _BRAILLE[int(now * 10) % len(_BRAILLE)]
 
 
-def spinner_word(t: float | None = None, period_s: float = 2.2) -> str:
+def spinner_word(t: float | None = None, period_s: float = 180.0) -> str:
     """A cycling domain-flavored verb (``'Diffusing…'``, ``'Helixing…'``, …).
     Deterministic in ``t`` (seconds) so it's testable without a clock.
+
+    period_s=180 (3 minutes): a real Stage 1 wait runs minutes, not seconds --
+    the old 2.2s default cycled through the whole SPINNER_WORDS list many
+    times over during one wait, which read as jittery/meaningless rather than
+    as a heartbeat. At 3 minutes/word, a run typically shows only one or two
+    words total, closer to how a slow, ongoing process should read.
     """
     now = t if t is not None else time.time()
     word = SPINNER_WORDS[int(now / period_s) % len(SPINNER_WORDS)]
