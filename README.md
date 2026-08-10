@@ -290,10 +290,10 @@ The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-
 ```bash
 hybridock-pep selectivity \
     --peptide LISAAALAAIFAAALAC \
-    --target-receptor receptors/target.pdb \
-    --target-site 31.9 17.5 9.5 --target-box 25 \
-    --offtarget-receptor receptors/offtarget.pdb \
-    --offtarget-site 12.3 4.1 22.7 --offtarget-box 25 \
+    --target-receptor data/pdbs/1T2D_receptor.pdb \
+    --target-site 28.25 15.44 66.27 --target-box 30 \
+    --offtarget-receptor data/pdbs/hldh.pdb \
+    --offtarget-site 46.04 -29.33 -10.67 --offtarget-box 30 \
     --output-dir runs/selectivity_check
 ```
 

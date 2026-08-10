@@ -266,7 +266,7 @@ Once both environments are set up, a full dock run on macOS Apple Silicon:
 hybridock-pep dock \
     --peptide LISAAALAAIFAAALAC \
     --receptor data/pdbs/1T2D_receptor.pdb \
-    --site 31.9 17.5 9.5 --box 20 \
+    --site 28.25 15.44 66.27 --box 30 \
     --n-samples 20 \
     --output-dir runs/pfldh_macos_test
 
@@ -274,7 +274,7 @@ hybridock-pep dock \
 hybridock-pep dock \
     --input-poses /path/to/poses_from_cuda_machine/ \
     --receptor data/pdbs/1T2D_receptor.pdb \
-    --site 31.9 17.5 9.5 --box 20 \
+    --site 28.25 15.44 66.27 --box 30 \
     --output-dir runs/pfldh_scored
 ```
 
