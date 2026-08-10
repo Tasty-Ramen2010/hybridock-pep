@@ -64,7 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--peptide",
         required=True,
         metavar="SEQ",
-        help="Peptide amino acid sequence (single-letter codes, e.g. LISDAELEAIFEADC).",
+        help="Peptide amino acid sequence (single-letter codes, e.g. LISAAALAAIFAAALAC).",
     )
     p_dock.add_argument(
         "--receptor",

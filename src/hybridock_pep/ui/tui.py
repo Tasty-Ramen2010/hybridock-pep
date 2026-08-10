@@ -208,7 +208,7 @@ def _optional(fn):
 
 
 FIELDS = [
-    FormField("peptide", "Peptide sequence", "LISDAELEAIFEADC",
+    FormField("peptide", "Peptide sequence", "LISAAALAAIFAAALAC",
               "One-letter amino-acid sequence to dock (3–30 residues).", _valid_peptide),
     FormField("receptor", "Target receptor PDB", "data/pdbs/1T2D_receptor.pdb",
               "On-target receptor .pdb — drag the file here or use Browse (Ctrl-B).",

@@ -832,7 +832,7 @@ class TestReceptorPrep:
         from hybridock_pep.models import DockConfig
 
         return DockConfig(
-            peptide_sequence="LISDAELEAIFEADC",
+            peptide_sequence="LISAAALAAIFAAALAC",
             receptor_path=FIXTURES_DIR / "receptor_tiny.pdb",
             site_coords=(22.5, 14.1, 38.7),
             box_size=20.0,
@@ -1077,7 +1077,7 @@ class TestGrids:
         from hybridock_pep.models import DockConfig
 
         return DockConfig(
-            peptide_sequence="LISDAELEAIFEADC",
+            peptide_sequence="LISAAALAAIFAAALAC",
             receptor_path=FIXTURES_DIR / "receptor_tiny.pdb",
             site_coords=(22.5, 14.1, 38.7),
             box_size=20.0,

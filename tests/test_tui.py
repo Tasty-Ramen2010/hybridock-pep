@@ -22,13 +22,13 @@ tui = pytest.importorskip("hybridock_pep.ui.tui", reason="prompt_toolkit not ins
 # --------------------------------------------------------------------------- #
 
 class TestPeptideValidator:
-    @pytest.mark.parametrize("seq", ["LISDAELEAIFEADC", "ACD", "A" * 30])
+    @pytest.mark.parametrize("seq", ["LISAAALAAIFAAALAC", "ACD", "A" * 30])
     def test_accepts_valid(self, seq):
         assert tui._valid_peptide(seq) is None
 
     def test_accepts_lowercase_and_whitespace(self):
         """Users paste sequences from papers; case and stray spaces are normal."""
-        assert tui._valid_peptide("  lisdaeleaifeadc  ") is None
+        assert tui._valid_peptide("  lisaaalaaifaaalac  ") is None
 
     def test_rejects_empty(self):
         assert "required" in tui._valid_peptide("")
@@ -137,7 +137,7 @@ class TestCleanDroppedPath:
 
 def _values(**over):
     v = {
-        "peptide": "lisdaeleaifeadc",
+        "peptide": "lisaaalaaifaaalac",
         "receptor": "data/pdbs/1T2D_receptor.pdb",
         "site": "31.9 17.5 9.5",
         "box": "20",
@@ -158,7 +158,7 @@ class TestBuildDockCommand:
     def test_shape_and_uppercasing(self):
         cmd = tui.build_dock_command(_values())
         assert cmd[:2] == ["hybridock-pep", "dock"]
-        assert "LISDAELEAIFEADC" in cmd, "peptide must be upper-cased for the CLI"
+        assert "LISAAALAAIFAAALAC" in cmd, "peptide must be upper-cased for the CLI"
         assert cmd[cmd.index("--site") + 1: cmd.index("--site") + 4] == ["31.9", "17.5", "9.5"]
 
     def test_refine_topk_omitted_when_zero(self):
@@ -595,7 +595,7 @@ class TestGeneratedCommandsParse:
         r.write_text("ATOM\n")
         ns = self._parse(tui.build_dock_command(_values(receptor=str(r))))
         assert ns.command == "dock"
-        assert ns.peptide == "LISDAELEAIFEADC"
+        assert ns.peptide == "LISAAALAAIFAAALAC"
 
     def test_dock_command_with_refine_parses(self, tmp_path):
         r = tmp_path / "r.pdb"
@@ -621,7 +621,7 @@ class TestGeneratedCommandsParse:
         ns = self._parse(tui.build_crystal_command(
             _values(receptor=str(r), peptide_pdb=str(pp))))
         assert ns.command == "crystal-score"
-        assert ns.peptide == "LISDAELEAIFEADC"
+        assert ns.peptide == "LISAAALAAIFAAALAC"
 
     def test_every_flag_the_tui_emits_is_known_to_the_cli(self, tmp_path):
         """Catches a renamed/removed CLI flag that the TUI still emits."""

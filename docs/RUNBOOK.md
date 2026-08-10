@@ -28,7 +28,7 @@ Use this to validate a new receptor or debug a specific issue.
 conda activate score-env
 
 hybridock-pep dock \
-    --peptide LISDAELEAIFEADC \
+    --peptide LISAAALAAIFAAALAC \
     --receptor receptors/1czb.pdb \
     --site 22.5 14.1 38.7 \
     --box 25 \
@@ -176,7 +176,7 @@ skip RAPiDock entirely:
 
 ```bash
 hybridock-pep dock \
-    --peptide LISDAELEAIFEADC \
+    --peptide LISAAALAAIFAAALAC \
     --receptor receptors/1czb.pdb \
     --site 22.5 14.1 38.7 \
     --box 25 \
