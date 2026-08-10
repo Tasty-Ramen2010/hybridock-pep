@@ -264,7 +264,7 @@ Once both environments are set up, a full dock run on macOS Apple Silicon:
 ```bash
 # Stage 1 + 2: 20-pose run via MPS (~2 min on M3, ~25 min on Intel CPU)
 hybridock-pep dock \
-    --peptide LISDAELEAIFEADC \
+    --peptide LISAAALAAIFAAALAC \
     --receptor data/pdbs/1T2D_receptor.pdb \
     --site 31.9 17.5 9.5 --box 20 \
     --n-samples 20 \

@@ -65,11 +65,12 @@ def art_enabled(stream: TextIO | None = None) -> bool:
 # Gallery — rotates during a long wait (Stage 1 sampling)
 # ---------------------------------------------------------------------------
 
-#: The parent iGEM project's real target peptide (see CLAUDE.md / README) —
-#: a malaria rapid-diagnostic candidate against PfLDH. Also the sequence the
-#: peptide-backbone gallery piece actually draws (see ``_peptide_frames``
-#: below) — the real molecule, not a generic placeholder.
-PARENT_PROJECT_PEPTIDE = "LISDAELEAIFEADC"
+#: The parent iGEM project's real, ready-to-use target peptide (see
+#: CLAUDE.md / README) — a malaria rapid-diagnostic candidate against PfLDH.
+#: Also the sequence the peptide-backbone gallery piece actually draws (see
+#: ``_peptide_frames`` below) — the real molecule, not a generic placeholder.
+#: (Superseded LISDAELEAIFEADC as the project's main/default sequence.)
+PARENT_PROJECT_PEPTIDE = "LISAAALAAIFAAALAC"
 
 
 def _dna_frames(n_frames: int = 8) -> tuple[str, ...]:
@@ -118,10 +119,10 @@ def _dna_frames(n_frames: int = 8) -> tuple[str, ...]:
 #
 # Earlier versions of this piece tried an arbitrary generic helix, then a
 # fictional 3-helix tertiary bundle. Both were wrong for the same reason: a
-# 15-residue linear peptide with no crosslinks does not fold into a compact
+# short linear peptide with no crosslinks does not fold into a compact
 # tertiary bundle — that's not what RAPiDock is actually generating. The
-# honest picture is simpler: the real 15-mer, PARENT_PROJECT_PEPTIDE, as one
-# helical chain, each side chain shaped by what that residue actually is.
+# honest picture is simpler: the real sequence, PARENT_PROJECT_PEPTIDE, as
+# one helical chain, each side chain shaped by what that residue actually is.
 # ---------------------------------------------------------------------------
 
 #: Real amino-acid classes, keyed by one-letter code — decide the *shape* of
@@ -324,8 +325,8 @@ def _peptide_frames(n_frames: int = 16) -> tuple[str, ...]:
     ``PARENT_PROJECT_PEPTIDE`` below), spun through a full turn at a fixed
     downward tilt so it reads as a 3D object rotating in space.
 
-    Sized smaller than :func:`render_peptide_frame`'s own default: at 15
-    real residues this piece is inherently taller than the other three
+    Sized smaller than :func:`render_peptide_frame`'s own default: at this
+    many real residues this piece is inherently taller than the other three
     gallery pieces, and the terminal UI's output panel is a compact, fixed
     box — a piece too tall for it just scrolls its own title out of view
     before the animation finishes. 19 rows keeps it in the same ballpark as
@@ -534,7 +535,7 @@ def _normalize_gallery_canvas(
 #: so the surrounding UI panel doesn't resize when the gallery rotates.
 GALLERY: tuple[tuple[str, tuple[str, ...]], ...] = _normalize_gallery_canvas((
     ("DNA — double helix, rotating", _dna_frames()),
-    ("Peptide — LISDAELEAIFEADC, real sequence, rotating", _peptide_frames()),
+    ("Peptide — LISAAALAAIFAAALAC, real sequence, rotating", _peptide_frames()),
     ("Induced fit — peptide docking into the receptor pocket", _docking_frames()),
     ("Stage 1 — diffusion: noise resolving into a pose", _diffusion_frames()),
 ))

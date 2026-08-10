@@ -697,7 +697,7 @@ def print_next_steps(info: PlatformInfo) -> None:
 │                                                                   │
 │  4. Run a test dock:                                             │
 │     hybridock-pep dock \\                                         │
-│         --peptide LISDAELEAIFEADC \\                              │
+│         --peptide LISAAALAAIFAAALAC \\                            │
 │         --receptor data/pdbs/1T2D_receptor.pdb \\                │
 │         --site 31.9 17.5 9.5 --box 20 \\                         │
 │         --n-samples 20 --output-dir runs/test                    │

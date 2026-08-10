@@ -63,7 +63,7 @@ class TestDockSubcommand:
         from hybridock_pep import cli
         parser = cli._build_parser()
         _, unknown = parser.parse_known_args([
-            "dock", "--peptide", "LISDAELEAIFEADC",
+            "dock", "--peptide", "LISAAALAAIFAAALAC",
             "--receptor", "/tmp/r.pdb",
             "--site", "1.0", "2.0", "3.0",
             "--box", "20.0",

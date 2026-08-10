@@ -7,8 +7,8 @@
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/tui_peptide.gif" alt="The parent project's real peptide, LISDAELEAIFEADC, drawn as one continuous helical chain with class-correct side chains — a hexagon for the aromatic F, forks for branched and charged residues — actually rotating, not a mockup"></td>
-<td width="50%"><img src="docs/images/tui_form.png" alt="The terminal UI's input form, pre-filled with the LISDAELEAIFEADC / PfLDH example and ready to run"></td>
+<td width="50%"><img src="docs/images/tui_peptide.gif" alt="An earlier iteration of the parent project's peptide, LISDAELEAIFEADC (since superseded by the current default, LISAAALAAIFAAALAC), drawn as one continuous helical chain with class-correct side chains — a hexagon for the aromatic F, forks for branched and charged residues — actually rotating, not a mockup"></td>
+<td width="50%"><img src="docs/images/tui_form.png" alt="The terminal UI's input form from an earlier run, pre-filled with the LISDAELEAIFEADC / PfLDH example (the current default is LISAAALAAIFAAALAC) and ready to run"></td>
 </tr>
 </table>
 
@@ -289,7 +289,7 @@ The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-
 
 ```bash
 hybridock-pep selectivity \
-    --peptide LISDAELEAIFEADC \
+    --peptide LISAAALAAIFAAALAC \
     --target-receptor receptors/target.pdb \
     --target-site 31.9 17.5 9.5 --target-box 25 \
     --offtarget-receptor receptors/offtarget.pdb \

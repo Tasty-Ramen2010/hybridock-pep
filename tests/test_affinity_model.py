@@ -20,7 +20,7 @@ def _geom() -> dict[str, float]:
 def test_feature_vector_length() -> None:
     """262 features: 16 geometry + 220 ProtDCal + 3 charge-compl + length + 22 pocket-ProtDCal (E206).
     The pocket block is always present (zeros when the geometry dict has no pocket_seq)."""
-    v = build_feature_vector(_geom(), "LISDAELEAIFEADC")
+    v = build_feature_vector(_geom(), "LISAAALAAIFAAALAC")
     assert v.shape == (262,)
     assert np.isfinite(v).all()
 
@@ -29,7 +29,7 @@ def test_pocket_protdcal_populated_when_pocket_seq_present() -> None:
     """When the geometry dict carries pocket_seq, the trailing 22-feature pocket block is non-trivial."""
     g = dict(_geom())
     g["pocket_seq"] = "LIWFYACDEKR"
-    v = build_feature_vector(g, "LISDAELEAIFEADC")
+    v = build_feature_vector(g, "LISAAALAAIFAAALAC")
     assert v.shape == (262,)
     assert np.any(v[-22:] != 0.0)  # pocket descriptors populated
 

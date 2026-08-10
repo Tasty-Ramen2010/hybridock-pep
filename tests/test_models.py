@@ -21,13 +21,13 @@ def valid_receptor(tmp_path: Path) -> Path:
 class TestDockConfig:
     def test_valid_construction(self, valid_receptor: Path, tmp_path: Path) -> None:
         cfg = DockConfig(
-            peptide_sequence="LISDAELEAIFEADC",
+            peptide_sequence="LISAAALAAIFAAALAC",
             receptor_path=valid_receptor,
             site_coords=(22.5, 14.1, 38.7),
             box_size=20.0,
             output_dir=tmp_path,
         )
-        assert cfg.peptide_sequence == "LISDAELEAIFEADC"
+        assert cfg.peptide_sequence == "LISAAALAAIFAAALAC"
         assert isinstance(cfg.run_id, str) and len(cfg.run_id) > 0
         assert cfg.n_samples == 100
         # Default scoring set narrowed from {"vina", "ad4"} to {"vina"} in
@@ -104,7 +104,7 @@ class TestPoseRecord:
         pr = PoseRecord(
             pose_idx=0,
             pdb_path=tmp_path / "pose_0.pdb",
-            sequence="LISDAELEAIFEADC",
+            sequence="LISAAALAAIFAAALAC",
             ca_coords=ca,
         )
         assert pr.ca_coords.shape == (15, 3)
