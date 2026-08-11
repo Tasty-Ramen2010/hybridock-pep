@@ -347,7 +347,7 @@ TOPICS: list[tuple[str, str, str]] = [
    The UI form is pre-filled with a working pair, so you can press Demo
    or Quick immediately without knowing any of this:
 
-     data/pdbs/1T2D_receptor.pdb   →  site 28.25 15.44 66.27  box 30
+     data/pdbs/1T2D_receptor.pdb   →  site 24.84 22.73 41.69  box 30
 
    The other bundled example, used by the command-line guide:
 

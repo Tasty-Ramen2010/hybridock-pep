@@ -139,7 +139,7 @@ def _values(**over):
     v = {
         "peptide": "lisaaalaaifaaalac",
         "receptor": "data/pdbs/1T2D_receptor.pdb",
-        "site": "28.25 15.44 66.27",
+        "site": "24.84 22.73 41.69",
         "box": "30",
         "n_samples": "100",
         "mode": "ai",
@@ -159,7 +159,7 @@ class TestBuildDockCommand:
         cmd = tui.build_dock_command(_values())
         assert cmd[:2] == ["hybridock-pep", "dock"]
         assert "LISAAALAAIFAAALAC" in cmd, "peptide must be upper-cased for the CLI"
-        assert cmd[cmd.index("--site") + 1: cmd.index("--site") + 4] == ["28.25", "15.44", "66.27"]
+        assert cmd[cmd.index("--site") + 1: cmd.index("--site") + 4] == ["24.84", "22.73", "41.69"]
 
     def test_refine_topk_omitted_when_zero(self):
         assert "--refine-topk" not in tui.build_dock_command(_values(refine_topk="0"))
@@ -196,7 +196,7 @@ class TestBuildSelectivityCommand:
     def test_target_and_offtarget_sites_are_distinct(self):
         cmd = tui.build_selectivity_command(_values())
         i, j = cmd.index("--target-site"), cmd.index("--offtarget-site")
-        assert cmd[i + 1:i + 4] == ["28.25", "15.44", "66.27"]
+        assert cmd[i + 1:i + 4] == ["24.84", "22.73", "41.69"]
         assert cmd[j + 1:j + 4] == ["1", "2", "3"]
 
     def test_every_argument_is_a_string(self):

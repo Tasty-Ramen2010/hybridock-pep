@@ -213,7 +213,7 @@ FIELDS = [
     FormField("receptor", "Target receptor PDB", "data/pdbs/1T2D_receptor.pdb",
               "On-target receptor .pdb — drag the file here or use Browse (Ctrl-B).",
               _valid_receptor, is_path=True),
-    FormField("site", "Target site  x y z", "28.25 15.44 66.27",
+    FormField("site", "Target site  x y z", "24.84 22.73 41.69",
               "On-target box center (Å) — three numbers.", _valid_site),
     FormField("box", "Target box (Å)", "30",
               "On-target cubic box edge (Å). 30 for 12-mers+.", _posint(10, 60)),
