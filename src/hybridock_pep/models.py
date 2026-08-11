@@ -79,6 +79,24 @@ class DockConfig(BaseModel):
     # exists to find. On an elongated receptor (armadillo/ankyrin repeats,
     # coiled coils) it discards the real groove. See driver.py Stage 1.7a.
     blind: bool = False
+    # True pocket-search blind docking: --blind given AND --site omitted (no hint at
+    # all, not even a fallback centroid). Drives a three-stage Stage 1: (1) an
+    # exploratory N=n_pocket_search run with rapidock_global.pt across the whole
+    # receptor, (2) spatial clustering of pose centroids into n_pockets candidate
+    # binding sites, (3) a focused N=n_per_pocket refinement run per candidate site
+    # (receptor cropped to a neighborhood of the site, checkpoint routed by peptide
+    # length). See sampling/pocket_search.py. False means Stage 1 runs once, as today.
+    pocket_search: bool = False
+    n_pocket_search: int = 300
+    n_pockets: int = 3
+    n_per_pocket: int = 150
+    # Peptide length (residues) at or above which docking routes to the long-peptide
+    # specialized checkpoint (longer_local.pt) instead of rapidock_local.pt, when
+    # that checkpoint is present in the model directory (silently falls back to
+    # rapidock_local.pt with a warning if absent — see sampling/rapidock_runner.py).
+    # Default 13 matches the long/very_long bucket boundary used throughout the
+    # benchmark (data/benchmark_expanded.csv, scripts/build_benchmark_expanded.py).
+    long_checkpoint_threshold: int = 13
 
     @field_validator("peptide_sequence")
     @classmethod
@@ -110,6 +128,13 @@ class DockConfig(BaseModel):
     def _nsamples_positive(cls, v: int) -> int:
         if v <= 0:
             raise ValueError(f"n_samples must be positive, got {v}")
+        return v
+
+    @field_validator("n_pocket_search", "n_pockets", "n_per_pocket", "long_checkpoint_threshold")
+    @classmethod
+    def _pocket_search_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError(f"must be positive, got {v}")
         return v
 
     @model_validator(mode="before")

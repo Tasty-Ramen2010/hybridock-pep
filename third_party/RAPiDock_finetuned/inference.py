@@ -60,10 +60,53 @@ def load_model(score_model_args, ckpt_path, device):
     _sd = state_dict["model"] if isinstance(state_dict, dict) and "model" in state_dict else state_dict
     if any("tr_adapter" in k for k in _sd):
         score_model_args.use_tr_adapter = True
-        if not hasattr(score_model_args, "tr_adapter_cap"):
+        # BUG FIX (Aug 2026 cliff-run postmortem): this used to hardcode cap=1.0 regardless of
+        # what --tr-adapter-cap the checkpoint was actually TRAINED with. A checkpoint trained
+        # under a tighter cap (to bound worst-case correction magnitude, since the adapter's
+        # physical correction scales with tr_sigma up to ~tr_sigma_max*cap) would silently run
+        # at inference under the WIDER default cap instead — defeating the tightened cap's whole
+        # point right where it matters (rare high-sigma spikes). Checkpoints saved after this fix
+        # store their own cap (save_checkpoint() in train_lastlayer.py); only fall back to the
+        # 1.0 default for older checkpoints that predate this field.
+        if isinstance(state_dict, dict) and "tr_adapter_cap" in state_dict:
+            score_model_args.tr_adapter_cap = float(state_dict["tr_adapter_cap"])
+        elif not hasattr(score_model_args, "tr_adapter_cap"):
             score_model_args.tr_adapter_cap = 1.0
+        # Aug 2026 (widened-adapter fix): hidden_mult changes the ARCHITECTURE (fc.0.weight
+        # shape), so it can't be a stored config value that might drift out of sync with the
+        # actual weights -- infer it directly from the checkpoint's own fc.0.weight shape,
+        # which is authoritative. hidden_features = 2*ns*mult (see models/diffusion.py).
+        _fc0_key = next((k for k in _sd if k.endswith("tr_adapter_conv.fc.0.weight")), None)
+        if _fc0_key is not None:
+            _hidden_features = _sd[_fc0_key].shape[0]
+            score_model_args.tr_adapter_hidden_mult = _hidden_features / (2 * score_model_args.ns)
+        # Sigma-gate (outlier-pose fix): same self-describing rationale as tr_adapter_cap.
+        if isinstance(state_dict, dict) and "tr_adapter_gate_hi" in state_dict:
+            score_model_args.tr_adapter_gate_hi = float(state_dict["tr_adapter_gate_hi"])
+        # Low-sigma physical cap (Aug 2026 cliffmixed outlier forensics): same self-describing
+        # rationale. Older checkpoints without this field fall back to the models/diffusion.py
+        # __init__ default (4.0 A) via getattr there, not here.
+        if isinstance(state_dict, dict) and "tr_adapter_physical_cap" in state_dict:
+            score_model_args.tr_adapter_physical_cap = float(state_dict["tr_adapter_physical_cap"])
+        if isinstance(state_dict, dict) and "tr_adapter_cap_length_scale" in state_dict:
+            score_model_args.tr_adapter_cap_length_scale = float(state_dict["tr_adapter_cap_length_scale"])
+        # Debug/experimentation override -- lets an already-trained checkpoint (predating this
+        # field) be evaluated under a length-scaled cap WITHOUT retraining, to validate the idea
+        # cheaply before committing GPU time to a real training run with it baked in.
+        if os.environ.get("TR_ADAPTER_CAP_LENGTH_SCALE") is not None:
+            score_model_args.tr_adapter_cap_length_scale = float(os.environ["TR_ADAPTER_CAP_LENGTH_SCALE"])
+        if isinstance(state_dict, dict) and "tr_adapter_zero_below_sigma" in state_dict:
+            score_model_args.tr_adapter_zero_below_sigma = float(state_dict["tr_adapter_zero_below_sigma"])
+        # Same cheap-validation override as above, for the cliff-v4 zero-below-sigma hypothesis.
+        if os.environ.get("TR_ADAPTER_ZERO_BELOW_SIGMA") is not None:
+            score_model_args.tr_adapter_zero_below_sigma = float(os.environ["TR_ADAPTER_ZERO_BELOW_SIGMA"])
         print(f"[load_model] adapter checkpoint detected -> use_tr_adapter=True "
-              f"(cap={getattr(score_model_args, 'tr_adapter_cap', 1.0)})")
+              f"(cap={getattr(score_model_args, 'tr_adapter_cap', 1.0)}"
+              f"{' [from checkpoint]' if isinstance(state_dict, dict) and 'tr_adapter_cap' in state_dict else ' [legacy default]'}, "
+              f"hidden_mult={getattr(score_model_args, 'tr_adapter_hidden_mult', 1.0):.2f} [from checkpoint shape], "
+              f"gate_hi={getattr(score_model_args, 'tr_adapter_gate_hi', 'unset (no gate)')}, "
+              f"physical_cap={getattr(score_model_args, 'tr_adapter_physical_cap', 4.0)}, "
+              f"zero_below_sigma={getattr(score_model_args, 'tr_adapter_zero_below_sigma', 0.0)})")
     model = get_model(score_model_args, no_parallel=True)
     # strict=False: tolerates new params added to the architecture (e.g. cross_type_embedding)
     # that are absent in older checkpoints — they keep their zero-init from __init__.

@@ -250,19 +250,60 @@ def _find_model_dir() -> Path:
     )
 
 
-def _find_ckpt_name() -> str:
-    """Resolve the RAPiDock checkpoint filename.
+#: Filename of the long/very_long-specialized checkpoint (V6 3-phase cross_conv
+#: retrain, see logs/v6_run/ and docs/architecture.md "Long-peptide checkpoint").
+#: Optional — a fresh install only ships rapidock_local.pt/rapidock_global.pt;
+#: this file is dropped in by the user (or a future release asset) when available.
+LONGER_CKPT_NAME = "longer_local.pt"
 
-    Checks RAPIDOCK_CKPT env var first, then defaults to rapidock_local.pt.
+
+def select_checkpoint(peptide_len: int, threshold: int, model_dir: Path) -> str:
+    """Route to the long-peptide checkpoint when the peptide is long enough and
+    the checkpoint is actually present; otherwise use the standard local checkpoint.
+
+    RAPIDOCK_CKPT always wins when set — this is an explicit power-user override
+    (used throughout scripts/nsweep_coverage.py-style tooling to point at arbitrary
+    fine-tuned checkpoints) and must not be silently second-guessed by length
+    routing.
+
+    Args:
+        peptide_len: Peptide length in residues.
+        threshold: Length at/above which longer_local.pt is preferred
+            (DockConfig.long_checkpoint_threshold).
+        model_dir: Directory expected to contain both checkpoint files.
 
     Returns:
-        Checkpoint filename string (e.g., 'rapidock_local.pt').
+        Checkpoint filename to pass as RAPiDock's --ckpt.
     """
-    return os.environ.get("RAPIDOCK_CKPT", _CKPT_DEFAULT)
+    override = os.environ.get("RAPIDOCK_CKPT")
+    if override:
+        return override
+    if peptide_len < threshold:
+        return _CKPT_DEFAULT
+    longer_path = model_dir / LONGER_CKPT_NAME
+    if longer_path.exists():
+        logger.info(
+            "Peptide length %d ≥ threshold %d — routing to %s",
+            peptide_len, threshold, LONGER_CKPT_NAME,
+        )
+        return LONGER_CKPT_NAME
+    logger.warning(
+        "Peptide length %d ≥ threshold %d would route to %s, but it is not "
+        "present in %s — falling back to %s. See INSTALL.md for how to add it.",
+        peptide_len, threshold, LONGER_CKPT_NAME, model_dir, _CKPT_DEFAULT,
+    )
+    return _CKPT_DEFAULT
 
 
-def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[Path]:
-    """Run RAPiDock N=config.n_samples inference passes via direct python3 subprocess.
+def run_sampling(
+    config: DockConfig,
+    receptor_path: Path | None = None,
+    *,
+    n_samples: int | None = None,
+    ckpt_name: str | None = None,
+    output_dir: Path | None = None,
+) -> list[Path]:
+    """Run RAPiDock N inference passes via direct python3 subprocess.
 
     Calls the rapidock conda env's python3 binary directly (bypassing conda run)
     to avoid a PATH-resolution bug where conda run picks the caller's python3
@@ -275,19 +316,34 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     sentinel pattern.
 
     Renaming: RAPiDock writes rank*.pdb to {output_dir}/poses_raw/poses_raw/.
-    These are renamed to pose_0.pdb...pose_{N-1}.pdb under {output_dir}/poses/
-   .
+    These are renamed to pose_0.pdb...pose_{N-1}.pdb under {output_dir}/poses/.
 
     Args:
         config: Validated DockConfig. Uses peptide_sequence, receptor_path,
-                output_dir, n_samples, seed.
+                output_dir, n_samples, seed (n_samples/output_dir are overridable
+                below for the pocket-search multi-stage flow — see
+                sampling/pocket_search.py).
         receptor_path: Optional override for the receptor PDB path. If None,
                 uses config.receptor_path. Pass a pdbfixer-cleaned PDB here
-                to avoid MDAnalysis chain-splitting issues on raw RCSB downloads.
+                to avoid MDAnalysis chain-splitting issues on raw RCSB downloads,
+                or a pocket-cropped PDB for a pocket-search refinement stage.
+        n_samples: Optional override for the number of poses (defaults to
+                config.n_samples). Used by pocket_search.py to run the N=300
+                exploratory pass and the N=150-per-pocket refinement passes,
+                which both differ from the run's headline --n-samples.
+        ckpt_name: Optional override for the RAPiDock checkpoint filename
+                (defaults to length-routed selection via select_checkpoint(),
+                which itself still honors RAPIDOCK_CKPT). Used by
+                pocket_search.py to force rapidock_global.pt for the
+                exploratory pass.
+        output_dir: Optional override for where poses_raw/ and poses/ are
+                written (defaults to config.output_dir). Used by
+                pocket_search.py so each stage's poses land in their own
+                subdirectory instead of overwriting one another.
 
     Returns:
         List of absolute Paths to renamed pose_*.pdb files under
-        config.output_dir/poses/.
+        {output_dir or config.output_dir}/poses/.
 
     Raises:
         RuntimeError: If RAPiDock subprocess exits non-zero.
@@ -297,10 +353,20 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     shim_path = str((Path(__file__).resolve().parent / "run_rapidock.py"))
     effective_receptor = receptor_path if receptor_path is not None else config.receptor_path
     receptor_abs = str(effective_receptor.resolve())
-    raw_output_abs = str((config.output_dir / "poses_raw").resolve())
+    effective_output_dir = output_dir if output_dir is not None else config.output_dir
+    raw_output_abs = str((effective_output_dir / "poses_raw").resolve())
     rapidock_dir_abs = str(_find_rapidock_dir())
     model_dir_abs = str(_find_model_dir())
-    ckpt_name = _find_ckpt_name()
+    effective_n_samples = n_samples if n_samples is not None else config.n_samples
+    if ckpt_name is not None:
+        effective_ckpt = ckpt_name
+    else:
+        effective_ckpt = select_checkpoint(
+            len(config.peptide_sequence),
+            config.long_checkpoint_threshold,
+            Path(model_dir_abs),
+        )
+    ckpt_name = effective_ckpt
 
     device_label = _detect_device_platform()
     logger.info("Stage 1: RAPiDock-Reloaded sampling — device: %s", device_label)
@@ -317,7 +383,7 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
         "--peptide", config.peptide_sequence,
         "--receptor", receptor_abs,
         "--output-dir", raw_output_abs,
-        "--n-samples", str(config.n_samples),
+        "--n-samples", str(effective_n_samples),
         "--rapidock-dir", rapidock_dir_abs,
         "--model-dir", model_dir_abs,
         "--ckpt", ckpt_name,
@@ -383,8 +449,8 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
     # Rename rank*.pdb → pose_N.pdb (
     # RAPiDock writes to {output_dir}/{complex_name}/ where complex_name="poses_raw"
     # so raw files are at: {output_dir}/poses_raw/poses_raw/rank*.pdb
-    raw_dir = config.output_dir / "poses_raw" / "poses_raw"
-    poses_dir = config.output_dir / "poses"
+    raw_dir = effective_output_dir / "poses_raw" / "poses_raw"
+    poses_dir = effective_output_dir / "poses"
     poses_dir.mkdir(parents=True, exist_ok=True)
 
     rank_files = sorted(
@@ -413,10 +479,10 @@ def run_sampling(config: DockConfig, receptor_path: Path | None = None) -> list[
         )
 
     # Shortfall = warning only; caller decides what to do
-    if len(renamed) < config.n_samples:
+    if len(renamed) < effective_n_samples:
         logger.warning(
             "RAPiDock pose shortfall: requested %d, generated %d",
-            config.n_samples,
+            effective_n_samples,
             len(renamed),
         )
 

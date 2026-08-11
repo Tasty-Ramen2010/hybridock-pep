@@ -2582,6 +2582,26 @@ def save_checkpoint(model, optimizer, epoch, loss, path, ema=None, patterns=None
         "epoch": epoch,
         "val_loss": loss,
     }
+    # Self-describing adapter hyperparameter (Aug 2026): without this, inference.py's
+    # auto-detect had to GUESS the cap (hardcoded 1.0) for any checkpoint carrying tr_adapter
+    # weights -- silently ignoring whatever tighter cap the checkpoint was actually TRAINED
+    # under. That mismatch defeats a tightened --tr-adapter-cap's whole purpose: training safely
+    # bounds correction spikes, but inference would apply a looser bound right where it matters.
+    _encoder = getattr(model, "encoder", model)  # model may be wrapped (DataParallel) or bare
+    if getattr(_encoder, "use_tr_adapter", False):
+        payload["tr_adapter_cap"] = float(getattr(_encoder, "tr_adapter_cap", 1.0))
+        # Sigma-gate hyperparameter (Aug 2026 outlier-pose fix) -- same self-describing
+        # rationale as tr_adapter_cap above. hidden_mult is NOT stored here since it changes
+        # the architecture itself (fc layer shape) and inference.py infers it directly from
+        # the checkpoint's own weight shape, which is authoritative and can't drift out of sync.
+        payload["tr_adapter_gate_hi"] = float(getattr(_encoder, "tr_adapter_gate_hi", 30.0))
+        # Low-sigma physical cap (Aug 2026, cliffmixed outlier forensics) -- same
+        # self-describing rationale: the checkpoint carries the bound it was trained under.
+        payload["tr_adapter_physical_cap"] = float(getattr(_encoder, "tr_adapter_physical_cap", 4.0))
+        payload["tr_adapter_cap_length_scale"] = float(
+            getattr(_encoder, "tr_adapter_cap_length_scale", 0.0))
+        payload["tr_adapter_zero_below_sigma"] = float(
+            getattr(_encoder, "tr_adapter_zero_below_sigma", 0.0))
     if patterns:
         payload["finetuned_heads"] = {
             k: v for k, v in model.state_dict().items()
@@ -2819,12 +2839,90 @@ def main():
     parser.add_argument("--x0-cap", type=float, default=100.0,
                         help="Per-sample clamp (Angstrom^2) on the x0 term so a single far-off "
                              "draw can't dominate the batch. Default 100 = (10 A)^2.")
+    parser.add_argument("--tr-adapter-cap", type=float, default=1.0,
+                        help="Max magnitude (pre-sigma score units) of the adapter's additive "
+                             "translation correction (models/diffusion.py tr_adapter_conv). "
+                             "BUG-ADJACENT DEFAULT (Aug 2026 cliff-run postmortem): the physical "
+                             "(Angstrom) correction the adapter can inject scales with tr_sigma "
+                             "(up to ~tr_sigma_max * this cap, i.e. ~30A at the default of 1.0) "
+                             "-- LARGEST exactly at high sigma, which is the regime --x0-sigma-hi "
+                             "leaves un-supervised by direct placement loss (only the indirect "
+                             "score-matching proxy shapes it there). That combination measurably "
+                             "produced 100+ A outlier poses at inference on the real benchmark. "
+                             "Lower this (e.g. 0.4-0.6) to bound worst-case physical correction "
+                             "magnitude directly, independent of how far --x0-sigma-hi is raised.")
     parser.add_argument("--unfreeze-extra", type=str, default="",
                         help="Comma-separated name substrings of params to additionally unfreeze "
                              "(composes with --adapter-only / v-modes). ~10%% recipe: "
                              "'tr_final_layer,rot_final_layer,tor_bb_final_layer,tor_sc_final_layer,"
                              "final_conv,cross_convs.3'. Pair with dropout + --pretrained-reg-lambda "
                              "+ --freeze-bn-stats to limit forgetting in unfrozen conv layers.")
+    parser.add_argument("--unfreeze-extra-lr-ratio", type=float, default=1.0,
+                        help="When --unfreeze-extra is combined with --adapter-only, the extra "
+                             "unfrozen base params train at --lr / this ratio (a SEPARATE, much "
+                             "lower LR than the adapter's own --lr). Default 1.0 = same LR as "
+                             "the adapter (old behaviour). Aug 2026: proposed as a gentler "
+                             "alternative to a full/15%% unfreeze (both of which collapsed the "
+                             "model in this project's history) -- e.g. 1000 lets the base's own "
+                             "translation pathway (tr_final_layer) slowly recalibrate alongside "
+                             "the adapter without the catastrophic-forgetting risk of a normal-LR "
+                             "unfreeze. The LR schedule (WarmupThenCosine) preserves this ratio "
+                             "throughout warmup/decay via its per-group relative scaling.")
+    parser.add_argument("--tr-adapter-hidden-mult", type=float, default=1.0,
+                        help="Widen the adapter's internal hidden layer by this factor (hidden_"
+                             "features = 2*ns*mult, default mult=1.0 = old behaviour, 96 units). "
+                             "More capacity to learn a nuanced, well-calibrated SMALL correction "
+                             "instead of being capacity-starved into coarse over/under-shoots. "
+                             "Self-describing at inference (models/diffusion.py infers this from "
+                             "the checkpoint's own fc.0.weight shape, no separate flag needed "
+                             "when evaluating).")
+    parser.add_argument("--tr-adapter-gate-hi", type=float, default=None,
+                        help="Sigma above which the adapter's correction is linearly tapered to "
+                             "zero (reaching 0 at tr_sigma_max=30), falling back to the base "
+                             "model's own (well-calibrated, full-pretraining-trained) placement "
+                             "in that range. Default: matches --x0-sigma-hi (the range the x0 "
+                             "loss actually supervises) -- Aug 2026 fix for the outlier-pose "
+                             "mechanism: the adapter's PHYSICAL correction scales with tr_sigma^2, "
+                             "so it was LARGEST exactly where --x0-sigma-hi left it unsupervised, "
+                             "measured as a 33%% vs 2%% (pretrained) rate of 80-190A outlier poses.")
+    parser.add_argument("--tr-adapter-physical-cap", type=float, default=4.0,
+                        help="Max PHYSICAL (Angstrom) magnitude of the adapter's correction, "
+                             "applied AFTER the /tr_sigma amplification -- unlike --tr-adapter-cap "
+                             "(a score-space bound) or --tr-adapter-gate-hi (a high-sigma taper), "
+                             "this bounds the low-sigma regime directly. Aug 2026 cliffmixed "
+                             "outlier forensics: the high-sigma gate only protects early/coarse "
+                             "steps; at LOW sigma (late refinement) the /tr_sigma division is fully "
+                             "ungated (gate=1) and can amplify a capped score-space correction "
+                             "10-30x, with no remaining trajectory to self-correct. Measured: "
+                             "outlier-pose rate correlates with peptide length at r=0.699 (36%% of "
+                             "ALL very_long poses >20A off, vs 0.5%% for short) -- consistent with "
+                             "an ungated low-sigma bias, not the already-fixed high-sigma mechanism.")
+    parser.add_argument("--tr-adapter-cap-length-scale", type=float, default=0.0,
+                        help="Exponential decay rate r for a LENGTH-SCALED version of "
+                             "--tr-adapter-physical-cap: cap(L) = physical_cap * exp(-r*(L-8)), "
+                             "L = peptide residue count. 0.0 (default) = old flat cap. Aug 2026: "
+                             "the flat physical cap left the length-correlated outlier mechanism "
+                             "completely unchanged (very_long outlier rate 36.0%%->37.1%%, no "
+                             "improvement) -- a per-step cap doesn't stop compounding across many "
+                             "steps in a systematically-biased direction, and the bias itself "
+                             "correlates with length (r=0.699 outlier-rate vs pep_len). Scaling "
+                             "the cap down for longer peptides targets the mechanism directly "
+                             "instead of a single bound that's equally (in)effective at all "
+                             "lengths. r=0.15 gives cap(8)=4.0A unchanged, cap(20)=0.66A, "
+                             "cap(40)=0.02A.")
+    parser.add_argument("--tr-adapter-zero-below-sigma", type=float, default=0.0,
+                        help="Aug 2026 cliff-v4: hard-zero tr_corr entirely when tr_sigma is below "
+                             "this threshold, instead of merely capping its magnitude. Cheap "
+                             "inference-only test (env var TR_ADAPTER_ZERO_BELOW_SIGMA, no retrain "
+                             "needed) showed BOTH the flat physical cap AND the length-scaled cap "
+                             "left the 4 worst-offender complexes at 21-30A best-of-32 -- one got "
+                             "WORSE (26.3A->29.7A) even with the cap shrunk to ~0.02A/step. That "
+                             "rules out per-step amplitude as the driver: a capped-small step "
+                             "repeated in the same direction ~16x still compounds, so the bias must "
+                             "be sign-consistent across steps, which no magnitude cap can fix. This "
+                             "flag instead removes the correction's ability to contribute at all "
+                             "below the threshold (hard cutoff, no taper) so it can't compound "
+                             "during late refinement. 0.0 (default) = disabled.")
     parser.add_argument("--save-every", type=int, default=5)
     parser.add_argument("--ppii-weight", type=int, default=4,
                         help="Oversample factor for ppii_enriched entries")
@@ -2886,6 +2984,18 @@ def main():
     model_args.tr_sigma_floor = float(getattr(args, "tr_sigma_floor", 0.0))  # M2 fix (opt-in)
     if getattr(args, "adapter_only", False):
         model_args.use_tr_adapter = True   # build the model WITH the zero-init position adapter
+        model_args.tr_adapter_cap = float(getattr(args, "tr_adapter_cap", 1.0))
+        model_args.tr_adapter_hidden_mult = float(getattr(args, "tr_adapter_hidden_mult", 1.0))
+        _gate_hi_arg = getattr(args, "tr_adapter_gate_hi", None)
+        model_args.tr_adapter_gate_hi = (
+            float(_gate_hi_arg) if _gate_hi_arg is not None
+            else float(getattr(args, "x0_sigma_hi", model_args.tr_sigma_max))
+        )
+        model_args.tr_adapter_physical_cap = float(getattr(args, "tr_adapter_physical_cap", 4.0))
+        model_args.tr_adapter_cap_length_scale = float(
+            getattr(args, "tr_adapter_cap_length_scale", 0.0))
+        model_args.tr_adapter_zero_below_sigma = float(
+            getattr(args, "tr_adapter_zero_below_sigma", 0.0))
 
     # Validate: at most one experiment mode flag
     active_modes = [m for m in [args.v3_mode, args.v4_mode, args.v5_mode,
@@ -3148,11 +3258,35 @@ def main():
         # V6 Phase 3: consolidation — same tiers as P2 but lower LR (passed via --lr)
         optimizer = make_v6p3_optimizer(model, base_lr=args.lr, weight_decay=wd)
     else:
-        optimizer = torch.optim.Adam(
-            [p for p in model.parameters() if p.requires_grad],
-            lr=args.lr,
-            weight_decay=wd,
-        )
+        _extra_lr_ratio = float(getattr(args, "unfreeze_extra_lr_ratio", 1.0))
+        if getattr(args, "adapter_only", False) and _extra and _extra_lr_ratio != 1.0:
+            # Aug 2026: dual-LR-group optimizer -- adapter trains at the normal --lr, the
+            # --unfreeze-extra base params (e.g. tr_final_layer) train at --lr / ratio, a
+            # MUCH gentler LR intended to let a small slice of the frozen base slowly
+            # recalibrate alongside the adapter without the catastrophic-forgetting risk a
+            # normal-LR unfreeze caused earlier in this project's history (full-param and
+            # 15%-heads finetunes both collapsed). WarmupThenCosine preserves this ratio
+            # throughout warmup/decay via its per-group relative LR scaling.
+            _adapter_params = [p for n, p in model.named_parameters()
+                               if p.requires_grad and "tr_adapter" in n]
+            _extra_params = [p for n, p in model.named_parameters()
+                             if p.requires_grad and "tr_adapter" not in n]
+            optimizer = torch.optim.Adam(
+                [
+                    {"params": _adapter_params, "lr": args.lr},
+                    {"params": _extra_params, "lr": args.lr / _extra_lr_ratio},
+                ],
+                weight_decay=wd,
+            )
+            print(f"[dual-LR] adapter: {sum(p.numel() for p in _adapter_params):,} params @ lr={args.lr:.2e}; "
+                  f"unfreeze-extra: {sum(p.numel() for p in _extra_params):,} params @ "
+                  f"lr={args.lr/_extra_lr_ratio:.2e} (ratio 1:{_extra_lr_ratio:.0f})", flush=True)
+        else:
+            optimizer = torch.optim.Adam(
+                [p for p in model.parameters() if p.requires_grad],
+                lr=args.lr,
+                weight_decay=wd,
+            )
         if args.layerwise_lr_decay and args.unfreeze_phase != 3:
             print("[WARN] --layerwise-lr-decay is only applied for Phase 3; "
                   "ignoring for Phase %d." % args.unfreeze_phase)

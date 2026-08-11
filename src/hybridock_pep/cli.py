@@ -95,12 +95,53 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help=(
             "No pocket is known: let the model find its own binding site. "
-            "Stage 1 sampling is receptor-wide either way (RAPiDock never sees "
-            "--site), so this only turns off the Stage 1.7a filter that drops "
-            "poses landing >35 A from --site. Give --site/--box to still bound "
-            "the Stage 2 grid, or omit both to use the receptor's centroid with "
-            "the 100 A safety-cap box."
+            "With --site also given, this only turns off the Stage 1.7a filter "
+            "that drops poses landing >35 A from --site (Stage 1 sampling is "
+            "still receptor-wide). With --site OMITTED, this runs a real "
+            "pocket-search pipeline: an N=--n-pocket-search exploratory pass "
+            "with rapidock_global.pt across the whole receptor, spatial "
+            "clustering of the resulting poses into --n-pockets candidate "
+            "binding sites, then an N=--n-per-pocket refinement pass at each "
+            "site (receptor cropped to a pocket neighborhood, checkpoint "
+            "routed by peptide length — see --long-checkpoint-threshold)."
         ),
+    )
+    p_dock.add_argument(
+        "--n-pocket-search",
+        type=int,
+        default=300,
+        metavar="N",
+        help="Pocket-search only: poses generated in the exploratory whole-receptor "
+             "pass with rapidock_global.pt (default: 300). No effect unless --blind "
+             "is given with --site omitted.",
+    )
+    p_dock.add_argument(
+        "--n-pockets",
+        type=int,
+        default=3,
+        metavar="K",
+        help="Pocket-search only: number of candidate binding sites to cluster the "
+             "exploratory poses into and refine (default: 3).",
+    )
+    p_dock.add_argument(
+        "--n-per-pocket",
+        type=int,
+        default=150,
+        metavar="N",
+        help="Pocket-search only: poses generated at each candidate site during "
+             "refinement (default: 150). Total refined poses = --n-pockets × this.",
+    )
+    p_dock.add_argument(
+        "--long-checkpoint-threshold",
+        type=int,
+        default=13,
+        metavar="RESIDUES",
+        help="Peptide length (residues) at/above which docking routes to the "
+             "long-peptide specialized checkpoint (longer_local.pt) instead of "
+             "rapidock_local.pt, if that checkpoint is present (default: 13, the "
+             "long/very_long bucket boundary; falls back to rapidock_local.pt "
+             "with a warning if longer_local.pt is absent). Applies to every dock "
+             "run, not just --blind.",
     )
     p_dock.add_argument(
         "--n-samples",
@@ -536,16 +577,20 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     n_samples = args.n_samples if args.n_samples is not None else 100
 
     # --site/--box are required unless --blind. Under --blind they stay optional:
-    # given, they bound the Stage 2 grid; omitted, they default to the receptor's
-    # centroid and the OOM-safety cap. Either way --blind turns off the Stage 1.7a
-    # off-pocket filter, which is the part that needs a real pocket to be correct.
+    # given, they bound the Stage 2 grid; omitted, they trigger the real
+    # pocket-search pipeline (see sampling/pocket_search.py) and default to the
+    # receptor's centroid + OOM-safety-cap box for Stage 2 sizing until the
+    # search stage finds real candidate sites. Either way --blind turns off the
+    # Stage 1.7a off-pocket filter, which needs a real pocket to be correct.
+    pocket_search = args.blind and args.site is None
     if args.site is None or args.box is None:
         if not args.blind:
             parser.error("--site and --box are required unless --blind is given.")
         if args.site is None:
             site_coords = _receptor_geometric_center(Path(args.receptor).resolve())
             logger.info(
-                "Blind mode: --site not given, using receptor centroid %s",
+                "Blind mode: --site not given, using receptor centroid %s as the "
+                "Stage 2 fallback (pocket search will find real candidate sites)",
                 tuple(round(c, 2) for c in site_coords),
             )
         else:
@@ -574,6 +619,11 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             site_coords=site_coords,
             box_size=box_size,
             blind=args.blind,
+            pocket_search=pocket_search,
+            n_pocket_search=args.n_pocket_search,
+            n_pockets=args.n_pockets,
+            n_per_pocket=args.n_per_pocket,
+            long_checkpoint_threshold=args.long_checkpoint_threshold,
             n_samples=n_samples,
             seed=args.seed,
             scoring=set(args.scoring.split(",")),
