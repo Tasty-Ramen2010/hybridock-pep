@@ -152,10 +152,13 @@ and place them at:
 ```
 third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/
   rapidock_local.pt    ← required
-  rapidock_global.pt   ← optional (only for --ckpt rapidock_global)
+  rapidock_global.pt   ← required for --blind pocket-search docking (optional otherwise)
+  longer_local.pt      ← optional — long-peptide specialized checkpoint (13+ residues);
+                          `dock` silently falls back to rapidock_local.pt with a logged
+                          warning if absent. See docs/architecture.md §3.2.
 ```
 
-The runner raises `FileNotFoundError: rapidock_local.pt` if this is skipped.
+The runner raises `FileNotFoundError: rapidock_local.pt` if that one is skipped.
 
 > **Alternate weight path:** Set `RAPIDOCK_MODEL_DIR=/abs/path` to override.
 > Set `RAPIDOCK_DIR=/abs/path` to override the submodule location entirely.

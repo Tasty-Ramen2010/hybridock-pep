@@ -285,6 +285,51 @@ The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-
 | `--mmgbsa-ie` / `--mmgbsa-3traj` / `--mmgbsa-dielectric EPS` | interaction-entropy term · three-trajectory MM-GBSA · custom solute dielectric |
 | `--mmgbsa-cpu-only` / `--no-minimize` | force MM-GBSA onto CPU · skip the OpenMM pre-minimization |
 
+#### Blind docking — no known pocket
+
+Give `--blind` with **no `--site`** and HybriDock-Pep finds its own candidate binding sites instead of
+requiring you to name one:
+
+```bash
+hybridock-pep dock \
+    --peptide ETFSDLWKLLPE \
+    --receptor receptors/mdm2.pdb \
+    --blind \
+    --n-pocket-search 300 \   # exploratory poses across the whole receptor (default 300)
+    --n-pockets 3 \           # candidate binding sites to refine (default 3)
+    --n-per-pocket 150 \      # poses generated at each candidate site (default 150)
+    --output-dir runs/blind_run
+```
+
+Three stages, all automatic: (1) an exploratory pass at `--n-pocket-search` poses across the whole
+receptor using `rapidock_global.pt` (the checkpoint trained for whole-receptor, no-pocket-hint
+sampling); (2) those poses' Cα centroids are grouped spatially into `--n-pockets` candidate sites,
+ranked by how many poses landed there; (3) each candidate site gets its own focused
+`--n-per-pocket`-pose refinement pass, with the receptor cropped to a neighborhood of that site and
+the checkpoint chosen by peptide length (see below). The refined poses (not the exploratory ones) flow
+into scoring exactly as a single-site run would; `pocket_assignment.csv` in the output directory records
+which candidate site each pose came from.
+
+`--blind` **with** `--site` still works as before (a hint that only disables the off-pocket pose
+filter, not the pocket-search pipeline) — pocket search only triggers when `--site` is omitted entirely.
+
+#### Long-peptide checkpoint routing
+
+RAPiDock's placement accuracy degrades with peptide length — the standard checkpoint
+(`rapidock_local.pt`) does fine on ≤12-mers but its long/very_long (13+ residue) placement error grows
+well past what any downstream correction can fix. A specialized checkpoint
+(`longer_local.pt`, unfreezes the receptor-interaction layers and retrains on a length-stratified
+oversampled set — see `docs/architecture.md` "Long-peptide checkpoint") targets exactly that population.
+Every dock run (blind or sited) routes automatically:
+
+```bash
+hybridock-pep dock ... --long-checkpoint-threshold 13   # default; peptides ≥ this route to longer_local.pt
+```
+
+If `longer_local.pt` isn't present in your model directory, routing silently falls back to
+`rapidock_local.pt` with a logged warning — nothing breaks on a fresh install that only has the two
+checkpoints the base RAPiDock-Reloaded release ships.
+
 ### `selectivity` — does my peptide prefer target A over off-target B?
 
 ```bash

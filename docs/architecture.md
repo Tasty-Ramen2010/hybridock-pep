@@ -116,6 +116,43 @@ driver.py:run_dock()
 
 All paths passed to the subprocess — `--output-dir`, `--receptor`, `--peptide` (a string, not a path) — are converted to absolute form via `str(Path(...).resolve())` before `subprocess.run()`. Relative paths fail silently because conda's subprocess CWD is unpredictable.
 
+### 3.1 Blind pocket-search docking (Aug 2026)
+
+`sampling/pocket_search.py:run_pocket_search_and_refine()` — triggered when `DockConfig.pocket_search`
+is True (CLI: `--blind` with `--site` omitted). Three `run_sampling()` calls instead of one:
+
+```
+run_pocket_search_and_refine(config, receptor)
+    ├── run_sampling(ckpt=rapidock_global.pt, n=n_pocket_search, receptor=full)   # search
+    ├── _cluster_pocket_centroids(Cα centroids, n_pockets)                       # AgglomerativeClustering
+    └── for each candidate site:
+            _crop_receptor_to_site(receptor, center, radius=25Å)
+            run_sampling(ckpt=length-routed, n=n_per_pocket, receptor=cropped)   # refine
+```
+
+The candidate-site step is spatial clustering (sklearn `AgglomerativeClustering` on 3D pose centroids),
+not Kabsch alignment — Kabsch superposes two *already-corresponding* point sets and has no way to group
+unrelated poses from scratch. Kabsch is still used, unrelated to this, inside `analysis/clustering.py`'s
+RMSD-based pose clustering once poses are known to share a site. Refinement poses are merged into
+`config.output_dir/poses/` (the exploratory search poses stay under `search/` for inspection only);
+`pocket_assignment.csv` records each merged pose's source pocket and center.
+
+### 3.2 Long-peptide checkpoint routing (Aug 2026)
+
+`sampling/rapidock_runner.py:select_checkpoint()` — called by `run_sampling()` whenever no explicit
+`ckpt_name` override is given (the pocket-search refinement stage is the other caller that already
+knows which checkpoint it wants). Routes to `longer_local.pt` when `len(peptide) >=
+DockConfig.long_checkpoint_threshold` (default 13, the long/very_long bucket boundary) **and** that
+file exists in the model directory; otherwise `rapidock_local.pt`. `RAPIDOCK_CKPT` always overrides
+both (explicit power-user escape hatch).
+
+`longer_local.pt` is produced by the V6 training recipe (`logs/v6_run/`, `docs/*v6*` audit reports):
+starting from `rapidock_global.pt`, three phases progressively unfreeze `tor_bb_bond_conv` → `+
+cross_convs.0-3` (the receptor-interaction layers — the actual capacity a length-capped adapter
+correction cannot reach, see the Aug 11 2026 forensics that motivated this) → consolidation, on a
+length-stratified, SHEET/very_long-oversampled training set (`data/v6_train_combined.csv`). Not shipped
+in a fresh install; `select_checkpoint()`'s fallback keeps every other code path working without it.
+
 ---
 
 ## 4. Data Models
@@ -123,6 +160,10 @@ All paths passed to the subprocess — `--output-dir`, `--receptor`, `--peptide`
 ### DockConfig
 
 Pydantic model with `frozen=True`. Fields: `peptide_sequence` (str, validated AA-only), `receptor_path` (Path, must exist), `site_coords` (tuple[float, float, float]), `box_size` (float, >0), `n_samples` (int, default 100), `seed` (int|None), `scoring` (set[Literal["vina","ad4"]], default {"vina","ad4"}), `output_dir` (Path), `run_id` (str, auto-generated from timestamp+seed hash), `verbosity` (int). `run_id` is auto-generated via `@model_validator(mode='before')` so it resolves before field validators fire. `frozen=True` prevents mutation across the subprocess boundary.
+
+Blind pocket-search fields (§3.1): `pocket_search` (bool, set by `--blind` with `--site` omitted),
+`n_pocket_search` (int, default 300), `n_pockets` (int, default 3), `n_per_pocket` (int, default 150).
+Checkpoint routing (§3.2): `long_checkpoint_threshold` (int, default 13).
 
 ### PoseRecord
 

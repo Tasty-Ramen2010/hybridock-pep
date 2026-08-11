@@ -213,8 +213,16 @@ FIELDS = [
     FormField("receptor", "Target receptor PDB", "data/pdbs/1T2D_receptor.pdb",
               "On-target receptor .pdb — drag the file here or use Browse (Ctrl-B).",
               _valid_receptor, is_path=True),
+    FormField("blind", "Blind docking? (y/n)", "n",
+              "y = no pocket known: --site is ignored, RAPiDock searches the whole "
+              "receptor for candidate binding sites and refines the best ones "
+              "(slower; see --n-pocket-search/--n-pockets/--n-per-pocket on the "
+              "CLI to tune it). n = use the Target site below.",
+              _optional(lambda v: None if v.strip().lower() in ("y", "n", "yes", "no", "")
+                        else "enter y or n")),
     FormField("site", "Target site  x y z", "24.84 22.73 41.69",
-              "On-target box center (Å) — three numbers.", _valid_site),
+              "On-target box center (Å) — three numbers. Ignored if Blind docking = y.",
+              _valid_site),
     FormField("box", "Target box (Å)", "30",
               "On-target cubic box edge (Å). 30 for 12-mers+.", _posint(10, 60)),
     FormField("n_samples", "N samples", "100",
@@ -241,7 +249,7 @@ FIELDS = [
               "Selectivity only: off-target box edge (Å).", _optional(_posint(10, 60)), optional=True),
 ]
 FIELD = {f.key: f for f in FIELDS}
-DOCK_KEYS = ["peptide", "receptor", "site", "box", "n_samples", "refine_topk", "output_dir"]
+DOCK_KEYS = ["peptide", "receptor", "blind", "site", "box", "n_samples", "refine_topk", "output_dir"]
 SEL_KEYS = DOCK_KEYS + ["offtarget_receptor", "offtarget_site", "offtarget_box"]
 #: Fields needed by "crystal" mode (score an existing bound pose — no site/box/
 #: n_samples/output_dir; see build_crystal_command()).
@@ -293,12 +301,17 @@ def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
     it programmatically per run preset (see run_dock()'s Full/Half/Quick
     presets); it is never read from form input.
     """
-    x, y, z = v["site"].split()
     cmd = [exe, "dock", "--peptide", v["peptide"].strip().upper(),
-           "--receptor", str(Path(v["receptor"]).expanduser()),
-           "--site", x, y, z, "--box", v["box"].strip(),
-           "--n-samples", v["n_samples"].strip(), "--scoring", scoring,
-           "--output-dir", v["output_dir"].strip()]
+           "--receptor", str(Path(v["receptor"]).expanduser())]
+    if v.get("blind", "").strip().lower() in ("y", "yes"):
+        # No --site: triggers the real pocket-search pipeline (sampling/pocket_search.py),
+        # not just the off-pocket-filter-disable behavior of --blind with a site hint.
+        cmd += ["--blind"]
+    else:
+        x, y, z = v["site"].split()
+        cmd += ["--site", x, y, z, "--box", v["box"].strip()]
+    cmd += ["--n-samples", v["n_samples"].strip(), "--scoring", scoring,
+            "--output-dir", v["output_dir"].strip()]
     # .strip() before the truthiness test: "   " is truthy but int("   ")
     # raises, which crashed command building when a field was typed into and
     # then cleared.
@@ -333,9 +346,16 @@ def build_selectivity_command(v, scoring="vina,ad4", exe="hybridock-pep"):
             "--output-dir", v["output_dir"].strip()]
 
 
-def validate(values, keys):
+def validate(values, keys, blind_aware=True):
     out = []
+    is_blind = blind_aware and values.get("blind", "").strip().lower() in ("y", "yes")
     for k in keys:
+        if is_blind and k in ("site", "box"):
+            # --site/--box are ignored under blind docking (pocket search finds its
+            # own sites) — see sampling/pocket_search.py. blind_aware=False for
+            # selectivity mode, which has no blind-docking support and always needs
+            # target-site/offtarget-site regardless of the (unused there) blind field.
+            continue
         f = FIELD[k]
         if f.optional and not values.get(k, "").strip():
             out.append(f"{f.label}: required for this mode")
@@ -487,6 +507,12 @@ def run_cli_wizard(print_only=False):
     print("\n  HybriDock-Pep · guided dock  (Ctrl-C to abort)\n  " + "-" * 48)
     values = {}
     for k in DOCK_KEYS:
+        # Blind docking ignores --site/--box (see sampling/pocket_search.py) —
+        # skip prompting for them once "blind" has been answered "y" so the
+        # wizard doesn't ask for coordinates that will never be used.
+        if k in ("site", "box") and values.get("blind", "").strip().lower() in ("y", "yes"):
+            values[k] = FIELD[k].default
+            continue
         f = FIELD[k]
         print(f"\n  {f.label}\n    {f.help}")
         while True:
@@ -827,7 +853,7 @@ def run_fullscreen(auto_demo=False):
 
     def run_selectivity():
         inputs["mode"].text = "ai"
-        errs = validate(vals(), SEL_KEYS)
+        errs = validate(vals(), SEL_KEYS, blind_aware=False)
         if errs:
             append("")
             append("✗ Selectivity needs the 3 Off-target fields filled:")

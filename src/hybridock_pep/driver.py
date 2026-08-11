@@ -345,7 +345,13 @@ def run_dock(
         # IndexError in RAPiDock's ESM embedding lookup).
         cleaned_receptor = prepare_receptor_pdb(config)
         with prog.heartbeat():
-            run_sampling(config, receptor_path=cleaned_receptor)
+            if config.pocket_search:
+                from hybridock_pep.sampling.pocket_search import (  # noqa: PLC0415
+                    run_pocket_search_and_refine,
+                )
+                run_pocket_search_and_refine(config, receptor_path=cleaned_receptor)
+            else:
+                run_sampling(config, receptor_path=cleaned_receptor)
         poses_dir = (config.output_dir / "poses").resolve()
 
     records, parse_failures = parse_poses(poses_dir)
