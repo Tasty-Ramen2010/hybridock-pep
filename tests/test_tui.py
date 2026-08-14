@@ -239,6 +239,20 @@ class TestBuildDockCommandAdvancedFlags:
         val = cmd[cmd.index("--input-poses") + 1]
         assert "~" not in val
 
+    def test_input_poses_omits_n_samples(self):
+        """Regression: --n-samples and --input-poses are mutually exclusive
+        on the CLI (--input-poses skips Stage 1 entirely) -- the TUI must
+        never emit both, or every dock command with Input poses dir set
+        fails outright with an argparse error regardless of anything else."""
+        cmd = tui.build_dock_command(_values(input_poses="/some/poses"))
+        assert "--n-samples" not in cmd
+        assert "--input-poses" in cmd
+
+    def test_no_input_poses_still_passes_n_samples(self):
+        cmd = tui.build_dock_command(_values(input_poses=""))
+        assert "--n-samples" in cmd
+        assert "--input-poses" not in cmd
+
     def test_no_minimize_flag(self):
         assert "--no-minimize" in tui.build_dock_command(_values(no_minimize="y"))
         assert "--no-minimize" not in tui.build_dock_command(_values(no_minimize="n"))

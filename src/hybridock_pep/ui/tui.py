@@ -469,8 +469,14 @@ def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
     lct = (v.get("long_checkpoint_threshold") or "").strip()
     if lct:
         cmd += ["--long-checkpoint-threshold", lct]
-    cmd += ["--n-samples", v["n_samples"].strip(), "--scoring", scoring,
-            "--output-dir", v["output_dir"].strip()]
+    input_poses = (v.get("input_poses") or "").strip()
+    # --n-samples and --input-poses are mutually exclusive on the CLI (the
+    # latter skips Stage 1 sampling entirely) -- passing both makes every
+    # dock command with Input poses dir set fail outright with an argparse
+    # error, regardless of any other field.
+    if not input_poses:
+        cmd += ["--n-samples", v["n_samples"].strip()]
+    cmd += ["--scoring", scoring, "--output-dir", v["output_dir"].strip()]
     topk = (v.get("refine_topk") or "").strip()
     topk_on = topk and int(topk) > 0
     if topk_on:
@@ -492,7 +498,6 @@ def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
     seed = (v.get("seed") or "").strip()
     if seed:
         cmd += ["--seed", seed]
-    input_poses = (v.get("input_poses") or "").strip()
     if input_poses:
         cmd += ["--input-poses", str(Path(input_poses).expanduser())]
     if _is_yes(v.get("no_minimize")):
