@@ -12,62 +12,63 @@
 </tr>
 </table>
 
-HybriDock-Pep is a general protein–peptide docking and selectivity-scoring tool: point it at a
-peptide sequence and a receptor PDB, and one command runs an AI diffusion model plus a
-physics-and-learned-geometry rescorer, end to end, from either the CLI or the terminal UI pictured
-above. MIT-licensed, cross-platform (CUDA, ROCm, oneAPI, Apple Metal, or plain CPU), and
-leakage-free benchmarked against real binding data — see [Get started](#get-started) to run it
-yourself.
+HybriDock-Pep is a brand new protein-peptide docking and scoring pipeline, with many features like selectivity 
+and high accuracy. Given a receptor PDB and a peptide sequence, it folds and docks the peptide through a modified
+diffusion generative built for effeciency and accuracy. Then it runs a physics-based ML scorer working 
+geometry features outputting kcal/mol with accuracy in the range of ABFE. From the either the CLI or the 
+terminal UI, it runs efficiently on consumer hardware, and tested against >1,000 real complexes. 
+[Get started](#get-started) and run it yourself.
 
 ## Table of contents
 
-1. [What this does](#what-this-does)
-2. [How it works — the pipeline](#how-it-works--the-pipeline)
-3. [Get started](#get-started)
-4. [Usage — the seven subcommands](#usage--the-seven-subcommands)
-5. [Advanced / manual install](#advanced--manual-install)
-6. [Repository structure](#repository-structure)
-7. [Testing](#testing)
-8. [The claims — measured in kcal/mol, leakage-free](#the-claims--measured-in-kcalmol-leakage-free)
-9. [Roadmap](#roadmap--to-do)
+1.  [What this does](#what-this-does)
+2.  [The pipeline](#the-pipeline)
+3.  [Get started](#get-started)
+4.  [Usage & subcommands](#usage--the-seven-subcommands)
+5.  [Advanced / manual install](#advanced--manual-install)
+6.  [Repository structure](#repository-structure)
+7.  [Testing](#testing)
+8.  [Why us?](#the-claims--measured-in-kcalmol-leakage-free)
+9.  [Roadmap](#roadmap--to-do)
 10. [Project status](#project-status) · [Citations](#citations) · [License](#license)
 
 ---
 
 ## What this does
 
-Give it a peptide sequence and a protein structure (a PDB file). It hands back ranked 3D poses of
-how the peptide binds, a calibrated binding strength (**ΔG**, in kcal/mol — more negative means it
-sticks tighter), and — its standout feature — a **selectivity score**: does this peptide prefer
-target A over target B? That last one matters for things like a diagnostic peptide that needs to
-grab onto a parasite protein but leave the human version alone.
+The software takes a protein structure (in the form of a PDB file) and a peptide sequence, to hand
+back ranked 3D poses of the peptide folded, along with a calibrated binding score(**ΔG**, in kcal/mol).
+Furthermore, it also returns a selectivity score when given 2 proteins as receptors as it then identifies
+if the peptide prefers a protein more than the other, and by how much in terms of a relative kcal/mol
+to the proteins.
 
-Built for the **iGEM workflow scale**: dozens of candidate peptides against one or two targets,
-minutes per peptide, on a single GPU or even a laptop CPU.
+Built for **iGEM**: Taking into account the hardware constraints of iGEM teams, it works in a way where
+it delivers hundreds of peptide poses on even laptops like a MacBook in under 30 minutes
 
-## How it works — the pipeline
+## The pipeline
 
-Two stages chained together: an AI diffusion model proposes 3D poses, then a physics + learned-geometry
-rescorer turns those poses into a real, comparable ΔG. This is the *actual* code path
-(`driver.py::run_dock`), not a simplified sketch — including which of the two conda environments
-each stage actually runs in, and exactly where Vina's role ends and the real score begins:
+The software is split into 2 main parts: an AI diffusion generative model making 3D poses, docked and 
+folded, and a physics and geometry-based model that scores the poses and outputs a ΔG in kcal/mol.
+Happening in two Conda environments, the code is split and built for simple, fast pipelines.
 
 <img src="docs/images/pipeline.svg" alt="HybriDock-Pep dock pipeline: peptide and receptor go into the CLI or UI, driver.py orchestrates Stage 1 GPU sampling in the rapidock environment, then Stage 1.5 through 3.6 CPU clash-relief, ranking, clustering, and the primary AI-pose affinity ΔG in the score environment, ending in ranked_poses.csv and related output files.">
 
-**The headline ΔG is the AI-pose affinity model — not Vina.** Stage 3.6 scores every pose with a
-geometry-feature model tuned on real RAPiDock/AI poses; that's the `delta_g` column and the
-"Best pose ΔG" you see printed. **Vina only does clash relief** (Stage 2, rescuing RAPiDock's
-occasionally-clashing poses) — its own score is raw telemetry, never the reported affinity, and
-**AD4 is off by default**. Already have a crystal-quality pose and want to skip docking entirely?
+**The main scorer ΔG** Stage 3.6 of the software scores the peptide's affinity to the protein with
+a self-made geometry-feature model and an ML model. While we could've used already existing scoring
+functions, we identified the lack of development in the area of peptides and therefore made, what
+we claim, to be the best non-FEP/LIE scoring model for peptides, even achieving kcal/mol scores at
+an MAE of ~1.6 kcal/mol where ABFE reports an average error of ~1-2.5 kcal/mol.
+
+It even works for crystal peptide-protein complexes that you have, tuned for them.
 [`crystal-score`](#crystal-score--score-an-existing-crystal-pose) runs the sibling crystal-tuned
 model directly on it.
 
-`--refine-topk K` genuinely relaxes the top poses: Stage 3.5 energy-minimizes the top-*K* cluster
-representatives in GBn2 implicit solvent and reports that as a physically-grounded absolute-energy
-estimate — a sanity check on final candidates, not a replacement ranking (see
+`--refine-topk K` Stage 3.5 runs energy-minimizes the top-*K* cluster representatives in 
+GBn2 implicit solvent and reports that as a physically-grounded absolute-energy
+estimate, acting as relaxation for a more proper pose, rather than truly scoring it (see
 [Usage](#dock--end-to-end-docking--scoring) for why it doesn't out-rank the learned scorer).
 
-It's a **two-stage hybrid**, not a from-scratch model: an AI diffusion model (RAPiDock-Reloaded)
+It's a **two-stage hybrid** model: an AI diffusion model (RAPiDock-Reloaded)
 samples poses, a physics + learned-geometry rescorer turns those into ΔG. Three things it does that
 off-the-shelf tools don't combine: **(1)** it's the best non-FEP/LIE peptide affinity scorer we can
 find a fair baseline for; **(2)** anchoring to a few measured references on-target lifts within-receptor
