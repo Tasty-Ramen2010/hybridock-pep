@@ -305,6 +305,56 @@ class TestSkipKey:
         v = _values(receptor=str(p), blind="n", n_pocket_search="not a number")
         assert tui.validate(v, tui.DOCK_KEYS) == []
 
+    def test_ultra_charged_skipped_when_ultra_zero(self):
+        assert tui._skip_key("ultra_charged", _values(ultra="0")) is True
+
+    def test_ultra_charged_shown_when_ultra_set(self):
+        assert tui._skip_key("ultra_charged", _values(ultra="32")) is False
+
+
+class TestFieldVisible:
+    """The full-screen form's per-row ConditionalContainer filter — the
+    direct regression test for "options related to a newly-chosen setting
+    don't come up" (blind docking's own knobs, MM-GBSA sub-flags, ultra's
+    charged-correction toggle, crystal mode's disjoint field set)."""
+
+    def test_pocket_fields_appear_only_under_blind(self):
+        assert tui._field_visible("n_pocket_search", _values(blind="n")) is False
+        assert tui._field_visible("n_pocket_search", _values(blind="y")) is True
+
+    def test_site_box_hidden_under_blind(self):
+        assert tui._field_visible("site", _values(blind="y")) is False
+        assert tui._field_visible("box", _values(blind="y")) is False
+        assert tui._field_visible("site", _values(blind="n")) is True
+
+    def test_mmgbsa_subfields_appear_only_with_refine_topk(self):
+        for k in ("mmgbsa_ie", "mmgbsa_3traj", "mmgbsa_dielectric", "mmgbsa_cpu_only"):
+            assert tui._field_visible(k, _values(refine_topk="0")) is False
+            assert tui._field_visible(k, _values(refine_topk="5")) is True
+
+    def test_ultra_charged_appears_only_with_ultra_set(self):
+        assert tui._field_visible("ultra_charged", _values(ultra="0")) is False
+        assert tui._field_visible("ultra_charged", _values(ultra="32")) is True
+
+    def test_free_entropy_appears_only_with_ensemble(self):
+        assert tui._field_visible("free_entropy", _values(ensemble="n")) is False
+        assert tui._field_visible("free_entropy", _values(ensemble="y")) is True
+
+    def test_crystal_mode_shows_only_crystal_keys(self):
+        v = _values(mode="crystal")
+        for k in tui.CRYSTAL_KEYS:
+            assert tui._field_visible(k, v) is True
+        for k in ("site", "box", "n_samples", "refine_topk", "ultra", "blind", "output_dir"):
+            assert tui._field_visible(k, v) is False
+
+    def test_ai_mode_hides_peptide_pdb(self):
+        assert tui._field_visible("peptide_pdb", _values(mode="ai")) is False
+
+    def test_ai_mode_shows_core_dock_fields(self):
+        v = _values(mode="ai", blind="n", refine_topk="0", ultra="0", ensemble="n")
+        for k in ("peptide", "receptor", "site", "box", "n_samples", "output_dir"):
+            assert tui._field_visible(k, v) is True
+
 
 class TestBuildSelectivityCommand:
     def test_shape(self):
