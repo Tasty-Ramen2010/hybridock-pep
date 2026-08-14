@@ -655,17 +655,7 @@ Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61
 
 ---
 
-## Project status
 
-Built for the **iGEM 2026 Best Software Tool** award by the Denmark High School Dry Lab team. Target-agnostic;
-the initial test case is a malaria rapid-diagnostic peptide selectivity check (PfLDH vs hLDH). Stable,
-MIT-licensed, 730 unit tests + integration tests. See [`docs/architecture.md`](docs/architecture.md) for the
-pipeline spec.
-
-**Author:** Choppa Purandhar Ram — Head of Dry Lab, Denmark High School iGEM (2026); designed and built at
-age 15.
-
-**Team PI:** **Mary Cartenuto** — Principal Investigator, iGEM Denmark High School; leads the high-school team.
 
 ## Citations
 
