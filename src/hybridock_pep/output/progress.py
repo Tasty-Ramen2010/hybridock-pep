@@ -153,7 +153,31 @@ class PipelineProgress:
         eta = ""
         if done and done < total and elapsed > 1.0:
             eta = f"  ETA {self._fmt_time(elapsed / done * (total - done))}"
-        self._write(f"\r   [{bar}] {pct:5.1f}%  {done}/{total} {label}{eta}   ")
+        self._write(self._fit_line(f"\r   [{bar}] {pct:5.1f}%  {done}/{total} {label}{eta}   "))
+
+    def _fit_line(self, line: str) -> str:
+        """Truncate an in-place ``\\r``-redrawn line to the terminal width.
+
+        ``\\r`` only returns the cursor to column 0 of the terminal's
+        *current* (last) row. If a redrawn line is wider than the terminal it
+        wraps onto a second row instead — the next, shorter redraw then only
+        overwrites that second row, leaving a stale fragment of the previous,
+        longer line sitting above it. Reported as the progress bar/heartbeat
+        "not working" / leaving garbage on narrow terminals, SSH panes, split
+        tmux. A leading ``\\r`` (if present) is kept outside the width count
+        since it is not a printed character. Never raises.
+        """
+        try:
+            import shutil  # noqa: PLC0415
+
+            cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+            prefix = "\r" if line.startswith("\r") else ""
+            body = line[len(prefix):]
+            if cols > 0 and len(body) > cols:
+                body = body[: max(0, cols - 1)]
+            return prefix + body
+        except Exception:
+            return line
 
     @staticmethod
     def _fmt_time(seconds: float) -> str:
@@ -165,9 +189,21 @@ class PipelineProgress:
         return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
 
     def clear_line(self) -> None:
-        """Erase an in-place bar so the next ✓/▶ line starts clean."""
+        """Erase an in-place bar so the next ✓/▶ line starts clean.
+
+        The blank-out width is clamped to the terminal's own columns (via
+        ``_fit_line``) — a fixed 78-space blank on a narrower terminal wraps
+        onto a second row, which both fails to clear the bar and leaves a
+        stray blank line behind.
+        """
         if self.enabled and self.tty:
-            self._write("\r" + " " * 78 + "\r")
+            try:
+                import shutil  # noqa: PLC0415
+
+                cols = max(1, shutil.get_terminal_size(fallback=(80, 24)).columns - 1)
+            except Exception:
+                cols = 78
+            self._write("\r" + " " * cols + "\r")
 
     def bar(self, iterable: Iterable[T], label: str, total: int | None = None) -> Iterator[T]:
         """Wrap a loop in an in-place ASCII progress bar.
@@ -231,7 +267,7 @@ class PipelineProgress:
                 spin = _art.braille_spin(elapsed) if art_on else ""
                 verb = _art.spinner_word(elapsed) if art_on else ""
                 suffix = f"  {spin} {verb}" if art_on else ""
-                self._write(f"\r   … still working ({elapsed:.0f}s elapsed){suffix}")
+                self._write(self._fit_line(f"\r   … still working ({elapsed:.0f}s elapsed){suffix}"))
 
         try:
             t = threading.Thread(target=_tick, daemon=True)
