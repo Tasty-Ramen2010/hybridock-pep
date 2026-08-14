@@ -114,7 +114,22 @@ def _crop_receptor_to_site(
 
     for line in receptor_path.read_text().splitlines(keepends=True):
         if not line.startswith(("ATOM", "HETATM")):
-            if not line.startswith(("ANISOU", "TER")):
+            # ATOM/HETATM lines are buffered per-residue in current_block and
+            # only land in kept_lines when _flush() runs (on the next residue,
+            # or once more after the loop) -- but a non-ATOM line like the
+            # source's own END record is appended to kept_lines immediately,
+            # in loop order. If that source file's END happens to fall between
+            # two residues of the block currently being buffered (a real,
+            # observed case -- the receptor prep pipeline apparently does not
+            # always guarantee a single trailing END), it lands in the output
+            # BEFORE the still-buffered residue's atoms get flushed, i.e.
+            # mid-file with real atoms after it. MDAnalysis's PDB topology
+            # parser stops counting atoms at the first END it sees while its
+            # coordinate reader reads the whole frame regardless, and the two
+            # disagreeing atom counts crash with an opaque IndexError deep in
+            # RAPiDock. So: drop END/ENDMDL from the source like TER, and
+            # write exactly one, in the right place, after everything else.
+            if not line.startswith(("ANISOU", "TER", "END")):
                 kept_lines.append(line)
             continue
         key = (line[21], line[22:26], line[26])  # chain, resseq, icode
@@ -133,6 +148,7 @@ def _crop_receptor_to_site(
     _flush()
     if last_kept_key is not None:
         kept_lines.append("TER\n")  # terminate the final chain fragment too
+        kept_lines.append("END\n")  # exactly one, always last — see the loop's END handling above
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text("".join(kept_lines))
