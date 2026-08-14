@@ -74,14 +74,49 @@ class TestCropReceptorToSite:
         # Only the final end-of-chain TER, nothing between contiguous residues.
         ter_lines = [ln for ln in out_lines if ln.startswith("TER")]
         assert len(ter_lines) == 1
-        assert out_lines[-1].startswith("TER")
+        assert out_lines[-2].startswith("TER")
+        assert out_lines[-1].startswith("END")
 
-    def test_ends_with_ter_when_any_residue_kept(self, tmp_path):
+    def test_source_end_record_is_repositioned_to_the_true_end(self, tmp_path):
+        """Regression: ATOM lines are buffered per-residue and only flushed
+        into the output on the *next* residue (or once more after the whole
+        loop) -- but a non-ATOM line like the source's own END is appended
+        immediately, in encounter order. A source END that lands between two
+        residues of the block currently being buffered used to end up BEFORE
+        that still-buffered residue's atoms in the output: real atoms after
+        a mid-file END, which is exactly the malformed structure that made
+        MDAnalysis's topology parser (stops at the first END) and its
+        coordinate reader (reads the whole frame) disagree on atom count and
+        crash with an opaque IndexError deep inside RAPiDock."""
+        lines = [
+            _atom_line(1, "ALA", "A", 1, 0.0, 0.0, 0.0),
+            "END\n",  # a stray END partway through the source, before the last residue
+            _atom_line(2, "GLY", "A", 2, 0.0, 0.0, 0.0),
+        ]
+        src = _write_pdb(tmp_path / "full.pdb", lines)
+        dest = _crop_receptor_to_site(src, np.array([0.0, 0.0, 0.0]), 5.0, tmp_path / "cropped.pdb")
+        out_lines = [ln for ln in dest.read_text().splitlines() if ln.strip()]
+        end_positions = [i for i, ln in enumerate(out_lines) if ln.startswith("END")]
+        assert len(end_positions) == 1, "must collapse to exactly one END, not duplicate the source's"
+        assert end_positions[0] == len(out_lines) - 1, "END must be the true last line, not mid-file"
+        # And GLY (the residue whose flush the stray END used to jump ahead of) must
+        # still be present, before END.
+        gly_idx = next(i for i, ln in enumerate(out_lines) if "GLY" in ln)
+        assert gly_idx < end_positions[0]
+
+    def test_no_end_when_nothing_kept(self, tmp_path):
+        lines = [_atom_line(1, "ALA", "A", 1, 100.0, 100.0, 100.0)]  # far — dropped
+        src = _write_pdb(tmp_path / "full.pdb", lines)
+        dest = _crop_receptor_to_site(src, np.array([0.0, 0.0, 0.0]), 5.0, tmp_path / "cropped.pdb")
+        assert dest.read_text().strip() == ""
+
+    def test_ends_with_ter_then_end_when_any_residue_kept(self, tmp_path):
         lines = [_atom_line(1, "ALA", "A", 1, 0.0, 0.0, 0.0)]
         src = _write_pdb(tmp_path / "full.pdb", lines)
         dest = _crop_receptor_to_site(src, np.array([0.0, 0.0, 0.0]), 5.0, tmp_path / "cropped.pdb")
         out_lines = [ln for ln in dest.read_text().splitlines() if ln.strip()]
-        assert out_lines[-1].startswith("TER")
+        assert out_lines[-2].startswith("TER")
+        assert out_lines[-1].startswith("END")
 
     def test_no_trailing_ter_when_nothing_kept(self, tmp_path):
         lines = [_atom_line(1, "ALA", "A", 1, 100.0, 100.0, 100.0)]  # far
