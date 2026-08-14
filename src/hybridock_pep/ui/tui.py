@@ -403,9 +403,35 @@ def _skip_key(k: str, values) -> bool:
         return True
     if k == "free_entropy" and not _is_yes(values.get("ensemble")):
         return True
-    if k == "ultra_charged" and not (values.get("ultra") or "0").strip().lstrip("-").isdigit():
+    ultra = (values.get("ultra") or "0").strip()
+    ultra_on = ultra.lstrip("-").isdigit() and int(ultra) > 0
+    if k == "ultra_charged" and not ultra_on:
         return True
     return False
+
+
+def _field_visible(k: str, values) -> bool:
+    """True if field ``k`` belongs on screen at all given the current form
+    state — the full-screen UI's per-field row visibility.
+
+    Two layers: (1) which command this form currently builds (``mode``
+    ai/crystal picks between `dock` and `crystal-score`, which take almost
+    disjoint flag sets — CRYSTAL_KEYS vs DOCK_KEYS), then (2) within that,
+    the same "don't show an option that doesn't apply yet" gating as
+    :func:`_skip_key` (blind-only pocket-search knobs, MM-GBSA sub-flags,
+    ultra-charged, free-entropy). Without this every field — old and every
+    one of the newer blind-docking/ultra/mmgbsa fields alike — rendered as a
+    permanent static row regardless of mode or of other answers, so picking
+    an option that unlocks related settings (Blind docking = y, Refine
+    top-K > 0, Ultra > 0, Ensemble = y) never visibly surfaced the fields it
+    actually enabled — reported as "options related to them don't come up".
+    """
+    mode = values.get("mode", "ai").strip().lower()
+    if mode == "crystal":
+        return k in CRYSTAL_KEYS
+    if k == "peptide_pdb":
+        return False  # crystal mode only
+    return not _skip_key(k, values)
 
 
 def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
@@ -732,7 +758,9 @@ def run_fullscreen(auto_demo=False):
     from prompt_toolkit.filters import Condition
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.layout import Layout
-    from prompt_toolkit.layout.containers import DynamicContainer, HSplit, VSplit, Window, WindowAlign
+    from prompt_toolkit.layout.containers import (
+        ConditionalContainer, DynamicContainer, HSplit, VSplit, Window, WindowAlign,
+    )
     from prompt_toolkit.layout.controls import FormattedTextControl
     from prompt_toolkit.layout.dimension import D
     from prompt_toolkit.styles import Style
@@ -1211,20 +1239,37 @@ def run_fullscreen(auto_demo=False):
             return [("class:labelfocus", f"{'▶ ' + f.label:>28} ")]
         return [("class:label", f"{f.label:>28} ")]
 
-    form_rows = [VSplit([
-        Window(FormattedTextControl(lambda f=f: label_fragments(f)),
-               width=29, height=1, dont_extend_width=True),
-        inputs[f.key],
-    ], height=1) for f in FIELDS]
+    # Each row is wrapped in a ConditionalContainer keyed off the live form
+    # values (`vals()`) rather than rendered unconditionally — see
+    # _field_visible(). Without this, picking Blind docking = y (or Refine
+    # top-K > 0, Ultra > 0, Ensemble = y, or Scoring mode = crystal) never
+    # visibly surfaced the fields it unlocked; every field, relevant or not,
+    # sat in one permanent undifferentiated list.
+    form_rows = [ConditionalContainer(
+        VSplit([
+            Window(FormattedTextControl(lambda f=f: label_fragments(f)),
+                   width=29, height=1, dont_extend_width=True),
+            inputs[f.key],
+        ], height=1),
+        filter=Condition(lambda f=f: _field_visible(f.key, vals())),
+    ) for f in FIELDS]
+
+    def _visible_keys():
+        return [f.key for f in FIELDS if _field_visible(f.key, vals())]
 
     def focus_field(delta):
-        """Move focus by `delta` fields, wrapping at the ends.
+        """Move focus by `delta` fields, wrapping at the ends, skipping any
+        field _field_visible() currently hides — Tab must not land on (or
+        step over, changing the apparent distance between visible fields
+        for) a row that isn't even on screen right now.
 
         Deliberately not layout.focus_next(): that walks every focusable window
         in the layout, so Tab wandered off into the output pane and the buttons
         instead of stepping through the form. This stays inside FIELDS.
         """
-        keys = [f.key for f in FIELDS]
+        keys = _visible_keys()
+        if not keys:
+            return
         cur = focused_key()
         idx = keys.index(cur) if cur in keys else 0
         _focus(inputs[keys[(idx + delta) % len(keys)]])
