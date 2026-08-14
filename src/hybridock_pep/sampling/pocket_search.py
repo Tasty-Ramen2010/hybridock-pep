@@ -71,15 +71,46 @@ def _crop_receptor_to_site(
 
     Returns:
         ``dest``, for chaining.
+
+    Whole-residue cropping routinely drops residues from the *middle* of a
+    chain (anything far enough from the pocket, regardless of its neighbors'
+    distance), leaving a gap in an otherwise-contiguous chain's residue
+    numbering. The previous version of this function dropped every TER
+    record unconditionally and never wrote a replacement, so a cropped
+    receptor with such a gap had no marker anywhere in the file that the
+    chain was discontinuous. MDAnalysis's PDB reader mis-parses that: its
+    internal atom-count pass and its real second pass disagree once residue
+    numbering isn't contiguous with no TER to explain why, and it fails with
+    an opaque ``IndexError`` reading the occupancy column deep inside
+    RAPiDock's Stage 1 -- surfaced by the blind-docking flag-combo matrix
+    sweep (runs/matrix/) as "All N candidate pocket refinements failed"
+    with (before a companion fix to rapidock_runner.py) no further detail.
+    Now a TER is written at every real break (chain change or a residue-
+    number gap of >1) and once more at end-of-chain before any trailing
+    HETATM block, restoring the structure the original file actually had.
     """
     kept_lines: list[str] = []
     current_key: tuple[str, str, str] | None = None
     current_block: list[str] = []
     current_hit = False
+    last_kept_key: tuple[str, str, str] | None = None  # last block actually written
+
+    def _is_break(prev: tuple[str, str, str], nxt: tuple[str, str, str]) -> bool:
+        if prev[0] != nxt[0]:  # chain changed
+            return True
+        try:
+            return int(nxt[1]) - int(prev[1]) > 1  # resSeq gap
+        except ValueError:
+            return True  # unparsable resSeq (icode-only numbering etc.) — be safe
 
     def _flush() -> None:
-        if current_hit:
-            kept_lines.extend(current_block)
+        nonlocal last_kept_key
+        if not current_hit:
+            return
+        if last_kept_key is not None and _is_break(last_kept_key, current_key):
+            kept_lines.append("TER\n")
+        kept_lines.extend(current_block)
+        last_kept_key = current_key
 
     for line in receptor_path.read_text().splitlines(keepends=True):
         if not line.startswith(("ATOM", "HETATM")):
@@ -100,6 +131,8 @@ def _crop_receptor_to_site(
         if np.linalg.norm(np.array([x, y, z]) - center) <= radius:
             current_hit = True
     _flush()
+    if last_kept_key is not None:
+        kept_lines.append("TER\n")  # terminate the final chain fragment too
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text("".join(kept_lines))
