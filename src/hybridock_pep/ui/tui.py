@@ -183,6 +183,24 @@ def _posint(minv, maxv):
     return f
 
 
+def _posfloat(minv, maxv):
+    def f(v):
+        try:
+            n = float(v)
+        except ValueError:
+            return "must be a number"
+        return None if minv <= n <= maxv else f"out of range [{minv}, {maxv}]"
+    return f
+
+
+def _valid_yn(v):
+    return None if v.strip().lower() in ("y", "n", "yes", "no", "") else "enter y or n"
+
+
+def _is_yes(v: str | None) -> bool:
+    return (v or "").strip().lower() in ("y", "yes")
+
+
 #: The two things a user can actually ask this tool to do — NOT the vina/ad4
 #: physics backends, which run automatically underneath "ai" and are never a
 #: user-facing choice (see docs/guide topic 7, "AI scoring vs physics"; Vina's
@@ -220,11 +238,26 @@ FIELDS = [
               "CLI to tune it). n = use the Target site below.",
               _optional(lambda v: None if v.strip().lower() in ("y", "n", "yes", "no", "")
                         else "enter y or n")),
+    FormField("n_pocket_search", "Blind: pocket-search N", "300",
+              "Blind docking only: exploratory poses across the whole receptor with "
+              "rapidock_global.pt, before clustering into candidate sites (CLI "
+              "--n-pocket-search).", _posint(10, 2000)),
+    FormField("n_pockets", "Blind: candidate pockets", "3",
+              "Blind docking only: how many candidate binding sites the exploratory "
+              "poses are clustered into and refined (CLI --n-pockets).", _posint(1, 20)),
+    FormField("n_per_pocket", "Blind: poses per pocket", "150",
+              "Blind docking only: refinement poses generated at each candidate site "
+              "(CLI --n-per-pocket). Total refined poses = pockets × this.",
+              _posint(10, 2000)),
     FormField("site", "Target site  x y z", "24.84 22.73 41.69",
               "On-target box center (Å) — three numbers. Ignored if Blind docking = y.",
               _valid_site),
     FormField("box", "Target box (Å)", "30",
               "On-target cubic box edge (Å). 30 for 12-mers+.", _posint(10, 60)),
+    FormField("long_checkpoint_threshold", "Long-peptide checkpoint threshold", "13",
+              "Peptide length (residues) at/above which docking routes to the "
+              "long-peptide checkpoint (CLI --long-checkpoint-threshold). Applies to "
+              "every dock run, not just blind.", _posint(3, 30)),
     FormField("n_samples", "N samples", "100",
               "RAPiDock diffusion poses to generate (per receptor).", _posint(1, 500)),
     FormField("mode", "Scoring mode", "ai",
@@ -237,6 +270,50 @@ FIELDS = [
               _optional(_valid_pdb_file), is_path=True, optional=True),
     FormField("refine_topk", "Refine top-K (MM-GBSA)", "0",
               "MM-GBSA on top-K clusters (0 = off; ai mode only).", _posint(0, 50)),
+    FormField("ultra", "Ultra mode K (0 = off)", "0",
+              "Ultra ACCURACY verification tier (CLI --ultra [K], K=smoothing depth, "
+              "typical 32): randomized-smoothing rank + MM-GBSA + interaction-entropy "
+              "+ auto charged-residue correction. Expensive; requires OpenMM.",
+              _posint(0, 256)),
+    FormField("ultra_charged", "Ultra: charged-residue correction? (y/n)", "n",
+              "y = add the ECC-FEP/GFN2-xTB charged-residue correction (CLI "
+              "--ultra-charged) for peptides with D/E/K/R. Requires OpenMM + qm-env "
+              "xtb.", _valid_yn),
+    FormField("seed", "Seed (reproducibility)", "",
+              "RNG seed for deterministic sampling, modulo CUDA nondeterminism (CLI "
+              "--seed). Blank = unseeded.", _optional(_posint(0, 2**31 - 1))),
+    FormField("input_poses", "Input poses dir (skip Stage 1)", "",
+              "Skip RAPiDock sampling and score pre-generated pose PDBs from this "
+              "directory instead (CLI --input-poses). Required on macOS-Intel. "
+              "Blank = run Stage 1 normally.",
+              _optional(lambda v: None if Path(v).expanduser().is_dir() else "directory not found"),
+              is_path=True, is_dir=True),
+    FormField("no_minimize", "Skip OpenMM pre-minimization? (y/n)", "n",
+              "y = disable OpenMM energy minimization of poses before scoring (CLI "
+              "--no-minimize). No effect with Input poses dir set.", _valid_yn),
+    FormField("ensemble", "Emit ensemble ΔG column? (y/n)", "n",
+              "y = also compute the geometry+Vina ensemble ΔG (CLI --ensemble; "
+              "research/telemetry, not the default scorer).", _valid_yn),
+    FormField("free_entropy", "Free-state entropy feature? (y/n)", "n",
+              "y = add the free-state conformational-entropy feature (CLI "
+              "--free-entropy; helps long/floppy peptides). Requires Ensemble = y.",
+              _valid_yn),
+    FormField("mmgbsa_ie", "MM-GBSA: interaction entropy? (y/n)", "n",
+              "y = add the signed interaction-entropy −TΔS term (CLI --mmgbsa-ie). "
+              "Requires Refine top-K > 0.", _valid_yn),
+    FormField("mmgbsa_3traj", "MM-GBSA: three-trajectory? (y/n)", "n",
+              "y = relax the unbound peptide/receptor separately instead of reading "
+              "them from the bound geometry (CLI --mmgbsa-3traj). Requires Refine "
+              "top-K > 0.", _valid_yn),
+    FormField("mmgbsa_dielectric", "MM-GBSA solute dielectric", "1.0",
+              "GB internal dielectric εin for MM-GBSA (CLI --mmgbsa-dielectric). "
+              "Requires Refine top-K > 0.", _posfloat(1.0, 80.0)),
+    FormField("mmgbsa_cpu_only", "MM-GBSA: force CPU? (y/n)", "n",
+              "y = force MM-GBSA onto the OpenMM CPU platform instead of CUDA/OpenCL "
+              "(CLI --mmgbsa-cpu-only). Requires Refine top-K > 0.", _valid_yn),
+    FormField("calibration", "Calibration JSON override", "",
+              "Override the entropy-correction calibration file (CLI --calibration). "
+              "Blank = packaged default.", _optional(_valid_pdb_file), is_path=True),
     FormField("output_dir", "Output dir", "runs/tui_run",
               "Where results are written — Browse (Ctrl-B) to pick a folder.", _valid_dir,
               is_path=True, is_dir=True),
@@ -249,7 +326,16 @@ FIELDS = [
               "Selectivity only: off-target box edge (Å).", _optional(_posint(10, 60)), optional=True),
 ]
 FIELD = {f.key: f for f in FIELDS}
-DOCK_KEYS = ["peptide", "receptor", "blind", "site", "box", "n_samples", "refine_topk", "output_dir"]
+DOCK_KEYS = [
+    "peptide", "receptor", "blind",
+    "n_pocket_search", "n_pockets", "n_per_pocket",  # blind-only
+    "site", "box",  # site-only (skipped when blind=y)
+    "long_checkpoint_threshold", "n_samples", "refine_topk",
+    "ultra", "ultra_charged", "seed", "input_poses", "no_minimize",
+    "ensemble", "free_entropy",  # free_entropy skipped unless ensemble=y
+    "mmgbsa_ie", "mmgbsa_3traj", "mmgbsa_dielectric", "mmgbsa_cpu_only",  # skipped unless refine_topk>0
+    "calibration", "output_dir",
+]
 SEL_KEYS = DOCK_KEYS + ["offtarget_receptor", "offtarget_site", "offtarget_box"]
 #: Fields needed by "crystal" mode (score an existing bound pose — no site/box/
 #: n_samples/output_dir; see build_crystal_command()).
@@ -293,6 +379,35 @@ def clean_dropped_path(s: str) -> str:
     return s.replace("\\ ", " ").replace("\\~", "~").replace("\\(", "(").replace("\\)", ")").strip()
 
 
+def _is_blind(v) -> bool:
+    return v.get("blind", "").strip().lower() in ("y", "yes")
+
+
+def _skip_key(k: str, values) -> bool:
+    """True if field ``k`` is inapplicable given the rest of ``values`` and
+    should be skipped by the CLI wizard / ignored by validate()'s readiness
+    check — e.g. blind-only pocket-search knobs when Blind docking = n, or
+    MM-GBSA sub-flags when Refine top-K is off. Mirrors the site/box-under-
+    blind skip that already existed; generalized so every new advanced flag
+    added alongside blind docking gets the same "don't ask about options
+    that don't apply yet" treatment instead of bloating every ordinary run.
+    """
+    is_blind = _is_blind(values)
+    if k in ("n_pocket_search", "n_pockets", "n_per_pocket") and not is_blind:
+        return True
+    if k in ("site", "box") and is_blind:
+        return True
+    topk = (values.get("refine_topk") or "0").strip()
+    topk_on = topk.lstrip("-").isdigit() and int(topk) > 0
+    if k in ("mmgbsa_ie", "mmgbsa_3traj", "mmgbsa_dielectric", "mmgbsa_cpu_only") and not topk_on:
+        return True
+    if k == "free_entropy" and not _is_yes(values.get("ensemble")):
+        return True
+    if k == "ultra_charged" and not (values.get("ultra") or "0").strip().lstrip("-").isdigit():
+        return True
+    return False
+
+
 def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
     """Build an ``ai``-mode (`dock`) command line.
 
@@ -300,24 +415,70 @@ def build_dock_command(v, scoring="vina", exe="hybridock-pep"):
     field (see the "Scoring mode" FormField, which is ai/crystal). Callers pick
     it programmatically per run preset (see run_dock()'s Full/Half/Quick
     presets); it is never read from form input.
+
+    Covers every advanced ``dock`` flag exposed as a FormField (blind-docking
+    pocket-search tuning, --ultra/--ultra-charged, --seed, --input-poses,
+    --no-minimize, --ensemble/--free-entropy, --mmgbsa-*, --calibration) —
+    not just the original core fields — so the UI's blind-docking and
+    verification-tier options stay in sync with what the CLI actually offers.
     """
     cmd = [exe, "dock", "--peptide", v["peptide"].strip().upper(),
            "--receptor", str(Path(v["receptor"]).expanduser())]
-    if v.get("blind", "").strip().lower() in ("y", "yes"):
+    # .strip() before every truthiness/int() test below: "   " is truthy but
+    # int("   ") raises, which crashed command building when a field was
+    # typed into and then cleared.
+    if _is_blind(v):
         # No --site: triggers the real pocket-search pipeline (sampling/pocket_search.py),
         # not just the off-pocket-filter-disable behavior of --blind with a site hint.
         cmd += ["--blind"]
+        for key, flag in (("n_pocket_search", "--n-pocket-search"),
+                           ("n_pockets", "--n-pockets"),
+                           ("n_per_pocket", "--n-per-pocket")):
+            val = (v.get(key) or "").strip()
+            if val:
+                cmd += [flag, val]
     else:
         x, y, z = v["site"].split()
         cmd += ["--site", x, y, z, "--box", v["box"].strip()]
+    lct = (v.get("long_checkpoint_threshold") or "").strip()
+    if lct:
+        cmd += ["--long-checkpoint-threshold", lct]
     cmd += ["--n-samples", v["n_samples"].strip(), "--scoring", scoring,
             "--output-dir", v["output_dir"].strip()]
-    # .strip() before the truthiness test: "   " is truthy but int("   ")
-    # raises, which crashed command building when a field was typed into and
-    # then cleared.
     topk = (v.get("refine_topk") or "").strip()
-    if topk and int(topk) > 0:
+    topk_on = topk and int(topk) > 0
+    if topk_on:
         cmd += ["--refine-topk", topk]
+        if _is_yes(v.get("mmgbsa_ie")):
+            cmd += ["--mmgbsa-ie"]
+        if _is_yes(v.get("mmgbsa_3traj")):
+            cmd += ["--mmgbsa-3traj"]
+        if _is_yes(v.get("mmgbsa_cpu_only")):
+            cmd += ["--mmgbsa-cpu-only"]
+        dielectric = (v.get("mmgbsa_dielectric") or "").strip()
+        if dielectric and float(dielectric) != 1.0:
+            cmd += ["--mmgbsa-dielectric", dielectric]
+    ultra = (v.get("ultra") or "").strip()
+    if ultra and int(ultra) > 0:
+        cmd += ["--ultra", ultra]
+        if _is_yes(v.get("ultra_charged")):
+            cmd += ["--ultra-charged"]
+    seed = (v.get("seed") or "").strip()
+    if seed:
+        cmd += ["--seed", seed]
+    input_poses = (v.get("input_poses") or "").strip()
+    if input_poses:
+        cmd += ["--input-poses", str(Path(input_poses).expanduser())]
+    if _is_yes(v.get("no_minimize")):
+        cmd += ["--no-minimize"]
+    ensemble_on = _is_yes(v.get("ensemble"))
+    if ensemble_on:
+        cmd += ["--ensemble"]
+        if _is_yes(v.get("free_entropy")):
+            cmd += ["--free-entropy"]
+    calibration = (v.get("calibration") or "").strip()
+    if calibration:
+        cmd += ["--calibration", str(Path(calibration).expanduser())]
     return cmd
 
 
@@ -348,19 +509,27 @@ def build_selectivity_command(v, scoring="vina,ad4", exe="hybridock-pep"):
 
 def validate(values, keys, blind_aware=True):
     out = []
-    is_blind = blind_aware and values.get("blind", "").strip().lower() in ("y", "yes")
     for k in keys:
-        if is_blind and k in ("site", "box"):
-            # --site/--box are ignored under blind docking (pocket search finds its
-            # own sites) — see sampling/pocket_search.py. blind_aware=False for
-            # selectivity mode, which has no blind-docking support and always needs
-            # target-site/offtarget-site regardless of the (unused there) blind field.
+        # blind_aware=False for selectivity mode, which has no blind-docking support
+        # and always needs target-site/offtarget-site regardless of the (unused
+        # there) blind field — so it must never skip site/box via _skip_key.
+        if blind_aware and _skip_key(k, values):
+            # Inapplicable given the rest of the form (e.g. --site/--box under
+            # blind docking, or MM-GBSA sub-flags with Refine top-K = 0) — see
+            # _skip_key. Those are ignored by the CLI too, so an unfilled/stale
+            # value here must not block the ✓ ready state.
             continue
         f = FIELD[k]
-        if f.optional and not values.get(k, "").strip():
+        # Falls back to the field's own default when `values` doesn't carry
+        # the key at all (as opposed to carrying it blank) — the real UI
+        # always populates every FIELDS key (inputs dict built from FIELDS),
+        # but callers that hand-build a partial values dict get the same
+        # answer a freshly-opened form would.
+        val = values.get(k, f.default)
+        if f.optional and not val.strip():
             out.append(f"{f.label}: required for this mode")
             continue
-        if (m := f.validate(values.get(k, ""))):
+        if (m := f.validate(val)):
             out.append(f"{f.label}: {m}")
     return out
 
@@ -507,10 +676,13 @@ def run_cli_wizard(print_only=False):
     print("\n  HybriDock-Pep · guided dock  (Ctrl-C to abort)\n  " + "-" * 48)
     values = {}
     for k in DOCK_KEYS:
-        # Blind docking ignores --site/--box (see sampling/pocket_search.py) —
-        # skip prompting for them once "blind" has been answered "y" so the
-        # wizard doesn't ask for coordinates that will never be used.
-        if k in ("site", "box") and values.get("blind", "").strip().lower() in ("y", "yes"):
+        # Skip fields that are inapplicable given answers already given this
+        # pass (blind-only pocket-search knobs / site+box / MM-GBSA sub-flags
+        # / ultra-charged / free-entropy — see _skip_key) so the wizard
+        # doesn't ask about options that won't take effect. Answered earlier
+        # keys are already in `values`; keys later in DOCK_KEYS than what
+        # they depend on (e.g. mmgbsa_* after refine_topk) see the real answer.
+        if _skip_key(k, values):
             values[k] = FIELD[k].default
             continue
         f = FIELD[k]

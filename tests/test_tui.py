@@ -136,7 +136,8 @@ class TestCleanDroppedPath:
 # --------------------------------------------------------------------------- #
 
 def _values(**over):
-    v = {
+    v = {f.key: f.default for f in tui.FIELDS}
+    v.update({
         "peptide": "lisaaalaaifaaalac",
         "receptor": "data/pdbs/1T2D_receptor.pdb",
         "site": "24.84 22.73 41.69",
@@ -149,7 +150,7 @@ def _values(**over):
         "offtarget_receptor": "data/pdbs/3LNJ_mdm2.pdb",
         "offtarget_site": "1 2 3",
         "offtarget_box": "20",
-    }
+    })
     v.update(over)
     return v
 
@@ -183,6 +184,126 @@ class TestBuildDockCommand:
     def test_every_argument_is_a_string(self):
         """subprocess/shell join breaks on non-str entries."""
         assert all(isinstance(a, str) for a in tui.build_dock_command(_values()))
+
+
+class TestBuildDockCommandAdvancedFlags:
+    """The TUI's advanced fields (blind-docking tuning, --ultra, --seed, ...)
+    must actually reach the built command — this is the direct regression
+    test for "blind docking's own options aren't offered in the UI"."""
+
+    def test_blind_docking_passes_pocket_search_tuning(self):
+        cmd = tui.build_dock_command(_values(
+            blind="y", n_pocket_search="500", n_pockets="5", n_per_pocket="200"))
+        assert "--blind" in cmd
+        assert "--site" not in cmd
+        assert cmd[cmd.index("--n-pocket-search") + 1] == "500"
+        assert cmd[cmd.index("--n-pockets") + 1] == "5"
+        assert cmd[cmd.index("--n-per-pocket") + 1] == "200"
+
+    def test_non_blind_run_omits_pocket_search_flags(self):
+        cmd = tui.build_dock_command(_values(blind="n"))
+        for flag in ("--n-pocket-search", "--n-pockets", "--n-per-pocket", "--blind"):
+            assert flag not in cmd
+
+    def test_blind_with_default_pocket_fields_still_passes_them(self):
+        """Defaults ('300'/'3'/'150') are non-blank, so they should be passed
+        explicitly even when the user never touched those fields."""
+        cmd = tui.build_dock_command(_values(blind="y"))
+        assert cmd[cmd.index("--n-pocket-search") + 1] == "300"
+
+    def test_long_checkpoint_threshold_always_passed(self):
+        cmd = tui.build_dock_command(_values(long_checkpoint_threshold="15"))
+        assert cmd[cmd.index("--long-checkpoint-threshold") + 1] == "15"
+
+    def test_ultra_zero_is_off(self):
+        assert "--ultra" not in tui.build_dock_command(_values(ultra="0"))
+
+    def test_ultra_nonzero_is_passed_with_charged_flag(self):
+        cmd = tui.build_dock_command(_values(ultra="32", ultra_charged="y"))
+        assert cmd[cmd.index("--ultra") + 1] == "32"
+        assert "--ultra-charged" in cmd
+
+    def test_ultra_charged_ignored_when_ultra_off(self):
+        cmd = tui.build_dock_command(_values(ultra="0", ultra_charged="y"))
+        assert "--ultra-charged" not in cmd
+
+    def test_seed_passed_when_set(self):
+        cmd = tui.build_dock_command(_values(seed="42"))
+        assert cmd[cmd.index("--seed") + 1] == "42"
+
+    def test_seed_blank_omitted(self):
+        assert "--seed" not in tui.build_dock_command(_values(seed=""))
+
+    def test_input_poses_expanded_and_passed(self):
+        cmd = tui.build_dock_command(_values(input_poses="~/poses"))
+        val = cmd[cmd.index("--input-poses") + 1]
+        assert "~" not in val
+
+    def test_no_minimize_flag(self):
+        assert "--no-minimize" in tui.build_dock_command(_values(no_minimize="y"))
+        assert "--no-minimize" not in tui.build_dock_command(_values(no_minimize="n"))
+
+    def test_ensemble_and_free_entropy(self):
+        cmd = tui.build_dock_command(_values(ensemble="y", free_entropy="y"))
+        assert "--ensemble" in cmd
+        assert "--free-entropy" in cmd
+
+    def test_free_entropy_ignored_without_ensemble(self):
+        cmd = tui.build_dock_command(_values(ensemble="n", free_entropy="y"))
+        assert "--free-entropy" not in cmd
+
+    def test_mmgbsa_subflags_require_refine_topk(self):
+        cmd = tui.build_dock_command(_values(
+            refine_topk="0", mmgbsa_ie="y", mmgbsa_3traj="y", mmgbsa_cpu_only="y"))
+        for flag in ("--mmgbsa-ie", "--mmgbsa-3traj", "--mmgbsa-cpu-only"):
+            assert flag not in cmd
+
+    def test_mmgbsa_subflags_passed_with_refine_topk(self):
+        cmd = tui.build_dock_command(_values(
+            refine_topk="10", mmgbsa_ie="y", mmgbsa_3traj="y", mmgbsa_cpu_only="y",
+            mmgbsa_dielectric="4.0"))
+        for flag in ("--mmgbsa-ie", "--mmgbsa-3traj", "--mmgbsa-cpu-only"):
+            assert flag in cmd
+        assert cmd[cmd.index("--mmgbsa-dielectric") + 1] == "4.0"
+
+    def test_mmgbsa_dielectric_default_omitted(self):
+        cmd = tui.build_dock_command(_values(refine_topk="10", mmgbsa_dielectric="1.0"))
+        assert "--mmgbsa-dielectric" not in cmd
+
+    def test_calibration_override_expanded_and_passed(self):
+        cmd = tui.build_dock_command(_values(calibration="~/cal.json"))
+        val = cmd[cmd.index("--calibration") + 1]
+        assert "~" not in val
+
+    def test_calibration_blank_omitted(self):
+        assert "--calibration" not in tui.build_dock_command(_values(calibration=""))
+
+
+class TestSkipKey:
+    def test_pocket_fields_skipped_when_not_blind(self):
+        v = _values(blind="n")
+        for k in ("n_pocket_search", "n_pockets", "n_per_pocket"):
+            assert tui._skip_key(k, v) is True
+        assert tui._skip_key("site", v) is False
+
+    def test_pocket_fields_required_when_blind(self):
+        v = _values(blind="y")
+        for k in ("n_pocket_search", "n_pockets", "n_per_pocket"):
+            assert tui._skip_key(k, v) is False
+        assert tui._skip_key("site", v) is True
+
+    def test_mmgbsa_fields_skipped_without_refine_topk(self):
+        v = _values(refine_topk="0")
+        for k in ("mmgbsa_ie", "mmgbsa_3traj", "mmgbsa_dielectric", "mmgbsa_cpu_only"):
+            assert tui._skip_key(k, v) is True
+
+    def test_validate_ignores_stale_pocket_fields_when_not_blind(self, tmp_path):
+        """A user who typed garbage into a now-irrelevant blind-only field
+        must not get blocked from a normal (non-blind) run."""
+        p = tmp_path / "r.pdb"
+        p.write_text("ATOM\n")
+        v = _values(receptor=str(p), blind="n", n_pocket_search="not a number")
+        assert tui.validate(v, tui.DOCK_KEYS) == []
 
 
 class TestBuildSelectivityCommand:

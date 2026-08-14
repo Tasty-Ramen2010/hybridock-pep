@@ -11,6 +11,8 @@ on frame 0 and frame -1 of each cycle.
 
 from __future__ import annotations
 
+import io
+
 from hybridock_pep.output import art
 
 
@@ -102,3 +104,54 @@ class TestGalleryPieceFramesWorkWithTheTimingHelper:
             for elapsed in (0.0, 0.05, 0.5, 1.5, 3.0, 10.0):
                 fi = art.frame_index_for_elapsed(n, elapsed)
                 assert 0 <= fi < n
+
+
+class _FakeTTYStream(io.StringIO):
+    """A stream that reports a real fd's isatty()==False but no fileno(),
+    forcing gallery_fits()/_terminal_columns() onto the shutil fallback path
+    (matches how the heartbeat's stream — sys.stderr under pytest capture —
+    behaves)."""
+
+    def fileno(self):  # pragma: no cover - exercised via the OSError path
+        raise io.UnsupportedOperation("fileno")
+
+
+class TestGalleryFits:
+    """Regression coverage for the narrow-terminal redraw-corruption bug:
+    animate_gallery_piece's \\x1b[{n}A cursor-up math assumes one art line ==
+    one terminal row, which is false once a line wraps. gallery_fits() must
+    catch that before any frame is written."""
+
+    def test_wide_enough_terminal_fits(self, monkeypatch):
+        monkeypatch.setenv("COLUMNS", "200")
+        assert art.gallery_fits(_FakeTTYStream(), 0) is True
+
+    def test_narrow_terminal_does_not_fit(self, monkeypatch):
+        monkeypatch.setenv("COLUMNS", "10")
+        assert art.gallery_fits(_FakeTTYStream(), 0) is False
+
+    def test_animate_gallery_piece_writes_nothing_when_too_narrow(self, monkeypatch):
+        monkeypatch.setenv("COLUMNS", "10")
+        stream = _FakeTTYStream()
+        art.animate_gallery_piece(stream, 0, frame_delay=0.0)
+        assert stream.getvalue() == ""
+
+    def test_animate_gallery_piece_writes_when_wide_enough(self, monkeypatch):
+        monkeypatch.setenv("COLUMNS", "200")
+        stream = _FakeTTYStream()
+        art.animate_gallery_piece(stream, 0, frame_delay=0.0)
+        assert stream.getvalue() != ""
+
+    def test_never_raises_on_a_broken_stream(self):
+        class _Explodes:
+            def fileno(self):
+                raise OSError("no fd")
+
+            def write(self, _s):
+                raise OSError("broken pipe")
+
+            def flush(self):
+                pass
+
+        assert art.gallery_fits(_Explodes(), 0) in (True, False)
+        art.animate_gallery_piece(_Explodes(), 0, frame_delay=0.0)  # must not raise

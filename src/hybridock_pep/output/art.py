@@ -585,6 +585,58 @@ def frame_index_for_elapsed(
     return n_frames - 1
 
 
+def _terminal_columns(stream: TextIO) -> int:
+    """Best-effort terminal width for ``stream``, falling back to 80.
+
+    Tries the stream's own fd first (right for e.g. a TUI subprocess whose
+    stdout/stderr may differ from the controlling terminal), then
+    ``shutil.get_terminal_size`` (honours ``COLUMNS``), then 80. Never raises.
+    """
+    import shutil  # noqa: PLC0415
+
+    try:
+        fd = stream.fileno()
+        size = os.get_terminal_size(fd)
+        if size.columns > 0:
+            return size.columns
+    except Exception:
+        pass
+    try:
+        cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+        if cols > 0:
+            return cols
+    except Exception:
+        pass
+    return 80
+
+
+def gallery_fits(stream: TextIO, index: int, indent: str = "   ") -> bool:
+    """True if every line of gallery piece ``index`` fits the terminal width
+    without wrapping, at ``indent``.
+
+    This gallery is animated in place with ANSI cursor-up (``\\x1b[{n}A``)
+    that assumes one art line == one terminal row. If a line is wider than
+    the terminal it wraps onto a second row instead, silently invalidating
+    that row count — every subsequent redraw then cursor-ups too few rows,
+    overwrites the wrong lines, and the screen fills with leftover frame
+    fragments (reported as the animation "not working" / garbled on narrow
+    terminals, SSH panes, split tmux). Checking width up front and skipping
+    the piece entirely when it doesn't fit is simpler and safer than tracking
+    wrapped row counts through the redraw loop, and this animation is
+    decorative only — skipping it is always a safe degrade.
+    """
+    try:
+        cols = _terminal_columns(stream)
+        title, frames = gallery_piece(index)
+        widest = max(
+            len(f"{indent}· {title}"),
+            max((len(indent) + len(line) for frame in frames for line in frame.splitlines()), default=0),
+        )
+        return widest <= cols
+    except Exception:
+        return False
+
+
 def animate_gallery_piece(
     stream: TextIO, index: int, indent: str = "   ", frame_delay: float = 0.16
 ) -> None:
@@ -600,9 +652,14 @@ def animate_gallery_piece(
     TTY-only in spirit (the caller already gates on that — see
     :meth:`hybridock_pep.output.progress.PipelineProgress.heartbeat`): uses
     plain ANSI cursor-up + line-clear to redraw, which only makes sense on a
-    real terminal. Never raises — a broken animation must not break a run.
+    real terminal. No-ops (via :func:`gallery_fits`) when the piece is wider
+    than the terminal, rather than corrupting the screen with a wrapped
+    redraw — see :func:`gallery_fits` for why it would corrupt. Never raises
+    — a broken animation must not break a run.
     """
     try:
+        if not gallery_fits(stream, index, indent):
+            return
         title, frames = gallery_piece(index)
         first = frames[0].splitlines()
         stream.write(f"\n{indent}\u00b7 {title}\n")
