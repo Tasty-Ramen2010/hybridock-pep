@@ -19,6 +19,8 @@ geometry features outputting kcal/mol with accuracy in the range of ABFE. From t
 terminal UI, it runs efficiently on consumer hardware, and tested against >1,000 real complexes. 
 [Get started](#get-started) and run it yourself.
 
+Creator: **[Choppa Purandhar Ram](https://www.linkedin.com/in/purandhar-ram-choppa-293916413/)**, 15 Years Old
+
 ## Table of contents
 
 1.  [What this does](#what-this-does)
