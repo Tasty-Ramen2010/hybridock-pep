@@ -346,6 +346,7 @@ def run_sampling(
         {output_dir or config.output_dir}/poses/.
 
     Raises:
+        FileNotFoundError: If the resolved checkpoint is not on disk.
         RuntimeError: If RAPiDock subprocess exits non-zero.
         RuntimeError: If zero poses are produced after subprocess exits.
     """
@@ -367,6 +368,25 @@ def run_sampling(
             Path(model_dir_abs),
         )
     ckpt_name = effective_ckpt
+
+    # Fail here, not 70s deep inside the subprocess: RAPiDock's inference.py
+    # torch.load()s the checkpoint with no pre-check, so one the install step
+    # skipped surfaces as an opaque non-zero exit long after sampling appears
+    # to have started. Mirrors inference.py's own abs-vs-relative resolution.
+    ckpt_path = (
+        Path(ckpt_name) if Path(ckpt_name).is_absolute()
+        else Path(model_dir_abs) / ckpt_name
+    )
+    if not ckpt_path.exists():
+        hint = (
+            " It is required for --blind pocket-search docking."
+            if ckpt_name == "rapidock_global.pt" else ""
+        )
+        raise FileNotFoundError(
+            f"RAPiDock checkpoint not found: {ckpt_path}. Download it from "
+            "https://zenodo.org/records/14193621 and place it in "
+            f"{model_dir_abs} (see INSTALL.md 'Pre-trained models').{hint}"
+        )
 
     device_label = _detect_device_platform()
     logger.info("Stage 1: RAPiDock-Reloaded sampling — device: %s", device_label)

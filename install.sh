@@ -152,22 +152,51 @@ fi
 # ---------------------------------------------------------------------------
 step "Downloading RAPiDock model weights"
 WEIGHTS_DIR="third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
-LOCAL_CKPT="$WEIGHTS_DIR/rapidock_local.pt"
-LOCAL_SHA256="d0f1ebe268354624c345f8730e765e1b21c016f946fffb637461236204919693"
-
 mkdir -p "$WEIGHTS_DIR"
-if [ -f "$LOCAL_CKPT" ] && echo "$LOCAL_SHA256  $LOCAL_CKPT" | sha256sum -c - >/dev/null 2>&1; then
-    ok "rapidock_local.pt already present and verified"
+
+# Not every macOS ships GNU sha256sum; `shasum -a 256` is always there. Pick one
+# up front so the verify below can't silently no-op into a re-download loop.
+if command -v sha256sum >/dev/null 2>&1; then
+    _sha256() { sha256sum "$1" | awk '{print $1}'; }
+elif command -v shasum >/dev/null 2>&1; then
+    _sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
 else
-    curl -fsSL "https://zenodo.org/api/records/14193621/files/rapidock_local.pt/content" \
-        -o "$LOCAL_CKPT"
-    if echo "$LOCAL_SHA256  $LOCAL_CKPT" | sha256sum -c - >/dev/null 2>&1; then
-        ok "rapidock_local.pt downloaded and checksum-verified"
+    _sha256() { echo "no-sha-tool"; }
+fi
+
+# Both checkpoints are required for a full install: rapidock_local.pt for
+# ordinary site-directed docking, rapidock_global.pt for the --blind
+# pocket-search pass (sampling/pocket_search.py hard-codes it). Skipping the
+# global one leaves `dock --blind` dead on arrival with a torch.load failure
+# ~70s into Stage 1, so it is fetched unconditionally, not on demand.
+fetch_ckpt() {
+    _name="$1"; _want="$2"; _dest="$WEIGHTS_DIR/$_name"
+    if [ -f "$_dest" ] && [ "$(_sha256 "$_dest")" = "$_want" ]; then
+        ok "$_name already present and verified"
+        return 0
+    fi
+    curl -fsSL "https://zenodo.org/api/records/14193621/files/$_name/content" \
+        -o "$_dest.part" || {
+        warn "$_name download failed — '--blind' docking needs rapidock_global.pt;" \
+             "ordinary docking needs rapidock_local.pt. Re-run ./install.sh to retry."
+        rm -f "$_dest.part"
+        return 0
+    }
+    # Only move into place once the bytes are complete: a half-written .pt is
+    # indistinguishable from a good one to the runtime's existence check.
+    mv "$_dest.part" "$_dest"
+    if [ "$(_sha256 "$_dest")" = "$_want" ]; then
+        ok "$_name downloaded and checksum-verified"
     else
-        warn "rapidock_local.pt downloaded but checksum did not match — the file may be" \
+        warn "$_name downloaded but checksum did not match — the file may be" \
              "corrupted or the Zenodo record was updated. Continuing, but re-check this."
     fi
-fi
+}
+
+fetch_ckpt rapidock_local.pt \
+    d0f1ebe268354624c345f8730e765e1b21c016f946fffb637461236204919693
+fetch_ckpt rapidock_global.pt \
+    a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
 
 # ---------------------------------------------------------------------------
 # 5. Receptor-prep / grid tooling (no license click-through required)
@@ -188,16 +217,31 @@ for _base in "$HOME/miniforge3" "$HOME/miniconda3" "$HOME/anaconda3" "/opt/conda
         break
     fi
 done
+# score-env first, then $PATH — the same order as hybridock_pep/toolpath.which(),
+# so what this step reports is what the runtime will actually run. Checking $PATH
+# first reports a conda *base* env's copy of a tool (base is on $PATH almost
+# everywhere) while the runtime uses score-env's, which is how a broken base-env
+# meeko passed this check and then failed at dock time.
 find_tool() {
-    command -v "$1" 2>/dev/null && return 0
     [ -n "$SCORE_ENV_BIN" ] && [ -x "$SCORE_ENV_BIN/$1" ] && { echo "$SCORE_ENV_BIN/$1"; return 0; }
+    command -v "$1" 2>/dev/null && return 0
     return 1
 }
 
 if PREP="$(find_tool prepare_receptor)"; then
     ok "ADFRsuite found — will be preferred: $PREP"
 elif PREP="$(find_tool mk_prepare_receptor.py)"; then
-    ok "meeko mk_prepare_receptor.py found, no ADFRsuite needed: $PREP"
+    # Existence is not enough: meeko imports rdkit at module load, so a meeko
+    # installed without it is on disk, executable, and dies on first use. Run it
+    # once here so that surfaces now rather than mid-dock as an obabel fallback.
+    if MEEKO_ERR="$("$PREP" --help 2>&1)"; then
+        ok "meeko mk_prepare_receptor.py found, no ADFRsuite needed: $PREP"
+    else
+        warn "mk_prepare_receptor.py at $PREP is installed but not runnable —" \
+             "receptor prep will fall back to obabel. Fix with:" \
+             "conda install -n score-env -c conda-forge rdkit" \
+             "Error was: $(echo "$MEEKO_ERR" | tail -n 1)"
+    fi
 else
     warn "No receptor-prep tool found. Install meeko:  pip install 'meeko>=0.7'"
 fi
