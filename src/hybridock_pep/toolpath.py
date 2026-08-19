@@ -13,8 +13,24 @@ That failure looks like a missing dependency and is not one. Measured on a DGX
 Spark: `mk_prepare_receptor.py` sitting in `score-env/bin` while receptor prep
 reported "no receptor-prep tool found" and died on the obabel fallback.
 
-So: `$PATH` first (an explicitly activated environment or a system install
-should still win), then the running interpreter's own `bin/`.
+So: the running interpreter's own `bin/` first, then `$PATH`.
+
+The interpreter's env wins deliberately. `$PATH` used to be searched first, on
+the reasoning that an explicitly activated env or system install should take
+precedence — but the common case is the opposite. A conda *base* env sits on
+`$PATH` on virtually every install, and a stray `pip install meeko` into base
+puts a `mk_prepare_receptor.py` there that imports against base's Python and
+its missing rdkit. That broken copy shadowed the working meeko sitting in
+score-env/bin, and receptor prep silently degraded to the obabel fallback on a
+correctly-installed machine.
+
+`sys.prefix/bin` only wins when the tool is genuinely installed in the env the
+running interpreter belongs to — the env whose `score-env.yml` declares it as a
+dependency, i.e. the one that was tested against. If the user activated
+score-env explicitly, `sys.prefix` *is* score-env and nothing changes; if
+they're running from some other env, that env won't contain these tools and
+`$PATH` still wins. Tools not shipped in score-env at all (ADFRsuite's
+`prepare_receptor`) are unaffected and continue to resolve via `$PATH`.
 """
 
 from __future__ import annotations
@@ -43,8 +59,9 @@ def which(name: str) -> str | None:
     """Return the path to `name`, or None.
 
     Search order:
-      1. `$PATH` — an explicitly activated env or system install wins.
-      2. `sys.prefix/bin` — the env this interpreter is running from.
+      1. `sys.prefix/bin` — the env this interpreter is running from, whose
+         environment file declares these tools and was tested against them.
+      2. `$PATH` — an explicitly activated env or system install.
       3. `<conda base>/envs/hdp-tools/bin` — the sidecar env.
 
     Args:
@@ -53,6 +70,11 @@ def which(name: str) -> str | None:
     Returns:
         Absolute path as a string, or None if not found anywhere.
     """
+    prefix = Path(sys.prefix)
+    candidate = _bindir(prefix) / name
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return str(candidate)
+
     found = shutil.which(name)
     if found is not None:
         return found
@@ -71,11 +93,6 @@ def which(name: str) -> str | None:
             candidate = Path(directory) / name
             if candidate.is_file():
                 return str(candidate)
-
-    prefix = Path(sys.prefix)
-    candidate = _bindir(prefix) / name
-    if candidate.is_file() and os.access(candidate, os.X_OK):
-        return str(candidate)
 
     # sys.prefix is <base>/envs/<name>, so the sidecar is a sibling.
     if prefix.parent.name == "envs":

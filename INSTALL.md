@@ -146,19 +146,29 @@ No `pip install` needed — the runner imports directly from that path.
 ### Step 3b — Download model weights (required)
 
 The pre-trained checkpoint files (~55 MB each) are **not** in git.
+`./install.sh` downloads and checksum-verifies both required ones for you — this
+section is only needed for a manual install, or to repair a partial download.
+
 Download from [Zenodo (RAPiDock checkpoints)](https://zenodo.org/records/14193621)
 and place them at:
 
 ```
 third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/
-  rapidock_local.pt    ← required
-  rapidock_global.pt   ← required for --blind pocket-search docking (optional otherwise)
+  rapidock_local.pt    ← required — site-directed docking
+  rapidock_global.pt   ← required — the `--blind` pocket-search pass
   longer_local.pt      ← optional — long-peptide specialized checkpoint (13+ residues);
                           `dock` silently falls back to rapidock_local.pt with a logged
-                          warning if absent. See docs/architecture.md §3.2.
+                          warning if absent. See docs/architecture.md §3.2. Not on the
+                          Zenodo record — install.sh cannot fetch it.
 ```
 
-The runner raises `FileNotFoundError: rapidock_local.pt` if that one is skipped.
+Both required checkpoints are fetched unconditionally: `rapidock_global.pt` is
+hard-coded by the `--blind` pocket-search path, so an install that skips it
+leaves `dock --blind` broken while ordinary docking looks fine.
+
+The runner raises `FileNotFoundError` naming the missing checkpoint, its expected
+directory, and this download link before launching RAPiDock — so a skipped file
+fails immediately rather than as an opaque subprocess exit partway into Stage 1.
 
 > **Alternate weight path:** Set `RAPIDOCK_MODEL_DIR=/abs/path` to override.
 > Set `RAPIDOCK_DIR=/abs/path` to override the submodule location entirely.

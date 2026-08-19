@@ -9,6 +9,10 @@ fallback that was not installed.
 
 Measured on a DGX Spark: mk_prepare_receptor.py present in score-env/bin,
 receptor prep reporting "no receptor-prep tool found".
+
+The search is env-first ($PATH second): a conda base env is on $PATH nearly
+everywhere, and a broken tool installed there must not shadow the working copy
+score-env.yml declares. See TestWhich.test_env_bin_wins_over_path.
 """
 
 from __future__ import annotations
@@ -42,6 +46,13 @@ class TestWhich:
         d = tmp_path / "onpath"
         exe = _make_exe(d, "mk_prepare_receptor.py")
         monkeypatch.setenv("PATH", str(d))
+        # Point sys.prefix at an env that does not carry the tool, so $PATH is
+        # genuinely the only source. Without this the *real* score-env/bin the
+        # suite runs from supplies mk_prepare_receptor.py and wins on the
+        # env-first search order, and this test would assert nothing about $PATH.
+        empty_prefix = tmp_path / "envs" / "no-tools"
+        _bindir(empty_prefix).mkdir(parents=True)
+        monkeypatch.setattr(sys, "prefix", str(empty_prefix))
 
         assert which("mk_prepare_receptor.py") == str(exe)
 
@@ -56,16 +67,35 @@ class TestWhich:
 
         assert which("mk_prepare_receptor.py") == str(exe)
 
-    def test_path_wins_over_the_env_bin(self, tmp_path, monkeypatch):
-        """An explicitly activated env or a system install must still take
-        precedence — this only ever adds a fallback."""
-        on_path = _make_exe(tmp_path / "onpath", "autogrid4")
+    def test_env_bin_wins_over_path(self, tmp_path, monkeypatch):
+        """The running interpreter's env takes precedence over $PATH.
+
+        A conda *base* env is on $PATH almost everywhere, so a stray tool
+        installed there (e.g. `pip install meeko` into base, importing against
+        base's Python and its missing rdkit) would otherwise shadow the working
+        copy in score-env/bin that score-env.yml declares and CI tests against.
+        That shadowing silently degraded receptor prep to the obabel fallback.
+        """
+        _make_exe(tmp_path / "onpath", "autogrid4")
         prefix = tmp_path / "envs" / "score-env"
-        _make_env_exe(prefix, "autogrid4")
+        in_env = _make_env_exe(prefix, "autogrid4")
         monkeypatch.setenv("PATH", str(tmp_path / "onpath"))
         monkeypatch.setattr(sys, "prefix", str(prefix))
 
-        assert which("autogrid4") == str(on_path)
+        assert which("autogrid4") == str(in_env)
+
+    def test_path_still_wins_for_tools_absent_from_the_env(
+        self, tmp_path, monkeypatch
+    ):
+        """Env-first must not break tools score-env never ships — ADFRsuite's
+        prepare_receptor is a system install and has to stay reachable."""
+        on_path = _make_exe(tmp_path / "onpath", "prepare_receptor")
+        prefix = tmp_path / "envs" / "score-env"
+        _bindir(prefix).mkdir(parents=True)
+        monkeypatch.setenv("PATH", str(tmp_path / "onpath"))
+        monkeypatch.setattr(sys, "prefix", str(prefix))
+
+        assert which("prepare_receptor") == str(on_path)
 
     def test_returns_none_when_genuinely_absent(self, tmp_path, monkeypatch):
         prefix = tmp_path / "envs" / "score-env"
