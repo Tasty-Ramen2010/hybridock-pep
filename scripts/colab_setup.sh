@@ -91,21 +91,37 @@ fi
 #                cu124 build unambiguously ships sm_75 kernels, and PyG
 #                publishes matching torch-2.6.0+cu124 wheels (building
 #                torch-scatter from source in a notebook takes ~20 min).
+#
+# Every spec below carries its "+cuXXX" local version, and that is load-bearing,
+# not decoration. `conda-forge::e3nn` in rapidock-env.yml pulls conda-forge's
+# own pytorch into the env, and micromamba resolves the __cuda virtual package
+# from Colab's driver, so what lands is a working CUDA build. A bare
+# `pip install torch==2.6.0` then compares equal to it, reports "Requirement
+# already satisfied", and silently does nothing — leaving conda-forge's torch in
+# place. conda-forge builds with _GLIBCXX_USE_CXX11_ABI=1 while the PyG wheels
+# are compiled against pytorch.org's ABI-0 build, so torch_scatter dies on
+# import with `undefined symbol: _ZN5torch3jit17parseSchemaOrNameERKSsb` about
+# 10 s into Stage 1. "2.6.0+cu124" can never compare equal to "2.6.0", so pip
+# actually performs the replacement.
 TORCH_SPEC=""; TORCH_INDEX=""; PYG_FIND=""
 if [ "$BACKEND" = "cuda" ]; then
     CC_MAJOR="${GPU_CC%%.*}"
     if [ "${CC_MAJOR:-0}" -ge 8 ] 2>/dev/null; then
-        TORCH_SPEC="torch==2.7.0"
+        TORCH_SPEC="torch==2.7.0+cu128"
         TORCH_INDEX="https://download.pytorch.org/whl/cu128"
         PYG_FIND="https://data.pyg.org/whl/torch-2.7.0+cu128.html"
     else
-        TORCH_SPEC="torch==2.6.0"
+        TORCH_SPEC="torch==2.6.0+cu124"
         TORCH_INDEX="https://download.pytorch.org/whl/cu124"
         PYG_FIND="https://data.pyg.org/whl/torch-2.6.0+cu124.html"
     fi
     ok "PyTorch target: $TORCH_SPEC from ${TORCH_INDEX##*/}"
 else
-    TORCH_SPEC="torch"
+    # Same reasoning on CPU: take pytorch.org's build so its ABI matches the
+    # PyG wheels, rather than whatever conda-forge left behind.
+    TORCH_SPEC="torch==2.6.0+cpu"
+    TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+    PYG_FIND="https://data.pyg.org/whl/torch-2.6.0+cpu.html"
     warn "CPU backend — Stage 1 sampling will be very slow; keep --n-samples ≤ 10"
 fi
 
@@ -237,54 +253,69 @@ if [ "$SKIP_RAPIDOCK" -eq 0 ]; then
         else
             "$RAPIDOCK_PREFIX/bin/pip" install --no-input "$_spec"
         fi
-        if [ -n "$_pyg" ]; then
-            "$RAPIDOCK_PREFIX/bin/pip" install --no-input \
-                torch-geometric torch-scatter torch-sparse torch-cluster torch-spline-conv \
-                -f "$_pyg"
-        else
-            "$RAPIDOCK_PREFIX/bin/pip" install --no-input \
-                torch-geometric torch-scatter torch-sparse torch-cluster
-        fi
+        # torch-geometric is pure Python and wants its ordinary dependency
+        # resolution. The four compiled extensions get --no-deps so that
+        # resolving them can never pull a different torch in behind our back,
+        # and --force-reinstall because a mismatched build already on disk
+        # carries the same version number and would otherwise be kept.
+        "$RAPIDOCK_PREFIX/bin/pip" install --no-input torch-geometric
+        "$RAPIDOCK_PREFIX/bin/pip" install --no-input --no-deps --force-reinstall \
+            torch-scatter torch-sparse torch-cluster torch-spline-conv \
+            -f "$_pyg"
     }
 
-    # A version string is not proof the wheel has kernels for this GPU: a
-    # mismatched build imports fine and dies at the first kernel launch with
-    # "no kernel image is available for execution on the device", ~70 s into a
-    # dock. Launch a real kernel here instead, while it is still cheap to fix.
-    gpu_works() {
+    # Two independent things can be wrong here, and checking only one of them
+    # is how a broken env reaches a dock:
+    #
+    #   1. The wheel has no kernels for this GPU. It imports fine and dies at
+    #      the first kernel launch ("no kernel image is available for execution
+    #      on the device"), so a real matmul is the only honest test.
+    #   2. torch and the PyG extensions were built against different ABIs. torch
+    #      itself is perfectly healthy — matmul included — and torch_scatter
+    #      throws `undefined symbol` on import. Stage 1 then dies ~10 s in with
+    #      a bare "subprocess exited with code 1".
+    #
+    # An earlier version of this script only did (1), passed, and shipped an env
+    # that failed (2) at dock time. Both, or neither.
+    stack_works() {
         "$RAPIDOCK_PREFIX/bin/python3" - <<'PY' >/dev/null 2>&1
-import torch, sys
-if not torch.cuda.is_available():
-    sys.exit(1)
-x = torch.randn(64, 64, device="cuda")
-torch.mm(x, x).sum().item()
-torch.cuda.synchronize()
+import sys
+import torch
+if torch.cuda.is_available():
+    x = torch.randn(64, 64, device="cuda")
+    torch.mm(x, x).sum().item()
+    torch.cuda.synchronize()
+elif "+cpu" not in torch.__version__:
+    sys.exit(1)          # a CUDA build that cannot see the GPU is a failure
+import torch_scatter, torch_sparse, torch_cluster, torch_geometric  # noqa: F401
 PY
     }
 
     step "Installing PyTorch + PyG into rapidock"
     install_torch_stack "$TORCH_SPEC" "$TORCH_INDEX" "$PYG_FIND"
 
-    if [ "$BACKEND" = "cuda" ]; then
-        step "Verifying CUDA with a real kernel launch"
-        if gpu_works; then
-            ok "CUDA kernels run on $GPU_NAME"
+    step "Verifying the sampling stack (CUDA kernels + PyG extensions)"
+    if stack_works; then
+        ok "torch and the PyG extensions agree${GPU_NAME:+ — kernels run on $GPU_NAME}"
+    elif [ "$BACKEND" = "cuda" ]; then
+        warn "$TORCH_SPEC does not work here — falling back to torch 2.6.0+cu124"
+        install_torch_stack "torch==2.6.0+cu124" \
+            "https://download.pytorch.org/whl/cu124" \
+            "https://data.pyg.org/whl/torch-2.6.0+cu124.html"
+        if stack_works; then
+            ok "fallback build works${GPU_NAME:+ — kernels run on $GPU_NAME}"
         else
-            warn "$TORCH_SPEC cannot launch kernels on this GPU — falling back to cu124 / torch 2.6.0"
-            install_torch_stack "torch==2.6.0" \
-                "https://download.pytorch.org/whl/cu124" \
-                "https://data.pyg.org/whl/torch-2.6.0+cu124.html"
-            if gpu_works; then
-                ok "fallback build works — CUDA kernels run on $GPU_NAME"
-            else
-                warn "still no working CUDA — Stage 1 will fall back to CPU (slow; use --n-samples 10)"
-            fi
+            warn "the sampling stack is still broken. Stage 1 will fail. Diagnose with:" \
+                 "$RAPIDOCK_PREFIX/bin/python3 -c 'import torch_scatter'"
         fi
+    else
+        warn "the sampling stack is broken on CPU — see the import error above"
     fi
 
     "$RAPIDOCK_PREFIX/bin/python3" - <<'PY' || warn "could not query the rapidock env's torch"
 import torch
-print(f"  torch {torch.__version__} | cuda_available={torch.cuda.is_available()}"
+print(f"  torch {torch.__version__} | cuda={torch.version.cuda} "
+      f"| available={torch.cuda.is_available()}"
       + (f" | {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else ""))
 PY
 fi
