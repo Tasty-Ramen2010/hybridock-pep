@@ -80,9 +80,25 @@ The differences that matter:
   `./launch_ui.sh`, which a notebook kernel cannot host.
 
 Flags: `--cache-dir DIR`, `--backend cuda|cpu`, `--skip-rapidock`, `--force`.
-After it finishes, the CLI is at
-`/opt/conda/envs/score-env/bin/hybridock-pep`, and `/content/hybridock_env.sh`
-holds the exports (`HYBRIDOCK_PEP`, `RAPIDOCK_PYTHON`, `PATH`) for shell cells.
+
+### Working from a shell instead of the notebook
+
+The notebook is one way in, not the only one. `colab_setup.sh` finishes by
+shimming `hybridock-pep` and `hybridock-tui` into `/usr/local/bin` and adding a
+line to `~/.bashrc` that sources `/content/hybridock_env.sh`, so every new shell
+— the Colab Pro terminal, an `%xterm` cell, a bare `!bash` — has the commands on
+`PATH` with `RAPIDOCK_PYTHON` and `RAPIDOCK_DIR` already set. Nothing to
+activate, and every command in the README works verbatim:
+
+```bash
+cd /content/hybridock-pep
+hybridock-tui        # the guided UI — a real terminal can host it, a cell cannot
+hybridock-pep dock --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
+    --site 25.20 -25.61 -7.97 --box 30 --n-samples 100 --output-dir runs/my_run
+```
+
+Free-tier Colab has no terminal button; `!pip install -q colab-xterm` then
+`%load_ext colabxterm` and `%xterm` gives you one inside a cell.
 
 Colab caveats: a session is capped at roughly 12 hours and idle sessions get
 reclaimed, so mount Drive before starting anything long (`--ultra`, large

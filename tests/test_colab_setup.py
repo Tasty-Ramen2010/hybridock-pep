@@ -129,9 +129,11 @@ class TestColabNotebook:
             if cell["cell_type"] != "code":
                 continue
             source = "".join(cell["source"])
-            # Strip IPython bang-escapes; they are not Python syntax.
+            # Strip IPython bang-escapes and %magics — legitimate notebook
+            # syntax, but not Python, so they would fail compile() on their own.
             source = "\n".join(
-                line for line in source.splitlines() if not line.lstrip().startswith("!")
+                line for line in source.splitlines()
+                if not line.lstrip().startswith(("!", "%"))
             )
             compile(source, f"cell {i}", "exec")
 
@@ -155,3 +157,37 @@ class TestColabNotebook:
 
     def test_invokes_the_colab_setup_script(self):
         assert "scripts/colab_setup.sh" in _notebook_source()
+
+
+class TestTerminalPath:
+    """The notebook is one way in; a shell is the other. Someone who would
+    rather type commands should not have to source an env file first or
+    discover that `hybridock-pep` is only reachable by absolute path."""
+
+    def test_both_console_scripts_are_shimmed_onto_path(self):
+        text = COLAB_SH.read_text(encoding="utf-8")
+        assert "/usr/local/bin/$_cmd" in text, "no PATH shim is installed"
+        for cmd in ("hybridock-pep", "hybridock-tui"):
+            assert cmd in text, f"{cmd} is never shimmed"
+
+    def test_shim_sets_the_sampling_env_vars(self):
+        """A bare symlink would resolve the sampling env by luck (via the
+        /opt/conda probe). Setting them explicitly means a shell started any
+        which way still finds it."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        shim = text[text.index("Putting hybridock-pep on PATH"):]
+        shim = shim[: shim.index("done")]
+        assert "RAPIDOCK_PYTHON" in shim
+        assert "RAPIDOCK_DIR" in shim
+        assert 'exec "$SCORE_PREFIX/bin/$_cmd" "\\$@"' in shim, "shim drops its arguments"
+
+    def test_bashrc_wiring_is_idempotent(self):
+        """Re-running setup is normal (a flaky download, a --force). Appending
+        the same source line every time would leave a .bashrc full of them."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        assert 'grep -qs "hybridock_env.sh" "$HOME/.bashrc"' in text
+
+    def test_notebook_offers_a_terminal(self):
+        source = _notebook_source()
+        assert "colab-xterm" in source, "no terminal option for free-tier users"
+        assert "hybridock-tui" in source, "the TUI is never mentioned"
