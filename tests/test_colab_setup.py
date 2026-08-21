@@ -166,9 +166,33 @@ class TestTerminalPath:
 
     def test_both_console_scripts_are_shimmed_onto_path(self):
         text = COLAB_SH.read_text(encoding="utf-8")
-        assert "/usr/local/bin/$_cmd" in text, "no PATH shim is installed"
-        for cmd in ("hybridock-pep", "hybridock-tui"):
-            assert cmd in text, f"{cmd} is never shimmed"
+        assert 'SHIM_DIR="/usr/local/bin"' in text, "no shim directory is chosen"
+        assert '"$SHIM_DIR/$_cmd"' in text, "no PATH shim is written"
+        assert "for _cmd in hybridock-pep hybridock-tui" in text, (
+            "both console scripts must be shimmed"
+        )
+
+    def test_shim_failure_is_not_fatal(self):
+        """This is the last step of a 20-minute install and the shims are a
+        convenience — everything the pipeline needs already works without them.
+        An unwritable /usr/local/bin under `set -e` would discard a good
+        install over a nice-to-have."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        assert '[ -w "$SHIM_DIR" ]' in text, "writability is never checked"
+        assert 'SHIM_DIR=""' in text, "no non-fatal fallback when unwritable"
+        assert '[ -n "$SHIM_DIR" ] || break' in text, (
+            "the loop still runs after the directory was rejected"
+        )
+
+    def test_env_file_appends_score_env_to_path(self):
+        """Prepending score-env/bin would make a plain `python3`/`pip` in the
+        terminal mean score-env's, so `pip install foo` would silently land
+        there instead of in the notebook's interpreter. The pipeline's own tool
+        lookup checks sys.prefix/bin before $PATH, so order costs it nothing."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        assert 'export PATH="\\$PATH:$SCORE_PREFIX/bin"' in text, (
+            "score-env/bin must be appended to PATH, not prepended"
+        )
 
     def test_shim_sets_the_sampling_env_vars(self):
         """A bare symlink would resolve the sampling env by luck (via the
