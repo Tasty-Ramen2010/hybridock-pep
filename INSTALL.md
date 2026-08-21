@@ -17,6 +17,7 @@ non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 > | WSL2 + CUDA passthrough | ✅ CUDA | ✅ |
 > | macOS Apple Silicon (M1–M4) | ✅ MPS (~10× slower than CUDA) | ✅ (native, no Rosetta) |
 > | macOS Intel | ✅ CPU (slow, use `--n-samples 10`) | ✅ |
+> | Google Colab (T4/L4/A100) | ✅ CUDA — see [Google Colab](#google-colab) | ✅ |
 > | Native Windows (no WSL) | ❌ (needs the Linux/WSL2/macOS CUDA or MPS stack) | ✅ (`conda env create -f envs/score-env.yml` — CI-verified) |
 >
 > `--input-poses` lets you skip Stage 1 entirely and supply pre-generated poses
@@ -39,6 +40,54 @@ non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 > MinGW-w64 + Boost toolchain — see the `conda-platforms` Windows job in
 > `.github/workflows/ci.yml` for exactly how CI does this, or run
 > `scripts/patch_vina_windows_setup.py` yourself if installing outside conda).
+
+---
+
+## Google Colab
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
+
+`notebooks/HybriDock_Pep_Colab.ipynb` runs the full pipeline on a free Colab T4.
+Open it, set *Runtime > Change runtime type > T4 GPU*, and run the cells in
+order — the notebook drives everything below for you.
+
+To set up an existing Colab session by hand instead:
+
+```bash
+!git clone --recursive https://github.com/Tasty-Ramen2010/hybridock-pep.git
+%cd hybridock-pep
+!bash scripts/colab_setup.sh --cache-dir /content/drive/MyDrive/hybridock-pep/cache
+```
+
+`scripts/colab_setup.sh` is the headless Colab counterpart to `install.sh`.
+The differences that matter:
+
+- **micromamba, not Miniforge**, with its root prefix at `/opt/conda` — a prefix
+  `rapidock_runner.py` and `toolpath.py` already probe, so both envs are found
+  with no extra configuration.
+- **GPU-matched PyTorch.** Colab hands out T4 (compute capability 7.5), L4 (8.9)
+  or A100 (8.0) depending on tier and load. CC 8.0+ gets the same
+  torch 2.7.0 + cu128 build `install.sh` uses; a T4 gets torch 2.6.0 + cu124,
+  which unambiguously ships sm_75 kernels and has matching PyG wheels. The
+  script then launches a real CUDA kernel to confirm, and falls back
+  automatically if it fails — a mismatched build imports fine and only dies at
+  the first kernel launch, well into a dock.
+- **`--cache-dir`** points the torch/ESM cache and the RAPiDock checkpoints at a
+  persistent directory (typically a mounted Drive folder), so the ~2.5 GB ESM-2
+  download happens once per account rather than once per session. The conda
+  environments are rebuilt every session regardless — 15–25 minutes.
+- **No terminal UI at the end.** `install.sh` finishes by exec'ing
+  `./launch_ui.sh`, which a notebook kernel cannot host.
+
+Flags: `--cache-dir DIR`, `--backend cuda|cpu`, `--skip-rapidock`, `--force`.
+After it finishes, the CLI is at
+`/opt/conda/envs/score-env/bin/hybridock-pep`, and `/content/hybridock_env.sh`
+holds the exports (`HYBRIDOCK_PEP`, `RAPIDOCK_PYTHON`, `PATH`) for shell cells.
+
+Colab caveats: a session is capped at roughly 12 hours and idle sessions get
+reclaimed, so mount Drive before starting anything long (`--ultra`, large
+`--n-samples`); and both environments plus weights come to ~15 GB of the
+runtime's disk.
 
 ---
 

@@ -4,6 +4,7 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21680573.svg)](https://doi.org/10.5281/zenodo.21680573)
 [![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
 
 <table>
 <tr>
@@ -83,6 +84,26 @@ ML scorer structurally can't provide. Full evidence: [The claims](#the-claims--m
 
 Prefer a video? **[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** covers
 everything in this section on a clean machine.
+
+### 0. No GPU? Run it in the browser on Google Colab
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
+
+`notebooks/HybriDock_Pep_Colab.ipynb` runs the whole pipeline — sampling and scoring — on a free
+Colab **T4 GPU**. Nothing to install locally; open the badge, set *Runtime ▸ Change runtime type ▸
+T4 GPU*, and run the cells top to bottom. It clones the repo, builds both environments via
+`scripts/colab_setup.sh`, validates the install with `crystal-score`, then gives you form fields for
+the peptide, receptor (bundled example, RCSB PDB ID, or your own upload), pocket, and sample count.
+Results come back as a ranked table, a 3D view of the best pose, and a downloadable zip.
+
+Budget **15–25 minutes** for the environment build, once per Colab session, then ~3–10 minutes for a
+`--n-samples 100` dock of a 12-mer. Mounting Google Drive in the notebook's second cell caches the
+~2.5 GB ESM-2 weights and the model checkpoints between sessions.
+
+The setup script picks the CUDA build to match whichever GPU Colab hands you — a T4 is compute
+capability 7.5 and needs a different PyTorch wheel than the cu128 build `install.sh` uses locally —
+and verifies it with a real kernel launch rather than trusting the version string. Prefer a local
+install if you have your own GPU: it is faster and nothing is reclaimed out from under you.
 
 ### 1. Install
 
@@ -512,6 +533,7 @@ hybridock-pep/
 ├── LICENSE                        # MIT
 ├── pyproject.toml                 # score-env package definition
 ├── docs/                          # architecture notes, dev timeline, diagnostics, images/
+├── notebooks/                     # HybriDock_Pep_Colab.ipynb — full pipeline on a free Colab T4
 ├── envs/
 │   ├── score-env.yml
 │   ├── rapidock-env.yml           # Linux/WSL2 + CUDA
@@ -530,7 +552,7 @@ hybridock-pep/
 │   └── selectivity.py             # ΔΔG selectivity primitive
 ├── third_party/RAPiDock/          # RAPiDock-Reloaded submodule
 ├── experiments/                   # the E0–E37x research ledger — every script cited in RESULTS.md
-├── scripts/                       # calibration, smoke test, and other operational tooling
+├── scripts/                       # calibration, smoke test, colab_setup.sh, other operational tooling
 ├── tests/                         # pytest suite (fast + `-m slow` integration tests)
 └── data/                          # calibration files, benchmark sets, shipped fixture PDBs
 ```
