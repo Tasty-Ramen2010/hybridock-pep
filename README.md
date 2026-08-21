@@ -102,8 +102,29 @@ Budget **15–25 minutes** for the environment build, once per Colab session, th
 
 The setup script picks the CUDA build to match whichever GPU Colab hands you — a T4 is compute
 capability 7.5 and needs a different PyTorch wheel than the cu128 build `install.sh` uses locally —
-and verifies it with a real kernel launch rather than trusting the version string. Prefer a local
-install if you have your own GPU: it is faster and nothing is reclaimed out from under you.
+and verifies it with a real kernel launch and a PyG import rather than trusting the version string.
+Prefer a local install if you have your own GPU: it is faster and nothing is reclaimed out from
+under you.
+
+**Rather use a shell than a notebook?** You never have to touch the notebook's forms. Open a Colab
+terminal (the button at the bottom of the left sidebar on Colab Pro; on the free tier, run
+`!pip install -q colab-xterm`, `%load_ext colabxterm`, `%xterm` in a cell) and:
+
+```bash
+git clone --recursive https://github.com/Tasty-Ramen2010/hybridock-pep.git
+cd hybridock-pep
+bash scripts/colab_setup.sh
+```
+
+That puts `hybridock-pep` and `hybridock-tui` on `PATH` and wires `~/.bashrc`, so every command in
+this README works verbatim from then on — including `hybridock-tui`, the guided UI, which a notebook
+cell cannot host but a terminal can:
+
+```bash
+hybridock-tui                    # or drive the CLI directly:
+hybridock-pep dock --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
+    --site 25.20 -25.61 -7.97 --box 30 --n-samples 100 --output-dir runs/my_run
+```
 
 ### 1. Install
 
