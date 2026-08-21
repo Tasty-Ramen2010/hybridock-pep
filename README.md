@@ -61,22 +61,21 @@ functions, we identified the lack of development in the area of peptides and the
 we claim, to be the best non-FEP/LIE scoring model for peptides, even achieving kcal/mol scores at
 an MAE of ~1.6 kcal/mol where ABFE reports an average error of ~1-2.5 kcal/mol.
 
-It even works for crystal peptide-protein complexes that you have, tuned for them.
+Furthermore, it can also run crystal protein-peptide docking, with values attuned to them.
 [`crystal-score`](#crystal-score--score-an-existing-crystal-pose) runs the sibling crystal-tuned
 model directly on it.
 
-`--refine-topk K` Stage 3.5 runs energy-minimizes the top-*K* cluster representatives in 
-GBn2 implicit solvent and reports that as a physically-grounded absolute-energy
-estimate, acting as relaxation for a more proper pose, rather than truly scoring it (see
-[Usage](#dock--end-to-end-docking--scoring) for why it doesn't out-rank the learned scorer).
+`--refine-topk K` is a Stage 3.5 addition that runs energy-minimization in GBn2 implcit solvent
+and outputs a larger, more relative kcal/mol score, usually ~-60 kcal/mol with large deviations.
+It acts to relax the peptide onto the protein better in order to find better fits the AI model 
+might have missed. We use our own scoring model instead of this, and more details can be found in
+[Usage](#dock--end-to-end-docking--scoring).
 
-It's a **two-stage hybrid** model: an AI diffusion model (RAPiDock-Reloaded)
-samples poses, a physics + learned-geometry rescorer turns those into ΔG. Three things it does that
-off-the-shelf tools don't combine: **(1)** it's the best non-FEP/LIE peptide affinity scorer we can
-find a fair baseline for; **(2)** anchoring to a few measured references on-target lifts within-receptor
-accuracy from *r*≈0.25 to ≈0.55; and **(3)** it ships a structure-based *selectivity* ΔΔG a
-sequence-only ML scorer structurally can't provide. Full evidence: [The claims](#the-claims--measured-in-kcalmol-leakage-free).
-
+Being a scientific model, it has claims and data associated with the pipeline software. However, 
+there are 3 main claims that we make: **(1)** it's the best non-FEP/LIE peptide affinity scorer we can
+find a fair baseline for; **(2)** It is the most effecient (accuracy/time) model publicly available, with
+MAE in range of cross-target ABFE; and **(3)** it ships a structure-based *selectivity* ΔΔG a sequence-only 
+ML scorer structurally can't provide. Full evidence: [The claims](#the-claims--measured-in-kcalmol-leakage-free).
 ---
 
 ## Get started
@@ -94,22 +93,19 @@ cd hybridock-pep
 ./install.sh
 ```
 
-**Windows:** double-click `install.bat` (or run it from PowerShell/CMD) once — it sets up WSL2 for
-you, then runs `install.sh` inside it. After that, open the WSL2/Ubuntu terminal (search "Ubuntu"
-in the Start menu, or type `wsl` in any Windows terminal) — **every command in this README runs
-there**, not in PowerShell or CMD.
+**Windows:** double-click `install.bat` (or run it from PowerShell/CMD) once as it sets up WSL2 for
+the user, then runs `install.sh` inside it. After that, you can open the WSL2/Ubuntu terminal (type
+`wsl` in any Windows terminal). All work is done inside WSL2, not cmd or PowerShell
 
 `install.sh` does everything: installs conda if you don't have it, creates both conda environments
-with the right PyTorch build for your GPU, downloads and checksum-verifies the RAPiDock model
-weights (~55 MB, from Zenodo), checks the receptor-prep tooling, runs a smoke test, and finishes by
+with the right PyTorch build for your GPU, downloads and checksum-verifies the RAPiDock models'
+weights (~110 MB, from Zenodo), checks the receptor-prep tooling, runs a smoke test, and finishes by
 opening the guided terminal UI.
 
-1. Budget **15–30 minutes** — most of it is conda quietly solving dependencies plus a PyTorch
-   download. If it looks frozen on a line like `Solving environment: \` for a few minutes, that's
-   normal; don't Ctrl-C it.
-2. It's safe to re-run any time, e.g. after `git pull` — it skips whatever's already installed
-   instead of redoing it.
-3. In every *new* terminal after that, run `conda activate score-env` before using the CLI.
+1. It takes around ~15-30 minutes most of it is conda quietly solving dependencies plus a PyTorch
+   download. If it looks frozen on a line like `Solving environment: \`, DO NOT Ctrl+C it.
+2. It's safe to re-run any time, and is reccomended to do after `git pull`.
+3. In every *new* terminal after that, run `conda activate score-env` before using the CLI or UI.
 
 | flag | effect |
 |---|---|
@@ -126,11 +122,11 @@ git submodule update --init --recursive
 ```
 
 `git pull` gets the new code, `git submodule update` catches up the bundled RAPiDock submodule if
-it moved too, and re-running `install.sh` is safe — it only touches whatever actually changed.
+it moved too, and re-running `install.sh` just makes sure new dependencies are installed.
 
-**Want it gone?** `./uninstall.sh` removes the two conda environments and the downloaded model
+**Uninstalling** `./uninstall.sh` removes the two conda environments and the downloaded model
 weights (asks for confirmation first); `./uninstall.sh --all` also deletes this entire folder.
-Your conda/Miniforge installation itself is left alone on purpose — see `./uninstall.sh --help`.
+conda/Miniforge installation is left unbothered; refer to `./uninstall.sh --help`.
 
 ### 2. Check it worked
 
@@ -141,17 +137,15 @@ hybridock-pep crystal-score \
     --peptide ETFSDLWKLLPE
 ```
 
-Expect `Crystal ΔG = -9.28 kcal/mol`. Anything from **−8 to −11** means a healthy install — the
-published experimental value for this real complex (MDM2/p53, PDB `1YCR`) is about −8.5. This
-scores an already-known pose directly (no GPU needed), so it's the fastest way to confirm the
-scoring stack works. Repeated runs on the same machine give you the exact same number.
-
-Want to prove the core math holds too, with zero downloads? `make verify` runs the offline,
-30-second sanity checks (double-difference, anchoring, selectivity).
+Expect `Crystal ΔG = -9.28 kcal/mol`. Anything from **−8 to −11** means a healthy install and
+everything is built properly. The experimental affinity for the (MDM2/p52, PDB `1YCR`) complex
+is known to be -8.5. The machine just rescores an already exisinting pose, and is the fastest
+way to know scoring is working as intended. The command `make verify` can be run to check all
+of the functions offered by the software.
 
 ### 3. Run something real
 
-The plain command line:
+Command to run pipeline:
 
 ```bash
 hybridock-pep dock \
@@ -160,7 +154,7 @@ hybridock-pep dock \
     --output-dir runs/demo
 ```
 
-About 2 minutes on an Apple M3. This is the one part of a run that needs the GPU sampling
+About ~15 minutes on an Apple M3. This is the one part of a run that needs the GPU sampling
 environment (already installed above, unless you passed `--skip-rapidock`). Results land in
 `runs/demo/best_pose.pdb` and `runs/demo/ranked_poses.csv`.
 
@@ -168,22 +162,20 @@ environment (already installed above, unless you passed `--skip-rapidock`). Resu
 > passed — getting it wrong is the most common mistake (the run finishes but searched empty space).
 > See `hybridock-pep guide dock`, or help topic 8 in the UI.
 
-Same thing, guided — the terminal UI:
+To enter the terminal UI:
 
 ```bash
 ./launch_ui.sh
 ```
 
 walks you through the same fields with a live progress bar. Its `--demo` mode simulates a full run
-in a few seconds with **no GPU at all** — the fastest way to see what a real run looks like before
-spending GPU time on one:
+in a few seconds with **no GPU at all**, and familiarizes the user with the rest of the UI.
 
 ```bash
 ./launch_ui.sh --demo
 ```
 
-Real screenshots, not mockups — the form is up top; here's first launch, a long-wait ASCII art
-break mid-run, a finished demo, and the help screen:
+Below are screenshots of the software in action, including ASCII art, a finished demo, and the help screen.
 
 <table>
 <tr>
