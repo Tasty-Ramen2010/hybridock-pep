@@ -100,6 +100,11 @@ hybridock-pep dock --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
 Free-tier Colab has no terminal button; `!pip install -q colab-xterm` then
 `%load_ext colabxterm` and `%xterm` gives you one inside a cell.
 
+`hybridock-tui` is full-screen, and an in-notebook terminal is a smaller and
+less capable terminal than a real one. If it renders badly, `./launch_ui.sh
+--cli` is the same wizard as plain question-and-answer prompts, and
+`./launch_ui.sh --print` builds the command without running it.
+
 Colab caveats: a session is capped at roughly 12 hours and idle sessions get
 reclaimed, so mount Drive before starting anything long (`--ultra`, large
 `--n-samples`); and both environments plus weights come to ~15 GB of the

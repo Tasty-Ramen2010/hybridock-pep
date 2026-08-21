@@ -23,7 +23,8 @@ for cand in \
     "$HOME/miniforge3/envs/score-env/bin/python" \
     "$HOME/mambaforge/envs/score-env/bin/python" \
     "/opt/homebrew/Caskroom/miniconda/base/envs/score-env/bin/python" \
-    "/opt/miniconda3/envs/score-env/bin/python"
+    "/opt/miniconda3/envs/score-env/bin/python" \
+    "/opt/conda/envs/score-env/bin/python"
 do
     if command -v "$cand" >/dev/null 2>&1 && has_pt "$cand"; then PY="$cand"; break; fi
 done
