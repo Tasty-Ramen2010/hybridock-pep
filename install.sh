@@ -51,6 +51,23 @@ warn() { printf "  ${YELLOW}!${RESET} %s\n" "$*"; }
 PLATFORM="$(uname -s)"
 ARCH="$(uname -m)"
 
+# Google Colab: this script would install Miniforge into a $HOME that is wiped
+# with the VM, pick the CUDA build for the wrong compute capability (Colab's T4
+# is CC 7.5, not the 8.0+ assumed below), and finish by exec'ing an interactive
+# terminal UI a notebook kernel cannot host. scripts/colab_setup.sh does the
+# same work in a way that survives all three.
+if [ -n "${COLAB_RELEASE_TAG:-}" ] || [ -d /content/sample_data ]; then
+    printf "\n${BOLD}This looks like Google Colab.${RESET}\n"
+    echo "  Use the Colab installer instead:"
+    echo "      !bash scripts/colab_setup.sh"
+    echo "  or open notebooks/HybriDock_Pep_Colab.ipynb, which drives the whole"
+    echo "  pipeline end to end. See INSTALL.md → Google Colab."
+    echo
+    echo "  Continuing with ./install.sh anyway is not recommended; press Ctrl-C"
+    echo "  now, or wait 15 s to proceed."
+    sleep 15
+fi
+
 # ---------------------------------------------------------------------------
 # 1. conda (install Miniforge automatically if missing)
 # ---------------------------------------------------------------------------
