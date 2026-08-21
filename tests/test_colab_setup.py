@@ -67,6 +67,47 @@ class TestColabSetupScript:
         assert colab, "no fetch_ckpt calls found in colab_setup.sh"
         assert colab == install, f"checksum drift: colab={colab} install={install}"
 
+    def test_torch_specs_carry_a_local_version(self):
+        """Every torch spec must pin "+cuXXX"/"+cpu", not a bare version.
+
+        conda-forge::e3nn drags conda-forge's own pytorch into the rapidock env
+        during `micromamba create`. A bare `pip install torch==2.6.0` compares
+        equal to it, reports "Requirement already satisfied", and leaves that
+        torch in place — built with a different C++ ABI than the PyG wheels,
+        which then die on import with `undefined symbol:
+        _ZN5torch3jit17parseSchemaOrNameERKSsb` ~10 s into Stage 1. A local
+        version can never compare equal, so pip performs the replacement.
+        """
+        text = COLAB_SH.read_text(encoding="utf-8")
+        specs = re.findall(r'"(torch==[^"]+)"', text)
+        assert specs, "no torch specs found in colab_setup.sh"
+        bare = [s for s in specs if "+" not in s]
+        assert not bare, f"torch specs missing a local version: {bare}"
+
+    def test_pyg_extensions_installed_without_deps(self):
+        """The compiled extensions must not be allowed to resolve torch
+        themselves, and must be force-reinstalled over a mismatched build that
+        carries the same version number."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        match = re.search(
+            r"pip\" install[^\n]*--no-deps[^\n]*--force-reinstall[^\n]*\\\n\s*"
+            r"torch-scatter torch-sparse torch-cluster torch-spline-conv",
+            text,
+        )
+        assert match, "PyG extensions are not installed with --no-deps --force-reinstall"
+
+    def test_verification_imports_the_pyg_extensions(self):
+        """Verifying with a CUDA matmul alone passed on an env whose
+        torch_scatter could not import — torch itself was healthy. The check has
+        to import the extensions too."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        assert "stack_works()" in text, "verification helper is missing"
+        verify = text[text.index("stack_works()"):]
+        verify = verify[: verify.index("PY\n")]
+        for mod in ("torch_scatter", "torch_sparse", "torch_cluster"):
+            assert mod in verify, f"verification never imports {mod}"
+        assert "torch.mm" in verify, "verification no longer launches a real CUDA kernel"
+
     def test_both_checkpoints_are_fetched(self):
         text = COLAB_SH.read_text(encoding="utf-8")
         # rapidock_global.pt is what --blind needs; omitting it leaves blind

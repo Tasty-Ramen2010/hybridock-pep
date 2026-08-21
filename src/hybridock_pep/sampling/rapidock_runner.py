@@ -462,8 +462,21 @@ def run_sampling(
                 "(2) torch-scatter/torch-sparse are installed. "
                 "See envs/rapidock-env-macos.yml for the install sequence."
             )
+        # _stream_stderr has been collecting the tail for exactly this moment.
+        # Without it the message is "exited with code 1" and nothing else: the
+        # real cause (an ImportError, a missing checkpoint, an NVRTC arch
+        # error) is logged at DEBUG and therefore invisible unless the user
+        # already knew to pass -vv. Quote it here so the first run explains
+        # itself.
+        stderr_hint = ""
+        if stderr_tail:
+            quoted = "\n".join(f"    {line}" for line in stderr_tail)
+            stderr_hint = (
+                f"\nLast {len(stderr_tail)} line(s) of RAPiDock stderr:\n{quoted}"
+            )
         raise RuntimeError(
             f"RAPiDock subprocess exited with code {proc.returncode}.{device_hint}"
+            f"{stderr_hint}"
         )
 
     # Rename rank*.pdb → pose_N.pdb (
