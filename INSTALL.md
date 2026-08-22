@@ -79,7 +79,25 @@ The differences that matter:
 - **No terminal UI at the end.** `install.sh` finishes by exec'ing
   `./launch_ui.sh`, which a notebook kernel cannot host.
 
-Flags: `--cache-dir DIR`, `--backend cuda|cpu`, `--skip-rapidock`, `--force`.
+Flags: `--cache-dir DIR`, `--backend cuda|cpu`, `--skip-rapidock`, `--lite`, `--force`.
+
+### `--lite` — install only what plain docking reads
+
+`--lite` reclaims about 260 MB:
+
+| Skipped | Size | What you lose |
+|---|---|---|
+| Boost C++ headers, after Vina compiles | 188 MB | nothing at runtime — Vina links the ~11 MB of shared libs in `lib/`, which stay |
+| `rapidock_global.pt` | 54 MB | `dock --blind` (site-directed docking is unaffected) |
+| autogrid + openbabel | ~20 MB | `--scoring ad4`, and the obabel fallback if meeko cannot run |
+
+Be clear about the ceiling: an install is dominated by **PyTorch** and the **2.4 GB ESM-2
+language model**, and docking needs both, so no flag removes them. `--lite` trims the margin,
+not the mass. Trimming repo files saves even less — a full clone is only ~21 MB packed.
+
+If you only need to **score** poses you already have, `--skip-rapidock` is the real saving:
+it skips the entire sampling environment and the ESM-2 download, several gigabytes, at the
+cost of not being able to dock. `./install.sh --lite` does the checkpoint half of this locally.
 
 ### Working from a shell instead of the notebook
 

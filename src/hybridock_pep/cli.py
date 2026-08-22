@@ -247,7 +247,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--input-poses",
         default=None,
         metavar="DIR",
-        help="Directory of pre-generated pose PDBs (skips RAPiDock Stage 1). Required on macOS.",
+        help="Directory of pre-generated pose PDBs (skips RAPiDock Stage 1). Useful to "
+             "re-score existing poses, or to run Stage 2 on a machine that has no "
+             "PyTorch stack. NOT required on macOS — Stage 1 runs there on MPS, and on "
+             "CPU if no accelerator is present.",
     )
     p_dock.add_argument(
         "--calibration",
@@ -571,7 +574,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     if args.input_poses is not None and n_samples_explicit:
         parser.error(
             "--input-poses and --n-samples are mutually exclusive. "
-            "Use --input-poses to skip Stage 1 (required on macOS), "
+            "Use --input-poses to skip Stage 1 and score poses you already have, "
             "or omit it to run RAPiDock."
         )
     n_samples = args.n_samples if args.n_samples is not None else 100

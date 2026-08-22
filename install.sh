@@ -23,6 +23,10 @@
 #   --force                            Recreate conda envs even if they already exist
 #   --skip-rapidock                    Only set up score-env (Stage 2 scoring only)
 #   --skip-scoring                     Only set up rapidock (Stage 1 sampling only)
+#   --lite                             Skip rapidock_global.pt (54 MB), the checkpoint
+#                                      only 'dock --blind' reads. Ordinary site-directed
+#                                      docking is unaffected. PyTorch and the 2.4 GB
+#                                      ESM-2 weights are required either way.
 #   --no-ui                            Don't auto-launch the terminal UI at the end
 #   -h, --help                         Show this help
 set -euo pipefail
@@ -31,12 +35,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
 NO_UI=0
+LITE=0
 PASSTHROUGH_ARGS=()
 for arg in "$@"; do
     case "$arg" in
         --no-ui) NO_UI=1 ;;
+        # Not passed through: setup_environment.py does not know this flag.
+        --lite)  LITE=1 ;;
         -h|--help)
-            sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) PASSTHROUGH_ARGS+=("$arg") ;;
@@ -212,8 +219,17 @@ fetch_ckpt() {
 
 fetch_ckpt rapidock_local.pt \
     d0f1ebe268354624c345f8730e765e1b21c016f946fffb637461236204919693
-fetch_ckpt rapidock_global.pt \
-    a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
+
+# rapidock_global.pt is read by exactly one code path: the pocket search that
+# `dock --blind` runs when no --site is given. Site-directed docking never opens
+# it, so --lite skips the 54 MB download.
+if [ "$LITE" -eq 1 ]; then
+    warn "--lite: skipping rapidock_global.pt (54 MB) — 'dock --blind' will not work." \
+         "Re-run ./install.sh without --lite to add it."
+else
+    fetch_ckpt rapidock_global.pt \
+        a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Receptor-prep / grid tooling (no license click-through required)

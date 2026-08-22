@@ -46,7 +46,8 @@ class TestColabSetupScript:
             ["bash", str(COLAB_SH), "--help"], capture_output=True, text=True
         )
         assert result.returncode == 0, result.stderr
-        for flag in ("--cache-dir", "--backend", "--skip-rapidock", "--force", "--help"):
+        for flag in ("--cache-dir", "--backend", "--skip-rapidock", "--lite",
+                     "--force", "--help"):
             assert flag in result.stdout, f"{flag} missing from --help"
         assert "set -euo" not in result.stdout, "help range ran past the header comment"
 
@@ -114,6 +115,55 @@ class TestColabSetupScript:
         # docking dead on arrival with an opaque torch.load failure.
         assert "rapidock_local.pt" in text
         assert "rapidock_global.pt" in text
+
+
+class TestLiteMode:
+    """--lite trims what plain docking does not read. The risk with a "lite"
+    flag is that it quietly removes something the default path needs, so each
+    exclusion is pinned to the one feature it disables."""
+
+    def test_lite_flag_is_parsed(self):
+        text = COLAB_SH.read_text(encoding="utf-8")
+        assert "LITE=0" in text, "LITE is never initialised"
+        assert "--lite)      LITE=1" in text, "--lite is not parsed"
+
+    def test_lite_skips_only_the_blind_mode_checkpoint(self):
+        """rapidock_local.pt is required for every dock; rapidock_global.pt is
+        read only by the --blind pocket search. Skipping the wrong one would
+        break ordinary docking."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        local_at = text.index("fetch_ckpt rapidock_local.pt")
+        guard_at = text.index('if [ "$LITE" -eq 1 ]; then', local_at)
+        global_at = text.index("fetch_ckpt rapidock_global.pt", local_at)
+        assert local_at < guard_at < global_at, (
+            "rapidock_local.pt must be fetched unconditionally, "
+            "and only rapidock_global.pt guarded by --lite"
+        )
+
+    def test_boost_purge_requires_vina_to_import_first(self):
+        """The headers are only dead weight once Vina has compiled against
+        them. Deleting them while Vina is broken would strand the env with no
+        way to rebuild."""
+        text = COLAB_SH.read_text(encoding="utf-8")
+        purge = text[text.index("include/boost"):]
+        purge = purge[: purge.index("fi\n", purge.index("rm -rf"))]
+        assert 'import vina' in purge, "headers are removed without checking Vina built"
+        assert purge.index("import vina") < purge.index("rm -rf"), (
+            "the Vina check must come before the deletion"
+        )
+
+    def test_lite_help_is_honest_about_what_it_cannot_save(self):
+        """The bytes are dominated by PyTorch and the 2.4 GB ESM-2 weights, and
+        docking needs both. A --lite flag that implied otherwise would be
+        misleading about the one number users care about."""
+        result = subprocess.run(
+            ["bash", str(COLAB_SH), "--help"], capture_output=True, text=True
+        )
+        out = result.stdout
+        assert "ESM-2" in out and "PyTorch" in out, (
+            "--help must name the costs --lite cannot remove"
+        )
+        assert "--skip-rapidock" in out
 
 
 class TestColabNotebook:

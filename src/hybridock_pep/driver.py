@@ -304,7 +304,8 @@ def run_dock(
     Args:
         config: Validated DockConfig from cli._run_dock(). Never re-validated here.
         input_poses_dir: If not None, skip run_sampling() and parse poses from this
-            directory instead (--input-poses bypass). Required on macOS.
+            directory instead (--input-poses bypass). Not platform-specific:
+            Stage 1 runs on macOS too, on MPS or on CPU.
         calibration_path: Path to calibration.json for entropy correction coefficients.
 
     Returns:
