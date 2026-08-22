@@ -333,6 +333,64 @@ conda activate score-env
 python experiments/e330_ours_pdbbind.py     # ours + matched ref2015 head-to-head → r / RMSE / MAE
 ```
 
+## Hardware floor — does it run with no GPU at all?
+
+Yes, measured end-to-end, not asserted. The platform table in
+[INSTALL.md](INSTALL.md) has long claimed CPU support; these are the first
+timings behind that claim.
+
+**Method.** On an Apple M3 the GPU was made invisible to PyTorch
+(`PYTHONPATH=scripts/force_cpu`, which masks MPS so RAPiDock's
+`cuda → mps → xpu → cpu` cascade falls through to CPU). Nothing is stubbed —
+the diffusion model runs on real CPU tensors, and the pipeline reports the
+branch it took: `[run_rapidock] backend optimization: CPU (threads tuned)`.
+Target is the tutorial case, p53 peptide `ETFSDLWKLLPE` vs MDM2 (1YCR), seed 42.
+
+| Poses (`--n-samples`) | Wall time, CPU only | Best-pose ΔG |
+|---|---|---|
+| 10 | **68 s** | −9.22 kcal/mol |
+| 100 | **7 min 40 s** (460 s) | −9.40 kcal/mol |
+
+Machine: Apple M3, 8 physical cores, 16 GB RAM. Both runs exited 0 and wrote the
+full output set (`best_pose.pdb`, `ranked_poses.csv`, convergence and silhouette
+plots). For reference, `crystal-score` on the same complex gives −9.28 and the
+experimental value is ≈ −8.5 — so the no-GPU run is not a degraded mode, it lands
+where the GPU path does.
+
+The two points separate fixed cost from marginal cost: **≈ 24 s of setup
+(ESM-2 embedding, model load, receptor prep) plus ≈ 4.4 s per pose.**
+
+**On "hundreds of poses in under 30 minutes":** that rate puts 300 poses at
+≈ 22 minutes with no GPU. That figure is a *linear extrapolation* from the two
+measurements above, not a third measurement — 10 and 100 are what were run.
+
+### Caveats
+
+- An M3's CPU is fast. An older or lower-core laptop — the machine this claim
+  is really aimed at — will be slower, and has not been measured. The honest
+  statement is "runs without a GPU, at ~4.4 s/pose on 8 modern cores", not
+  "runs at this speed anywhere".
+- One peptide against one receptor. This is a **timing** result; accuracy is
+  benchmarked elsewhere on this page.
+- 82 of 100 poses survived filtering in the n=100 run, which is normal.
+- The GPU was masked in software rather than physically absent. The code path
+  taken is the genuine CPU one, but a machine that never had an accelerator has
+  not been tested directly.
+
+Reproduce (on a GPU machine, to force the CPU path):
+
+```bash
+PYTHONPATH=scripts/force_cpu KMP_DUPLICATE_LIB_OK=TRUE \
+hybridock-pep dock --peptide ETFSDLWKLLPE \
+    --receptor data/pdbs/1YCR_mdm2.pdb --site 25.20 -25.61 -7.97 --box 30 \
+    --n-samples 100 --seed 42 --output-dir runs/cpu_only
+```
+
+On a machine with no GPU, drop `PYTHONPATH=scripts/force_cpu` — the cascade
+lands on CPU by itself.
+
+---
+
 ## Reproduce every number on this page
 
 Every headline number maps to one committed script that prints the exact *r* / MAE table and writes a JSON

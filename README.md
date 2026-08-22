@@ -46,7 +46,14 @@ if the peptide prefers a protein more than the other, and by how much in terms o
 to the proteins.
 
 Built for **iGEM**: Taking into account the hardware constraints of iGEM teams, it works in a way where
-it delivers hundreds of peptide poses on even laptops like a MacBook in under 30 minutes
+it delivers hundreds of peptide poses on even laptops like a MacBook in under 30 minutes.
+
+**It does not need a GPU.** Measured end-to-end with the GPU made invisible: 100 poses in
+**7 min 40 s**, 10 poses in **68 s**, on an 8-core Apple M3 — ΔG −9.4 kcal/mol, the same answer the
+GPU path gives. That works out to ~24 s of setup plus ~4.4 s per pose, so a few hundred poses still
+lands inside half an hour with no accelerator at all. Full method, caveats, and the command to
+re-run it: [Hardware floor](RESULTS.md#hardware-floor--does-it-run-with-no-gpu-at-all).
+No GPU and no install at all? [Run it on a free Colab T4](#0-no-gpu-run-it-in-the-browser-on-google-colab).
 
 ## The pipeline
 
@@ -95,6 +102,11 @@ T4 GPU*, and run the cells top to bottom. It clones the repo, builds both enviro
 `scripts/colab_setup.sh`, validates the install with `crystal-score`, then gives you form fields for
 the peptide, receptor (bundled example, RCSB PDB ID, or your own upload), pocket, and sample count.
 Results come back as a ranked table, a 3D view of the best pose, and a downloadable zip.
+
+Tight on runtime disk? `bash scripts/colab_setup.sh --lite` trims ~260 MB — the blind-mode
+checkpoint, the AD4/obabel extras, and the Boost C++ headers once Vina has compiled. It cannot
+touch the two things that actually dominate the install, PyTorch and the 2.4 GB ESM-2 weights,
+because docking needs both.
 
 Budget **15–25 minutes** for the environment build, once per Colab session, then ~3–10 minutes for a
 `--n-samples 100` dock of a 12-mer. Mounting Google Drive in the notebook's second cell caches the
@@ -155,6 +167,7 @@ opening the guided terminal UI.
 | `--no-ui` | don't auto-launch the UI at the end — useful for scripted or headless installs |
 | `--force` | recreate the conda environments from scratch |
 | `--skip-rapidock` | scoring environment only, skips the GPU sampling environment |
+| `--lite` | skip `rapidock_global.pt` (54 MB) — the checkpoint only `dock --blind` reads. Ordinary site-directed docking is unaffected; PyTorch and the ESM-2 weights are needed either way |
 
 **Already installed and want the latest?** From inside the `hybridock-pep` folder:
 

@@ -31,8 +31,19 @@
 #                       mounted Drive folder). Default: session-local only.
 #   --backend cuda|cpu  Force a backend (default: auto-detect via nvidia-smi).
 #   --skip-rapidock     score-env only (Stage 2 scoring / --input-poses runs).
+#   --lite              Install only what plain docking needs. Skips the blind-mode
+#                       checkpoint (54 MB), the AD4/obabel extras, and the Boost
+#                       C++ headers once Vina has compiled (188 MB). Saves ~260 MB.
+#                       Rules out `dock --blind` and `--scoring ad4`.
 #   --force             Recreate envs that already exist.
 #   -h, --help          Show this help.
+#
+# On "lite": the two costs that dominate an install are PyTorch and the 2.4 GB
+# ESM-2 language model, and docking needs both — no flag can remove them. --lite
+# trims the ~260 MB around them, which is real but is not the difference between
+# fitting and not fitting. If you only need to SCORE existing poses, use
+# --skip-rapidock instead: that one skips the whole sampling env and the ESM
+# download, which is a multi-gigabyte saving, at the cost of not being able to dock.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,6 +52,7 @@ cd "$REPO_ROOT"
 CACHE_DIR=""
 FORCE=0
 SKIP_RAPIDOCK=0
+LITE=0
 BACKEND=""
 
 while [ $# -gt 0 ]; do
@@ -48,8 +60,9 @@ while [ $# -gt 0 ]; do
         --cache-dir) CACHE_DIR="${2:?--cache-dir needs a path}"; shift 2 ;;
         --backend)   BACKEND="${2:?--backend needs cuda or cpu}"; shift 2 ;;
         --skip-rapidock) SKIP_RAPIDOCK=1; shift ;;
+        --lite)      LITE=1; shift ;;
         --force)     FORCE=1; shift ;;
-        -h|--help)   sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)   sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $1 (try --help)" >&2; exit 2 ;;
     esac
 done
@@ -231,12 +244,34 @@ ok "hybridock-pep → $SCORE_PREFIX/bin/hybridock-pep"
 # deliberately absent from score-env.yml because they make it unsolvable on ARM
 # Linux. Colab is linux-64, where both exist — install them best-effort.
 step "Installing optional score-env tooling (autogrid, openbabel)"
-if [ -x "$SCORE_PREFIX/bin/autogrid4" ] && [ -x "$SCORE_PREFIX/bin/obabel" ]; then
+if [ "$LITE" -eq 1 ]; then
+    # AD4 is off by default (the production ridge gives it w_ad4=0) and meeko
+    # handles receptor prep, so neither of these is on the plain docking path.
+    # obabel is only the fallback if meeko cannot run, and the liveness check
+    # below reports that clearly if it happens.
+    ok "--lite: skipping autogrid + openbabel ('--scoring ad4' unavailable)"
+elif [ -x "$SCORE_PREFIX/bin/autogrid4" ] && [ -x "$SCORE_PREFIX/bin/obabel" ]; then
     ok "autogrid4 and obabel already present"
 elif mm install -y -n score-env -c conda-forge 'autogrid>=4.2.9' 'openbabel>=3.1'; then
     ok "autogrid4 + obabel installed"
 else
     warn "optional tooling failed to install — '--scoring ad4' unavailable, everything else unaffected"
+fi
+
+# Boost is a build-time dependency: score-env.yml pulls libboost-devel only so
+# pip can compile the Vina extension. Once that is built, the 188 MB of C++
+# headers under include/boost are dead weight — Vina links against the ~11 MB of
+# shared libraries in lib/, which stay. This is the single largest thing --lite
+# reclaims, and it is bigger than every data file in the repo combined.
+# Re-running this script without --lite restores them if a rebuild ever needs them.
+if [ "$LITE" -eq 1 ] && [ -d "$SCORE_PREFIX/include/boost" ]; then
+    _boost_mb="$(du -sm "$SCORE_PREFIX/include/boost" 2>/dev/null | cut -f1)"
+    if "$SCORE_PREFIX/bin/python3" -c "import vina" >/dev/null 2>&1; then
+        rm -rf "$SCORE_PREFIX/include/boost"
+        ok "--lite: dropped Boost headers after Vina built (${_boost_mb:-~188} MB reclaimed)"
+    else
+        warn "--lite: keeping Boost headers — Vina does not import, so it may still need rebuilding"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -367,8 +402,19 @@ fetch_ckpt() {
 
 fetch_ckpt rapidock_local.pt \
     d0f1ebe268354624c345f8730e765e1b21c016f946fffb637461236204919693
-fetch_ckpt rapidock_global.pt \
-    a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
+
+# rapidock_global.pt is 54 MB and is read by exactly one code path: the
+# pocket-search pass that `dock --blind` runs when no --site is given
+# (sampling/pocket_search.py hard-codes it). Site-directed docking never touches
+# it, so --lite skips it. Without it, --blind fails at load time rather than
+# degrading, which is why the warning below is explicit about the trade.
+if [ "$LITE" -eq 1 ]; then
+    ok "--lite: skipping rapidock_global.pt (54 MB) — 'dock --blind' will not work;" \
+       "re-run without --lite to add it"
+else
+    fetch_ckpt rapidock_global.pt \
+        a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
+fi
 
 # longer_local.pt (peptides ≥13 residues) is not published on that Zenodo
 # record; docking those peptides falls back to rapidock_local.pt with a warning.

@@ -15,16 +15,35 @@ export PYTHONPATH="$HERE/src:${PYTHONPATH:-}"
 has_pt() { "$1" -c "import prompt_toolkit" >/dev/null 2>&1; }
 
 PY=""
-# 1) active interpreter, 2) common score-env locations across OSes, 3) plain python3
+# An explicitly *activated* score-env, when that is what we are already in.
+ACTIVE_SCORE_PY=""
+if [ -n "${CONDA_PREFIX:-}" ] && [ "$(basename "$CONDA_PREFIX")" = "score-env" ] \
+    && [ -x "$CONDA_PREFIX/bin/python" ]; then
+    ACTIVE_SCORE_PY="$CONDA_PREFIX/bin/python"
+fi
+
+# Order matters, and it used to be wrong. `python`/`python3` came first, on the
+# reasoning that an activated environment should win. But the only test applied
+# is "does this interpreter have prompt_toolkit", and plenty of interpreters
+# that are NOT score-env pass it: a conda *base* env usually has it, and Google
+# Colab's system python3 has it via IPython. Either gets picked ahead of a
+# perfectly good score-env, and then `from hybridock_pep.output import art`
+# pulls in hybridock_pep/__init__.py -> pydantic and the scoring stack, out of
+# an environment that does not have them.
+#
+# So: an activated score-env first, then score-env wherever it is normally
+# installed, and only then whatever `python` happens to be on PATH.
+# 1) activated score-env, 2) known score-env locations, 3) plain python/python3
 for cand in \
-    python python3 \
+    ${ACTIVE_SCORE_PY:+"$ACTIVE_SCORE_PY"} \
     "$HOME/miniconda3/envs/score-env/bin/python" \
     "$HOME/anaconda3/envs/score-env/bin/python" \
     "$HOME/miniforge3/envs/score-env/bin/python" \
     "$HOME/mambaforge/envs/score-env/bin/python" \
     "/opt/homebrew/Caskroom/miniconda/base/envs/score-env/bin/python" \
     "/opt/miniconda3/envs/score-env/bin/python" \
-    "/opt/conda/envs/score-env/bin/python"
+    "/opt/conda/envs/score-env/bin/python" \
+    python python3
 do
     if command -v "$cand" >/dev/null 2>&1 && has_pt "$cand"; then PY="$cand"; break; fi
 done
