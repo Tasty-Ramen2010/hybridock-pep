@@ -48,12 +48,9 @@ to the proteins.
 Built for **iGEM**: Taking into account the hardware constraints of iGEM teams, it works in a way where
 it delivers hundreds of peptide poses on even laptops like a MacBook in under 30 minutes.
 
-**It does not need a GPU.** Measured end-to-end with the GPU made invisible: 100 poses in
-**7 min 40 s**, 10 poses in **68 s**, on an 8-core Apple M3 — ΔG −9.4 kcal/mol, the same answer the
-GPU path gives. That works out to ~24 s of setup plus ~4.4 s per pose, so a few hundred poses still
-lands inside half an hour with no accelerator at all. Full method, caveats, and the command to
-re-run it: [Hardware floor](RESULTS.md#hardware-floor--does-it-run-with-no-gpu-at-all).
-No GPU and no install at all? [Run it on a free Colab T4](#0-no-gpu-run-it-in-the-browser-on-google-colab).
+**Consumer Hardware** When measured on the 8-core Apple M3 it achieved 100 poses in
+**7 min 40 s**, 10 poses in **68 s**. The compute cost and time show ~24s of setup and ~4.4s per pose on CPU,
+making a few hundred poses for realistic testing in under half an hour. More info: [Hardware floor](RESULTS.md#hardware-floor--does-it-run-with-no)
 
 ## The pipeline
 
@@ -92,51 +89,23 @@ ML scorer structurally can't provide. Full evidence: [The claims](#the-claims--m
 Prefer a video? **[Setup and first run — full walkthrough](https://youtu.be/ro9CukQCW44)** covers
 everything in this section on a clean machine.
 
-### 0. No GPU? Run it in the browser on Google Colab
+### 0. Google Colab Work
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
 
-`notebooks/HybriDock_Pep_Colab.ipynb` runs the whole pipeline — sampling and scoring — on a free
-Colab **T4 GPU**. Nothing to install locally; open the badge, set *Runtime ▸ Change runtime type ▸
-T4 GPU*, and run the cells top to bottom. It clones the repo, builds both environments via
-`scripts/colab_setup.sh`, validates the install with `crystal-score`, then gives you form fields for
-the peptide, receptor (bundled example, RCSB PDB ID, or your own upload), pocket, and sample count.
-Results come back as a ranked table, a 3D view of the best pose, and a downloadable zip.
+`notebooks/HybriDock_Pep_Colab.ipynb` contains full installation and workflow for the whole pipeline.
+The user has to set *Runtime ▸ Change runtime type ▸ T4 GPU*, and run the cells top to bottom to run it.
+It clones the repository, builds the required environments, sets the paths and prepares everything through
+validation and gives a clean UI to use. It also includes results in a ranked table, and a downloadable
+zip file where the results can be downloaded. Furthermore, an in-built 3D viewer also exists.
 
-Tight on runtime disk? `bash scripts/colab_setup.sh --lite` trims ~260 MB — the blind-mode
-checkpoint, the AD4/obabel extras, and the Boost C++ headers once Vina has compiled. It cannot
-touch the two things that actually dominate the install, PyTorch and the 2.4 GB ESM-2 weights,
-because docking needs both.
-
-Budget **15–25 minutes** for the environment build, once per Colab session, then ~3–10 minutes for a
+It takes ~15-25 minutes for the environment build, once per Colab session, then ~3–10 minutes for a
 `--n-samples 100` dock of a 12-mer. Mounting Google Drive in the notebook's second cell caches the
 ~2.5 GB ESM-2 weights and the model checkpoints between sessions.
 
-The setup script picks the CUDA build to match whichever GPU Colab hands you — a T4 is compute
-capability 7.5 and needs a different PyTorch wheel than the cu128 build `install.sh` uses locally —
-and verifies it with a real kernel launch and a PyG import rather than trusting the version string.
-Prefer a local install if you have your own GPU: it is faster and nothing is reclaimed out from
-under you.
-
-**Rather use a shell than a notebook?** You never have to touch the notebook's forms. Open a Colab
-terminal (the button at the bottom of the left sidebar on Colab Pro; on the free tier, run
-`!pip install -q colab-xterm`, `%load_ext colabxterm`, `%xterm` in a cell) and:
-
-```bash
-git clone --recursive https://github.com/Tasty-Ramen2010/hybridock-pep.git
-cd hybridock-pep
-bash scripts/colab_setup.sh
-```
-
-That puts `hybridock-pep` and `hybridock-tui` on `PATH` and wires `~/.bashrc`, so every command in
-this README works verbatim from then on — including `hybridock-tui`, the guided UI, which a notebook
-cell cannot host but a terminal can:
-
-```bash
-hybridock-tui                    # or drive the CLI directly:
-hybridock-pep dock --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
-    --site 25.20 -25.61 -7.97 --box 30 --n-samples 100 --output-dir runs/my_run
-```
+The setup script also picks the CUDA build to match whichever GPU Colab hands you, whether it be a 
+T4 or a v5-e, the software automatically detects the it, installs the right CUDA version and then 
+works through it.
 
 ### 1. Install
 
@@ -169,7 +138,7 @@ opening the guided terminal UI.
 | `--skip-rapidock` | scoring environment only, skips the GPU sampling environment |
 | `--lite` | skip `rapidock_global.pt` (54 MB) — the checkpoint only `dock --blind` reads. Ordinary site-directed docking is unaffected; PyTorch and the ESM-2 weights are needed either way |
 
-**Already installed and want the latest?** From inside the `hybridock-pep` folder:
+**Already installed?** From inside the `hybridock-pep` folder:
 
 ```bash
 git pull
@@ -193,7 +162,7 @@ hybridock-pep crystal-score \
     --peptide ETFSDLWKLLPE
 ```
 
-Expect `Crystal ΔG = -9.28 kcal/mol`. Anything from **−8 to −11** means a healthy install and
+Expect `Crystal ΔG = -9.28 kcal/mol`. Anything from **−8 to −10** means a healthy install and
 everything is built properly. The experimental affinity for the (MDM2/p52, PDB `1YCR`) complex
 is known to be -8.5. The machine just rescores an already exisinting pose, and is the fastest
 way to know scoring is working as intended. The command `make verify` can be run to check all
@@ -225,7 +194,7 @@ To enter the terminal UI:
 ```
 
 walks you through the same fields with a live progress bar. Its `--demo` mode simulates a full run
-in a few seconds with **no GPU at all**, and familiarizes the user with the rest of the UI.
+in a few seconds, and familiarizes the user with the rest of the UI.
 
 ```bash
 ./launch_ui.sh --demo
