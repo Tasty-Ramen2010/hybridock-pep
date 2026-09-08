@@ -20,15 +20,17 @@
 #      (Python 3.10: the diffusion stack) from the repo's own env files.
 #   3. Installs the PyTorch + PyG build matching THIS runtime's GPU, then
 #      proves it with a real CUDA matmul rather than trusting the version string.
-#   4. Downloads both RAPiDock checkpoints from Zenodo.
-#   5. Optionally redirects the torch/ESM cache and the checkpoints at a
-#      persistent --cache-dir (a Google Drive folder), so the ~2.5 GB ESM-2
-#      download happens once per account rather than once per session.
+#   4. Installs both RAPiDock checkpoints from weights/ (committed to the
+#      repo, so no Zenodo download and nothing outside GitHub to reach).
+#   5. Optionally redirects the torch/ESM cache at a persistent --cache-dir (a
+#      Google Drive folder), so the ~2.5 GB ESM-2 download happens once per
+#      account rather than once per session.
 #   6. Writes /content/hybridock_env.sh + prints the paths the notebook needs.
 #
 # Flags:
-#   --cache-dir DIR     Persist ESM/torch weights + checkpoints here (e.g. a
-#                       mounted Drive folder). Default: session-local only.
+#   --cache-dir DIR     Persist the ESM-2 / torch cache here (e.g. a mounted
+#                       Drive folder). Default: session-local only. The RAPiDock
+#                       checkpoints no longer need caching — they ship in the repo.
 #   --backend cuda|cpu  Force a backend (default: auto-detect via nvidia-smi).
 #   --skip-rapidock     score-env only (Stage 2 scoring / --input-poses runs).
 #   --lite              Install only what plain docking needs. Skips the blind-mode
@@ -178,7 +180,7 @@ fi
 # notebook's environment is set up.
 if [ -n "$CACHE_DIR" ]; then
     step "Wiring the persistent cache at $CACHE_DIR"
-    mkdir -p "$CACHE_DIR/torch" "$CACHE_DIR/checkpoints"
+    mkdir -p "$CACHE_DIR/torch"
     mkdir -p "$HOME/.cache"
     if [ -L "$HOME/.cache/torch" ] || [ ! -e "$HOME/.cache/torch" ]; then
         rm -f "$HOME/.cache/torch"
@@ -356,68 +358,31 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
-# 6. RAPiDock checkpoints
+# 6. RAPiDock checkpoints (shipped in the repo — no download)
 # ---------------------------------------------------------------------------
-step "Downloading RAPiDock model weights"
-WEIGHTS_DIR="third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
-mkdir -p "$WEIGHTS_DIR"
-
-_sha256() { sha256sum "$1" | awk '{print $1}'; }
-
-# Both are required: rapidock_local.pt for ordinary site-directed docking,
-# rapidock_global.pt for the --blind pocket search. Same Zenodo record and
-# same checksums as install.sh.
-fetch_ckpt() {
-    _name="$1"; _want="$2"; _dest="$WEIGHTS_DIR/$_name"
-    # With a persistent cache, the real file lives in the cache and the repo
-    # gets a symlink — a fresh `git clone` per session then costs nothing.
-    if [ -n "$CACHE_DIR" ]; then
-        _cached="$CACHE_DIR/checkpoints/$_name"
-        if [ -f "$_cached" ] && [ "$(_sha256 "$_cached")" = "$_want" ]; then
-            ln -sfn "$_cached" "$_dest"
-            ok "$_name restored from cache"
-            return 0
-        fi
-        _dest="$_cached"
-    fi
-    if [ -f "$_dest" ] && [ "$(_sha256 "$_dest")" = "$_want" ]; then
-        ok "$_name already present and verified"
-    else
-        curl -fsSL "https://zenodo.org/api/records/14193621/files/$_name/content" \
-            -o "$_dest.part" || {
-            warn "$_name download failed — re-run this cell to retry"
-            rm -f "$_dest.part"
-            return 0
-        }
-        mv "$_dest.part" "$_dest"
-        if [ "$(_sha256 "$_dest")" = "$_want" ]; then
-            ok "$_name downloaded and checksum-verified"
-        else
-            warn "$_name checksum mismatch — the file may be truncated; re-run this cell"
-        fi
-    fi
-    if [ -n "$CACHE_DIR" ]; then ln -sfn "$_dest" "$WEIGHTS_DIR/$_name"; fi
-    return 0
-}
-
-fetch_ckpt rapidock_local.pt \
-    d0f1ebe268354624c345f8730e765e1b21c016f946fffb637461236204919693
-
-# rapidock_global.pt is 54 MB and is read by exactly one code path: the
-# pocket-search pass that `dock --blind` runs when no --site is given
-# (sampling/pocket_search.py hard-codes it). Site-directed docking never touches
-# it, so --lite skips it. Without it, --blind fails at load time rather than
-# degrading, which is why the warning below is explicit about the trade.
+# These used to come from Zenodo, which made a first-time Colab install depend
+# on a host outside GitHub and PyPI — and zenodo.org is blocked outright on some
+# school and institutional networks, which turned this step into a hard stop for
+# the exact audience the notebook is written for. Both files are 54 MB, so they
+# are committed under weights/ and arrived with the clone in step 3.
+#
+# That also removes the reason to cache them on Drive: a re-clone is cheaper
+# than a Drive round-trip, and the cache still holds the thing that actually
+# matters between sessions, the 2.4 GB ESM-2 download.
+step "Installing RAPiDock model weights"
 if [ "$LITE" -eq 1 ]; then
-    ok "--lite: skipping rapidock_global.pt (54 MB) — 'dock --blind' will not work;" \
-       "re-run without --lite to add it"
+    # rapidock_global.pt is read by exactly one code path: the pocket-search
+    # pass that `dock --blind` runs when no --site is given
+    # (sampling/pocket_search.py). Site-directed docking never touches it.
+    bash scripts/install_weights.sh --lite || warn \
+        "checkpoint install incomplete — see the message above"
 else
-    fetch_ckpt rapidock_global.pt \
-        a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
+    bash scripts/install_weights.sh || warn \
+        "checkpoint install incomplete — see the message above"
 fi
 
-# longer_local.pt (peptides ≥13 residues) is not published on that Zenodo
-# record; docking those peptides falls back to rapidock_local.pt with a warning.
+# longer_local.pt (peptides >=13 residues) has never been published; docking
+# those peptides falls back to rapidock_local.pt with a warning.
 
 # ---------------------------------------------------------------------------
 # 7. Verify what the pipeline will actually reach for
@@ -450,6 +415,22 @@ fi
 
 if [ -x "$SCORE_PREFIX/bin/autogrid4" ]; then
     ok "autogrid4 present ('--scoring vina,ad4' available)"
+fi
+
+# Stage 1 loads this ~70 s in, after ESM-2 has been downloaded and the receptor
+# graph built. Checking it here turns a late, expensive torch.load failure into
+# an immediate one.
+_CKPT_DIR="$REPO_ROOT/third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
+if [ "$SKIP_RAPIDOCK" -eq 0 ]; then
+    if [ -s "$_CKPT_DIR/rapidock_local.pt" ]; then
+        ok "rapidock_local.pt in place (docking ready)"
+    else
+        warn "rapidock_local.pt is missing from $_CKPT_DIR — Stage 1 will fail." \
+             "Re-run this cell, or copy it there from weights/."
+    fi
+    if [ "$LITE" -eq 0 ] && [ ! -s "$_CKPT_DIR/rapidock_global.pt" ]; then
+        warn "rapidock_global.pt is missing — 'dock --blind' will fail (ordinary docking is fine)"
+    fi
 fi
 
 # ---------------------------------------------------------------------------

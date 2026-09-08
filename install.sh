@@ -10,7 +10,8 @@
 #   2. Initialises the RAPiDock-Reloaded git submodule.
 #   3. Creates both conda environments (score-env, rapidock) with the right
 #      PyTorch/PyG build for your OS + GPU — auto-detected.
-#   4. Downloads the RAPiDock model weights (public Zenodo record, ~55 MB).
+#   4. Installs the RAPiDock model weights from weights/ (shipped in the repo,
+#      ~108 MB; no download unless weights/ is missing).
 #   5. Checks receptor-prep tooling (meeko + autogrid). Fully automated: no
 #      license click-through, no manual download. ADFRsuite is NOT required,
 #      though it is used automatically if you already have it on PATH.
@@ -172,63 +173,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. RAPiDock model weights (public Zenodo record — no login needed)
+# 4. RAPiDock model weights (shipped in this repository — no download)
 # ---------------------------------------------------------------------------
-step "Downloading RAPiDock model weights"
-WEIGHTS_DIR="third_party/RAPiDock/train_models/CGTensorProductEquivariantModel"
-mkdir -p "$WEIGHTS_DIR"
-
-# Not every macOS ships GNU sha256sum; `shasum -a 256` is always there. Pick one
-# up front so the verify below can't silently no-op into a re-download loop.
-if command -v sha256sum >/dev/null 2>&1; then
-    _sha256() { sha256sum "$1" | awk '{print $1}'; }
-elif command -v shasum >/dev/null 2>&1; then
-    _sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
-else
-    _sha256() { echo "no-sha-tool"; }
-fi
-
-# Both checkpoints are required for a full install: rapidock_local.pt for
-# ordinary site-directed docking, rapidock_global.pt for the --blind
-# pocket-search pass (sampling/pocket_search.py hard-codes it). Skipping the
-# global one leaves `dock --blind` dead on arrival with a torch.load failure
-# ~70s into Stage 1, so it is fetched unconditionally, not on demand.
-fetch_ckpt() {
-    _name="$1"; _want="$2"; _dest="$WEIGHTS_DIR/$_name"
-    if [ -f "$_dest" ] && [ "$(_sha256 "$_dest")" = "$_want" ]; then
-        ok "$_name already present and verified"
-        return 0
-    fi
-    curl -fsSL "https://zenodo.org/api/records/14193621/files/$_name/content" \
-        -o "$_dest.part" || {
-        warn "$_name download failed — '--blind' docking needs rapidock_global.pt;" \
-             "ordinary docking needs rapidock_local.pt. Re-run ./install.sh to retry."
-        rm -f "$_dest.part"
-        return 0
-    }
-    # Only move into place once the bytes are complete: a half-written .pt is
-    # indistinguishable from a good one to the runtime's existence check.
-    mv "$_dest.part" "$_dest"
-    if [ "$(_sha256 "$_dest")" = "$_want" ]; then
-        ok "$_name downloaded and checksum-verified"
-    else
-        warn "$_name downloaded but checksum did not match — the file may be" \
-             "corrupted or the Zenodo record was updated. Continuing, but re-check this."
-    fi
-}
-
-fetch_ckpt rapidock_local.pt \
-    d0f1ebe268354624c345f8730e765e1b21c016f946fffb637461236204919693
-
-# rapidock_global.pt is read by exactly one code path: the pocket search that
-# `dock --blind` runs when no --site is given. Site-directed docking never opens
-# it, so --lite skips the 54 MB download.
+# Both checkpoints live in weights/ and came down with the clone, so this step
+# is a copy, not a fetch. rapidock_local.pt drives ordinary site-directed
+# docking; rapidock_global.pt is read only by the --blind pocket search
+# (sampling/pocket_search.py hard-codes it), which is why --lite can skip it.
+# scripts/install_weights.sh falls back to the Zenodo record if weights/ is
+# missing — see weights/README.md for why that is now the fallback and not the
+# default.
+step "Installing RAPiDock model weights"
 if [ "$LITE" -eq 1 ]; then
-    warn "--lite: skipping rapidock_global.pt (54 MB) — 'dock --blind' will not work." \
-         "Re-run ./install.sh without --lite to add it."
+    bash scripts/install_weights.sh --lite || warn \
+        "checkpoint install incomplete — see the message above"
 else
-    fetch_ckpt rapidock_global.pt \
-        a5dfa8f0b20642e26b276d8fd3e7ac87377b5c5150b15b7afcabf9cd8558e0b5
+    bash scripts/install_weights.sh || warn \
+        "checkpoint install incomplete — see the message above"
 fi
 
 # ---------------------------------------------------------------------------

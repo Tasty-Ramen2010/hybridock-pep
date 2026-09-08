@@ -231,14 +231,20 @@ git submodule update --init --recursive
 
 No `pip install` needed — the runner imports directly from that path.
 
-### Step 3b — Download model weights (required)
+### Step 3b — Install the model weights (no download)
 
-The pre-trained checkpoint files (~55 MB each) are **not** in git.
-`./install.sh` downloads and checksum-verifies both required ones for you — this
-section is only needed for a manual install, or to repair a partial download.
+The two pre-trained checkpoints are **committed to this repository** under
+`weights/` (54 MB each, CC-BY-4.0 — see [`weights/README.md`](weights/README.md)),
+so a `git clone` already has them. `./install.sh` copies them into place; this
+section is only needed for a manual install, or to repair a partial one.
 
-Download from [Zenodo (RAPiDock checkpoints)](https://zenodo.org/records/14193621)
-and place them at:
+```bash
+bash scripts/install_weights.sh          # both checkpoints
+bash scripts/install_weights.sh --lite   # rapidock_local.pt only
+```
+
+That script copies `weights/*.pt` to the directory RAPiDock resolves a bare
+`--ckpt` filename against, and verifies the SHA-256 of each file:
 
 ```
 third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/
@@ -246,17 +252,27 @@ third_party/RAPiDock/train_models/CGTensorProductEquivariantModel/
   rapidock_global.pt   ← required — the `--blind` pocket-search pass
   longer_local.pt      ← optional — long-peptide specialized checkpoint (13+ residues);
                           `dock` silently falls back to rapidock_local.pt with a logged
-                          warning if absent. See docs/architecture.md §3.2. Not on the
-                          Zenodo record — install.sh cannot fetch it.
+                          warning if absent. See docs/architecture.md §3.2. It has never
+                          been published — no fine-tuned checkpoint in this project's
+                          history beat the base model — so nothing can fetch it.
 ```
 
-Both required checkpoints are fetched unconditionally: `rapidock_global.pt` is
+Both required checkpoints are installed unconditionally: `rapidock_global.pt` is
 hard-coded by the `--blind` pocket-search path, so an install that skips it
 leaves `dock --blind` broken while ordinary docking looks fine.
 
-The runner raises `FileNotFoundError` naming the missing checkpoint, its expected
-directory, and this download link before launching RAPiDock — so a skipped file
-fails immediately rather than as an opaque subprocess exit partway into Stage 1.
+If `weights/` is missing from your checkout (an incomplete clone, or a source
+tarball that dropped the large files), the script falls back to downloading from
+[Zenodo record 14193621](https://zenodo.org/records/14193621) — the same files,
+same checksums. That used to be the default path and is now only the fallback,
+because it was the one install step that had to reach a host outside GitHub and
+PyPI, and `zenodo.org` is blocked on some school and institutional networks.
+
+The runner raises `FileNotFoundError` naming the missing checkpoint and its
+expected directory before launching RAPiDock — so a skipped file fails
+immediately rather than as an opaque subprocess exit partway into Stage 1. It
+also tries `weights/` itself first, so a plain `git clone --recursive` can dock
+even if neither installer was run.
 
 > **Alternate weight path:** Set `RAPIDOCK_MODEL_DIR=/abs/path` to override.
 > Set `RAPIDOCK_DIR=/abs/path` to override the submodule location entirely.

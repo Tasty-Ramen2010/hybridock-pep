@@ -122,9 +122,9 @@ the user, then runs `install.sh` inside it. After that, you can open the WSL2/Ub
 `wsl` in any Windows terminal). All work is done inside WSL2, not cmd or PowerShell
 
 `install.sh` does everything: installs conda if you don't have it, creates both conda environments
-with the right PyTorch build for your GPU, downloads and checksum-verifies the RAPiDock models'
-weights (~110 MB, from Zenodo), checks the receptor-prep tooling, runs a smoke test, and finishes by
-opening the guided terminal UI.
+with the right PyTorch build for your GPU, puts the RAPiDock model weights in place (~110 MB, shipped
+in this repository under [`weights/`](weights/) — no download), checks the receptor-prep tooling, runs
+a smoke test, and finishes by opening the guided terminal UI.
 
 1. It takes around ~15-30 minutes most of it is conda quietly solving dependencies plus a PyTorch
    download. If it looks frozen on a line like `Solving environment: \`, DO NOT Ctrl+C it.
@@ -516,9 +516,10 @@ declared in `envs/score-env.yml`, with no license click-through. AD4 grid maps c
 conda-forge `autogrid`, which `scripts/setup_environment.py` installs as a best-effort extra —
 conda-forge has no `linux-aarch64` build of it, so on ARM Linux `--scoring ad4` is simply
 unavailable and the installer says so. Nothing else changes: AD4 is off by default and the
-reported ΔG comes from the affinity model. The RAPiDock model weights (~55 MB) are fetched
-automatically from a public Zenodo record and checksum-verified. PULCHRA is optional and only
-affects a backbone-rebuild path.
+reported ΔG comes from the affinity model. The RAPiDock model weights (2 × 54 MB) are committed to
+this repository under [`weights/`](weights/) and copied into place by the installer, so a clone is
+all you need — there is no model download to be blocked by a restrictive network. PULCHRA is
+optional and only affects a backbone-rebuild path.
 
 Verify the install with `bash scripts/smoke_test.sh`, or just run `./launch_ui.sh` for a guided
 walkthrough. Full walkthrough with every platform edge case: [INSTALL.md](INSTALL.md).

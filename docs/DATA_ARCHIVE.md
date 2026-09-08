@@ -4,6 +4,12 @@ This repo keeps `data/` and `experiments/` small on purpose (nothing over ~1 MB 
 see `CLAUDE.md` §7). Anything bigger lives outside git. This page is the map: what's archived on
 Zenodo, what you re-download yourself, and why some things are deliberately **not** redistributed.
 
+**One deliberate exception:** the two RAPiDock checkpoints in [`weights/`](../weights/) (54 MB each)
+*are* committed. They are what Stage 1 loads, they are CC-BY-4.0, and fetching them was the only
+install step that had to reach a host outside GitHub and PyPI — one that some school and campus
+networks block. Shipping them in the clone is worth 108 MB of repository. See
+[`weights/README.md`](../weights/README.md).
+
 ## On Zenodo — our own derived data
 
 **DOI: [10.5281/zenodo.21680573](https://doi.org/10.5281/zenodo.21680573)**
