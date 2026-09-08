@@ -58,15 +58,21 @@ class TestColabSetupScript:
         assert result.returncode == 2
         assert "unknown flag" in result.stderr
 
-    def test_checkpoint_checksums_match_install_sh(self):
-        """Both installers fetch the same two files from the same Zenodo record.
-        If the checksums drift apart, one of them rejects a file the other just
-        verified."""
-        pattern = re.compile(r"fetch_ckpt (rapidock_\w+\.pt) \\\s*\n\s*([0-9a-f]{64})")
-        colab = dict(pattern.findall(COLAB_SH.read_text(encoding="utf-8")))
-        install = dict(pattern.findall(INSTALL_SH.read_text(encoding="utf-8")))
-        assert colab, "no fetch_ckpt calls found in colab_setup.sh"
-        assert colab == install, f"checksum drift: colab={colab} install={install}"
+    def test_both_installers_share_one_checkpoint_path(self):
+        """The checksums used to be duplicated in both installers, and drifting
+        apart meant one rejected a file the other had just verified. Both now
+        delegate to scripts/install_weights.sh, which owns them — so the guard
+        is that neither has grown a second, private copy of the logic."""
+        for script in (COLAB_SH, INSTALL_SH):
+            text = script.read_text(encoding="utf-8")
+            assert "scripts/install_weights.sh" in text, (
+                f"{script.name} no longer delegates to scripts/install_weights.sh"
+            )
+            assert "zenodo.org/api/records" not in text, (
+                f"{script.name} downloads a checkpoint itself again — that path "
+                "belongs in scripts/install_weights.sh, where it is the fallback "
+                "for a checkout missing weights/, not the default"
+            )
 
     def test_torch_specs_carry_a_local_version(self):
         """Every torch spec must pin "+cuXXX"/"+cpu", not a bare version.
@@ -109,7 +115,7 @@ class TestColabSetupScript:
             assert mod in verify, f"verification never imports {mod}"
         assert "torch.mm" in verify, "verification no longer launches a real CUDA kernel"
 
-    def test_both_checkpoints_are_fetched(self):
+    def test_both_checkpoints_are_installed(self):
         text = COLAB_SH.read_text(encoding="utf-8")
         # rapidock_global.pt is what --blind needs; omitting it leaves blind
         # docking dead on arrival with an opaque torch.load failure.
@@ -132,13 +138,16 @@ class TestLiteMode:
         read only by the --blind pocket search. Skipping the wrong one would
         break ordinary docking."""
         text = COLAB_SH.read_text(encoding="utf-8")
-        local_at = text.index("fetch_ckpt rapidock_local.pt")
-        guard_at = text.index('if [ "$LITE" -eq 1 ]; then', local_at)
-        global_at = text.index("fetch_ckpt rapidock_global.pt", local_at)
-        assert local_at < guard_at < global_at, (
-            "rapidock_local.pt must be fetched unconditionally, "
-            "and only rapidock_global.pt guarded by --lite"
+        step_at = text.index('step "Installing RAPiDock model weights"')
+        block = text[step_at:step_at + 900]
+        # --lite must reach install_weights.sh as a flag (which drops only
+        # rapidock_global.pt), and the unguarded branch must install both.
+        assert "install_weights.sh --lite" in block, (
+            "--lite is not forwarded to scripts/install_weights.sh"
         )
+        lite_at = block.index("install_weights.sh --lite")
+        full_at = block.index("bash scripts/install_weights.sh |", lite_at)
+        assert lite_at < full_at, "the non-lite branch must come after the --lite branch"
 
     def test_boost_purge_requires_vina_to_import_first(self):
         """The headers are only dead weight once Vina has compiled against

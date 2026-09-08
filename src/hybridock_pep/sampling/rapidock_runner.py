@@ -250,6 +250,63 @@ def _find_model_dir() -> Path:
     )
 
 
+def _install_bundled_checkpoint(model_dir: Path, ckpt_name: str) -> None:
+    """Copy a checkpoint shipped in the repo's ``weights/`` into the model dir.
+
+    The two RAPiDock checkpoints are committed to this repository (54 MB each,
+    CC-BY-4.0 — see ``weights/README.md``) precisely so that no install step has
+    to reach zenodo.org, which some school and institutional networks block.
+    ``scripts/install_weights.sh`` normally puts them in place; this is the
+    safety net for a checkout where that script was never run, so that a plain
+    ``git clone --recursive`` can dock without a network round-trip.
+
+    Silently does nothing when there is nothing to copy — the caller raises a
+    much better error than this function could, and a missing ``weights/`` is
+    expected for a non-editable install from a wheel.
+
+    Args:
+        model_dir: RAPiDock's train_models/CGTensorProductEquivariantModel/.
+        ckpt_name: Checkpoint filename, e.g. ``rapidock_local.pt``.
+
+    Returns:
+        None. Check for the file yourself afterwards; failure is not an error
+        here.
+
+    Raises:
+        Nothing. OSError while copying is logged and swallowed, because the
+        caller's FileNotFoundError says far more about what to do next.
+    """
+    # Two ways back to the repo root: from the model directory itself
+    # (<root>/third_party/RAPiDock/train_models/CGTensor.../), and from this
+    # source file (<root>/src/hybridock_pep/sampling/). The first covers a
+    # RAPIDOCK_DIR pointing into the repo; the second covers an editable install
+    # whose RAPiDock lives somewhere else entirely.
+    roots = []
+    if len(model_dir.parents) >= 4:
+        roots.append(model_dir.parents[3])
+    roots.append(Path(__file__).resolve().parents[3])
+
+    for root in roots:
+        src = root / "weights" / ckpt_name
+        if not src.is_file():
+            continue
+        try:
+            model_dir.mkdir(parents=True, exist_ok=True)
+            # Stage then rename: a half-copied .pt passes the existence check
+            # the caller is about to make, and then fails inside torch.load.
+            staged = model_dir / f"{ckpt_name}.part"
+            shutil.copyfile(src, staged)
+            staged.replace(model_dir / ckpt_name)
+        except OSError as exc:
+            logger.debug("Could not install %s from %s: %s", ckpt_name, src, exc)
+            return
+        logger.info(
+            "Installed %s into %s from the repository's weights/ directory "
+            "(no download needed)", ckpt_name, model_dir,
+        )
+        return
+
+
 #: Filename of the long/very_long-specialized checkpoint (V6 3-phase cross_conv
 #: retrain, see logs/v6_run/ and docs/architecture.md "Long-peptide checkpoint").
 #: Optional — a fresh install only ships rapidock_local.pt/rapidock_global.pt;
@@ -378,12 +435,18 @@ def run_sampling(
         else Path(model_dir_abs) / ckpt_name
     )
     if not ckpt_path.exists():
+        _install_bundled_checkpoint(Path(model_dir_abs), ckpt_name)
+    if not ckpt_path.exists():
         hint = (
             " It is required for --blind pocket-search docking."
             if ckpt_name == "rapidock_global.pt" else ""
         )
         raise FileNotFoundError(
-            f"RAPiDock checkpoint not found: {ckpt_path}. Download it from "
+            f"RAPiDock checkpoint not found: {ckpt_path}. Normally it is copied "
+            "into place from this repository's weights/ directory by "
+            "scripts/install_weights.sh (run by ./install.sh and "
+            "scripts/colab_setup.sh) — re-running that script is the usual fix. "
+            "If weights/ is missing from your checkout, download the file from "
             "https://zenodo.org/records/14193621 and place it in "
             f"{model_dir_abs} (see INSTALL.md 'Pre-trained models').{hint}"
         )
