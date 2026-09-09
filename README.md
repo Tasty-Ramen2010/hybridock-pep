@@ -99,9 +99,13 @@ It clones the repository, builds the required environments, sets the paths and p
 validation and gives a clean UI to use. It also includes results in a ranked table, and a downloadable
 zip file where the results can be downloaded. Furthermore, an in-built 3D viewer also exists.
 
-It takes ~15-25 minutes for the environment build, once per Colab session, then ~3–10 minutes for a
-`--n-samples 100` dock of a 12-mer. Mounting Google Drive in the notebook's second cell caches the
-~2.5 GB ESM-2 weights and the model checkpoints between sessions.
+It takes ~17 minutes for the environment build, once per Colab session, then ~10–12 minutes for a
+`--n-samples 100` dock of a 12-mer (both measured on a T4). Roughly 6 minutes of the build is the two
+conda environments; the rest pre-computes RAPiDock's SO(3)/torus lookup tables, which are built by
+module-level code on first import — doing it during setup keeps it off your first dock, where it
+would otherwise run for ten minutes with nothing on screen to explain the pause. Mounting Google
+Drive in the notebook's second cell caches the ~2.5 GB ESM-2 weights between sessions; the RAPiDock
+checkpoints ship in the repository, so the clone already brings them.
 
 The setup script also picks the CUDA build to match whichever GPU Colab hands you, whether it be a 
 T4 or a v5-e, the software automatically detects the it, installs the right CUDA version and then 
