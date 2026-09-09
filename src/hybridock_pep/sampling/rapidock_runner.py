@@ -477,8 +477,25 @@ def run_sampling(
 
     logger.info("Running: %s", " ".join(str(c) for c in cmd))
 
-    # Popen with pipes — bytes mode (no text=True); both pipes needed for streaming
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Popen with pipes — bytes mode (no text=True); both pipes needed for streaming.
+    #
+    # cwd is pinned to the RAPiDock directory, and that is load-bearing rather
+    # than tidiness. utils/so3.py and utils/torus.py build large truncated-series
+    # lookup tables in module-level code at IMPORT time — roughly ten minutes of
+    # single-threaded numpy — and cache them to RELATIVE paths
+    # (".so3_*.npy", ".p.npy", ".score.npy"), i.e. into whatever directory the
+    # process happens to start in. Inheriting the caller's cwd meant the cache
+    # was written wherever `hybridock-pep` was invoked from and missed entirely
+    # on the next run from anywhere else, so users paid the ten minutes again and
+    # again, with no output explaining the wait. Pinning it here makes the cache
+    # location deterministic and lets scripts/colab_setup.sh pre-warm it.
+    #
+    # Safe because every path in cmd is already absolute (receptor_abs,
+    # raw_output_abs, rapidock_dir_abs, model_dir_abs, shim_path are all
+    # .resolve()d above).
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=rapidock_dir_abs
+    )
 
     # Drain stderr on daemon thread — prevents pipe buffer deadlock when stderr fills
     stderr_tail: deque = deque(maxlen=_STDERR_TAIL_LINES)
