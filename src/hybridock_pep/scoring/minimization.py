@@ -165,6 +165,19 @@ class _ClashRelief:
             # corrupting the pose. missingResidues={} satisfies findMissingAtoms().
             fixer = PDBFixer(filename=str(pdb_path))
             fixer.missingResidues = {}
+            # addMissingHydrogens() places H with a short minimization inside
+            # openmm.app.Modeller, and Modeller builds a Context on OpenMM's
+            # DEFAULT platform to do it.  That Context is never reclaimed, so on
+            # a GPU backend every pose stranded ~100 MB of device memory --
+            # ~10 GB across 100 poses, which the kernel OOM killer ended as a
+            # silent "stuck at 40/100 poses minimized".  It is geometric work
+            # that gains nothing from a GPU, and pinning it to CPU leaves the
+            # heavy atoms identical to ~1e-9 nm (only hydrogen positions differ,
+            # and _strip_hydrogens drops those from the output anyway).
+            try:
+                fixer.platform = openmm.Platform.getPlatformByName("CPU")
+            except Exception:  # noqa: BLE001 — older pdbfixer has no .platform
+                logger.debug("pdbfixer has no .platform attribute; leaving default")
             fixer.findMissingAtoms()
             try:
                 fixer.addMissingHydrogens(7.4)
