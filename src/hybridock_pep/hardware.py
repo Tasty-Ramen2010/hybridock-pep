@@ -61,6 +61,18 @@ def cpu_threads() -> int:
 _PLATFORM_CACHE: tuple[Any, dict[str, str]] | None = None
 
 
+def reset_platform_cache() -> None:
+    """Forget the probed platform so the next call re-selects one.
+
+    The cache is deliberately process-global — a working backend does not change
+    mid-run — which leaves no way to re-probe after the environment changes.
+    Tests need that, and so does any caller that installs a driver or toggles
+    ``force_cpu`` expectations partway through a process.
+    """
+    global _PLATFORM_CACHE
+    _PLATFORM_CACHE = None
+
+
 def _platform_runs(openmm: Any, platform: Any, props: dict[str, str]) -> bool:
     """Return True if ``platform`` can actually build a Context and step it.
 

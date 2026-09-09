@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from hybridock_pep.hardware import cpu_threads, openmm_platform
 
 
+
 def test_cpu_threads_positive() -> None:
     assert cpu_threads() >= 1
 
