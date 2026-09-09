@@ -30,7 +30,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  hybridock-pep guide all        everything at once\n"
             "\n"
             "  hybridock-pep crystal-score    validate your install\n"
-            "                                 (expect \u0394G \u2248 -10.07 kcal/mol)\n"
+            "                                 (expect \u0394G \u2248 -9.3 kcal/mol)\n"
             "  ./launch_ui.sh                 terminal UI (or `hybridock-tui`)\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
