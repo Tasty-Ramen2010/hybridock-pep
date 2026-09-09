@@ -75,7 +75,8 @@ The differences that matter:
 - **`--cache-dir`** points the torch/ESM cache and the RAPiDock checkpoints at a
   persistent directory (typically a mounted Drive folder), so the ~2.5 GB ESM-2
   download happens once per account rather than once per session. The conda
-  environments are rebuilt every session regardless — 15–25 minutes.
+  environments are rebuilt every session regardless — about 17 minutes, of
+  which ~10 is pre-computing RAPiDock's SO(3)/torus lookup tables (see below).
 - **No terminal UI at the end.** `install.sh` finishes by exec'ing
   `./launch_ui.sh`, which a notebook kernel cannot host.
 
