@@ -3,6 +3,20 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+# MPLBACKEND is read inside `import matplotlib` itself, BEFORE any use() call
+# can take effect, and an unusable value there is a hard ValueError rather than a
+# fallback. Colab exports
+#   MPLBACKEND=module://matplotlib_inline.backend_inline
+# into every child process, and matplotlib_inline is installed in the notebook's
+# own interpreter, not in score-env -- so the hybridock-pep subprocess died with
+#   ValueError: Key backend: 'module://matplotlib_inline...' is not a valid value
+# at the plotting stage, after a full dock had already been computed. Dropping
+# the variable first is the only thing that works; use("Agg") below is then what
+# actually selects the headless backend.
+import os
+
+os.environ.pop("MPLBACKEND", None)
+
 import matplotlib
 matplotlib.use("Agg")  # MUST be before any import of matplotlib.pyplot
 import matplotlib.pyplot as plt
