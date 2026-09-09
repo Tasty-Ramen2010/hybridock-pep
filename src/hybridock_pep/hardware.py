@@ -54,6 +54,44 @@ def cpu_threads() -> int:
     return max(1, n // 2) if n > 2 else n
 
 
+#: Result of the one-time platform probe below. A usable backend never changes
+#: within a process, and re-probing is not free: a FAILED CUDA context strands
+#: about 100 MB of device memory that is never reclaimed, so probing per pose
+#: turned one broken install into a 10 GB leak and an OOM kill at pose 40/100.
+_PLATFORM_CACHE: tuple[Any, dict[str, str]] | None = None
+
+
+def _platform_runs(openmm: Any, platform: Any, props: dict[str, str]) -> bool:
+    """Return True if ``platform`` can actually build a Context and step it.
+
+    ``Platform.getPlatformByName`` only proves the platform was COMPILED into
+    this OpenMM build — not that it works on this machine. The gap between those
+    two is not hypothetical: on Colab, conda-forge's OpenMM 8.6 ships nvrtc
+    13.3 while the driver is 580 (CUDA 13.0), so every CUDA Context dies at
+    module load with CUDA_ERROR_UNSUPPORTED_PTX_VERSION. The old code handed
+    back that unusable platform, each caller's Context construction failed and
+    leaked, and the real work quietly fell through to OpenCL — so the GPU looked
+    idle, the memory climbed, and nothing was ever logged above DEBUG.
+
+    Building one throwaway two-particle Context here costs milliseconds and
+    converts that failure mode into a single WARNING plus a working fallback.
+    """
+    try:
+        system = openmm.System()
+        system.addParticle(1.0)
+        system.addParticle(1.0)
+        integrator = openmm.VerletIntegrator(0.001)
+        ctx = openmm.Context(system, integrator, platform, props)
+        ctx.setPositions([(0.0, 0.0, 0.0), (0.0, 0.0, 0.1)])
+        ctx.getState(getEnergy=True).getPotentialEnergy()
+        del ctx, integrator, system
+        return True
+    except Exception as exc:  # noqa: BLE001 — any failure means "do not use this"
+        logger.debug("OpenMM: platform %s rejected by probe: %s",
+                     platform.getName(), exc)
+        return False
+
+
 def openmm_platform(force_cpu: bool = False) -> tuple[Any, dict[str, str]]:
     """Return ``(openmm.Platform, properties)`` for the fastest available backend.
 
@@ -74,13 +112,25 @@ def openmm_platform(force_cpu: bool = False) -> tuple[Any, dict[str, str]]:
     if force_cpu:
         return openmm.Platform.getPlatformByName("CPU"), cpu_props
 
+    global _PLATFORM_CACHE
+    if _PLATFORM_CACHE is not None:
+        return _PLATFORM_CACHE
+
     for name, props in _GPU_PLATFORMS:
         try:
             platform = openmm.Platform.getPlatformByName(name)
-            logger.debug("OpenMM: selected %s platform", name)
-            return platform, props
         except Exception:  # noqa: BLE001 — platform simply not built into this OpenMM
             continue
+        if not _platform_runs(openmm, platform, props):
+            logger.warning(
+                "OpenMM: the %s platform is present but cannot run — skipping it. "
+                "Minimization and MM-GBSA will use the next backend.", name
+            )
+            continue
+        logger.debug("OpenMM: selected %s platform", name)
+        _PLATFORM_CACHE = (platform, props)
+        return _PLATFORM_CACHE
 
-    logger.debug("OpenMM: no GPU platform available, using thread-pinned CPU")
-    return openmm.Platform.getPlatformByName("CPU"), cpu_props
+    logger.debug("OpenMM: no usable GPU platform, using thread-pinned CPU")
+    _PLATFORM_CACHE = (openmm.Platform.getPlatformByName("CPU"), cpu_props)
+    return _PLATFORM_CACHE

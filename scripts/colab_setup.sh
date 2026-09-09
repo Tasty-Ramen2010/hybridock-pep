@@ -355,6 +355,32 @@ print(f"  torch {torch.__version__} | cuda={torch.version.cuda} "
       f"| available={torch.cuda.is_available()}"
       + (f" | {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else ""))
 PY
+
+    # ----------------------------------------------------------------------
+    # Pre-warm RAPiDock's SO(3)/torus lookup tables.
+    #
+    # utils/so3.py and utils/torus.py build truncated-infinite-series tables in
+    # MODULE-LEVEL code, so merely importing inference.py costs ~10 minutes of
+    # single-threaded numpy (so3: 1000 eps x 2000 terms x 2000 omega; torus: a
+    # 5001x5001 grid, ~200 MB per .npy). They cache to RELATIVE paths, so
+    # without this the cost lands on the user's first dock -- silently, because
+    # rapidock_runner.py routes non-progress stdout to logger.debug, leaving
+    # "Generating poses..." on screen with no explanation for ten minutes.
+    #
+    # Done here, in the directory rapidock_runner.py pins as the sampling
+    # subprocess's cwd, so the cache is actually found at dock time. Adds ~10
+    # min to an install already advertised as 15-25 min, and takes the same
+    # amount off the first dock.
+    step "Pre-computing RAPiDock's SO(3)/torus tables (~10 min, once)"
+    _rd="$REPO_ROOT/third_party/RAPiDock"
+    if [ -f "$_rd/.p.npy" ] && [ -f "$_rd/.so3_cdf_vals2.npy" ]; then
+        ok "lookup tables already cached"
+    elif ( cd "$_rd" && "$RAPIDOCK_PREFIX/bin/python3" -c \
+              "import sys; sys.path.insert(0, '.'); import utils.so3, utils.torus" ); then
+        ok "lookup tables cached in third_party/RAPiDock"
+    else
+        warn "could not pre-compute the lookup tables -- the first dock will spend ~10 min on it"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
