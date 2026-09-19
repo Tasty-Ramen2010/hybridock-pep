@@ -28,6 +28,7 @@ import copy
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import time
@@ -247,7 +248,55 @@ def build_training_pairs(bench300_data: dict, bench300_df: pd.DataFrame,
 
 # ── model setup ───────────────────────────────────────────────────────────────
 
-def load_confidence_model(model_dir: Path, pretrained_ckpt: Path, device) -> ConfidenceModel:
+def build_pairs_from_corpus(corpus_jsonl: Path, pool_csv: Path, base_graphs: dict,
+                            max_complexes: int = -1) -> list:
+    """Build pairwise ranking data from a gen_confidence_corpus.py JSONL corpus.
+
+    Corpus line: {"name": str, "poses": [{"pose": path, "rmsd": float}, ...]}
+
+    Only pairs whose RMSDs differ by a real margin are kept: two poses that are both
+    ~7A apart from native teach the ranker nothing except to fit noise, and the
+    project's ranker work already showed noise-fitting is how these models stall.
+    """
+    import itertools
+    pairs = []
+    n_cx = 0
+    with open(corpus_jsonl) as fh:
+        for line in fh:
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            cname = rec["name"]
+            base = base_graphs.get(cname)
+            if base is None:
+                continue
+            poses = [p for p in rec.get("poses", []) if "rmsd" in p]
+            if len(poses) < 2:
+                continue
+            built = []
+            for p in poses:
+                try:
+                    pos = _load_pose_positions(p["pose"])
+                    g = _center_graph(_inject_pose_into_graph(base, pos))
+                    built.append((g, float(p["rmsd"])))
+                except Exception:
+                    continue
+            if len(built) < 2:
+                continue
+            for (gi, ri), (gj, rj) in itertools.combinations(built, 2):
+                if abs(ri - rj) < 0.5:      # uninformative pair
+                    continue
+                pairs.append((gi, gj, 1.0 if ri < rj else 0.0))
+            n_cx += 1
+            if max_complexes > 0 and n_cx >= max_complexes:
+                break
+    log.info("Corpus pairs: %d from %d complexes", len(pairs), n_cx)
+    return pairs
+
+
+def load_confidence_model(model_dir: Path, pretrained_ckpt: Path, device,
+                          unfreeze_encoder: int = 0) -> ConfidenceModel:
     with open(model_dir / "model_parameters.yml") as f:
         args = Namespace(**yaml.full_load(f))
 
@@ -266,10 +315,40 @@ def load_confidence_model(model_dir: Path, pretrained_ckpt: Path, device) -> Con
              len(missing), len(unexpected))
     log.info("Missing keys: %s", missing[:5])
 
-    # Freeze the entire encoder (everything except confidence_predictor)
-    for name, param in model.encoder.named_parameters():
-        if "confidence_predictor" not in name:
-            param.requires_grad = False
+    # Encoder freezing policy.
+    #
+    # Default (unfreeze_encoder=0) freezes the whole encoder and trains only the
+    # confidence_predictor head. That is *frozen-embedding* rescoring, and
+    # project_ranker_ceiling_jun10 measured it hitting a wall at tau~0.14:
+    # "post-hoc rescoring with frozen embeddings hits a wall because embeddings
+    # weren't trained for ranking". The memory's prescribed fix is DFMDock-style
+    # co-training, i.e. letting the representation itself learn pose quality --
+    # which requires unfreezing encoder layers. That is what >0 enables.
+    #
+    # Unfreezing is done from the TOP down (last cross/intra conv layers first),
+    # because the deepest interaction layers carry the pose-discriminative signal
+    # while early embedding layers are generic; this also limits how many params
+    # move, which matters because the corpus is finite.
+    if unfreeze_encoder <= 0:
+        for name, param in model.encoder.named_parameters():
+            if "confidence_predictor" not in name:
+                param.requires_grad = False
+        log.info("Encoder FROZEN (head-only training)")
+    else:
+        conv_ids = sorted({
+            int(m.group(1))
+            for name, _ in model.encoder.named_parameters()
+            for m in [re.search(r"(?:cross_convs|intra_convs)\.(\d+)\.", name)]
+            if m
+        })
+        keep = set(conv_ids[-unfreeze_encoder:]) if conv_ids else set()
+        for name, param in model.encoder.named_parameters():
+            if "confidence_predictor" in name:
+                continue
+            m = re.search(r"(?:cross_convs|intra_convs)\.(\d+)\.", name)
+            param.requires_grad = bool(m and int(m.group(1)) in keep)
+        log.info("Encoder CO-TRAINING: unfroze top %d conv layer(s) %s of %s",
+                 unfreeze_encoder, sorted(keep), conv_ids)
 
     n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     n_total     = sum(p.numel() for p in model.parameters())
@@ -390,6 +469,21 @@ def main():
     ap.add_argument("--model-dir",      default=str(MODEL_DIR))
     ap.add_argument("--pretrained",     default=str(PRETRAINED_CKPT))
     ap.add_argument("--log-dir",        default="logs/confidence_training")
+    ap.add_argument("--unfreeze-encoder", type=int, default=0, metavar="N",
+                    help="Co-train the top N encoder conv layers along with the head. "
+                         "0 (default) = original behaviour: encoder fully frozen, i.e. "
+                         "frozen-embedding rescoring, which project_ranker_ceiling_jun10 "
+                         "measured hitting a wall at tau~0.14. >0 enables the DFMDock-style "
+                         "co-training that memory prescribes but was never runnable here.")
+    ap.add_argument("--encoder-lr",     type=float, default=1e-5,
+                    help="LR for co-trained encoder layers (head keeps --lr). Much lower "
+                         "than the head LR to avoid destroying the pretrained representation.")
+    ap.add_argument("--pool-csv",       default=str(REPO/"data"/"fullparam_train_pool.csv"),
+                    help="Pool CSV used to resolve corpus complex -> receptor/peptide paths.")
+    ap.add_argument("--corpus-jsonl",   default=None,
+                    help="Large labelled pose corpus from gen_confidence_corpus.py "
+                         "(JSONL: {name, poses:[{pose, rmsd}]}). Needed for co-training; "
+                         "bench300 alone (~1200 poses) overfits an unfrozen encoder.")
     args = ap.parse_args()
 
     # ── setup ──────────────────────────────────────────────────────────────
@@ -414,22 +508,52 @@ def main():
     log.info("Device: %s", device)
 
     # ── load data ──────────────────────────────────────────────────────────
-    log.info("Loading bench300 data...")
-    with open(args.bench300_json) as f:
-        bench300_data = json.load(f)
-    bench300_df = pd.read_csv(args.bench300_csv)
-
-    log.info("Building base graphs (one-shot ESM for all %d complexes)...", len(bench300_df))
     t0 = time.time()
-    base_graphs = build_all_base_graphs(bench300_df, bench300_data, tmp_dir=args.tmp_dir)
-    log.info("Base graphs done in %.1f min", (time.time() - t0) / 60)
+    if args.corpus_jsonl:
+        # Large-corpus path (co-training). bench300 is NOT usable for this: it has
+        # only ~1200 labelled poses, and 213 of its 240 complexes are inside
+        # fullparam_train_pool, so it is contaminated as a held-out set anyway.
+        log.info("Loading corpus %s (pool=%s)", args.corpus_jsonl, args.pool_csv)
+        names = []
+        with open(args.corpus_jsonl) as fh:
+            for line in fh:
+                try:
+                    names.append(json.loads(line)["name"])
+                except Exception:
+                    continue
+        pool = pd.read_csv(args.pool_csv)
+        pool = pool[pool["complex_name"].isin(set(names))]
+        corpus_df = pd.DataFrame({
+            "name": pool["complex_name"],
+            "receptor": pool["protein_description"],
+            "peptide_pdb": pool["peptide_description"],
+        })
+        log.info("Corpus complexes resolvable against pool: %d / %d",
+                 len(corpus_df), len(set(names)))
+        base_graphs = build_all_base_graphs(
+            corpus_df, {n: {} for n in corpus_df["name"]}, tmp_dir=args.tmp_dir)
+        log.info("Base graphs done in %.1f min", (time.time() - t0) / 60)
+        t0 = time.time()
+        pairs = build_pairs_from_corpus(
+            Path(args.corpus_jsonl), Path(args.pool_csv), base_graphs,
+            max_complexes=args.max_complexes,
+        )
+    else:
+        log.info("Loading bench300 data...")
+        with open(args.bench300_json) as f:
+            bench300_data = json.load(f)
+        bench300_df = pd.read_csv(args.bench300_csv)
 
-    log.info("Injecting pose positions and building pairs...")
-    t0 = time.time()
-    pairs = build_training_pairs(
-        bench300_data, bench300_df, base_graphs, device,
-        max_complexes=args.max_complexes,
-    )
+        log.info("Building base graphs (one-shot ESM for all %d complexes)...", len(bench300_df))
+        base_graphs = build_all_base_graphs(bench300_df, bench300_data, tmp_dir=args.tmp_dir)
+        log.info("Base graphs done in %.1f min", (time.time() - t0) / 60)
+
+        log.info("Injecting pose positions and building pairs...")
+        t0 = time.time()
+        pairs = build_training_pairs(
+            bench300_data, bench300_df, base_graphs, device,
+            max_complexes=args.max_complexes,
+        )
     log.info("Data build: %.1f min, %d total pairs", (time.time() - t0) / 60, len(pairs))
 
     if len(pairs) == 0:
@@ -457,9 +581,24 @@ def main():
     )
 
     # ── model ──────────────────────────────────────────────────────────────
-    model = load_confidence_model(Path(args.model_dir), Path(args.pretrained), device)
+    model = load_confidence_model(Path(args.model_dir), Path(args.pretrained), device,
+                                  unfreeze_encoder=args.unfreeze_encoder)
 
-    optimizer = Adam([p for p in model.parameters() if p.requires_grad], lr=args.lr)
+    # Separate LR for co-trained encoder layers: the head is randomly initialised and
+    # needs a large LR, while the encoder is pretrained and must move slowly or it
+    # forgets the representation that makes it useful at all (the same catastrophic-
+    # forgetting dynamic that destroyed every generator finetune in this project).
+    _head, _enc = [], []
+    for n_, p_ in model.named_parameters():
+        if not p_.requires_grad:
+            continue
+        (_head if "confidence_predictor" in n_ else _enc).append(p_)
+    groups = [{"params": _head, "lr": args.lr}]
+    if _enc:
+        groups.append({"params": _enc, "lr": args.encoder_lr})
+        log.info("Param groups: head=%d tensors @lr=%g | encoder=%d tensors @lr=%g",
+                 len(_head), args.lr, len(_enc), args.encoder_lr)
+    optimizer = Adam(groups, lr=args.lr)
     scheduler = ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.5)
     # scaler intentionally not used — AMP disabled (fp16 causes NaN in SO(3) encoder)
 
