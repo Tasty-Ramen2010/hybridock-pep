@@ -36,7 +36,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 RAPIDOCK = ROOT / "third_party" / "RAPiDock"
-RAPIDOCK_PY = "/home/igem/miniconda3/envs/rapidock/bin/python"
+RAPIDOCK_PY = os.environ.get("RAPIDOCK_PY", "/home/igem/miniconda3/envs/rapidock/bin/python")
 MODEL_DIR = RAPIDOCK / "train_models" / "CGTensorProductEquivariantModel"
 BENCH = ROOT / "data" / "benchmark30.csv"
 PREFIXES = [100, 200, 300, 500]
@@ -72,6 +72,56 @@ def ca_rmsd(ref_pdb: str, pose_pdb: str) -> tuple[float, float] | None:
         return None
     direct = float(np.sqrt(((a - b) ** 2).sum(axis=1).mean()))
     return direct, _kabsch(b, a)
+
+
+def _centroid_and_radius(pdb_path: str):
+    """Return (centroid_xyz, max_radius_from_centroid) over all ATOM/HETATM coords."""
+    coords = []
+    with open(pdb_path) as f:
+        for line in f:
+            if line.startswith("ATOM") or line.startswith("HETATM"):
+                coords.append((float(line[30:38]), float(line[38:46]), float(line[46:54])))
+    if not coords:
+        return None
+    n = len(coords)
+    cx = sum(c[0] for c in coords) / n
+    cy = sum(c[1] for c in coords) / n
+    cz = sum(c[2] for c in coords) / n
+    r = max(math.dist((cx, cy, cz), c) for c in coords)
+    return (cx, cy, cz), r
+
+
+def _load_coords(pdb_path: str):
+    coords = []
+    with open(pdb_path) as f:
+        for line in f:
+            if line.startswith("ATOM") or line.startswith("HETATM"):
+                coords.append((float(line[30:38]), float(line[38:46]), float(line[46:54])))
+    return coords
+
+
+def pocket_box_info(receptor: str, crystal_pep: str) -> str:
+    """Log the effective 'box' RAPiDock actually sees: the pocket receptor has no
+    explicit --site/--box input (see receptor.py's crop_to_pocket docstring --
+    'the diffusion model has no explicit site/box input'), so whatever residues
+    got included in the receptor file at data-prep time ARE the implicit site.
+    RAPiDock's own pocket_trunction.py builds pockets via NeighborSearch: every
+    protein residue within `threshold` (default 20A) of ANY peptide atom -- a
+    per-atom union, not a sphere around one center point. For an elongated
+    peptide this is naturally asymmetric, so simple pocket-vs-peptide CENTROID
+    distance is not a meaningful quality signal (an earlier version of this
+    function reported that and it was a false alarm -- Sep 2026). The metric
+    that actually matters is COVERAGE: does every peptide atom have pocket atoms
+    within the expected threshold? Reports the worst (max) such distance."""
+    pocket = _load_coords(receptor)
+    pep = _load_coords(crystal_pep)
+    if not pocket or not pep:
+        return "  [box] pocket/peptide coords unavailable"
+    pr = _centroid_and_radius(receptor)
+    worst_coverage = max(min(math.dist(pa, qa) for qa in pocket) for pa in pep)
+    flag = "" if worst_coverage <= 20.0 else "  ** WORSE THAN 20A pocket_trunction.py threshold **"
+    return (f"  [box] pocket_radius={pr[1]:.1f}A  "
+            f"worst_peptide_atom_to_pocket_coverage={worst_coverage:.1f}A{flag}")
 
 
 def run_one(name: str, receptor: str, seq: str, n: int, out_root: Path,
@@ -195,6 +245,7 @@ def main() -> None:
         for i, r in enumerate(rows):
             name, ss = r["name"], r.get("ss_class", "NA")
             print(f"\n[{i+1}/{len(rows)}] {name} ({ss}, {r.get('pep_len','?')}-mer)", flush=True)
+            print(pocket_box_info(r["receptor"], r["peptide_pdb"]), flush=True)
             pairs = run_one(name, r["receptor"], r["seq"], args.n_max, args.out,
                             args.steps, args.batch)
             results[name] = (ss, pairs)

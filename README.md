@@ -33,7 +33,8 @@ Creator: **[Choppa Purandhar Ram](https://www.linkedin.com/in/purandhar-ram-chop
 7.  [Testing](#testing)
 8.  [Why us?](#the-claims--measured-in-kcalmol-leakage-free)
 9.  [Roadmap](#roadmap--to-do)
-10. [Project status](#project-status) · [Citations](#citations) · [License](#license)
+10. [Where this has gone](#where-this-has-gone)
+11. [Project status](#project-status) · [Citations](#citations) · [License](#license)
 
 ---
 
@@ -682,6 +683,46 @@ Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61
 ---
 
 
+
+## Where this has gone
+
+### The Coventry challenge
+
+Brian Coventry at the Baker Lab (UW), one of the authors on the IDR-binder paper, challenged me to
+reproduce the 18×18 all-by-all specificity grid from Wu et al., *Science* 389:eadr8063 (2025),
+Fig. 2B. It's a simple ask and a brutal one: 18 designed binders, 18 peptides, and you have to say
+which peptide belongs to which binder for every single cell.
+
+![The Coventry 18x18 specificity grid — the paper's measured truth on the left, our ranks on the right, with the correct-answer diagonal drawn in red](docs/coventry_fullgrid_gradient.png)
+
+Left is the paper's measured ground truth. The middle and right are us. The red line is where the
+right answers sit, so the whole question is whether our dark ridge follows it.
+
+Our best arm lands a **mean rank of 3.17 out of 18**. It calls **7 of the 18** cognate pairs
+outright, **13 inside the top 3**, and **15 inside the top 5**. Every one of the 324 cells is
+drawn — nothing thresholded, nothing dropped, no picking which ones to show.
+
+We're not top-1 on most of them and I'm not going to pretend otherwise. The grid also shook out a
+pile of real bugs in our own pipeline, which is honestly the more useful half of what came out of
+it.
+
+### People who've looked at this
+
+A lot of this software exists because researchers were generous enough to look at it and tell us
+what was wrong with it. Their feedback drove real changes in the code, not just encouragement:
+
+- **University of Washington, Baker Lab** — Dr. Langan (LOCKR), Brian Coventry, Dr. Shajesh Sharma, and others
+- **University of Pittsburgh**
+- **The Hebrew University of Jerusalem**
+- **Georgia Institute of Technology** — Bruno Di Geronimo
+- **University of Oregon** — Parisa Hosseinzadeh
+
+### Talks
+
+Invited by the **School of Chemistry and Biochemistry at Georgia Tech** to present the software on
+**September 30, 2026**.
+
+---
 
 ## Citations
 

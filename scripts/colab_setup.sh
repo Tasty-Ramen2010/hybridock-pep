@@ -277,61 +277,6 @@ if [ "$LITE" -eq 1 ] && [ -d "$SCORE_PREFIX/include/boost" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4b. Match OpenMM's NVRTC to the installed driver
-# ---------------------------------------------------------------------------
-# conda-forge's openmm pulls whatever cuda-nvrtc is newest, which is not
-# necessarily one this machine's driver can consume. On Colab that mismatch is
-# the default: openmm 8.6 ships nvrtc 13.3 against a 580 driver (CUDA 13.0), so
-# EVERY openmm.Context on the CUDA platform dies with
-#   Error loading CUDA module: CUDA_ERROR_UNSUPPORTED_PTX_VERSION
-# because NVRTC emits PTX newer than the driver can JIT.
-#
-# The consequences were entirely silent. hardware.py handed back the CUDA
-# platform (getPlatformByName only proves it was COMPILED IN), every Context
-# construction failed, minimization quietly fell through to OpenCL, and each
-# failed construction stranded ~102 MB of VRAM that is never reclaimed. At
-# --n-samples 100 that alone was ~10 GB and the kernel OOM killer ended the run
-# partway through Stage 1.5.
-#
-# Pinning nvrtc to the driver's CUDA version restores the real CUDA path.
-# Best-effort: OpenCL is a correct fallback, so a failure here is a warning.
-step "Matching OpenMM's NVRTC to the driver"
-if [ -z "$GPU_CC" ]; then
-    ok "no GPU — nothing to match"
-else
-    DRIVER_CUDA="$(nvidia-smi 2>/dev/null \
-        | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n1)"
-    HAVE_NVRTC="$(ls "$SCORE_PREFIX"/lib/libnvrtc.so.* 2>/dev/null \
-        | sed -n 's/.*libnvrtc\.so\.\([0-9][0-9.]*\)$/\1/p' | sort -V | tail -n1)"
-    if [ -z "$DRIVER_CUDA" ]; then
-        warn "could not read the driver's CUDA version — leaving NVRTC alone"
-    else
-        ok "driver accepts CUDA $DRIVER_CUDA; score-env ships NVRTC ${HAVE_NVRTC:-none}"
-        if mm install -y -n score-env -c conda-forge "cuda-nvrtc=$DRIVER_CUDA" \
-             >/dev/null 2>&1; then
-            ok "pinned cuda-nvrtc=$DRIVER_CUDA"
-        else
-            warn "could not pin cuda-nvrtc=$DRIVER_CUDA (OpenCL fallback still works)"
-        fi
-    fi
-    # Prove it rather than trust it: build one real Context on the CUDA platform.
-    if "$SCORE_PREFIX/bin/python3" -c "
-import openmm
-s = openmm.System(); s.addParticle(1.0); s.addParticle(1.0)
-c = openmm.Context(s, openmm.VerletIntegrator(0.001),
-                   openmm.Platform.getPlatformByName('CUDA'),
-                   {'DeviceIndex': '0', 'Precision': 'mixed'})
-c.setPositions([(0,0,0),(0,0,0.1)])
-c.getState(getEnergy=True).getPotentialEnergy()
-" >/dev/null 2>&1; then
-        ok "OpenMM CUDA platform verified working"
-    else
-        warn "OpenMM's CUDA platform still cannot build a Context;" \
-             "minimization will use OpenCL (correct, just slower)"
-    fi
-fi
-
-# ---------------------------------------------------------------------------
 # 5. rapidock env + PyTorch/PyG
 # ---------------------------------------------------------------------------
 if [ "$SKIP_RAPIDOCK" -eq 0 ]; then
@@ -410,32 +355,6 @@ print(f"  torch {torch.__version__} | cuda={torch.version.cuda} "
       f"| available={torch.cuda.is_available()}"
       + (f" | {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else ""))
 PY
-
-    # ----------------------------------------------------------------------
-    # Pre-warm RAPiDock's SO(3)/torus lookup tables.
-    #
-    # utils/so3.py and utils/torus.py build truncated-infinite-series tables in
-    # MODULE-LEVEL code, so merely importing inference.py costs ~10 minutes of
-    # single-threaded numpy (so3: 1000 eps x 2000 terms x 2000 omega; torus: a
-    # 5001x5001 grid, ~200 MB per .npy). They cache to RELATIVE paths, so
-    # without this the cost lands on the user's first dock -- silently, because
-    # rapidock_runner.py routes non-progress stdout to logger.debug, leaving
-    # "Generating poses..." on screen with no explanation for ten minutes.
-    #
-    # Done here, in the directory rapidock_runner.py pins as the sampling
-    # subprocess's cwd, so the cache is actually found at dock time. Adds ~10
-    # min to an install already advertised as 15-25 min, and takes the same
-    # amount off the first dock.
-    step "Pre-computing RAPiDock's SO(3)/torus tables (~10 min, once)"
-    _rd="$REPO_ROOT/third_party/RAPiDock"
-    if [ -f "$_rd/.p.npy" ] && [ -f "$_rd/.so3_cdf_vals2.npy" ]; then
-        ok "lookup tables already cached"
-    elif ( cd "$_rd" && "$RAPIDOCK_PREFIX/bin/python3" -c \
-              "import sys; sys.path.insert(0, '.'); import utils.so3, utils.torus" ); then
-        ok "lookup tables cached in third_party/RAPiDock"
-    else
-        warn "could not pre-compute the lookup tables -- the first dock will spend ~10 min on it"
-    fi
 fi
 
 # ---------------------------------------------------------------------------
