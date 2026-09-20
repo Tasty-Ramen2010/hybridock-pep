@@ -688,34 +688,34 @@ Have **2–3 measured Kd on-target**? Anchor first (within-receptor r → **0.61
 
 ### The Coventry challenge
 
-Brian Coventry at the Baker Lab (UW), one of the authors on the IDR-binder paper, challenged me to
-reproduce the 18×18 all-by-all specificity grid from Wu et al., *Science* 389:eadr8063 (2025),
-Fig. 2B. It's a simple ask and a brutal one: 18 designed binders, 18 peptides, and you have to say
+Brian Coventry at the Baker Lab (UW), one of the authors on the IDR binder paper, challenged me to
+reproduce the 18x18 all by all specificity grid from Wu et al., *Science* 389:eadr8063 (2025),
+Fig. 2B. It is a simple ask and a brutal one. 18 designed binders, 18 peptides, and you have to say
 which peptide belongs to which binder for every single cell.
 
-![The Coventry 18x18 specificity grid — the paper's measured truth on the left, our ranks on the right, with the correct-answer diagonal drawn in red](docs/coventry_fullgrid_gradient.png)
+![The Coventry 18x18 specificity grid. Left is the measured ground truth from the paper. Right is our shortlist, where each row is drawn only as deep as you would have to test to reach the true partner](docs/coventry_digdepth.png)
 
-Left is the paper's measured ground truth. The middle and right are us. The red line is where the
-right answers sit, so the whole question is whether our dark ridge follows it.
+Left is the paper's measured ground truth. Right is us, and every row is only drawn as deep as we
+actually make you dig. If we call the right partner first you get one dark cell and you test one
+construct. If we call it third you get three cells and you test three. If we miss it completely the
+row gets drawn at five, which is where you would have given up and found nothing.
 
-Our best arm lands a **mean rank of 3.17 out of 18**. It calls **7 of the 18** cognate pairs
-outright, **13 inside the top 3**, and **15 inside the top 5**. Every one of the 324 cells is
-drawn — nothing thresholded, nothing dropped, no picking which ones to show.
+We find the true partner in **15 of the 18 rows**, and **7 of those are called first**. The whole
+shortlist is **48 cells out of 324**, so the grid is telling you to test 48 things instead of 324.
 
-We're not top-1 on most of them and I'm not going to pretend otherwise. The grid also shook out a
-pile of real bugs in our own pipeline, which is honestly the more useful half of what came out of
-it.
+The three we miss are pc18, n4 and pc26, and they are not close. The grid also shook a pile of real
+bugs out of our own pipeline, which is honestly the more useful half of what we got from it.
 
 ### People who've looked at this
 
 A lot of this software exists because researchers were generous enough to look at it and tell us
-what was wrong with it. Their feedback drove real changes in the code, not just encouragement:
+what was wrong with it. Their feedback drove real changes in the code, not just encouragement.
 
-- **University of Washington, Baker Lab** — Dr. Langan (LOCKR), Brian Coventry, Dr. Shajesh Sharma, and others
+- **University of Washington, Baker Lab**, Dr. Langan (LOCKR), Brian Coventry, Dr. Shajesh Sharma, and others
 - **University of Pittsburgh**
 - **The Hebrew University of Jerusalem**
-- **Georgia Institute of Technology** — Bruno Di Geronimo
-- **University of Oregon** — Parisa Hosseinzadeh
+- **Georgia Institute of Technology**, Bruno Di Geronimo
+- **University of Oregon**, Parisa Hosseinzadeh
 
 ### Talks
 
