@@ -1,0 +1,29 @@
+record: hybridock-pep
+author: Choppa Purandhar Ram
+category: Therapeutics
+subcategory: Computational Drug Discovery
+license: MIT(osi)
+status: active
+maturity: deployed
+organization: iGEM Dry Lab
+country: Denmark
+homepage: https://github.com/Tasty-Ramen2010/hybridock-pep
+repository: github.com/Tasty-Ramen2010/hybridock-pep
+documentation: https://github.com/Tasty-Ramen2010/hybridock-pep/blob/master/README.md
+tags:
+  - autodock-vina
+  - binding-affinity
+  - bioinformatics
+  - cheminformatics
+  - cli-tool
+  - computational-biology
+  - diffusion-model
+  - docking-simulation
+  - drug-discovery
+  - igem
+  - molecular-docking
+  - peptide-docking
+  - protein-peptide-interactions
+  - python
+  - structural-biology
+regulatory: not-applicable
