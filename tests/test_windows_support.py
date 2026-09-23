@@ -18,12 +18,32 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-import yaml
 
 from hybridock_pep.web.server import _process_group_kwargs
 from tests.shell import bash_exe, have_real_bash
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+def _channels(path: Path) -> list[str]:
+    """The channels: block of a conda env file, without needing PyYAML.
+
+    PyYAML is not a declared dependency of this project, and the pip-only CI job
+    does not have it; these files are simple enough to read directly.
+    """
+    out, inside = [], False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("channels:"):
+            inside = True
+            continue
+        if inside:
+            stripped = line.strip()
+            if line.startswith("  #") or not stripped:
+                continue
+            if not line.startswith("  - "):
+                break
+            out.append(stripped[2:].strip())
+    return out
 GIT_BASH = r"C:\Program Files\Git\bin\bash.exe"
 WSL_STUB = r"C:\Windows\System32\bash.exe"
 
@@ -110,11 +130,9 @@ class TestCondaEnvironmentFiles:
         CondaToSNonInteractiveError before installing anything. Every package in
         these files is conda-forge-pinned anyway, so `defaults` buys nothing.
         """
-        spec = yaml.safe_load((REPO / "envs" / name).read_text())
-        assert "defaults" not in (spec.get("channels") or []), (
+        assert "defaults" not in _channels(REPO / "envs" / name), (
             f"{name} lists the defaults channel; that breaks conda env create on Windows"
         )
 
     def test_conda_forge_is_still_there(self):
-        spec = yaml.safe_load((REPO / "envs/score-env.yml").read_text())
-        assert "conda-forge" in spec["channels"]
+        assert "conda-forge" in _channels(REPO / "envs/score-env.yml")
