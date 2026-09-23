@@ -41,6 +41,15 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Git Bash/MSYS hands us --model-dir exactly as Windows wrote it (C:\Users\...).
+# SRC_DIR comes from `pwd` so it is already POSIX, but MSYS tools (sha256sum,
+# cp) cannot open a backslash path, and _sha256 swallows their error — so the
+# destination never verified, and every run re-copied instead of reporting
+# "already in place". Normalise once, here, where it is cheap.
+if command -v cygpath >/dev/null 2>&1; then
+    MODEL_DIR="$(cygpath -u "$MODEL_DIR")"
+fi
+
 say()  { [ "$QUIET" -eq 1 ] || printf '  %s\n' "$*"; }
 warn() { printf '  WARNING: %s\n' "$*" >&2; }
 
@@ -102,6 +111,15 @@ install_ckpt() {
         # interrupted install leaves nothing that looks loadable.
         cp "$src" "$dest.part"
         mv "$dest.part" "$dest"
+        # Verify what we just wrote, not just what we read. A copy that lands
+        # short or unreadable used to be announced as a successful install and
+        # only showed up as a re-copy on the next run (which is how the Windows
+        # path bug above stayed hidden).
+        if ! verified "$dest" "$name"; then
+            warn "$name was copied from weights/ but does not verify at $dest" \
+                 "— expected $(sha_for "$name"), got $(_sha256 "$dest")"
+            return 1
+        fi
         say "$name installed from weights/ (no download)"
         return 0
     elif [ -f "$src" ]; then
