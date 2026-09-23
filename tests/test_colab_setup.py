@@ -20,7 +20,17 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from tests.shell import bash_exe as _bash_exe
+from tests.shell import have_real_bash
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+pytestmark = pytest.mark.skipif(
+    not have_real_bash(),
+    reason="no POSIX bash available (Windows without Git Bash)",
+)
 COLAB_SH = REPO_ROOT / "scripts" / "colab_setup.sh"
 INSTALL_SH = REPO_ROOT / "install.sh"
 NOTEBOOK = REPO_ROOT / "notebooks" / "HybriDock_Pep_Colab.ipynb"
@@ -34,7 +44,7 @@ def _notebook_source() -> str:
 class TestColabSetupScript:
     def test_is_syntactically_valid(self):
         result = subprocess.run(
-            ["bash", "-n", str(COLAB_SH)], capture_output=True, text=True
+            [_bash_exe(), "-n", str(COLAB_SH)], capture_output=True, text=True
         )
         assert result.returncode == 0, result.stderr
 
@@ -43,7 +53,7 @@ class TestColabSetupScript:
         line above it and the help silently truncates mid-sentence, which is
         exactly the kind of drift nobody notices."""
         result = subprocess.run(
-            ["bash", str(COLAB_SH), "--help"], capture_output=True, text=True
+            [_bash_exe(), str(COLAB_SH), "--help"], capture_output=True, text=True
         )
         assert result.returncode == 0, result.stderr
         for flag in ("--cache-dir", "--backend", "--skip-rapidock", "--lite",
@@ -53,7 +63,7 @@ class TestColabSetupScript:
 
     def test_unknown_flag_is_rejected(self):
         result = subprocess.run(
-            ["bash", str(COLAB_SH), "--nope"], capture_output=True, text=True
+            [_bash_exe(), str(COLAB_SH), "--nope"], capture_output=True, text=True
         )
         assert result.returncode == 2
         assert "unknown flag" in result.stderr
@@ -166,7 +176,7 @@ class TestLiteMode:
         docking needs both. A --lite flag that implied otherwise would be
         misleading about the one number users care about."""
         result = subprocess.run(
-            ["bash", str(COLAB_SH), "--help"], capture_output=True, text=True
+            [_bash_exe(), str(COLAB_SH), "--help"], capture_output=True, text=True
         )
         out = result.stdout
         assert "ESM-2" in out and "PyTorch" in out, (

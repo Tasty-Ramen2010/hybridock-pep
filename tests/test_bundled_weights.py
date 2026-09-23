@@ -27,7 +27,15 @@ from pathlib import Path
 
 import pytest
 
+from tests.shell import bash_exe as _bash_exe
+from tests.shell import have_real_bash
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+pytestmark = pytest.mark.skipif(
+    not have_real_bash(),
+    reason="no POSIX bash available (Windows without Git Bash)",
+)
 WEIGHTS_DIR = REPO_ROOT / "weights"
 INSTALL_WEIGHTS_SH = REPO_ROOT / "scripts" / "install_weights.sh"
 
@@ -93,7 +101,7 @@ class TestWeightsDirectory:
 class TestInstallWeightsScript:
     def test_syntax(self) -> None:
         assert subprocess.run(
-            ["bash", "-n", str(INSTALL_WEIGHTS_SH)], capture_output=True
+            [_bash_exe(), "-n", str(INSTALL_WEIGHTS_SH)], capture_output=True
         ).returncode == 0
 
     def test_installs_from_weights_without_touching_the_network(
@@ -113,7 +121,7 @@ class TestInstallWeightsScript:
         model_dir = tmp_path / "model"
         env = {"PATH": f"{fake_bin}:/usr/bin:/bin"}
         result = subprocess.run(
-            ["bash", str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir)],
+            [_bash_exe(), str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir)],
             capture_output=True, text=True, env=env,
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -126,7 +134,7 @@ class TestInstallWeightsScript:
         pass of `dock --blind`. --lite may skip that one and nothing else."""
         model_dir = tmp_path / "model"
         result = subprocess.run(
-            ["bash", str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir), "--lite"],
+            [_bash_exe(), str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir), "--lite"],
             capture_output=True, text=True,
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -140,7 +148,7 @@ class TestInstallWeightsScript:
         model_dir.mkdir()
         (model_dir / "rapidock_local.pt").write_bytes(b"not a checkpoint")
         subprocess.run(
-            ["bash", str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir), "--lite"],
+            [_bash_exe(), str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir), "--lite"],
             capture_output=True, text=True, check=True,
         )
         assert _sha256(model_dir / "rapidock_local.pt") == UPSTREAM["rapidock_local.pt"]
@@ -148,11 +156,11 @@ class TestInstallWeightsScript:
     def test_rerun_is_a_no_op(self, tmp_path: Path) -> None:
         model_dir = tmp_path / "model"
         first = subprocess.run(
-            ["bash", str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir)],
+            [_bash_exe(), str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir)],
             capture_output=True, text=True, check=True,
         )
         second = subprocess.run(
-            ["bash", str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir)],
+            [_bash_exe(), str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir)],
             capture_output=True, text=True, check=True,
         )
         assert "installed from weights/" in first.stdout
@@ -168,7 +176,7 @@ class TestInstallWeightsScript:
         cause."""
         model_dir = tmp_path / "model"
         subprocess.run(
-            ["bash", str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir), "--lite"],
+            [_bash_exe(), str(INSTALL_WEIGHTS_SH), "--model-dir", str(model_dir), "--lite"],
             capture_output=True, check=True,
         )
         installed = model_dir / "rapidock_local.pt"

@@ -29,8 +29,12 @@ name: rapidock
 #
 # Bundled at third_party/RAPiDock/ — no pip install needed.
 channels:
+  # conda-forge only, deliberately. Every package below is conda-forge-pinned
+  # anyway, and listing `defaults` drags in repo.anaconda.com/pkgs/msys2 on
+  # Windows, whose Terms-of-Service gate now aborts `conda env create` outright
+  # ("CondaToSNonInteractiveError") before a single package is solved. Verified
+  # to solve for win-64 AND linux-64 with conda-forge alone.
   - conda-forge
-  - defaults
 dependencies:
   - python=3.10
   - conda-forge::numpy>=1.26

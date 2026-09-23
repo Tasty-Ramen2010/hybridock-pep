@@ -4,8 +4,12 @@ name: diffpepdock
 # for RTX 5070 (Blackwell CC 12.0) compatibility.
 # PyRosetta is NOT included — we skip rosetta_relax postprocessing.
 channels:
+  # conda-forge only, deliberately. Every package below is conda-forge-pinned
+  # anyway, and listing `defaults` drags in repo.anaconda.com/pkgs/msys2 on
+  # Windows, whose Terms-of-Service gate now aborts `conda env create` outright
+  # ("CondaToSNonInteractiveError") before a single package is solved. Verified
+  # to solve for win-64 AND linux-64 with conda-forge alone.
   - conda-forge
-  - defaults
 dependencies:
   - python=3.9
   - pip
