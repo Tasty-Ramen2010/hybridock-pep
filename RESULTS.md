@@ -26,12 +26,19 @@ Pearson r is secondary and capped near the field ceiling for *all* methods, FEP 
 | **Full PDBbind peptide set, leakage-free** | **MAE 1.40 · RMSE 1.77 · r 0.321** | zero-skill MAE 1.47 | 925 | `python e330_ours_pdbbind.py` |
 | **30% cutoff (standard threshold)** | **MAE 1.39 · RMSE 1.76 · r 0.322** | — | 410 clusters | `python e366_identity_threshold_trend.py` |
 | PDBbind crystal + interaction map | r 0.480 (charged 0.401) | PPI-clone 0.291 (0.146) | 865 | `python e298_ppi_vs_ifp.py` |
-| Double-difference ΔΔG (same-receptor) | r ≈ 0.96 | FEP/TI ≈ 0.85 | — | `python e287_similarity_and_dd.py` |
+| Same-receptor anchoring (≥2 measured refs) | **within-receptor r 0.71** | cold, no reference: r 0.47 | 865 | `python e312_double_diff_and_physics.py` |
 | Affinity r on real AI poses (geom→+IFP) | 0.486 → 0.53 · **MAE 1.51–1.54** | PPI pose-blind 0.325 | 151 | `python e106_combined_realpose_grade.py` |
 
 **MAE is flat (1.32→1.42) across the entire 30–100% identity sweep** — that stability of the
 kcal/mol error is the number we stand behind. r declines smoothly from 0.45 (leaky) and
 levels near 0.32: the honest cross-target ceiling.
+
+> **Retracted (E312).** This table previously headlined a double-difference ΔΔG at *r ≈ 0.96*. That
+> "prediction" used **three measured ΔGs** to estimate a fourth by additivity — the scorer was not
+> involved — and it is beaten by the trivial "reuse the nearest measured value" baseline (MAE 0.75 vs
+> 0.91); the r rides between-grid variance (targets span 2.66 kcal/mol std, the real coupling error is
+> ~1.1). The honest same-receptor result is the **anchoring** row above. Reproduce the retraction itself:
+> `python experiments/e312_double_diff_and_physics.py`.
 
 **Offline, no data, 30 s:** `make verify` runs the math-only tests (double-difference,
 anchoring, selectivity) — proves the relative-scoring machinery is correct without PDBbind.
