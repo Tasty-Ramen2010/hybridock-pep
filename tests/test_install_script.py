@@ -22,30 +22,18 @@ from pathlib import Path
 
 import pytest
 
+from tests.shell import bash_exe as _bash_exe
+from tests.shell import have_real_bash
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+pytestmark = pytest.mark.skipif(
+    not have_real_bash(),
+    reason="no POSIX bash available (Windows without Git Bash)",
+)
 INSTALL_SH = REPO_ROOT / "install.sh"
 
 
-def _bash_exe() -> str:
-    """Locate a real POSIX bash to run install.sh's own tests against.
-
-    On native Windows CI runners, plain "bash" on $PATH can resolve to
-    C:\\Windows\\System32\\bash.exe — the WSL launcher stub, not a real shell —
-    depending on PATH order. With no WSL distro installed on that runner (it's
-    not needed; conda-platforms' Windows job never uses WSL), that stub just
-    prints "Windows Subsystem for Linux has no installed distributions" and
-    exits 1, which install.sh's own syntax has nothing to do with. Prefer Git
-    for Windows' real bash (always present alongside GitHub Actions' windows-*
-    runners, and needed for this repo's other bash-shell CI steps anyway).
-    """
-    if os.name == "nt":
-        for candidate in (
-            r"C:\Program Files\Git\bin\bash.exe",
-            r"C:\Program Files (x86)\Git\bin\bash.exe",
-        ):
-            if os.path.isfile(candidate):
-                return candidate
-    return "bash"
 
 
 def test_install_script_is_syntactically_valid():
@@ -130,7 +118,7 @@ class TestExistingCondaIsFound:
         env["HOME"] = str(home)
         env["PATH"] = f"{stubs}:/usr/bin:/bin"
         proc = subprocess.run(
-            ["bash", str(INSTALL_SH), "--no-ui"],
+            [_bash_exe(), str(INSTALL_SH), "--no-ui"],
             cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=300,
         )
         proc.calls = calls.read_text() if calls.exists() else ""  # type: ignore[attr-defined]

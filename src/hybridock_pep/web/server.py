@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import mimetypes
+import os
 import re
 import subprocess
 import threading
@@ -285,6 +286,25 @@ def check_environment() -> dict[str, Any]:
 #  Jobs
 # --------------------------------------------------------------------------- #
 
+def _process_group_kwargs() -> dict[str, Any]:
+    """Popen kwargs that put the run in its own process group.
+
+    terminate_process_tree() stops a run by signalling the GROUP, because the
+    dock spawns the rapidock env's python as a child that would otherwise
+    survive and keep the GPU. Without this the group is the *server's* own, and
+    pressing Stop would SIGTERM the studio and the shell it runs in.
+
+    POSIX gets ``start_new_session`` (setsid). Windows ignores that argument
+    entirely, so it gets CREATE_NEW_PROCESS_GROUP instead, which is what makes
+    the taskkill /T path in terminate_process_tree work there.
+    """
+    if os.name == "nt":
+        # getattr: the constant only exists on Windows, and this module is
+        # imported (and tested) on POSIX too.
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    return {"start_new_session": True}
+
+
 class Job:
     """One pipeline run started from the browser."""
 
@@ -381,12 +401,7 @@ class JobManager:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                # Its own process group, which terminate_process_tree() requires:
-                # it stops the run by signalling the GROUP (the dock spawns the
-                # rapidock env's python as a child that would otherwise survive and
-                # keep the GPU). Without this the group is the *server's* own, and
-                # pressing Stop SIGTERMs the studio — and the shell it runs in.
-                start_new_session=True,
+                **_process_group_kwargs(),
             )
         except OSError as exc:
             job.state = "failed"

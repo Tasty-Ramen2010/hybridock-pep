@@ -94,6 +94,19 @@ def terminate_process_tree(proc, grace: float = 4.0) -> bool:
     if proc is None or proc.poll() is not None:
         return True
 
+    if os.name == "nt":
+        # Windows has no process groups in the POSIX sense and no SIGTERM for a
+        # tree. taskkill /T walks the child list (which is why the run is started
+        # with CREATE_NEW_PROCESS_GROUP), and /F is the only thing that reliably
+        # stops a GPU job that is not pumping a message loop.
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                       capture_output=True, check=False)
+        try:
+            proc.wait(timeout=grace)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return proc.poll() is not None
+
     def _signal_group(sig) -> None:
         if hasattr(os, "killpg"):
             try:
