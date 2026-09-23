@@ -18,6 +18,9 @@ ROOT = Path("/home/igem/unknown_software")
 _SETS = {
     "recentset": ("data/bench_recentset_heldout.csv", "runs/recentset", "logs/dockq_recentset.jsonl"),
     "balanced": ("data/bench_balanced_post2020.csv", "runs/balanced", "logs/dockq_balanced.jsonl"),
+    # The length-balanced 387 used for the paper-style figures, Tanh tree (Sep-21 rerun).
+    "balanced_length": ("data/bench_balanced_length.csv", "runs/balanced_length",
+                        "logs/dockq_balanced_length.jsonl"),
 }
 _SET = os.environ.get("DOCKQ_SET", "recentset")
 if _SET not in _SETS:

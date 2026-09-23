@@ -23,7 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dockq_rs import score_pose  # noqa: E402
 
 ROOT = Path("/home/igem/unknown_software")
-BENCH = ROOT / "data/bench_recentset_heldout.csv"
+# ADCP_BENCH selects the bench; the length-balanced 387 is what the paper-style figures use.
+import os as _os
+BENCH = Path(_os.environ.get("ADCP_BENCH", str(ROOT / "data/bench_recentset_heldout.csv")))
+OUT = Path(_os.environ.get("ADCP_OUT", str(ROOT / "logs/dockq_adcp.jsonl")))
 
 
 def score_one(args: tuple[str, str, str, str]) -> dict:
@@ -51,13 +54,13 @@ def main() -> None:
     crashed = sorted(n for n in meta if not have[n])
     print(f"scoring {len(jobs)} ADCP results; {len(crashed)} produced no ranked output "
           f"and count as failures: {', '.join(crashed) if crashed else '-'}", flush=True)
-    out = ROOT / "logs/dockq_adcp.jsonl"
+    out = OUT
     with out.open("a") as fh:
         for n in crashed:
             fh.write(json.dumps({"name": n, "dockq": [], "n_modes": 0,
                                  "no_output": True}) + "\n")
     done = 0
-    with out.open("a") as fh, ProcessPoolExecutor(max_workers=6) as ex:
+    with out.open("a") as fh, ProcessPoolExecutor(max_workers=int(_os.environ.get("DOCKQ_WORKERS", "6"))) as ex:
         futs = [ex.submit(score_one, j) for j in jobs]
         for f in as_completed(futs):
             fh.write(json.dumps(f.result()) + "\n")
