@@ -1,18 +1,33 @@
-"""Pooled data-driven affinity model — the length-conditioned, descriptor-augmented production scorer.
+"""Data-driven affinity model — the descriptor-augmented production scorer (262 features).
 
-Trained on 1076 pooled peptide–protein complexes (PDBbind-925 + curated benchmark) over 49 features:
-the 16 geometry descriptors (``geometry_features``) + 29 sequence physicochemical descriptors + 3
-peptide×pocket charge-complementarity terms + peptide length. Grouped-CV r≈0.51 overall (MAE 1.31),
-short≈0.50, charged≈0.43; on the curated benchmark r≈0.58 / MAE 1.41 — matches PPI-Affinity on correlation
-and beats it on MAE (their reported metric, ~1.8).
+One gradient-boosted tree over a pose + its peptide sequence, predicting ΔG in kcal/mol. The feature
+vector is 16 geometry descriptors (``geometry_features``) + 220 peptide ProtDCal descriptors (22 property
+scales x 10 aggregations, E150) + 3 peptide-pocket charge-complementarity terms (E149) + peptide length
++ 22 binding-pocket ProtDCal descriptors (E157/E205).
+
+TWO artifacts ship, because a crystal-trained model collapses on AI poses (the "AI haircut", E152:
+r 0.53 on crystals -> 0.06 on real RAPiDock poses):
+
+- ``data/affinity_ai_nofix.joblib`` (_DEFAULT_ARTIFACT) — trained on 633 real RAPiDock-pose complexes,
+  grouped-CV r=0.49. What ``dock`` uses; the number a user actually gets. NO size-fix: residualising the
+  size-geometry block removes pose-quality signal that real poses carry (E204).
+- ``data/affinity_crystal_sizefix.joblib`` (_CRYSTAL_ARTIFACT) — trained on 925 crystal complexes for the
+  ``crystal-score`` path, WITH the length residualisation (E203) and two band-routed sub-models
+  (long 13-16, vlong >=17, PPIKB-augmented; E216/E238) that leave every other band byte-identical.
+
+Leakage-free headline (60%-identity clustered CV, n=865): MAE 1.35 / RMSE 1.69 / r 0.352, vs a
+PPI-Affinity clone at 1.46 / 1.84 / 0.210 on the identical split. Quote MAE first — it is flat
+(1.32-1.42) across the whole 30-100% identity sweep while r slides from 0.45 (leaky) to ~0.32.
 
 Design notes:
 - Length is a FEATURE (soft per-band conditioning), not a hard router — hard routing starves bands (E126).
+  The crystal artifact's long/vlong routers are the one exception, and they are band-isolated by design.
 - Sequence descriptors recover part of the charged floor that single-pose physics electrostatics wash out
   (E146/E149): the charged signal is partly data-learnable, as PPI-Affinity demonstrates.
+- Anchor features (E170) are appended only when the caller's geometry dict carries them, and are consumed
+  only by anchor-aware artifacts; the shipped 262-feature models trim that trailing block (see
+  ``predict_affinity``).
 - Graceful no-op: if the artifact is absent the scorer returns None and the pipeline annotation is skipped.
-
-Artifact: ``data/affinity_pooled_prodn.joblib`` (dict: model, feature_order, n_train).
 """
 from __future__ import annotations
 
@@ -184,16 +199,19 @@ def _apply_size_fix(x: np.ndarray, seq_len: int, size_regs: dict | None) -> np.n
 
 
 def build_feature_vector(geometry: dict[str, float], seq: str) -> np.ndarray:
-    """Assemble the 49-feature production vector from geometry descriptors + peptide sequence.
+    """Assemble the production feature vector from geometry descriptors + peptide sequence.
 
     Args:
         geometry: dict with the 16 GEOMETRY_KEYS (from ``compute_geometry_features``); ``poc_net`` is also
-            reused for charge complementarity.
+            reused for charge complementarity, ``pocket_seq`` for the pocket descriptors, and the three
+            ANCHOR_KEYS when the caller computed them.
         seq: one-letter peptide sequence (length drives the soft per-band conditioning).
 
     Returns:
-        Length-240 float array in the model's training order
-        (16 geometry + 220 ProtDCal + 3 charge-complementarity + length).
+        Float array in the model's training order: 16 geometry + 220 ProtDCal + 3 charge-complementarity
+        + length + 22 pocket ProtDCal (= 262, the shipped artifacts), plus 3 anchor features when the
+        geometry dict carries them (265). ``predict_affinity`` trims any trailing block the loaded model
+        does not expect, so 240-, 243- and 262-feature artifacts all work.
     """
     geom = [float(geometry.get(k, 0.0)) for k in GEOMETRY_KEYS]
     pdesc = _protdcal_descriptors(seq)
@@ -213,9 +231,10 @@ def predict_affinity(geometry: dict[str, float], seq: str, artifact: Path | str 
     """Predict calibrated ΔG (kcal/mol) for one pose, or None if the model artifact is unavailable.
 
     Args:
-        geometry: the 16 geometry descriptors for the pose.
+        geometry: the 16 geometry descriptors for the pose (plus ``pocket_seq``/anchor when available).
         seq: peptide one-letter sequence.
-        artifact: optional path to the joblib bundle; defaults to ``data/affinity_pooled_prodn.joblib``.
+        artifact: optional path to the joblib bundle; defaults to the AI-pose model
+            ``data/affinity_ai_nofix.joblib`` (pass ``_CRYSTAL_ARTIFACT`` to score a crystal pose).
 
     Returns:
         Predicted ΔG in kcal/mol, or None if the artifact is missing/unloadable or seq is empty.
