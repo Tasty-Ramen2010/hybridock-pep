@@ -62,6 +62,48 @@ def pose_spread(poses: list[str]) -> float:
     return tot / n if n else float("nan")
 
 
+def assert_torsion_nonlinearity(infer_dir: str) -> None:
+    """Refuse to start a benchmark on a tree whose torsion heads use the wrong nonlinearity.
+
+    THIS HAS NOW COST TWO BENCHMARKS. The authors' code has used Tanh in tor_bb_final_layer and
+    tor_sc_final_layer since their first commit, and rapidock_local.pt's torsion weights were
+    trained under it. Our fork carried SiLU (Sep-13 finding: long-peptide <=5A went 27/77 -> 9/77
+    for UNCHANGED pretrained weights). It was fixed, and then on Sep-18 a `git reset --hard
+    origin/master` silently put SiLU back, along with deleting the comment that explained why it
+    must not be. Everything docked locally for the next three days went through it: the whole
+    387-complex length-balanced bench, the blind run, 42k poses. Nothing errored, nothing looked
+    wrong in a log, and the only symptom was that placement stayed perfect while SHAPE degraded
+    (best-of-24 Kabsch 1.53 -> 2.35 A).
+
+    A source-level check is the right guard because the failure is a source-level revert, and it
+    costs microseconds against the hours of GPU a silent rerun costs.
+    """
+    src = Path(infer_dir) / "models" / "diffusion.py"
+    lines = src.read_text().splitlines()
+    for head in ("tor_bb_final_layer", "tor_sc_final_layer"):
+        try:
+            i = next(k for k, l in enumerate(lines)
+                     if f"self.{head} = nn.Sequential" in l)
+        except StopIteration:
+            raise SystemExit(f"REFUSING TO RUN: {head} not found in {src}")
+        # collect the Sequential's own lines, dropping comments so the prose in them
+        # ("Tanh, NOT SiLU") can never satisfy or trip the check
+        depth, body = 0, []
+        for l in lines[i:]:
+            code = l.split("#", 1)[0]
+            body.append(code)
+            depth += code.count("(") - code.count(")")
+            if depth <= 0 and len(body) > 1:
+                break
+        block = "\n".join(body)
+        if "nn.Tanh()" not in block or "nn.SiLU()" in block:
+            raise SystemExit(
+                f"REFUSING TO RUN: {head} in {src} does not use nn.Tanh().\n"
+                f"  This is the Sep-13 SiLU/Tanh fork bug. Every benchmark through this tree is\n"
+                f"  invalid. Restore with:\n"
+                f"    git checkout backup-master-preclean -- {src}")
+
+
 def run_one(name, receptor, seq, n, steps, batch, out_root, infer_dir, model_dir,
             ckpt, partial):
     with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as tf:
@@ -127,6 +169,7 @@ def main():
     if a.model_dir:
         a.model_dir = str(Path(a.model_dir).expanduser().resolve())
     model_dir = a.model_dir or str(Path(a.infer_dir) / "train_models" / "CGTensorProductEquivariantModel")
+    assert_torsion_nonlinearity(a.infer_dir)
     rows = list(csv.DictReader(open(a.bench)))[: a.limit]
     Path(a.out).mkdir(parents=True, exist_ok=True)
 
