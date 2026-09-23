@@ -205,6 +205,17 @@ in a few seconds, and familiarizes the user with the rest of the UI.
 ./launch_ui.sh --demo
 ```
 
+Or, if you would rather work in a browser:
+
+```bash
+hybridock-pep serve
+```
+
+opens a local page at `http://127.0.0.1:8000` with the same three jobs — dock a peptide, compare
+two targets, score a structure you already have. It starts pre-filled with the MDM2/p53 example, so
+the first run needs no input, and every screen shows the exact command it is about to run, so
+anything you set up there can be reproduced in a terminal. It binds to this machine only.
+
 Below are screenshots of the software in action, including ASCII art, a finished demo, and the help screen.
 
 <table>
