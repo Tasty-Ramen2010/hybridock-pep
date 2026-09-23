@@ -88,7 +88,11 @@ where = ["src"]
 # data/* ships the runtime-critical model artifacts + calibration/fixtures the
 # default `dock`/`crystal-score`/`benchmark` CLI paths load unconditionally
 # (see hybridock_pep/_paths.py) — must be in the wheel, not just the dev checkout.
-hybridock_pep = ["py.typed", "data/*.joblib", "data/*.json", "data/*.csv"]
+# web/* is the `serve` studio UI — it is served off disk at runtime, so the
+# html/css/js/fonts have to be in the wheel too or `serve` 404s on a pip install.
+hybridock_pep = ["py.typed", "data/*.joblib", "data/*.json", "data/*.csv",
+                 "web/index.html", "web/static/css/*.css", "web/static/js/*.js",
+                 "web/static/fonts/*.ttf"]
 
 [tool.ruff]
 line-length = 100

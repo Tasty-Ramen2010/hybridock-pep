@@ -105,6 +105,27 @@ Notes:
     runs differ by ~2.9 A mean pose RMSD. That is expected, not a bug.
 """,
 
+    "serve": f"""{_h("serve — the studio, in your browser")}
+Opens a local web UI for the three things people actually run: dock a peptide,
+compare two targets, or score a pose you already have.
+
+    hybridock-pep serve
+    hybridock-pep serve --port 8080        # if 8000 is busy
+    hybridock-pep serve --no-browser       # just print the URL
+
+It binds to 127.0.0.1 — this machine only, nothing is exposed to the network —
+and it runs the same commands you would type yourself. Every screen shows the
+command it is about to run, so anything you set up in the browser can be
+reproduced, scripted, or pasted into a paper's methods section.
+
+The form starts pre-filled with the MDM2/p53 example, so pressing the button
+without changing anything is a valid first run. The status lamp in the corner
+says what this machine can do (GPU, Vina, OpenMM, model weights).
+
+Stop a run with the Stop button; it signals the whole process group, so the
+GPU sampling child dies with it rather than carrying on in the background.
+""",
+
     "crystal-score": f"""{_h("crystal-score — validate your install")}
 Score an existing complex. No sampling, no GPU, seconds to run.
 
