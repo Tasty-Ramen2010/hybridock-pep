@@ -486,7 +486,33 @@ def _build_parser() -> argparse.ArgumentParser:
                             "scores atom overlaps as strong contacts and would return a confident but "
                             "meaningless ΔG.")
 
+    # ----- serve: the browser UI -----
+    p_serve = sub.add_parser(
+        "serve",
+        help="Open the studio: a local web UI for docking, selectivity and scoring.",
+    )
+    p_serve.add_argument("--port", type=int, default=8000, metavar="PORT",
+                         help="Port to listen on (default: 8000; the next free one is used "
+                              "if it is taken).")
+    p_serve.add_argument("--host", default="127.0.0.1", metavar="ADDR",
+                         help="Interface to bind (default: 127.0.0.1, this machine only). "
+                              "Only change this if you know why.")
+    p_serve.add_argument("--no-browser", action="store_true", default=False,
+                         help="Do not open a browser window; just print the URL.")
+
     return parser
+
+
+def _run_serve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Start the local web UI.
+
+    Args:
+        args: Parsed ``serve`` arguments (host, port, no_browser).
+        parser: The argument parser, used to error out cleanly.
+    """
+    from hybridock_pep.web import serve
+
+    raise SystemExit(serve(host=args.host, port=args.port, open_browser=not args.no_browser))
 
 
 def _print_dock_banner(config: DockConfig) -> None:
@@ -514,7 +540,7 @@ def _print_dock_banner(config: DockConfig) -> None:
     print("│" + title.center(inner) + "│", file=sys.stderr)
     print("└" + "─" * inner + "┘", file=sys.stderr)
 
-    from hybridock_pep.output import art  # noqa: PLC0415
+    from hybridock_pep.output import art
 
     if art.art_enabled(sys.stderr):
         egg = art.easter_egg_for_peptide(config.peptide_sequence)
@@ -678,7 +704,7 @@ def _run_calibrate(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
         args: Parsed CLI arguments from the calibrate subcommand.
         parser: Root ArgumentParser (unused; present for dispatch signature consistency).
     """
-    from hybridock_pep._vendor import calibrate_alpha  # noqa: PLC0415
+    from hybridock_pep._vendor import calibrate_alpha
 
     ns = argparse.Namespace(
         training_csv=Path(args.training_csv),
@@ -697,6 +723,7 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         parser: Root ArgumentParser for calling parser.error() on validation failure.
     """
     from pydantic import ValidationError
+
     from hybridock_pep.prep.receptor import prepare_receptor
 
     try:
@@ -722,7 +749,9 @@ def _run_prep(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
 def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Run dock pipeline K times with different seeds, report top-1 pose agreement."""
     import json
+
     from pydantic import ValidationError
+
     from hybridock_pep.reproducibility import run_reproducibility
 
     if len(args.seeds) < 2:
@@ -754,16 +783,14 @@ def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentPars
     # print(), not logger.info(): this command has no progress UI of its own —
     # this line is the entire result. See the note on the `prep` subcommand.
     print(
-        "Reproducibility: mean RMSD={:.2f}Å  pearson={:.3f}  ΔG σ={:.2f} kcal/mol  → {}".format(
-            result.mean_pairwise_rmsd, result.mean_pairwise_pearson,
-            result.dg_std, result.verdict,
-        )
+        f"Reproducibility: mean RMSD={result.mean_pairwise_rmsd:.2f}Å  pearson={result.mean_pairwise_pearson:.3f}  ΔG σ={result.dg_std:.2f} kcal/mol  → {result.verdict}"
     )
 
 
 def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Run the dock pipeline on two receptors and report ΔΔG with bootstrap CI."""
     from pydantic import ValidationError
+
     from hybridock_pep.selectivity import run_selectivity
 
     out_root = Path(args.output_dir).resolve()
@@ -833,8 +860,8 @@ def _run_benchmark(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     """
     from pathlib import Path as _Path
 
-    from hybridock_pep._paths import data_file  # noqa: PLC0415
-    from hybridock_pep._vendor import benchmark  # noqa: PLC0415
+    from hybridock_pep._paths import data_file
+    from hybridock_pep._vendor import benchmark
 
     ns = argparse.Namespace(
         test_csv=_Path(args.test_csv),
@@ -856,7 +883,7 @@ def _run_guide(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         args: Parsed namespace; ``args.topic`` selects a command or topic.
         parser: Root ArgumentParser (unused; present for dispatch signature consistency).
     """
-    from hybridock_pep.output.guide import print_guide  # noqa: PLC0415
+    from hybridock_pep.output.guide import print_guide
 
     raise SystemExit(print_guide(getattr(args, "topic", None)))
 
@@ -944,6 +971,7 @@ def main() -> None:
         "reproducibility": _run_reproducibility,
         "crystal-score": _run_crystal_score,
         "guide": _run_guide,
+        "serve": _run_serve,
     }
     if args.command is None:
         parser.print_help()
