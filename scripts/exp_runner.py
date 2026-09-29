@@ -105,7 +105,7 @@ def assert_torsion_nonlinearity(infer_dir: str) -> None:
 
 
 def run_one(name, receptor, seq, n, steps, batch, out_root, infer_dir, model_dir,
-            ckpt, partial):
+            ckpt, partial, crystal_path=None):
     with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as tf:
         w = csv.writer(tf)
         w.writerow(["complex_name", "protein_description", "peptide_description"])
@@ -132,9 +132,17 @@ def run_one(name, receptor, seq, n, steps, batch, out_root, infer_dir, model_dir
     if not poses:
         print(f"[{name}] NO POSES (dt={dt:.0f}s) partial={partial}\n{proc.stderr[-400:]}", flush=True)
         return None
-    crystal = receptor.replace("_protein_pocket.pdb", "_peptide.pdb")
+    # The crystal peptide comes from the CSV when it is there. Deriving it by string-replacing
+    # "_protein_pocket.pdb" only works for benches whose receptors follow that naming: on the
+    # Coventry designed set the receptors are <name>_1b1.pdb, the replace was a no-op, and every
+    # pose got compared against the RECEPTOR file. ca_rmsd returned None for all of them, `pairs`
+    # came back empty, and run_one returned None SILENTLY -- 1,400 poses generated and scored as
+    # "NO RESULTS" with no error anywhere.
+    crystal = crystal_path or receptor.replace("_protein_pocket.pdb", "_peptide.pdb")
     pairs = [r for r in (ca_rmsd(crystal, p) for p in poses) if r is not None]
     if not pairs:
+        print(f"[{name}] {len(poses)} POSES BUT NONE SCORED — crystal={crystal} "
+              f"(check it is the peptide, not the receptor)", flush=True)
         return None
     direct = [d for d, _ in pairs]
     best = min(direct)
@@ -183,7 +191,7 @@ def main():
         partial = SS_TO_PARTIAL.get(ss, "1:1:1") if a.partial_mode == "oracle" else a.partial
         print(f"[{i+1}/{len(rows)}] {r['name']} ({ss}, {r.get('pep_len','?')}-mer)", flush=True)
         res = run_one(r["name"], r["receptor"], r["seq"], a.n, a.steps, a.batch,
-                      a.out, a.infer_dir, model_dir, a.ckpt, partial)
+                      a.out, a.infer_dir, model_dir, a.ckpt, partial, crystal_path=r.get("peptide_pdb"))
         if res:
             bests.append(res[0])
             if res[1] == res[1]:
