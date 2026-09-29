@@ -16,6 +16,7 @@ import csv
 import json
 import re
 import sys
+import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -24,9 +25,53 @@ from dockq_rs import score_pose  # noqa: E402
 
 ROOT = Path("/home/igem/unknown_software")
 # ADCP_BENCH selects the bench; the length-balanced 387 is what the paper-style figures use.
+import os
 import os as _os
 BENCH = Path(_os.environ.get("ADCP_BENCH", str(ROOT / "data/bench_recentset_heldout.csv")))
 OUT = Path(_os.environ.get("ADCP_OUT", str(ROOT / "logs/dockq_adcp.jsonl")))
+
+
+def _reproject(native_pep: str, pose: str) -> str:
+    """Write ADCP's COORDINATES onto the native peptide's own ATOM records.
+
+    WHY THIS IS NEEDED. Scored directly, every ADCP pose returned nan: 3823 of 3833 values, and
+    it was not pose quality (a 2.74 A pose failed exactly like a 15 A one). DockQ raised
+    StopIteration inside get_aligned_residues on ADCP's files while accepting our own poses with
+    the same receptor, the same 8 residues, the same atom names and the same numbering. Chasing
+    the responsible column (occupancy, segid, element position, OXT, line length) ruled each out
+    in turn, so the fix stops chasing it: take the record formatting DockQ already accepts, the
+    native peptide's, and substitute ADCP's x/y/z into columns 31-54.
+
+    This does NOT move the pose toward the native. Only columns 31-54 come from ADCP, and they
+    are the only columns that carry geometry. Atoms present in one file and not the other are
+    dropped, which is what DockQ does with them anyway.
+    """
+    def read(p):
+        return [l.rstrip("\n") for l in open(p) if l.startswith("ATOM")]
+
+    def index(lines):
+        d, order = {}, []
+        for l in lines:
+            key = (l[21], l[22:27])
+            if key not in order:
+                order.append(key)
+            d[(order.index(key), l[12:16].strip())] = l
+        return d
+
+    nat, pos = index(read(native_pep)), index(read(pose))
+    out = [l[:30] + pos[k][30:54] + l[54:] + "\n" for k, l in nat.items() if k in pos]
+    fd, path = tempfile.mkstemp(suffix=".pdb")
+    with os.fdopen(fd, "w") as fh:
+        fh.write("".join(out) + "END\n")
+    return path
+
+
+def _score_reprojected(rec: str, pep: str, pose: str) -> float:
+    tmp = _reproject(pep, pose)
+    try:
+        return score_pose(rec, pep, tmp)
+    finally:
+        os.unlink(tmp)
 
 
 def score_one(args: tuple[str, str, str, str]) -> dict:
@@ -37,7 +82,7 @@ def score_one(args: tuple[str, str, str, str]) -> dict:
     modes = sorted(d.glob("*_ranked_*.pdb"),
                    key=lambda p: int(re.search(r"_ranked_(\d+)", p.name).group(1)))
     return {"name": name,
-            "dockq": [score_pose(rec, pep, str(m)) for m in modes],
+            "dockq": [_score_reprojected(rec, pep, str(m)) for m in modes],
             "n_modes": len(modes)}
 
 

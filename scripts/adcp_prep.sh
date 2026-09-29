@@ -28,7 +28,13 @@ prep_one() {
   IFS=$'\t' read -r NAME REC PEP SEQ <<< "$1"
   d="$OUT/$NAME"; mkdir -p "$d"
   [ -s "$d/tgt.trg" ] && { echo "  $NAME: already prepped"; return 0; }
-  "$A/prepare_receptor" -r "$REC" -o "$d/rec.pdbqt" >"$d/prep.log" 2>&1 || {
+  # -A checkhydrogens, not the default -A None. The RefPepDB-RecentSet receptors ship WITH
+  # hydrogens (7al2 has 641 in the source file) but the propedia-formatted ones have zero, and
+  # with no repair prepare_receptor emits an H-free pdbqt that autogrid4 rejects with "It seems
+  # that hydrogen atoms are missing in the receptor". That cost 23 complexes on the balanced
+  # bench and needed a separate repair pass. "checkhydrogens" adds them ONLY where there are
+  # none, so receptors that already carry their own protonation keep it unchanged.
+  "$A/prepare_receptor" -r "$REC" -A checkhydrogens -o "$d/rec.pdbqt" >"$d/prep.log" 2>&1 || {
     echo "  $NAME: prepare_receptor FAILED"; return 1; }
   # Box sized to THIS peptide, not a fixed 30 A cube. A fixed cube cannot contain the
   # longer peptides in this set (25 of 345 exceed it; 7kei's half-extent is 28.7 A vs the
