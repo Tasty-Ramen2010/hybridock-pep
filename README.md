@@ -632,7 +632,7 @@ commands: [RESULTS.md](RESULTS.md).
 >   matched n=865 PDBbind peptide-Kd · 60%-id clustered CV (leakage-free)
 >   ───────────────────────────────────────────────────────────────────
 >   model                       MAE↓    RMSE↓   Pearson r↑
->   HybriDock-Pep (ours)        1.35    1.69    0.352      ◀ WIN on all three
+>   HybriDock-Pep (ours)        1.35    1.69    0.352     
 >   PPI-clone (ProtDCal+SVR)    1.46    1.84    0.210
 >   ───────────────────────────────────────────────────────────────────
 > ```
