@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HybriDock-Pep Studio</title>
+<link rel="stylesheet" href="/static/css/studio.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">HybriDock-Pep</span>
+    <span class="brand-sub">studio</span>
+  </div>
+
+  <nav class="modes" aria-label="What to do">
+    <button type="button" class="mode is-active" data-mode="dock">
+      <span class="mode-title">Dock a peptide</span>
+      <span class="mode-blurb">Find how it binds</span>
+    </button>
+    <button type="button" class="mode" data-mode="selectivity">
+      <span class="mode-title">Compare two targets</span>
+      <span class="mode-blurb">Is it selective?</span>
+    </button>
+    <button type="button" class="mode" data-mode="crystal">
+      <span class="mode-title">Score a structure</span>
+      <span class="mode-blurb">Already have a pose</span>
+    </button>
+  </nav>
+
+  <button type="button" class="lamp" id="lamp" aria-live="polite">
+    <span class="lamp-dot" aria-hidden="true"></span>
+    <span class="lamp-text">checking…</span>
+  </button>
+</header>
+
+<main class="bench">
+
+  <!-- ------------------------------------------------ the form -->
+  <section class="panel" aria-label="Run settings">
+    <form id="runform" novalidate>
+
+      <fieldset class="step">
+        <legend><span class="step-n">1</span>Your peptide</legend>
+        <input type="text" id="peptide" name="peptide" class="seq" spellcheck="false"
+               autocomplete="off" placeholder="ETFSDLWKLLPE">
+        <p class="chips" id="pepchips"></p>
+        <p class="field-error" id="err-peptide" hidden></p>
+      </fieldset>
+
+      <fieldset class="step">
+        <legend><span class="step-n">2</span>Your target</legend>
+        <div class="examples" id="examples"></div>
+        <div class="or">or</div>
+        <label class="upload" for="pdbfile">
+          <input type="file" id="pdbfile" accept=".pdb" hidden>
+          <span class="upload-cta">Choose a PDB file from your computer</span>
+          <span class="upload-state" id="uploadstate"></span>
+        </label>
+        <input type="text" id="receptor" name="receptor" class="path" spellcheck="false"
+               autocomplete="off" aria-label="Receptor file path">
+        <p class="field-error" id="err-receptor" hidden></p>
+      </fieldset>
+
+      <fieldset class="step" id="step-offtarget" hidden>
+        <legend><span class="step-n">2b</span>The off-target</legend>
+        <p class="step-hint">The protein you want it to <em>avoid</em>. ΔΔG compares the two.</p>
+        <div class="examples" id="examples-off"></div>
+        <input type="text" id="offtarget_receptor" name="offtarget_receptor" class="path"
+               spellcheck="false" autocomplete="off" aria-label="Off-target file path">
+        <div class="row">
+          <label class="mini">Centre (x y z)
+            <input type="text" id="offtarget_site" name="offtarget_site" spellcheck="false">
+          </label>
+          <label class="mini">Box (Å)
+            <input type="text" id="offtarget_box" name="offtarget_box" inputmode="numeric">
+          </label>
+        </div>
+        <p class="field-error" id="err-offtarget_receptor" hidden></p>
+      </fieldset>
+
+      <fieldset class="step" id="step-where">
+        <legend><span class="step-n">3</span>Where on the target</legend>
+        <div class="choice">
+          <label class="pick">
+            <input type="radio" name="where" value="site" checked>
+            <span class="pick-body">
+              <span class="pick-title">I know the pocket</span>
+              <span class="pick-blurb">Fastest and most accurate</span>
+            </span>
+          </label>
+          <label class="pick">
+            <input type="radio" name="where" value="blind">
+            <span class="pick-body">
+              <span class="pick-title">Find it for me</span>
+              <span class="pick-blurb">Searches the whole protein. Slower.</span>
+            </span>
+          </label>
+        </div>
+        <div class="row" id="siterow">
+          <label class="mini">Centre (x y z)
+            <input type="text" id="site" name="site" spellcheck="false" autocomplete="off">
+          </label>
+          <label class="mini">Box (Å)
+            <input type="text" id="box" name="box" inputmode="numeric">
+          </label>
+        </div>
+        <p class="field-error" id="err-site" hidden></p>
+      </fieldset>
+
+      <fieldset class="step" id="step-pose" hidden>
+        <legend><span class="step-n">3</span>The bound pose</legend>
+        <p class="step-hint">The peptide as it sits in the pocket — a crystal or modelled pose.</p>
+        <label class="upload" for="posefile">
+          <input type="file" id="posefile" accept=".pdb" hidden>
+          <span class="upload-cta">Choose the peptide pose PDB</span>
+          <span class="upload-state" id="posestate"></span>
+        </label>
+        <input type="text" id="peptide_pdb" name="peptide_pdb" class="path" spellcheck="false">
+        <p class="field-error" id="err-peptide_pdb" hidden></p>
+      </fieldset>
+
+      <fieldset class="step" id="step-effort">
+        <legend><span class="step-n">4</span>How careful</legend>
+        <div class="efforts" id="efforts">
+          <button type="button" class="effort" data-effort="quick">
+            <span class="effort-name">Quick look</span>
+            <span class="effort-detail">20 poses</span>
+          </button>
+          <button type="button" class="effort is-active" data-effort="standard">
+            <span class="effort-name">Standard</span>
+            <span class="effort-detail">100 poses</span>
+          </button>
+          <button type="button" class="effort" data-effort="ultra">
+            <span class="effort-name">Most accurate</span>
+            <span class="effort-detail">100 poses + refinement</span>
+          </button>
+        </div>
+      </fieldset>
+
+      <details class="advanced" id="advanced">
+        <summary>Everything else<span class="adv-count" id="advcount"></span></summary>
+        <p class="adv-note">Defaults are the validated ones. Each setting names the command-line
+          flag it sets, so anything you change here you can reproduce in a terminal.</p>
+        <div class="adv-grid" id="advgrid"></div>
+      </details>
+
+      <div class="go">
+        <button type="submit" class="run" id="run">
+          <span class="run-label">Run docking</span>
+          <span class="run-sub" id="runsub"></span>
+        </button>
+        <button type="button" class="stop" id="stop" hidden>Stop this run</button>
+        <p class="cmd" id="cmd" title="The exact command this will run"></p>
+      </div>
+    </form>
+  </section>
+
+  <!-- ------------------------------------------------ the stage -->
+  <section class="stage" aria-label="Results">
+    <canvas id="cloud" aria-hidden="true"></canvas>
+
+    <div class="stage-layer" id="stage-idle">
+      <div class="idle-copy">
+        <h2>Nothing running yet</h2>
+        <p>Press <strong>Run docking</strong> and every pose the model tries will appear here,
+           then sort itself into binding modes.</p>
+      </div>
+    </div>
+
+    <div class="stage-layer" id="stage-run" hidden>
+      <ol class="pips" id="pips"></ol>
+      <div class="bar"><span id="barfill"></span></div>
+      <p class="runline"><span id="runstage">starting…</span><span id="runclock">0:00</span></p>
+      <pre class="console" id="console" aria-live="polite"></pre>
+    </div>
+
+    <div class="stage-layer" id="stage-result" hidden>
+      <div class="headline">
+        <p class="headline-label" id="reslabel">Predicted binding energy</p>
+        <p class="dg"><span id="dgnum">—</span><span class="unit">kcal/mol</span></p>
+        <p class="strength" id="strength"></p>
+      </div>
+      <div class="reschips" id="reschips"></div>
+      <p class="caveat" id="caveat"></p>
+      <div class="restable" id="restable"></div>
+      <div class="downloads" id="downloads"></div>
+      <button type="button" class="again" id="again">Run another</button>
+    </div>
+
+    <div class="stage-layer" id="stage-error" hidden>
+      <div class="errbox">
+        <h2 id="errtitle">That run stopped</h2>
+        <p id="errmsg"></p>
+        <pre class="console" id="errlog"></pre>
+        <button type="button" class="again" id="errback">Back to settings</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="/static/js/cloud.js"></script>
+<script src="/static/js/studio.js"></script>
+</body>
+</html>

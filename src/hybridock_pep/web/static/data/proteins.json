@@ -1,0 +1,125 @@
+[
+  {
+    "key": "tau",
+    "pdb": "5O3L",
+    "name": "Tau K18",
+    "about": "Tangle-forming protein in Alzheimer's disease",
+    "file": "data/pdb/5O3L.pdb",
+    "site": {
+      "x": 230.76,
+      "y": 170.79,
+      "z": 159.76
+    },
+    "box": 30,
+    "siteNote": "the VQIVYK stretch (residues 306–311)",
+    "examplePeptide": "LIYKWVNK"
+  },
+  {
+    "key": "mdm2",
+    "pdb": "1YCR",
+    "name": "MDM2",
+    "about": "A protein that switches off the tumour-suppressor p53",
+    "file": "data/pdb/1YCR.pdb",
+    "site": {
+      "x": 25.2,
+      "y": -25.61,
+      "z": -7.97
+    },
+    "box": 30,
+    "siteNote": "the groove where p53's peptide sits in the crystal",
+    "examplePeptide": "ETFSDLWKLLPE",
+    "backendExample": "mdm2"
+  },
+  {
+    "key": "asyn",
+    "pdb": "2N0A",
+    "name": "α-synuclein",
+    "about": "Clumps up in Parkinson's disease",
+    "file": "data/pdb/2N0A.pdb",
+    "site": {
+      "x": 117.96,
+      "y": 138.46,
+      "z": -26.99
+    },
+    "box": 30,
+    "siteNote": "the 'NAC core' stretch (residues 68–78)",
+    "examplePeptide": "KTKEGVL"
+  },
+  {
+    "key": "kras",
+    "pdb": "6OIM",
+    "name": "KRAS G12C",
+    "about": "A cancer-driving switch protein",
+    "file": "data/pdb/6OIM.pdb",
+    "site": {
+      "x": 1.87,
+      "y": -8.26,
+      "z": -1.36
+    },
+    "box": 30,
+    "siteNote": "the pocket where the drug sotorasib sits in the crystal",
+    "examplePeptide": "LVVVGACGV"
+  },
+  {
+    "key": "egfr",
+    "pdb": "1M17",
+    "name": "EGFR kinase",
+    "about": "A growth-signal enzyme targeted in lung cancer",
+    "file": "data/pdb/1M17.pdb",
+    "site": {
+      "x": 22.01,
+      "y": 0.25,
+      "z": 52.79
+    },
+    "box": 30,
+    "siteNote": "the ATP pocket where erlotinib sits in the crystal",
+    "examplePeptide": "EEEEYFELV"
+  },
+  {
+    "key": "bcl2",
+    "pdb": "2XA0",
+    "name": "BCL-2",
+    "about": "A protein that helps cancer cells survive",
+    "file": "data/pdb/2XA0.pdb",
+    "site": {
+      "x": 31.17,
+      "y": -29.05,
+      "z": -14.65
+    },
+    "box": 30,
+    "siteNote": "the groove where a BAX peptide sits in the crystal",
+    "examplePeptide": "LSECLKRIGDELDS"
+  },
+  {
+    "key": "pfldh",
+    "pdb": "1T2D",
+    "name": "PfLDH",
+    "about": "The malaria parasite's lactate dehydrogenase (our iGEM target)",
+    "file": "data/pdb/1T2D.pdb",
+    "site": {
+      "x": 24.84,
+      "y": 22.73,
+      "z": 41.69
+    },
+    "box": 30,
+    "siteNote": "the enzyme's active site, where the team docks",
+    "examplePeptide": "LISDAELEAIFEADC",
+    "backendExample": "pfldh"
+  },
+  {
+    "key": "hldh",
+    "pdb": "1I0Z",
+    "name": "Human LDH",
+    "about": "Our human off-target: the version we want the peptide to ignore",
+    "file": "data/pdb/1I0Z.pdb",
+    "site": {
+      "x": 24.84,
+      "y": 22.73,
+      "z": 41.69
+    },
+    "box": 30,
+    "siteNote": "the enzyme's active site, where the team docks",
+    "examplePeptide": "LISDAELEAIFEADC",
+    "backendExample": "hldh"
+  }
+]
