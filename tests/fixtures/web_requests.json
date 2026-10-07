@@ -1,0 +1,90 @@
+{
+  "dock": {
+    "mode": "dock",
+    "scoring": "vina",
+    "values": {
+      "peptide": "ETFSDLWKLLPE",
+      "receptor": "__RECEPTOR__",
+      "blind": "n",
+      "site": "25.2 -25.61 -7.97",
+      "box": "30",
+      "n_samples": "25",
+      "long_checkpoint_threshold": "13",
+      "refine_topk": "0",
+      "ultra": "0",
+      "seed": "",
+      "input_poses": "",
+      "no_minimize": "n",
+      "ensemble": "n",
+      "calibration": "",
+      "output_dir": "runs/studio/dock_test"
+    }
+  },
+  "dock_expert": {
+    "mode": "dock",
+    "scoring": "vina",
+    "values": {
+      "peptide": "ETFSDLWKLLPE",
+      "receptor": "__RECEPTOR__",
+      "blind": "n",
+      "site": "25.2 -25.61 -7.97",
+      "box": "30",
+      "n_samples": "25",
+      "long_checkpoint_threshold": "10",
+      "refine_topk": "3",
+      "ultra": "0",
+      "seed": "7",
+      "input_poses": "",
+      "no_minimize": "y",
+      "ensemble": "y",
+      "calibration": "",
+      "output_dir": "runs/studio/dock_test"
+    }
+  },
+  "dock_blind": {
+    "mode": "dock",
+    "scoring": "vina",
+    "values": {
+      "peptide": "ETFSDLWKLLPE",
+      "receptor": "__RECEPTOR__",
+      "blind": "y",
+      "site": "",
+      "box": "30",
+      "n_samples": "25",
+      "long_checkpoint_threshold": "13",
+      "refine_topk": "0",
+      "ultra": "0",
+      "seed": "",
+      "input_poses": "",
+      "no_minimize": "n",
+      "ensemble": "n",
+      "calibration": "",
+      "output_dir": "runs/studio/dock_test"
+    }
+  },
+  "compare": {
+    "mode": "selectivity",
+    "scoring": "vina",
+    "values": {
+      "peptide": "LISDAELEAIFEADC",
+      "blind": "n",
+      "receptor": "__RECEPTOR__",
+      "site": "25.2 -25.61 -7.97",
+      "box": "30",
+      "offtarget_receptor": "__OFFTARGET__",
+      "offtarget_site": "25.2 -25.61 -7.97",
+      "offtarget_box": "30",
+      "n_samples": "25",
+      "output_dir": "runs/studio/compare_test"
+    }
+  },
+  "crystal": {
+    "mode": "crystal",
+    "values": {
+      "peptide": "ETFSDLWKLLPE",
+      "receptor": "__RECEPTOR__",
+      "peptide_pdb": "__PEPTIDE_POSE__",
+      "mode": "crystal"
+    }
+  }
+}
