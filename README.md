@@ -211,10 +211,18 @@ Or, if you would rather work in a browser:
 hybridock-pep serve
 ```
 
-opens a local page at `http://127.0.0.1:8000` with the same three jobs — dock a peptide, compare
-two targets, score a structure you already have. It starts pre-filled with the MDM2/p53 example, so
-the first run needs no input, and every screen shows the exact command it is about to run, so
-anything you set up there can be reproduced in a terminal. It binds to this machine only.
+opens a local page at `http://127.0.0.1:8000` with the same three jobs — predict binding, compare
+two proteins, score a structure you already have — around a floating 3D protein. A **Guided / Expert**
+switch in the top bar trades plain-language steps and defaults for coordinates, every advanced setting
+and the exact command (copyable), so anything you set up there can be reproduced in a terminal. Its
+binding-site step lets you drag a box over the protein in 3D and warns if the box is in empty space.
+It starts from the validated MDM2/p53 example, works offline (fonts and structures are bundled), and
+binds to this machine only. The previous single-page layout is still at `/static/studio.html`.
+
+Served from anywhere else (or with `?demo` on the URL) the same page runs in a clearly-labelled **Demo
+mode** with simulated results, which is handy for screen recordings on a machine with no GPU. The
+front end lives in `src/hybridock_pep/web/`; `js/app/adapter.mjs` is the one file that talks to the
+server. See `src/hybridock_pep/web/README.md`.
 
 Below are screenshots of the software in action, including ASCII art, a finished demo, and the help screen.
 
