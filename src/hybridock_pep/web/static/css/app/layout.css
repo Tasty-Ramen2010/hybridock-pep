@@ -1,0 +1,46 @@
+/* layout.css — top bar, screen container, and the two-column "stage + panel" grid. */
+
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px var(--gutter);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 10px; margin-right: auto;
+  font: 600 26px/1 var(--font-serif); color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; padding: 4px 6px; border-radius: var(--r-md);
+}
+.brand svg { color: var(--accent); }
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.screen {
+  width: min(100%, var(--maxw));
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 34px) var(--gutter) 64px;
+  animation: screen-in var(--t-med) var(--ease) both;
+}
+@keyframes screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Setup / Results: the model on the left, a frosted-glass panel on the right.
+   On narrow screens the panel moves BELOW the 3D view. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 430px); gap: clamp(16px, 3vw, 36px); align-items: start; }
+.stage-slot { position: relative; min-height: clamp(380px, 62vh, 640px); pointer-events: none; }
+.stage-slot .legend { position: absolute; left: 4px; bottom: 6px; display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.stage-slot .hint { position: absolute; left: 4px; top: 4px; font-size: 13px; color: var(--ink-2); max-width: 36ch; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.dot.protein { background: var(--protein); }
+.dot.peptide { background: var(--peptide); }
+.dot.box { background: transparent; border: 2px solid var(--accent); border-radius: 3px; }
+
+@media (max-width: 900px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .stage-slot { min-height: clamp(260px, 42vh, 420px); }
+}
+
+@media (max-width: 720px) {
+  .topbar { flex-wrap: wrap; row-gap: 8px; padding-block: 8px; }
+  .brand { font-size: 23px; }
+  .topbar .btn .label { display: none; }
+}

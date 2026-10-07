@@ -194,3 +194,6 @@ datasets/propedia_formatted/
 # DGX handoff bundle staging dir — scratch copy of code/data already tracked elsewhere,
 # rebuilt on demand by .bundle_stage/build_full_bundle.py; not a committable artifact
 .bundle_stage/
+
+# The browser UI loads this generated bundle at runtime (scripts/build_web.py), so unlike other dist/ output it IS committed.
+!src/hybridock_pep/web/static/dist/
