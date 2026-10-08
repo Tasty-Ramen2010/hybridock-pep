@@ -69,6 +69,56 @@ def _seed_everything(seed):
     random.seed(seed)
 
 
+def _configure_cuda_allocator():
+    # type: () -> None
+    """Make PyTorch's CUDA caching allocator use expandable segments (Linux, torch>=2.1).
+
+    The default allocator fragments badly under diffusion sampling's changing graph sizes:
+    on an RTX 5070 (12 GB) the *reserved* pool grew ~0.9 GB per pose in the batch while the
+    peak *allocated* stayed flat at 2.7 GB. Once reserved memory reaches VRAM, WSL2/WDDM does
+    not raise OOM -- it silently pages, and sampling slows by multiples (N=40: batch 10 took
+    62 s, batch 20 took 144 s, batch 40 stalled and logged ``dxgkio_make_resident: -12``).
+    With ``expandable_segments:True`` the same batch-20 run took 38 s with a 7.4 GB peak
+    reservation, and batch 8 dropped from 9.8 GB to 2.7 GB reserved. Allocation behaviour
+    only; no numerics change.
+
+    Must run before the first CUDA allocation, so it is called first thing in ``main`` and
+    never overrides a value the user already exported. The package version is read from
+    metadata so torch itself is not imported (and CUDA not initialised) yet.
+    """
+    import os
+    if not sys.platform.startswith("linux") or os.environ.get("PYTORCH_CUDA_ALLOC_CONF"):
+        return
+    try:
+        from importlib.metadata import version
+        major, minor = (int(x) for x in version("torch").split("+")[0].split(".")[:2])
+    except Exception:  # pragma: no cover - torch missing or odd version string
+        return
+    if (major, minor) >= (2, 1):
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+
+def _vram_batch_cap():
+    # type: () -> int
+    """Upper bound on poses per batch from free GPU memory (CUDA only; 32 elsewhere).
+
+    Measured with expandable segments (RTX 5070, ~4k-atom receptor): reserved memory is
+    ~3 GB fixed plus ~0.4 GB per pose in the batch. This budgets 0.6 GB per pose after
+    3 GB fixed, using 80% of currently-free VRAM, which leaves room for larger receptors.
+    Past this point extra batch buys no speed anyway (batch 8 and batch 20 both took ~38 s
+    per 40 poses), so the cap costs nothing and avoids WDDM paging.
+    """
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return 32
+        free_bytes, _total = torch.cuda.mem_get_info()
+    except Exception:  # pragma: no cover - no torch / no CUDA runtime
+        return 32
+    free_gb = free_bytes / 1e9
+    return max(2, min(32, int((0.8 * free_gb - 3.0) / 0.6)))
+
+
 def _total_ram_gb():
     # type: () -> float
     """Physical RAM in GB, or 16.0 if it cannot be determined."""
@@ -159,7 +209,7 @@ def _compute_batch_size(n_samples, cap=None):
         except ValueError:
             pass
     if cap is None:
-        cap = _default_batch_cap()
+        cap = min(_default_batch_cap(), _vram_batch_cap())
     return min(n_samples, cap)
 
 
@@ -470,6 +520,9 @@ def main():
         ),
     )
     args = parser.parse_args()
+
+    # Before the first CUDA allocation (seeding below touches CUDA): see the helper docstring.
+    _configure_cuda_allocator()
 
     # Seed BEFORE any torch/numpy/RAPiDock import
     # Doing this here ensures ESM embeddings and all diffusion steps are reproducible
