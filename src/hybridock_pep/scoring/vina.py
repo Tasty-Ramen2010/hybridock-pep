@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import os
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
@@ -451,8 +450,9 @@ def _score_vina_batch_impl(
                 initializer=_worker_init,
                 initargs=(str(receptor_pdbqt), site, box, verbosity),
             ) as pool:
-                chunk = max(1, math.ceil(n_total / (n_workers * 8)))
-                for i, out in enumerate(pool.map(_worker_score, tasks, chunksize=chunk)):
+                # chunksize=1: each pose costs seconds, so dispatch overhead is nil and
+                # progress ticks stay smooth (larger chunks arrive in bursts).
+                for i, out in enumerate(pool.map(_worker_score, tasks, chunksize=1)):
                     outcomes[i] = out
                     _progress.tick(i, n_total, "poses scored")
         except (BrokenProcessPool, OSError, MemoryError) as exc:
