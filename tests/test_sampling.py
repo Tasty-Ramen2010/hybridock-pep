@@ -485,7 +485,7 @@ class TestComputeBatchSize:
     degrade gracefully; it falls off a cliff.
     """
 
-    def _import_run_rapidock(self):
+    def _import_run_rapidock(self, pin_vram: bool = True):
         import sys
 
         shim_path = Path(__file__).parent.parent / "src" / "hybridock_pep" / "sampling"
@@ -495,6 +495,10 @@ class TestComputeBatchSize:
             import run_rapidock as rr  # noqa: PLC0415
             import importlib
             importlib.reload(rr)
+            # These tests pin the RAM-derived cap; the VRAM cap (separately tested in
+            # TestVramBatchCap) would otherwise depend on the host's GPU.
+            if pin_vram:
+                rr._vram_batch_cap = lambda: 32
             return rr
         finally:
             sys.path.pop(0)
@@ -601,3 +605,72 @@ class TestComputeBatchSize:
         rr = self._import_run_rapidock()
         assert rr._compute_batch_size(50, cap=16) == 16
         assert rr._compute_batch_size(10, cap=16) == 10
+
+
+class TestVramBatchCap:
+    """GPU-memory batch cap and allocator config (RTX 5070 / WSL2 measurements).
+
+    Reserved VRAM grew ~0.9 GB per pose under the default allocator while allocated
+    peak stayed flat; at the 12 GB ceiling WDDM pages instead of raising OOM
+    (N=40: batch 10 = 62 s, batch 20 = 144 s). Expandable segments + a VRAM cap fix it.
+    """
+
+    def _rr(self):
+        return TestComputeBatchSize()._import_run_rapidock(pin_vram=False)
+
+    @staticmethod
+    def _fake_torch(free_gb, available=True):
+        torch = mock.MagicMock()
+        torch.cuda.is_available.return_value = available
+        torch.cuda.mem_get_info.return_value = (int(free_gb * 1e9), int(12.2e9))
+        return torch
+
+    def test_cap_tracks_free_vram(self) -> None:
+        import sys
+
+        rr = self._rr()
+        for free_gb, expected in ((11.3, 10), (8.0, 5), (24.0, 27), (80.0, 32), (2.0, 2)):
+            with mock.patch.dict(sys.modules, {"torch": self._fake_torch(free_gb)}):
+                assert rr._vram_batch_cap() == expected, free_gb
+
+    def test_cap_is_32_without_cuda(self) -> None:
+        import sys
+
+        rr = self._rr()
+        with mock.patch.dict(sys.modules, {"torch": self._fake_torch(0, available=False)}):
+            assert rr._vram_batch_cap() == 32
+
+    def test_allocator_conf_set_on_modern_linux_torch(self, monkeypatch) -> None:
+        import os
+
+        rr = self._rr()
+        monkeypatch.delenv("PYTORCH_CUDA_ALLOC_CONF", raising=False)
+        monkeypatch.setattr("sys.platform", "linux")
+        with mock.patch("importlib.metadata.version", return_value="2.7.0+cu128"):
+            rr._configure_cuda_allocator()
+        assert os.environ["PYTORCH_CUDA_ALLOC_CONF"] == "expandable_segments:True"
+        monkeypatch.delenv("PYTORCH_CUDA_ALLOC_CONF", raising=False)
+
+    def test_allocator_conf_respects_user_and_old_torch(self, monkeypatch) -> None:
+        import os
+
+        rr = self._rr()
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setenv("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:64")
+        with mock.patch("importlib.metadata.version", return_value="2.7.0"):
+            rr._configure_cuda_allocator()
+        assert os.environ["PYTORCH_CUDA_ALLOC_CONF"] == "max_split_size_mb:64"
+        monkeypatch.delenv("PYTORCH_CUDA_ALLOC_CONF")
+        with mock.patch("importlib.metadata.version", return_value="2.0.1"):
+            rr._configure_cuda_allocator()  # option unrecognised before 2.1 -> would raise
+        assert "PYTORCH_CUDA_ALLOC_CONF" not in os.environ
+
+    def test_allocator_conf_skipped_off_linux(self, monkeypatch) -> None:
+        import os
+
+        rr = self._rr()
+        monkeypatch.delenv("PYTORCH_CUDA_ALLOC_CONF", raising=False)
+        monkeypatch.setattr("sys.platform", "darwin")
+        with mock.patch("importlib.metadata.version", return_value="2.7.0"):
+            rr._configure_cuda_allocator()
+        assert "PYTORCH_CUDA_ALLOC_CONF" not in os.environ
