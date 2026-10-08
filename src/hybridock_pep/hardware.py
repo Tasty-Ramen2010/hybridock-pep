@@ -54,6 +54,47 @@ def cpu_threads() -> int:
     return max(1, n // 2) if n > 2 else n
 
 
+def memory_budget_bytes() -> int | None:
+    """Bytes this process can still allocate: the tighter of host and cgroup headroom.
+
+    ``MemAvailable`` alone is wrong inside a ``systemd-run -p MemoryMax=...`` unit or a
+    container, where the cgroup limit (not the host's RAM) is what triggers the OOM
+    kill. Walks the process's cgroup-v2 ancestry and returns the smallest
+    ``memory.max - memory.current``, further bounded by ``MemAvailable``.
+
+    Returns:
+        Headroom in bytes, or None when neither source is readable (non-Linux).
+    """
+    limits: list[int] = []
+    try:
+        with open("/proc/meminfo") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    limits.append(int(line.split()[1]) * 1024)
+                    break
+    except (OSError, ValueError):
+        pass
+    try:
+        with open("/proc/self/cgroup") as fh:
+            rel = next((ln.strip().split("::", 1)[1] for ln in fh if ln.startswith("0::")), "")
+        parts = [p for p in rel.split("/") if p]
+        for depth in range(len(parts), 0, -1):
+            base = "/sys/fs/cgroup/" + "/".join(parts[:depth])
+            try:
+                with open(base + "/memory.max") as fh:
+                    raw = fh.read().strip()
+                if raw == "max":
+                    continue
+                with open(base + "/memory.current") as fh:
+                    cur = int(fh.read().strip())
+                limits.append(int(raw) - cur)
+            except (OSError, ValueError):
+                continue
+    except (OSError, IndexError):
+        pass
+    return min(limits) if limits else None
+
+
 #: Result of the one-time platform probe below. A usable backend never changes
 #: within a process, and re-probing is not free: a FAILED CUDA context strands
 #: about 100 MB of device memory that is never reclaimed, so probing per pose
