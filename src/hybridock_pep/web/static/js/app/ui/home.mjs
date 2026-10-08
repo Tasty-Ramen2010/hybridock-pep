@@ -3,12 +3,14 @@
 import { h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
-import { fmt } from '../interpret.mjs';
+import { fmt, fmtSigned } from '../interpret.mjs';
 import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR } from '../config.mjs';
 import { dockJob, findProtein, greeting } from '../jobs.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
-import { adapter } from '../adapter.mjs';
-import { fmtDuration } from './dom.mjs';
+import { adapter, adapterFor, demoAdapter } from '../adapter.mjs';
+import { fmtDate, fmtDuration, saveBlob } from './dom.mjs';
+import { openHistory } from './history.mjs';
+import { toast } from './toast.mjs';
 
 export function mountHome(ctx) {
   const { store, stage, go, runner } = ctx;
@@ -24,6 +26,35 @@ export function mountHome(ctx) {
   const statsNote = h('p', { class: 'stats-note' });
 
   const startNew = (reset, path) => () => { store.set(reset()); go(path); };
+
+  // Recent predictions: the last four runs, each reopenable and (for a dock run) downloadable.
+  // Runs are saved automatically in this browser; "See all" opens the full History drawer.
+  const recentList = h('ul', { class: 'recent-list' });
+  const recentSection = h('section', { class: 'recent', 'aria-labelledby': 'recent-title', hidden: true },
+    h('div', { class: 'section-head' },
+      h('h2', { class: 'eyebrow', id: 'recent-title' }, 'Recent predictions'),
+      h('button', { class: 'btn sm ghost', type: 'button', onClick: () => openHistory(ctx) }, icon('history', 15), 'See all')),
+    recentList);
+
+  async function downloadRanked(entry) {
+    try {
+      let result = entry.result;
+      if (!result && entry.demo && entry.job) result = await demoAdapter.runDock(entry.job, { instant: true });
+      if (!result?.poses?.length) throw new Error('This run’s pose list wasn’t saved, so there is nothing to download.');
+      const file = await adapterFor(result).download(result, 'ranked_csv');
+      saveBlob(file.blob, file.filename);
+    } catch (err) { toast(err.message, 6000); }
+  }
+
+  function renderRecent(hist) {
+    recentSection.hidden = !hist.length;
+    recentList.replaceChildren(...hist.slice(0, 4).map((e) => h('li', { class: 'recent-card' },
+      h('button', { class: 'recent-open', type: 'button', onClick: () => go(`/results/${e.id}`) },
+        h('span', { class: 'name' }, e.name),
+        h('span', { class: 'when' }, fmtDate(e.createdAt), e.demo && ' · ', e.demo && h('span', { class: 'badge-demo' }, 'Demo')),
+        h('span', { class: 'val nums' }, e.headline.label === 'ΔΔG' ? fmtSigned(e.headline.value) : fmt(e.headline.value), h('small', {}, `${e.headline.label} kcal/mol`))),
+      e.kind === 'dock' && h('button', { class: 'btn sm ghost recent-dl', type: 'button', 'aria-label': `Download the ranked list for ${e.name}`, onClick: () => downloadRanked(e) }, icon('download', 14), 'Download'))));
+  }
 
   // The example: the spec's Tau example in demo mode; with the live server, its own validated example (known binder).
   const live = adapter.kind === 'live';
@@ -77,6 +108,8 @@ export function mountHome(ctx) {
           timeNote)),
       h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),
 
+    recentSection,
+
     h('div', { class: 'section-head' }, h('h2', { class: 'eyebrow' }, 'Start something new')),
     h('div', { class: 'start-row' },
       startCard('Predict binding', 'Dock a peptide to a protein and get a binding strength.', 'Docking + ΔG', 'zap', startNew(() => ({ setup: freshSetup() }), '/predict')),
@@ -100,6 +133,7 @@ export function mountHome(ctx) {
     stats[2].ref.textContent = dgs.length ? fmt(Math.min(...dgs)) : '—';
     stats[3].ref.replaceChildren(`±${TYPICAL_ERROR}`, h('small', {}, 'kcal/mol'));
     statsNote.textContent = hist.some((e) => e.demo) ? 'These numbers include simulated Demo runs.' : '';
+    renderRecent(hist);
   }
   const unsub = store.subscribe(update);
   update();
