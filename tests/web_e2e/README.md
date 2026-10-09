@@ -30,5 +30,17 @@ anything failed.
 | `11_keyboard_mobile` | Keyboard-only walkthrough (skip link, focus, dialogs, arrow keys on the box); phone viewport: no horizontal scroll, 44 px tap targets |
 | `12_real_dock` | A real Dock that re-scores saved poses (`--input-poses`), results, downloads. Needs `E2E_INPUT_POSES` (skipped otherwise) |
 
+| `13_example_run` | The one-click "Run example": a **real** Dock end to end (slow on CPU), honest progress, complete result |
+| `20_topbar_home_help` | Every top-bar control (Guided/Expert, status chip, 4 accents, theme, name/avatar), Home, Help and History dialogs |
+| `21_setup_every_control` | All four setup steps: 8 proteins, search, upload, 20+ peptide inputs, slider, typed coordinates, the 3D box (drag, resize, click the protein, keyboard), blind mode, thoroughness, **every Expert setting's effect on the command**, validation messages, and each protein's suggested site |
+| `22_compare_score_controls` | Every Compare control (both menus, upload, 3D site editor, same-protein and invalid-peptide guards) and Score control (uploads, drag-and-drop, mismatch warnings) |
+| `30_dock_matrix` | A matrix of **real Dock runs** (Expert options, peptides, sites, every built-in protein, uploads, thoroughness) each followed by a full Results-screen and downloads check. `CASES=a,b BASE=... node 30_dock_matrix.mjs`; `--list` shows the cases |
+| `31_compare_matrix` | **Real Compare runs** (two dockings each), then the whole comparison result: ΔΔG, interval, verdict, ΔG cards, 3D tabs, command |
+| `32_run_control` | Real runs under real behaviour: wander the app mid-run, reload, close the tab and come back after it finished, Stop and run again, server restart (the last needs `FAULT_SSH` / `FAULT_START_CMD`) |
+
+A real Dock on a CPU-only machine takes 4 to 10 minutes per Quick run after a one-time setup (RAPiDock builds its SO(3) tables and
+downloads the 2.5 GB ESM-2 weights on the very first run). Run several servers on different ports, each with its own `CASES`, to use
+more cores; give each run one Vina worker (`HYBRIDOCK_VINA_WORKERS=1`) when you do, or three parallel scorings can exhaust memory.
+
 Machines without a GPU or the sampling environment can still run everything except a sampled Dock: Score is real, and
 the Dock failure is checked to be a clear message.
