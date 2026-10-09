@@ -186,3 +186,28 @@ test('the shipped bundle is valid JavaScript (this is what the page actually loa
   execFileSync(process.execPath, ['--check', bundle], { stdio: 'pipe' }); // throws with the syntax error if it is broken
   assert.match(readFileSync(bundle, 'utf8').split('\n', 1)[0], /source-hash: [0-9a-f]{16} \*\/$/, 'header comment must be a complete comment');
 });
+
+test('friendlyError: known failures get a plain title and keep the raw message as detail', async () => {
+  const { friendlyError } = await import('../../src/hybridock_pep/web/static/js/app/errors.mjs');
+  const cases = [
+    ["RuntimeError: Cannot locate Python 3 in conda env 'rapidock'. Set RAPIDOCK_PYTHON", /docking engine isn.t installed/],
+    ['hybridock-pep: error: Crystal scoring failed for 1YCR_peptide.pdb.', /couldn.t be scored/],
+    ['Killed', /ran out of memory/],
+    ['process exited with exit code -9', /ran out of memory/],
+    ['FileNotFoundError: [Errno 2] No such file or directory: runs/x.pdb', /file for this run went missing/],
+  ];
+  for (const [msg, title] of cases) {
+    const e = friendlyError(new Error(msg));
+    assert.match(e.title, title, msg);
+    assert.equal(e.detail, msg);
+    assert.ok(e.body.length > 30);
+  }
+  // a server that forgot the job (HTTP 404) and a dead network
+  assert.match(friendlyError(Object.assign(new Error('The server answered 404.'), { status: 404 })).title, /server restarted/);
+  assert.match(friendlyError(new TypeError('Failed to fetch')).title, /reach the server/);
+  // anything else: generic title, never an empty or "undefined" body
+  const g = friendlyError(new Error('weird'));
+  assert.equal(g.title, 'That run didn’t finish');
+  assert.equal(g.detail, 'weird');
+  assert.ok(!/undefined|\[object/.test(friendlyError({}).body + friendlyError({}).detail));
+});
