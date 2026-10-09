@@ -184,3 +184,34 @@ def test_every_shipped_web_file_is_in_the_wheel() -> None:
                    for g in globs):
             missing.append(rel)
     assert not missing, f"not covered by [tool.setuptools.package-data]: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# the static, demo-only copy (scripts/build_pages.py) that free hosts serve
+# ---------------------------------------------------------------------------
+
+
+def _load_build_pages():
+    spec = importlib.util.spec_from_file_location("build_pages", REPO / "scripts" / "build_pages.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_static_site_is_self_contained_and_relative(tmp_path):
+    """The Pages copy must work under a sub-path: relative URLs only, demo flag set, every file present."""
+    out = tmp_path / "site"
+    assert _load_build_pages().build(out) == 0
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert "window.HYBRIDOCK_STATIC = true" in html
+    assert '"/static/' not in html and "'/static/" not in html  # nothing absolute
+    for ref in re.findall(r'(?:href|src)="(static/[^"]+)"', html):
+        assert (out / ref).is_file(), ref
+    assert (out / "static" / "data" / "proteins.json").is_file()
+    assert (out / ".nojekyll").is_file()
+    css = (out / "static" / "dist" / "app.css").read_text(encoding="utf-8")
+    for url in re.findall(r"url\('([^']+)'\)", css):
+        assert not url.startswith("/"), f"absolute url in app.css: {url}"
+        assert (out / "static" / "dist" / url).resolve().is_file(), url
+    # the older studio page is not part of the static site
+    assert not (out / "static" / "studio.html").exists()

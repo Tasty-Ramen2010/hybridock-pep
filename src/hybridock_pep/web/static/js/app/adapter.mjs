@@ -10,7 +10,7 @@
 //
 // Which one is used (see initAdapter at the bottom):
 //   served by `hybridock-pep serve`  -> live (it answers /api/env)
-//   anywhere else / opened as files  -> demo
+//   anywhere else / opened as files / the static site  -> demo
 //   ?demo  forces demo (handy for screen recordings),  ?live  forces live.
 //
 // The shapes below (DockResult, CompareResult, ScoreResult) are what the screens expect.
@@ -553,7 +553,8 @@ export const adapterFor = (result) => (result?.demo ? mockAdapter : adapter);
 /** Pick live when this page is served by `hybridock-pep serve`, otherwise demo. Call once at start-up. */
 export async function initAdapter() {
   const q = new URLSearchParams(globalThis.location?.search || '');
-  if (q.has('demo') || globalThis.location?.protocol === 'file:') return (adapter = mockAdapter);
+  // A static copy (GitHub Pages, scripts/build_pages.py) has no server behind it: go straight to the demo.
+  if (q.has('demo') || globalThis.location?.protocol === 'file:' || globalThis.HYBRIDOCK_STATIC) return (adapter = mockAdapter);
   try {
     const res = await fetch('/api/env', { cache: 'no-store', signal: AbortSignal.timeout(2500) });
     if (!res.ok) throw new Error('no api');

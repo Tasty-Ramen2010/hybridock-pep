@@ -66,7 +66,8 @@ export function mountHome(ctx) {
     proteinRef: exProtein, peptide: exPeptide, siteMode: 'known', site: exProtein.site, box: exProtein.box,
     thorough: 'quick', expert: { ...EXPERT_DEFAULTS },
   });
-  const timeNote = h('span', { class: 'small muted' }, live ? 'A real quick run (25 poses)' : 'Takes about 7 seconds in demo mode');
+  const timeNote = h('span', { class: 'small muted' }, live ? 'A real quick run (25 poses)' : 'Takes about 7 seconds in demo mode',
+    live ? null : [' · ', h('a', { href: 'https://github.com/Tasty-Ramen2010/hybridock-pep', target: '_blank', rel: 'noopener' }, 'Get the real tool')]);
 
   let exEstimate = null;
   function runExample() {

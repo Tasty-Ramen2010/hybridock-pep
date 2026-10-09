@@ -197,3 +197,6 @@ datasets/propedia_formatted/
 
 # The browser UI loads this generated bundle at runtime (scripts/build_web.py), so unlike other dist/ output it IS committed.
 !src/hybridock_pep/web/static/dist/
+
+# static copy of the web UI (scripts/build_pages.py)
+_site/
