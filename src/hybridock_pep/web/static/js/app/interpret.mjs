@@ -10,7 +10,7 @@ import { ROUGH_GUIDE, TYPICAL_ERROR } from './config.mjs';
 
 const MINUS = '−';
 
-/** −7.42 with a real minus sign (nicer in serif type than a hyphen). */
+/** −7.42 with a real minus sign (nicer than a hyphen). */
 export function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(v)) return '—';
   const s = Math.abs(v).toFixed(digits);

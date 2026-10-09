@@ -413,7 +413,7 @@ export class Stage {
     const gr = this.cur.size * 0.62;
     const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, gr);
     const pc = col.protein.map((v) => v | 0).join(',');
-    halo.addColorStop(0, `rgba(${pc},${(this.dark ? 0.2 : 0.16) * A})`);
+    halo.addColorStop(0, `rgba(${pc},${(this.dark ? 0.2 : 0.07) * A})`);
     halo.addColorStop(1, `rgba(${pc},0)`);
     ctx.globalCompositeOperation = this.dark ? 'lighter' : 'source-over';
     ctx.fillStyle = halo;

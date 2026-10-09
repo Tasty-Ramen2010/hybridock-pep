@@ -1,82 +1,88 @@
 /* tokens.css — every colour, font and size lives here. Change a token, change the whole app.
 
+   Design language: Apple's Human Interface Guidelines. Content first, flat system-gray surfaces, hairline
+   separators, the system font, segmented controls, and colour used sparingly.
+
    THE ACCENT: one colour for the primary button on each screen. It is a single token (--accent).
-   The little colour control in the top bar swaps it at runtime (see ACCENTS in js/config.js). */
+   The little colour control in the top bar swaps it at runtime (see ACCENTS in js/config.mjs).
+
+   Note: the 3D stage reads --stage-haze, --protein, --peptide, --accent, --warn and --danger as plain
+   hex colours, so keep those six as hex. */
 
 :root {
   /* ---- the one accent (teal) ---- */
   --accent: #0f766e;
   --accent-ink: #ffffff;                      /* text on top of the accent */
-  --accent-soft: color-mix(in srgb, var(--accent) 11%, transparent);
-  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 40%, transparent);
 
   /* ---- the two molecule colours (always the same: protein gray-blue, peptide warm orange) ---- */
-  --protein: #7189a3;
+  --protein: #7a8ca3;
   --peptide: #f08a3c;
 
-  /* ---- light theme (default): warm cream ---- */
-  --bg: #f6f1e8;
-  --bg-image:
-    radial-gradient(1100px 640px at 80% -8%, #fffaf0 0%, rgba(255, 250, 240, 0) 62%),
-    radial-gradient(900px 600px at -5% 105%, #eee4d2 0%, rgba(238, 228, 210, 0) 60%);
-  --stage-haze: #f6f1e8;                      /* far parts of the protein fade towards this */
-  --ink: #1f2430;
-  --ink-2: #566074;                           /* secondary text (≥ 5:1 on the cream) */
-  --ink-3: #6b7385;
-  --line: rgba(31, 36, 48, 0.12);
-  --line-strong: rgba(31, 36, 48, 0.22);
-  --glass: rgba(255, 252, 246, 0.68);
-  --glass-strong: rgba(255, 252, 246, 0.9);
-  --field: rgba(255, 255, 255, 0.72);
-  --shadow: 0 1px 1px rgba(31, 36, 48, 0.03), 0 14px 34px -16px rgba(31, 36, 48, 0.16);
-  --shadow-soft: 0 1px 2px rgba(31, 36, 48, 0.04);
-  --warn: #b45309;
-  --danger: #dc2626;
-  --ok: #15803d;
-  --demo-bg: rgba(180, 83, 9, 0.12);
-  --demo-ink: #8a4108;
+  /* ---- light appearance (default follows the system; the top bar toggle overrides it) ---- */
+  --bg: #f5f5f7;
+  --bg-image: none;
+  --stage-haze: #f5f5f7;                      /* far parts of the protein fade towards this */
+  --ink: #1d1d1f;                             /* label */
+  --ink-2: #515154;                           /* secondary label */
+  --ink-3: #6e6e73;                           /* tertiary label (still ≥ 4.5:1 on --bg) */
+  --line: rgba(60, 60, 67, 0.16);             /* hairline separator */
+  --line-strong: rgba(60, 60, 67, 0.3);
+  --glass: rgba(255, 255, 255, 0.72);         /* thin material: panels floating over the protein */
+  --glass-strong: rgba(255, 255, 255, 0.94);  /* grouped surface: cards, rows */
+  --field: rgba(118, 118, 128, 0.12);         /* control fill (fields, segmented track) */
+  --thumb: #ffffff;                           /* the selected segment */
+  --shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 8px 28px -14px rgba(0, 0, 0, 0.18);
+  --shadow-soft: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --warn: #a35200;
+  --danger: #d70015;
+  --ok: #217a3a;
+  --demo-bg: rgba(255, 149, 0, 0.16);
+  --demo-ink: #8a4600;
 
-  /* ---- type ---- */
-  --font-serif: 'Cormorant Garamond', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* ---- type: the system font (SF Pro on Apple devices); Inter is bundled as the fallback ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 
   /* ---- shape & motion ---- */
-  --r-sm: 10px;
-  --r-md: 14px;
-  --r-lg: 22px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
   --r-pill: 999px;
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --t-fast: 160ms;
-  --t-med: 320ms;
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --t-fast: 150ms;
+  --t-med: 260ms;
   --gutter: clamp(16px, 4vw, 40px);
   --maxw: 1180px;
 }
 
-/* ---- dark theme: a deep "space" gradient, not just inverted colours ---- */
+/* ---- dark appearance: a deep "space" gradient, not just inverted colours ---- */
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --accent-ink: #04201d;
-  --protein: #9db6d4;
+  --protein: #9db3cf;
   --peptide: #ff9a4d;
-  --bg: #070b1a;
+  --bg: #090c18;
   --bg-image:
-    radial-gradient(1100px 760px at 72% 10%, #1a2d5a 0%, rgba(26, 45, 90, 0) 62%),
-    radial-gradient(900px 700px at 0% 100%, #101c3c 0%, rgba(16, 28, 60, 0) 64%),
-    linear-gradient(180deg, #0a1230 0%, #060913 100%);
-  --stage-haze: #0a1230;
-  --ink: #e9eefb;
-  --ink-2: #a9b4cf;
-  --ink-3: #8a96b3;
-  --line: rgba(190, 205, 240, 0.15);
-  --line-strong: rgba(190, 205, 240, 0.28);
-  --glass: rgba(14, 22, 48, 0.55);
-  --glass-strong: rgba(14, 22, 48, 0.82);
-  --field: rgba(8, 14, 34, 0.6);
-  --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 40px -18px rgba(0, 0, 0, 0.6);
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --ok: #4ade80;
-  --demo-bg: rgba(251, 191, 36, 0.14);
-  --demo-ink: #fcd34d;
+    radial-gradient(1000px 720px at 72% -8%, #18244d 0%, rgba(24, 36, 77, 0) 62%),
+    linear-gradient(180deg, #0a0e1f 0%, #05060c 100%);
+  --stage-haze: #090c18;
+  --ink: #f5f5f7;
+  --ink-2: #c7c7cf;
+  --ink-3: #9a9aa3;
+  --line: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.26);
+  --glass: rgba(28, 30, 40, 0.62);
+  --glass-strong: rgba(34, 36, 46, 0.9);
+  --field: rgba(118, 118, 128, 0.26);
+  --thumb: #5b5d6b;
+  --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 12px 34px -16px rgba(0, 0, 0, 0.7);
+  --shadow-soft: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --warn: #ffb340;
+  --danger: #ff6961;
+  --ok: #4cd964;
+  --demo-bg: rgba(255, 179, 64, 0.18);
+  --demo-ink: #ffcc80;
 }

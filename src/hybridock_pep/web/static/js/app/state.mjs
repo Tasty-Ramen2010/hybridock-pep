@@ -4,6 +4,11 @@
 import { BOX_DEFAULT, DEFAULT_THOROUGHNESS, EXPERT_DEFAULTS } from './config.mjs';
 
 const KEY = 'hybridock-web:v1';
+/** The system light/dark setting, used until the person picks one with the toggle. */
+function systemTheme() {
+  try { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { return 'light'; }
+}
+
 const SAVED = ['mode', 'theme', 'accent', 'userName', 'history'];
 const MAX_HISTORY = 30;
 
@@ -53,7 +58,7 @@ export function createStore() {
   const saved = load();
   let state = {
     mode: saved.mode || 'guided',
-    theme: saved.theme || 'light',
+    theme: saved.theme || systemTheme(),
     accent: saved.accent || 'teal',
     userName: saved.userName || 'Ram',
     history: Array.isArray(saved.history) ? saved.history : null, // null = never used: main.js seeds demo entries
