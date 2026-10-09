@@ -245,7 +245,7 @@ export function mountSetup(ctx) {
       eta.textContent = 'Working out how long this will take…';
       adapter.preview(job).then(({ command, estimateSeconds, problems = [] }) => {
         if (token !== previewToken) return; // a newer change superseded this one
-        showProblems([...new Set([...local, ...problems])]);
+        showProblems(local.length ? local : problems); // our wording first; the server's own messages when the local check found nothing
         if (command) cmd.textContent = command.replace(/ --/g, ' \\\n  --');
         lastEstimate = estimateSeconds;
         eta.textContent = adapter.kind === 'demo'
