@@ -54,7 +54,15 @@ const outcome = async (p, ms = 120000) => { await p.waitForSelector('.big-number
   check('server killed mid-run: UI ends in a clear message, not a hang', /error: Couldn.t reach the server/.test(o) || /result/.test(o), `${o} after ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   await shot(p, 's9-killed');
   startServer(); const up = await waitUp(); check('server restarts cleanly after the kill', up, '');
-  if (/error/.test(o)) { await p.getByRole('button', { name: 'Try again' }).click(); const o2 = await outcome(p, 90000); check('Try again after the server is back gives a result', /result/.test(o2), o2); }
+  if (/error/.test(o)) {
+    // "Check again" resumes the SAME run; after a server restart the server has forgotten it, so the answer is a plain
+    // "server restarted" message, and then "Try again" starts a fresh run.
+    await p.getByRole('button', { name: /Check again|Try again/ }).click();
+    let o2 = await outcome(p, 90000);
+    check('Check again after a restart says the run was lost, in plain words', /error: The server restarted/.test(o2) || /result/.test(o2), o2);
+    if (/error/.test(o2)) { await p.getByRole('button', { name: /Try again/ }).click(); o2 = await outcome(p, 90000); }
+    check('then Try again gives a fresh result', /result/.test(o2), o2);
+  }
   await p.context().close();
 }
 // D. the server is killed and restarted within 3 s mid-run (the job id is forgotten): "server restarted" wording
@@ -74,8 +82,8 @@ const outcome = async (p, ms = 120000) => { await p.waitForSelector('.big-number
   const o = await outcome(p, 120000);
   check('browser offline mid-run: friendly message', /error: Couldn.t reach the server/.test(o), o);
   await p.context().setOffline(false);
-  await p.getByRole('button', { name: 'Try again' }).click(); const o2 = await outcome(p, 90000);
-  check('back online: Try again produces a result', /result/.test(o2), o2);
+  await p.getByRole('button', { name: /Check again|Try again/ }).click(); const o2 = await outcome(p, 90000);
+  check('back online: Check again picks the SAME run up and shows its result', /result/.test(o2), o2);
   await p.context().close();
 }
 // F. reload the page mid-run: lands on Home, and the next run works once the first finishes
