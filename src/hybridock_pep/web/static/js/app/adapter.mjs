@@ -452,14 +452,18 @@ const liveAdapter = {
 
   /** The exact command (from the server's own builder) and its rough time estimate. */
   async preview(job) {
-    const receptor = job.protein.receptorPath || job.receptor;
+    // Put the protein on the server first (cached per protein), so the server validates a real file and the command shows
+    // its real path. Falling back to the plain name only if the upload itself fails.
+    let receptor = job.protein.receptorPath || job.receptor, uploadedOk = !!job.protein.receptorPath;
+    try { receptor = await receptorOnServer(job.protein); uploadedOk = true; } catch { /* keep the placeholder */ }
     const body = { mode: 'dock', values: dockValues(job, receptor), scoring: job.expert?.scoring || 'vina' };
     const [cmd, val] = await Promise.all([
       API.post('/api/preview', body).catch(() => null),
       API.post('/api/validate', body).catch(() => null),
     ]);
+    const errors = Object.entries(val?.errors || {}).filter(([k]) => uploadedOk || k !== 'receptor'); // no file yet is not the user's mistake
     const problems = val && val.ok === false
-      ? await Promise.all(Object.entries(val.errors || {}).map(async ([k, m]) => `${await labelFor(k)}: ${m}`))
+      ? await Promise.all(errors.map(async ([k, m]) => `${await labelFor(k)}: ${m}`))
       : [];
     return { command: cmd?.command || null, estimateSeconds: val?.estimate_seconds ?? null, problems };
   },
