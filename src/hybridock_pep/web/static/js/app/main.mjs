@@ -56,6 +56,7 @@ store.subscribe((s) => {
 // ---- router ----
 let current = null;
 let routeToken = 0;
+let firstRender = true; // on page load, leave focus alone so the first Tab reaches the skip link and the top bar
 
 function parseHash() {
   const [name = '', param] = location.hash.replace(/^#\/?/, '').split('/');
@@ -74,7 +75,8 @@ async function render() {
   document.title = name in SCREENS && name !== '' ? `${def.title} · HybriDock-Pep` : 'HybriDock-Pep: see how a peptide binds a protein';
   stage.setSlot(current.el.querySelector('[data-stage-slot]'));
   window.scrollTo(0, 0);
-  main.focus({ preventScroll: true });
+  if (!firstRender) main.focus({ preventScroll: true }); // after in-app navigation, move focus to the new screen
+  firstRender = false;
   void token;
 }
 
