@@ -248,9 +248,11 @@ def check_environment() -> dict[str, Any]:
                      "fix": "conda activate score-env"}
     checks["vina"] = {"ok": bool(_which("vina")), "detail": "AutoDock Vina",
                       "fix": "conda install -c conda-forge vina"}
-    checks["receptor_prep"] = {"ok": bool(_which("prepare_receptor")),
-                               "detail": "ADFRsuite prepare_receptor",
-                               "fix": "see INSTALL.md (licensed download)"}
+    # meeko's mk_prepare_receptor.py is the default; ADFRsuite's prepare_receptor is used if present.
+    prep_tool = _which("mk_prepare_receptor.py") or _which("prepare_receptor")
+    checks["receptor_prep"] = {"ok": bool(prep_tool),
+                               "detail": "Receptor preparation (meeko or ADFRsuite)",
+                               "fix": "pip install meeko"}
 
     gpu = False
     gpu_name = ""

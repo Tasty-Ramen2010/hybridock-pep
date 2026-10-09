@@ -431,3 +431,19 @@ def test_results_reads_a_real_run_directory(tmp_path: Path) -> None:
     assert res["headline"]["n_clusters"] == 2
     assert res["headline"]["kd"].endswith("nM")
     assert "ranked_poses.csv" in res["files"]
+
+
+def test_environment_check_does_not_demand_adfrsuite(monkeypatch):
+    """ADFRsuite is optional (meeko replaced it); the status lamp must not call it a missing requirement."""
+    found = {"mk_prepare_receptor.py": "/env/bin/mk_prepare_receptor.py"}
+    monkeypatch.setattr(tui, "_resolve_exe", lambda name: found.get(name))
+    monkeypatch.setattr("shutil.which", lambda name, *a, **k: found.get(name))  # not the machine's real PATH
+    report = server.check_environment()
+    prep = report["checks"]["receptor_prep"]
+    assert prep["ok"] is True
+    assert "licensed" not in prep["fix"].lower() and "ADFRsuite" not in prep["fix"]
+
+    found.clear()  # neither tool present: still only a warning, never a blocker
+    report = server.check_environment()
+    assert report["checks"]["receptor_prep"]["ok"] is False
+    assert "meeko" in report["checks"]["receptor_prep"]["fix"]
