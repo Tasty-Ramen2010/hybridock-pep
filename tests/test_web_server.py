@@ -460,3 +460,26 @@ def test_content_types_do_not_depend_on_the_operating_system(monkeypatch):
     assert server._content_type("inter-latin.woff2") == "font/woff2"
     monkeypatch.setattr("mimetypes.guess_type", lambda *a, **k: (None, None))
     assert server._content_type("mystery.xyz") == "application/octet-stream"
+
+
+class _FakeJob:
+    def __init__(self, lines, returncode):
+        self.lines, self.returncode = lines, returncode
+
+
+@pytest.mark.parametrize("code", [-9, 137])
+def test_a_run_killed_by_the_system_is_explained_as_out_of_memory(code):
+    """The kernel's OOM killer leaves no message; the last log line is just a progress tick ('15/25 poses scored')."""
+    job = _FakeJob(["$ hybridock-pep dock ...", "▶ [3/5] Scoring poses…", "15/25 poses scored (60%)"], code)
+    text = server._explain_failure(job)
+    assert "ran out of memory" in text and "15/25" not in text
+
+
+def test_a_pool_worker_that_died_is_explained_as_out_of_memory():
+    job = _FakeJob(["concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly"], 1)
+    assert "ran out of memory" in server._explain_failure(job)
+
+
+def test_other_failures_still_report_their_last_real_line():
+    job = _FakeJob(["$ cmd", "ValueError: the peptide has an unsupported residue 'Z'"], 1)
+    assert "unsupported residue" in server._explain_failure(job)

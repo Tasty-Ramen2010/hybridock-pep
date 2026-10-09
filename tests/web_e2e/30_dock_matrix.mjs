@@ -49,7 +49,7 @@ export const CASES = {
 
 if (process.argv.includes('--list')) { console.log(Object.keys(CASES).join('\n')); process.exit(0); }
 const want = (process.env.CASES ? process.env.CASES.split(',') : Object.keys(CASES)).filter((id) => CASES[id]);
-const tag = want.length > 3 ? 'all' : want.join('+');
+const tag = process.env.TAG || (want.length > 3 ? 'all' : want.join('+'));
 const logFile = path.join(OUT, `matrix-${tag}.json`);
 const ledger = {};
 const save = () => fs.writeFileSync(logFile, JSON.stringify({ base: BASE, ledger, results }, null, 2));
