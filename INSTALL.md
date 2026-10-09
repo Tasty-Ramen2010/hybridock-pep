@@ -155,6 +155,17 @@ pip install -e .
 
 Verify: `hybridock-pep --help` prints the CLI usage.
 
+**`pip` fails while building `vina` ("command not found: g++/gcc", or a Boost error)?** `pip` compiles
+`vina` from source, which needs a C++ compiler. Linux (x86_64 and ARM) and macOS have a prebuilt package on
+conda-forge, so skip the compile instead. `./install.sh` already does this; to do only this step:
+
+```bash
+python3 scripts/setup_environment.py --skip-rapidock    # creates score-env with the prebuilt vina
+conda activate score-env
+```
+
+Windows has no prebuilt `vina`; use WSL2 (`install.bat` sets it up) as described in the platform table.
+
 ---
 
 ## Step 2 — Create the GPU/inference sampling environment
@@ -398,6 +409,24 @@ hybridock-pep dock \
 
 ---
 
+## Using the browser UI
+
+After installing, in any of the three setups (Linux, macOS, or WSL2 on Windows):
+
+```bash
+conda activate score-env
+hybridock-pep serve            # add --no-browser on a server or in WSL2
+```
+
+then open **http://127.0.0.1:8000** (on Windows the browser is the normal Windows one: WSL2 forwards `localhost`).
+It binds to this machine only. To look around without installing anything there is a demo-only copy
+(simulated results, labelled *Demo*): <https://tasty-ramen2010.github.io/hybridock-pep/>.
+
+If a run says *The docking engine isn't installed on this computer*, the `rapidock` environment (Step 2) is missing;
+Score a structure works with `score-env` alone.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -407,6 +436,8 @@ hybridock-pep dock \
 | `No module named 'torch'` in rapidock env | PyTorch not installed (Step 2b skipped) | Re-run Step 2b for your platform |
 | `CUDA capability sm_120 not compatible` | PyTorch < 2.6 | Re-run Step 2b with `torch==2.7.0` |
 | `HIS residue has the wrong set of atoms` | pdbfixer edge case on RCSB PDB | Already handled gracefully in `receptor.py` |
+| `vina` fails to build: `g++`/`gcc` not found, or Boost errors | pip compiles vina from source and there is no compiler | Use conda-forge's prebuilt vina (see Step 1) |
+| Browser shows a blank page or `text/plain` for the app on Windows | an old server read the Windows registry for the file type | `git pull`; the server now serves `.mjs` as JavaScript itself |
 | `babel: command not found` | OpenBabel missing | `conda install -c conda-forge openbabel` (only a last-resort fallback; meeko is preferred) |
 | MPS fallback warnings in Stage 1 | Ops not yet on Metal | Normal — `PYTORCH_ENABLE_MPS_FALLBACK=1` already set by inference.py |
 | `torch-scatter` ImportError on macOS | Wrong PyG install command used | Use the macOS pip command from Step 2b (no `+cu128`) |

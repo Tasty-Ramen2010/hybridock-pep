@@ -252,3 +252,33 @@ class TestPrebuiltVina:
         assert mod._prebuilt_vina_available() is False
         monkeypatch.setattr(mod.sys, "platform", "linux")
         assert mod._prebuilt_vina_available() is True
+
+
+class TestCpuOnlyInstallUsesPrebuiltWheels:
+    """CPU-only Linux/Windows used a bare `pip install torch` (CUDA libs, ~3 GB, untested latest version) and compiled PyG."""
+
+    @pytest.mark.parametrize("os_name", ["Linux", "Windows"])
+    @pytest.mark.parametrize("arch", ["x86_64", "aarch64", "AMD64"])
+    def test_cpu_backend_pins_torch_and_uses_prebuilt_cpu_wheels(self, monkeypatch, os_name, arch):
+        mod = _load_setup_environment()
+        monkeypatch.setattr(mod.platform, "system", lambda: os_name)
+        monkeypatch.setattr(mod.platform, "machine", lambda: arch)
+        info = mod.detect_platform(force_backend="cpu")
+        assert info.backend == "cpu"
+        assert info.torch_index_url == "https://download.pytorch.org/whl/cpu"
+        assert info.torch_version == "torch==2.7.0"  # the version the CUDA path pins; PyG wheels must match it
+        assert info.pyg_find_url.endswith("torch-2.7.0+cpu.html")
+
+    def test_macos_is_unchanged(self, monkeypatch):
+        mod = _load_setup_environment()
+        monkeypatch.setattr(mod.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(mod.platform, "machine", lambda: "arm64")
+        info = mod.detect_platform()
+        assert (info.backend, info.torch_index_url, info.torch_version) == ("mps", "", "torch")
+
+    def test_cuda_path_is_unchanged(self, monkeypatch):
+        mod = _load_setup_environment()
+        monkeypatch.setattr(mod.platform, "system", lambda: "Linux")
+        monkeypatch.setattr(mod.platform, "machine", lambda: "x86_64")
+        info = mod.detect_platform(force_backend="cuda")
+        assert info.torch_index_url.endswith("cu128") and info.pyg_find_url.endswith("torch-2.7.0+cu128.html")
