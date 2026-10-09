@@ -9,7 +9,7 @@ function systemTheme() {
   try { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { return 'light'; }
 }
 
-const SAVED = ['mode', 'theme', 'accent', 'userName', 'history'];
+const SAVED = ['mode', 'theme', 'accent', 'userName', 'history', 'runsTotal'];
 const MAX_HISTORY = 30;
 
 function load() {
@@ -60,7 +60,8 @@ export function createStore() {
     mode: saved.mode || 'guided',
     theme: saved.theme || systemTheme(),
     accent: saved.accent || 'teal',
-    userName: saved.userName || 'Ram',
+    userName: saved.userName && saved.userName !== 'there' ? saved.userName : '', // empty until the visitor adds one
+    runsTotal: Number.isFinite(saved.runsTotal) ? saved.runsTotal : (Array.isArray(saved.history) ? saved.history.length : 0), // lifetime count: History keeps only the last 30
     history: Array.isArray(saved.history) ? saved.history : null, // null = never used: main.js seeds demo entries
     historySeeded: Array.isArray(saved.history),
     proteins: [],
@@ -82,12 +83,12 @@ export function createStore() {
     subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
     addHistory(entry) {
       const history = [entry, ...(state.history || [])].slice(0, MAX_HISTORY);
-      this.set({ history });
+      this.set({ history, runsTotal: Math.max(state.runsTotal || 0, (state.history || []).length) + 1 });
     },
     updateHistory(id, patch) {
       this.set({ history: (state.history || []).map((e) => (e.id === id ? { ...e, ...patch } : e)) });
     },
-    clearHistory() { this.set({ history: [] }); },
+    clearHistory() { this.set({ history: [], runsTotal: 0 }); },
   };
 }
 
