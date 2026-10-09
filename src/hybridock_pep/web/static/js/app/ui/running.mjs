@@ -5,7 +5,7 @@ import { h, mmss } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { RUN_STAGES } from '../config.mjs';
-import { adapter } from '../adapter.mjs';
+import { adapter, noGpu } from '../adapter.mjs';
 
 const COPY = {
   dock: { title: 'Finding how your peptide binds', sub: (j) => `${j.peptide} → ${j.protein.name} · ${j.poses} poses${j.blind ? ' · searching the whole protein' : ''}` },
@@ -64,7 +64,8 @@ export function mountRunning(ctx) {
       logEl.textContent = logLines.join('\n');
       if (pinned) logEl.scrollTop = logEl.scrollHeight;
     }
-    etaEl.textContent = etaSeconds == null ? 'Still working…' : etaSeconds <= 1 ? 'Almost done' : `about ${mmss(etaSeconds)}`;
+    // "Almost done" only when the bar agrees; a run that is past its estimate but still sampling is just "still working"
+    etaEl.textContent = etaSeconds == null || (etaSeconds <= 1 && fraction < 0.9) ? 'Still working…' : etaSeconds <= 1 ? 'Almost done' : `about ${mmss(etaSeconds)}`;
     lateEl.hidden = !overdue;
     if (stageIndex !== lastStage) { lastStage = stageIndex; live.textContent = `Step ${stageIndex + 1} of ${RUN_STAGES.length}: ${RUN_STAGES[stageIndex].label}`; }
   }
@@ -83,7 +84,7 @@ export function mountRunning(ctx) {
         stopBtn),
       h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Live log ', h('span', { class: 'tech' }, 'What the program is printing'))), h('div', { class: 'stack' }, logEl)),
       h('p', { class: 'small muted' },
-        adapter.kind === 'demo' ? 'Demo run: the progress and the result are simulated, and short on purpose. ' : 'A real run can take several minutes. You can leave this tab open. ',
+        adapter.kind === 'demo' ? 'Demo run: the progress and the result are simulated, and short on purpose. ' : noGpu(adapter.env) ? 'This machine has no GPU, so a real run can take tens of minutes or longer, and there is no countdown. You can leave this tab open. ' : 'A real run can take several minutes. You can leave this tab open. ',
         'The floating molecule is just decoration; the stages above show where the run really is.'));
   }
 

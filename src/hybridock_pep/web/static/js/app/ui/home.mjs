@@ -7,7 +7,7 @@ import { fmt, fmtSigned } from '../interpret.mjs';
 import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR } from '../config.mjs';
 import { dockJob, findProtein, greeting } from '../jobs.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
-import { adapter, adapterFor, demoAdapter } from '../adapter.mjs';
+import { adapter, adapterFor, demoAdapter, noGpu } from '../adapter.mjs';
 import { fmtDate, fmtDuration, saveBlob } from './dom.mjs';
 import { openHistory } from './history.mjs';
 import { toast } from './toast.mjs';
@@ -77,7 +77,8 @@ export function mountHome(ctx) {
   if (live && exProtein) {
     adapter.preview(exJob()).then(({ estimateSeconds }) => {
       exEstimate = estimateSeconds;
-      if (estimateSeconds) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (estimate)`;
+      if (noGpu(adapter.env)) timeNote.textContent = 'A real quick run (25 poses). This machine has no GPU, so allow tens of minutes.';
+      else if (estimateSeconds) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (estimate)`;
     }).catch(() => {});
   }
 

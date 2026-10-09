@@ -50,7 +50,7 @@ await p.locator('input[type=file]').first().setInputFiles(MDM2); await sleep(500
 check('an uploaded file becomes the selected protein', (await p.locator('.pick[aria-checked=true]').first().textContent()).includes('1YCR') || (await p.locator('.pick[aria-checked=true]').count()) === 1, (await p.locator('.pick[aria-checked=true]').first().textContent()).trim().slice(0, 50));
 
 // ======================================================================== step 2: peptide
-await p.locator('.pick').filter({ hasText: 'MDM2' }).first().click();
+await search.fill(''); await p.locator('.pick', { has: p.locator('.mono', { hasText: 'PDB 1YCR' }) }).last().click(); // the built-in MDM2 row, not the uploaded copy
 await cont().click(); await p.waitForSelector('#pep-input');
 check('step 2 is "Peptide"', (await stepName()) === 'Peptide', '');
 check('the Protein step is marked done in the progress list', (await p.locator('.steps li.done .name').first().textContent()).trim() === 'Protein', '');
@@ -153,7 +153,9 @@ await cont().click(); await p.waitForSelector('.summary');
 check('step 4 is "Review"', (await stepName()) === 'Review', '');
 check('the summary says the whole protein is searched', /whole protein|blind|find/i.test(await p.locator('.summary').innerText()), (await p.locator('.summary').innerText()).replace(/\s+/g, ' '));
 await p.getByRole('button', { name: 'Back' }).click(); await p.waitForSelector('.choice');
-await p.getByRole('radio', { name: /I know where it binds/ }).click(); await sleep(200);
+await p.getByRole('radio', { name: /I know where it binds/ }).click(); await sleep(300);
+// the 3D tests left the box wherever; put it back on the protein, as a person would, or Guided mode rightly blocks Continue
+await p.getByRole('button', { name: /Use the suggested site/ }).click(); await p.locator('input[type=range]').first().fill('30'); await sleep(300);
 await cont().click(); await p.waitForSelector('.summary');
 
 // ======================================================================== step 4: review

@@ -351,6 +351,13 @@ export function compareValues(job, target, offTarget) {
 /** The terminal UI's field values for Score a structure (crystal-score). */
 export const crystalValues = (job, receptor, pose) => ({ peptide: job.peptide, receptor, peptide_pdb: pose, mode: 'crystal' });
 
+/**
+ * The server's time estimate is a GPU figure. On a machine with no GPU it is wrong by an order of magnitude, and a
+ * countdown that runs out while the run is still sampling ("Almost done" at 10%) is dishonest, so there is none there.
+ */
+export const noGpu = (env) => env?.checks?.gpu?.ok === false;
+const liveEstimate = (job) => (noGpu(liveAdapter.env) ? null : job.estimateSeconds ?? null);
+
 export function progressFrom(snap, estimateSeconds) {
   const fraction = Math.min(1, Math.max(0, snap.fraction || 0));
   // The server's progress is stage-weighted: inside the long sampling stage it has no finer detail, so the bar can
@@ -441,7 +448,7 @@ const liveAdapter = {
   env: null, //      filled by initAdapter from /api/env
   examples: [], //   filled by initAdapter from /api/examples
 
-  estimate: (job) => job.estimateSeconds ?? null,
+  estimate: (job) => liveEstimate(job),
 
   /** The exact command (from the server's own builder) and its rough time estimate. */
   async preview(job) {
@@ -461,7 +468,7 @@ const liveAdapter = {
     const receptor = await receptorOnServer(job.protein, opts.signal);
     const start = await API.post('/api/run', { mode: 'dock', values: dockValues(job, receptor), scoring: job.expert?.scoring || 'vina' }, opts.signal);
     const jobId = start.job.id;
-    const snap = await watch(jobId, { ...opts, estimateSeconds: job.estimateSeconds });
+    const snap = await watch(jobId, { ...opts, estimateSeconds: liveEstimate(job) });
     const res = await API.get(`/api/jobs/${jobId}/results`);
     const result = dockResult(job, jobId, snap, res);
     // Keep the best few poses' shapes with the saved result, so History can show them after a server restart.
@@ -473,7 +480,7 @@ const liveAdapter = {
     const [t, o] = [await receptorOnServer(job.target.protein, opts.signal), await receptorOnServer(job.offTarget.protein, opts.signal)];
     const start = await API.post('/api/run', { mode: 'selectivity', values: compareValues(job, t, o), scoring: 'vina' }, opts.signal);
     const jobId = start.job.id;
-    const snap = await watch(jobId, { ...opts, estimateSeconds: job.estimateSeconds });
+    const snap = await watch(jobId, { ...opts, estimateSeconds: liveEstimate(job) });
     let sel;
     try { sel = JSON.parse(await API.text(fileUrl(jobId, 'selectivity.json'))); }
     catch { throw new Error(`The comparison finished but its result file (selectivity.json) wasn't found in ${snap.output_dir}.`); }
@@ -494,7 +501,7 @@ const liveAdapter = {
     const pose = await uploadText(job.peptidePdb.name, job.peptidePdb.text, opts.signal);
     const start = await API.post('/api/run', { mode: 'crystal', values: crystalValues(job, receptor, pose) }, opts.signal);
     const jobId = start.job.id;
-    const snap = await watch(jobId, { ...opts, estimateSeconds: job.estimateSeconds });
+    const snap = await watch(jobId, { ...opts, estimateSeconds: liveEstimate(job) });
     const res = await API.get(`/api/jobs/${jobId}/results`);
     const dg = res.headline?.delta_g;
     if (dg == null) throw new Error('The scoring finished but no ΔG could be read from its output.');
