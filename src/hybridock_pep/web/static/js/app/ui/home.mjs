@@ -84,7 +84,7 @@ export function mountHome(ctx) {
   const el = h('section', { class: 'screen home', 'aria-labelledby': 'greeting' },
     h('div', { class: 'home-head' },
       h('div', {},
-        h('h1', { class: 'display', id: 'greeting' }, `${greeting()}, `, nameEl),
+        h('h1', { class: 'display', id: 'greeting' }, greeting(), nameEl),
         h('p', { class: 'lede' }, 'Let’s find out how tightly a peptide sticks. Pick a protein, type a sequence, and watch it dock.')),
       h('button', { class: 'btn primary', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, icon('plus', 18), 'New prediction')),
 
@@ -126,9 +126,9 @@ export function mountHome(ctx) {
 
   function update() {
     const s = store.get(), hist = s.history || [];
-    nameEl.textContent = s.userName;
+    nameEl.textContent = s.userName ? `, ${s.userName}` : '';
     const dgs = hist.filter((e) => e.kind !== 'compare').map((e) => e.headline.value);
-    stats[0].ref.textContent = String(hist.length);
+    stats[0].ref.textContent = String(Math.max(s.runsTotal || 0, hist.length));
     stats[1].ref.textContent = String(new Set(hist.flatMap((e) => e.proteinNames)).size);
     stats[2].ref.textContent = dgs.length ? fmt(Math.min(...dgs)) : '—';
     stats[3].ref.replaceChildren(`±${TYPICAL_ERROR}`, h('small', {}, 'kcal/mol'));

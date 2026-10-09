@@ -28,9 +28,9 @@ export function mountTopbar(ctx) {
   const accentBtn = h('button', { class: 'btn icon', type: 'button', 'aria-label': 'Accent colour', 'aria-expanded': 'false', onClick: () => togglePop(accentPop, accentBtn) }, icon('palette'));
 
   // avatar popover (rename)
-  const nameInput = h('input', { class: 'field', type: 'text', 'aria-label': 'Your name', maxlength: '40', onInput: (e) => store.set({ userName: e.target.value || 'there' }) });
+  const nameInput = h('input', { class: 'field', type: 'text', 'aria-label': 'Your name', maxlength: '40', onInput: (e) => store.set({ userName: e.target.value.trim() }) });
   const avatar = h('button', { class: 'avatar', type: 'button', 'aria-label': 'Your name', 'aria-expanded': 'false', onClick: () => { togglePop(namePop, avatar); nameInput.focus(); } });
-  const namePop = h('div', { class: 'popover glass', hidden: true }, h('label', { class: 'small muted' }, 'Your name (used in the greeting)'), nameInput);
+  const namePop = h('div', { class: 'popover glass', hidden: true }, h('label', { class: 'small muted' }, 'Your name (optional, used in the greeting)'), nameInput);
 
   let envPop = null, envBtn = null; // set below when the live server is connected
   // status: "Demo mode" badge, or the live server's readiness (from /api/env) with the details in a popover
@@ -84,8 +84,8 @@ export function mountTopbar(ctx) {
       b.style.background = a[s.theme];
       b.setAttribute('aria-pressed', String(s.accent === a.id));
     });
-    avatar.textContent = initials(s.userName);
-    if (document.activeElement !== nameInput) nameInput.value = s.userName === 'there' ? '' : s.userName;
+    avatar.replaceChildren(s.userName ? initials(s.userName) : icon('user', 18));
+    if (document.activeElement !== nameInput) nameInput.value = s.userName;
     runPill.hidden = s.run.status !== 'running';
   }
   store.subscribe(update);
