@@ -143,7 +143,7 @@ const mockAdapter = {
     const center = centerOfSite(job, structure);
     const poses = demoPoses(job, structure, center, headline, Math.min(20, job.poses));
     return {
-      id: `run_${jobId}`, kind: 'dock', demo: true, createdAt: new Date().toISOString(),
+      id: newId('run'), kind: 'dock', demo: true, createdAt: new Date().toISOString(),
       name: `${job.peptide} → ${job.protein.name}`,
       protein: job.protein, peptide: job.peptide,
       site: { x: round1(center[0]), y: round1(center[1]), z: round1(center[2]) }, box: job.box, blind: !!job.blind,
@@ -166,7 +166,7 @@ const mockAdapter = {
       return { protein: s.protein, deltaG: dg, site: s.site, box: s.box, ca: Array.from(ca, round1) };
     };
     return {
-      id: `cmp_${jobId}`, kind: 'compare', demo: true, createdAt: new Date().toISOString(),
+      id: newId('cmp'), kind: 'compare', demo: true, createdAt: new Date().toISOString(),
       name: `${job.peptide}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
       peptide: job.peptide, ddg, ci: [Math.round((ddg - half) * 100) / 100, Math.round((ddg + half) * 100) / 100],
       target: side(job.target, t.structure, dgT), offTarget: side(job.offTarget, o.structure, dgO),
@@ -192,7 +192,7 @@ const mockAdapter = {
     const ca = new Float32Array(pep.ca.length * 3);
     pep.ca.forEach((a, i) => { ca[i * 3] = a.x; ca[i * 3 + 1] = a.y; ca[i * 3 + 2] = a.z; });
     return {
-      id: `scr_${jobId}`, kind: 'score', demo: true, createdAt: new Date().toISOString(),
+      id: newId('scr'), kind: 'score', demo: true, createdAt: new Date().toISOString(),
       name: `${job.peptide} on ${job.protein.name} (scored)`,
       protein: job.protein, peptide: job.peptide, deltaG, ca: Array.from(ca, round1),
       command: buildScoreCommand(job), job: { ...job, protein: job.protein, peptidePdb: { name: job.peptidePdb.name } },
