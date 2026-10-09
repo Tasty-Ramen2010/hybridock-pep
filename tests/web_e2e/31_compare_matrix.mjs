@@ -37,7 +37,7 @@ async function verifyCompare(p, label, expect) {
   if (Math.abs(ddg) < 1) check(`${label}: |ΔΔG| below 1 carries the "direction, not a measurement" note`, /direction, not a measurement/.test(await p.locator('.glass.panel').innerText()), '');
   check(`${label}: not labelled Demo`, (await p.locator('.badge-demo').count()) === 0, '');
   // 3D tabs
-  const tabs = p.locator('.seg button');
+  const tabs = p.locator('[aria-label="Which protein to show in 3D"] button');
   check(`${label}: Target / Off-target tabs exist`, (await tabs.count()) === 2, '');
   await tabs.nth(1).click(); await sleep(700);
   check(`${label}: the Off-target tab switches the 3D view (hint and pressed state)`, /Off-target:/.test(await p.locator('.hint').first().textContent()) && (await tabs.nth(1).getAttribute('aria-pressed')) === 'true', await p.locator('.hint').first().textContent());
