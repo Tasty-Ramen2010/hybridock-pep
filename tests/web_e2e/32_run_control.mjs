@@ -13,7 +13,7 @@ const want = (process.env.SCENARIOS || 'multitask,reload,closetab,stop,restart')
 const OPTS = { protein: '1YCR', peptide: 'ETFSDLWKLLPE', thorough: 'Quick', expert: { seed: 11 } };
 const b = await browser();
 const newCtx = () => b.newContext({ viewport: { width: 1360, height: 880 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
-const pill = (p) => p.locator('.topbar button', { hasText: 'Run in progress' });
+const pill = (p) => p.locator('.topbar button', { hasText: 'Run in progress' }).filter({ visible: true }); // the pill always exists in the DOM; hidden when no run is going
 async function waitResult(p, label, maxMs = 3 * 3600 * 1000) {
   const t0 = Date.now();
   while (!(await p.locator('.big-number, .error-card').count())) { if (Date.now() - t0 > maxMs) return 'timeout'; await sleep(4000); }
