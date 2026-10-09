@@ -539,7 +539,8 @@ def read_results(job: Job) -> dict[str, Any]:
                 "n_poses": len(rows),
                 "n_clusters": len({r.get("cluster_id") for r in rows if r.get("cluster_id")}),
             }
-        payload["cloud"] = _pose_cloud(out_dir, rows)
+        source = job.values.get("input_poses") if isinstance(job.values, dict) else None
+        payload["cloud"] = _pose_cloud(out_dir, rows, Path(source).expanduser() if source else None)
 
     if job.mode == "selectivity":
         payload["selectivity"] = _selectivity_summary(job)
@@ -584,7 +585,7 @@ def _kd_from_dg(dg: float | None) -> str | None:
     return f"{kd_molar:.3g} M"
 
 
-def _pose_cloud(out_dir: Path, rows: list[dict[str, str]]) -> list[dict[str, Any]]:
+def _pose_cloud(out_dir: Path, rows: list[dict[str, str]], input_poses: Path | None = None) -> list[dict[str, Any]]:
     """Project each pose's Cα centroid to 2D so the stage can draw the real cloud.
 
     Not decoration: these are the actual centroids of the poses that were scored,
@@ -597,7 +598,7 @@ def _pose_cloud(out_dir: Path, rows: list[dict[str, str]]) -> list[dict[str, Any
     keep: list[dict[str, str]] = []
     for row in rows[:100]:
         name = row.get("pose_filename") or ""
-        pose = _find_pose(out_dir, name)
+        pose = _find_pose(out_dir, name, input_poses)
         if pose is None:
             continue
         coords = _ca_centroid(pose)
@@ -628,15 +629,22 @@ def _pose_cloud(out_dir: Path, rows: list[dict[str, str]]) -> list[dict[str, Any
     return cloud
 
 
-def _find_pose(out_dir: Path, name: str) -> Path | None:
-    if not name:
+def _find_pose(out_dir: Path, name: str, input_poses: Path | None = None) -> Path | None:
+    if not name or Path(name).name != name:  # a plain file name only: never a path into somewhere else
         return None
     for sub in ("poses_scored", "poses_minimized", "poses", "poses_raw"):
         candidate = out_dir / sub / name
         if candidate.exists():
             return candidate
     direct = out_dir / name
-    return direct if direct.exists() else None
+    if direct.exists():
+        return direct
+    # A run that re-scored saved poses (--input-poses) writes no pose files of its own: they are still in that folder.
+    if input_poses is not None:
+        candidate = input_poses / name
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _ca_centroid(pdb: Path) -> list[float] | None:
@@ -805,7 +813,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             self._send_file(target, download=query.get("download", ["0"])[0] == "1")
         elif tail == "pose":
             name = query.get("name", [""])[0]
-            pose = _find_pose(job.output_dir, name)
+            source = job.values.get("input_poses") if isinstance(job.values, dict) else None
+            pose = _find_pose(job.output_dir, name, Path(source).expanduser() if source else None)
             if pose is None:
                 self._error("Pose file not found", 404)
                 return

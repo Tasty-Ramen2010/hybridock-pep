@@ -587,3 +587,17 @@ def test_simultaneous_uploads_of_the_same_file_never_leave_a_partial_file(monkey
         t.join(30)
     assert not errors, errors[:2]
     assert not list((tmp_path / "uploads").glob(".*tmp")), "temp files were left behind"
+
+
+def test_poses_of_an_input_poses_run_are_found_in_the_input_folder(tmp_path):
+    """--input-poses re-scores saved poses and writes none of its own, so the pose route must look in that folder."""
+    out, src = tmp_path / "run", tmp_path / "saved"
+    out.mkdir(), src.mkdir()
+    (src / "pose_3.pdb").write_text("ATOM      1  CA  ALA A   1       0.000   0.000   0.000\n")
+    assert server._find_pose(out, "pose_3.pdb") is None
+    assert server._find_pose(out, "pose_3.pdb", src) == src / "pose_3.pdb"
+    (out / "poses").mkdir()
+    (out / "poses" / "pose_3.pdb").write_text("X")
+    assert server._find_pose(out, "pose_3.pdb", src) == out / "poses" / "pose_3.pdb"  # the run's own copy wins
+    assert server._find_pose(out, "../saved/pose_3.pdb", src) is None  # names only, never paths
+    assert server._find_pose(out, "", src) is None
