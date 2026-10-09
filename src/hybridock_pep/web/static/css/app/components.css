@@ -91,7 +91,7 @@ button.chip:hover { color: var(--ink); background: color-mix(in srgb, var(--fiel
 }
 .seg button[aria-pressed='true'], .seg button[aria-checked='true'] { background: var(--thumb); font-weight: 600; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.08); }
 .seg button:not([aria-pressed='true']):not([aria-checked='true']):hover { background: color-mix(in srgb, var(--field) 80%, transparent); }
-@media (pointer: coarse) { .seg button { min-height: 40px; } }
+@media (pointer: coarse) { .seg button { min-height: 44px; } button.chip { min-height: 44px; padding-inline: 14px; } }
 
 .choice-grid { display: grid; gap: 10px; }
 .choice-grid.three { grid-template-columns: repeat(3, 1fr); }
@@ -187,3 +187,6 @@ table.poses td.num, table.poses th.num { text-align: right; }
 .env-row { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
 .env-row .dot { margin: 5px 0 0; flex: none; }
 .env-row b { font-weight: 500; }
+
+/* Touch: Apple's 44 pt minimum tap target for the small round controls too */
+@media (pointer: coarse) { .avatar { width: 44px; height: 44px; } }
