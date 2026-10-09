@@ -5,7 +5,9 @@ import { execSync } from 'node:child_process';
 const HOST = process.env.FAULT_SSH, START = process.env.FAULT_START_CMD;
 if (!HOST || !START) { console.log('SKIP 09_faults: set FAULT_SSH (ssh host of the server) and FAULT_START_CMD (starts it detached)'); process.exit(0); }
 const SSH = (cmd) => execSync(`ssh -n -o ConnectTimeout=10 ${HOST} '${cmd}'`, { encoding: 'utf8', timeout: 60000 });
-const srvPid = () => SSH('pgrep -f "[b]in/hybridock-pep serve" | head -1').trim();
+const PORT = process.env.SERVER_PORT || '';  // when several servers share a machine, name THIS one's port
+const SRV = `[b]in/hybridock-pep serve${PORT ? '.*--port ' + PORT : ''}`;
+const srvPid = () => SSH(`pgrep -f "${SRV}" | head -1`).trim();
 const startServer = () => { execSync(`ssh -f -n ${HOST} '${START}'`, { timeout: 30000, stdio: 'ignore' }); };
 async function waitUp(maxS = 40) { for (let i = 0; i < maxS; i++) { try { execSync(`curl -s -m 2 ${BASE}/api/env > /dev/null`, { timeout: 5000 }); return true; } catch { await sleep(1000); } } return false; }
 const b = await browser();
@@ -47,7 +49,7 @@ const outcome = async (p, ms = 120000) => { await p.waitForSelector('.big-number
 {
   const p = await newPage(b); await fillScore(p);
   await p.getByRole('button', { name: /Score it/ }).click(); await p.waitForSelector('.track');
-  SSH('pkill -f "[b]in/hybridock-pep serve"; true'); const t0 = Date.now();
+  SSH(`pkill -f "${SRV}"; true`); const t0 = Date.now();
   const o = await outcome(p, 120000);
   check('server killed mid-run: UI ends in a clear message, not a hang', /error: Couldn.t reach the server/.test(o) || /result/.test(o), `${o} after ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   await shot(p, 's9-killed');
@@ -59,7 +61,7 @@ const outcome = async (p, ms = 120000) => { await p.waitForSelector('.big-number
 {
   const p = await newPage(b); await fillScore(p);
   await p.getByRole('button', { name: /Score it/ }).click(); await p.waitForSelector('.track');
-  SSH('pkill -f "[b]in/hybridock-pep serve"; true'); startServer(); await waitUp();
+  SSH(`pkill -f "${SRV}"; true`); startServer(); await waitUp();
   const o = await outcome(p, 120000);
   check('quick restart mid-run: friendly outcome (result, restarted, or unreachable)', /result|error: (The server restarted|Couldn.t reach)/.test(o), o);
   await p.context().close();
