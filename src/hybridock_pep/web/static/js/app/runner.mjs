@@ -9,9 +9,14 @@ import { toast } from './ui/toast.mjs';
 export function createRunner({ store, go }) {
   let controller = null;
 
-  async function start(kind, job, { backTo = '/' } = {}) {
+  /**
+   * Start a run, or (with `resume`) carry on watching one the server already has: after a page reload, or after a
+   * dropped connection. The job id is saved the moment the server accepts the run, so closing the tab never loses it.
+   */
+  async function start(kind, job, { backTo = '/', resume = null } = {}) {
     controller = new AbortController();
-    const startedAt = Date.now();
+    const startedAt = resume?.startedAt || Date.now();
+    const clearActive = () => { if (store.get().activeRun) store.set({ activeRun: null }); };
     store.set({
       run: {
         status: 'running', kind, job, startedAt, backTo, error: null,
@@ -23,21 +28,29 @@ export function createRunner({ store, go }) {
     try {
       const result = await adapter[call](job, {
         signal: controller.signal,
+        jobId: resume?.jobId,
+        onJobId: (jobId) => store.set({ activeRun: { kind, job, jobId, startedAt, backTo } }),
         onProgress: (progress) => {
           const run = store.get().run;
           if (run.status === 'running') store.set({ run: { ...run, progress } });
         },
       });
+      clearActive();
       store.addHistory(historyEntryFor(result));
       store.set({ run: { status: 'idle' } });
       go(`/results/${result.id}`);
     } catch (err) {
       if (err?.name === 'AbortError') {
+        clearActive();
         store.set({ run: { status: 'idle' } });
         toast('Stopped. Nothing was saved.');
         go(backTo);
       } else {
-        store.set({ run: { ...store.get().run, status: 'error', error: friendlyError(err) } });
+        // A dead connection does not end the run on the server: keep its id so "Try again" picks it up instead of starting over.
+        const active = store.get().activeRun;
+        const resumable = err?.name === 'NetworkError' && active?.jobId ? { jobId: active.jobId, startedAt } : null;
+        if (!resumable) clearActive();
+        store.set({ run: { ...store.get().run, status: 'error', error: { ...friendlyError(err), resume: resumable } } });
       }
     } finally {
       controller = null;

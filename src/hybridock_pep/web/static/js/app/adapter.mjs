@@ -143,7 +143,7 @@ const mockAdapter = {
     const center = centerOfSite(job, structure);
     const poses = demoPoses(job, structure, center, headline, Math.min(20, job.poses));
     return {
-      id: newId('run'), kind: 'dock', demo: true, createdAt: new Date().toISOString(),
+      id: `run_${jobId}`, kind: 'dock', demo: true, createdAt: new Date().toISOString(),
       name: `${job.peptide} → ${job.protein.name}`,
       protein: job.protein, peptide: job.peptide,
       site: { x: round1(center[0]), y: round1(center[1]), z: round1(center[2]) }, box: job.box, blind: !!job.blind,
@@ -166,7 +166,7 @@ const mockAdapter = {
       return { protein: s.protein, deltaG: dg, site: s.site, box: s.box, ca: Array.from(ca, round1) };
     };
     return {
-      id: newId('cmp'), kind: 'compare', demo: true, createdAt: new Date().toISOString(),
+      id: `cmp_${jobId}`, kind: 'compare', demo: true, createdAt: new Date().toISOString(),
       name: `${job.peptide}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
       peptide: job.peptide, ddg, ci: [Math.round((ddg - half) * 100) / 100, Math.round((ddg + half) * 100) / 100],
       target: side(job.target, t.structure, dgT), offTarget: side(job.offTarget, o.structure, dgO),
@@ -192,7 +192,7 @@ const mockAdapter = {
     const ca = new Float32Array(pep.ca.length * 3);
     pep.ca.forEach((a, i) => { ca[i * 3] = a.x; ca[i * 3 + 1] = a.y; ca[i * 3 + 2] = a.z; });
     return {
-      id: newId('scr'), kind: 'score', demo: true, createdAt: new Date().toISOString(),
+      id: `scr_${jobId}`, kind: 'score', demo: true, createdAt: new Date().toISOString(),
       name: `${job.peptide} on ${job.protein.name} (scored)`,
       protein: job.protein, peptide: job.peptide, deltaG, ca: Array.from(ca, round1),
       command: buildScoreCommand(job), job: { ...job, protein: job.protein, peptidePdb: { name: job.peptidePdb.name } },
@@ -318,6 +318,17 @@ async function uploadText(name, content, signal) {
   return (await API.post('/api/upload', { name: safePdbName(name, 'peptide'), content }, signal)).path;
 }
 
+/**
+ * Start a job on the server and tell the caller its id (so a run can be resumed after a page reload), or, when
+ * resuming (`opts.jobId`), skip the uploads and the POST and just carry on watching that job.
+ */
+async function startJob(opts, buildBody) {
+  if (opts.jobId) return opts.jobId;
+  const start = await API.post('/api/run', await buildBody(), opts.signal);
+  opts.onJobId?.(start.job.id);
+  return start.job.id;
+}
+
 const siteStr = (s) => `${s.x} ${s.y} ${s.z}`;
 
 /** The terminal UI's field values for a dock job. Blank means "use the default". */
@@ -428,7 +439,7 @@ function dockResult(job, jobId, snap, res) {
     throw new Error(`The run finished but no ΔG was reported. Look in the run folder: ${snap.output_dir}`);
   }
   return {
-    id: newId('run'), kind: 'dock', demo: false, createdAt: new Date().toISOString(),
+    id: `run_${jobId}`, kind: 'dock', demo: false, createdAt: new Date().toISOString(),
     name: `${job.peptide} → ${job.protein.name}`, protein: job.protein, peptide: job.peptide,
     site: job.site, box: job.box, blind: !!job.blind, nPoses: job.poses, deltaG: headline, poses,
     command: snap.command, outputDir: snap.output_dir, jobId, files: res.files || [], job: stripJob(job),
@@ -468,10 +479,16 @@ const liveAdapter = {
     return { command: cmd?.command || null, estimateSeconds: val?.estimate_seconds ?? null, problems };
   },
 
+  /** The server's current view of a job (for resuming after a reload), or null when it no longer knows it. */
+  async jobSnapshot(jobId) {
+    try { return await API.get(`/api/jobs/${jobId}?since=0`); } catch (err) { if (err?.status === 404) return null; throw err; }
+  },
+
   async runDock(job, opts = {}) {
-    const receptor = await receptorOnServer(job.protein, opts.signal);
-    const start = await API.post('/api/run', { mode: 'dock', values: dockValues(job, receptor), scoring: job.expert?.scoring || 'vina' }, opts.signal);
-    const jobId = start.job.id;
+    const jobId = await startJob(opts, async () => {
+      const receptor = await receptorOnServer(job.protein, opts.signal);
+      return { mode: 'dock', values: dockValues(job, receptor), scoring: job.expert?.scoring || 'vina' };
+    });
     const snap = await watch(jobId, { ...opts, estimateSeconds: liveEstimate(job) });
     const res = await API.get(`/api/jobs/${jobId}/results`);
     const result = dockResult(job, jobId, snap, res);
@@ -481,16 +498,17 @@ const liveAdapter = {
   },
 
   async runCompare(job, opts = {}) {
-    const [t, o] = [await receptorOnServer(job.target.protein, opts.signal), await receptorOnServer(job.offTarget.protein, opts.signal)];
-    const start = await API.post('/api/run', { mode: 'selectivity', values: compareValues(job, t, o), scoring: 'vina' }, opts.signal);
-    const jobId = start.job.id;
+    const jobId = await startJob(opts, async () => {
+      const [t, o] = [await receptorOnServer(job.target.protein, opts.signal), await receptorOnServer(job.offTarget.protein, opts.signal)];
+      return { mode: 'selectivity', values: compareValues(job, t, o), scoring: 'vina' };
+    });
     const snap = await watch(jobId, { ...opts, estimateSeconds: liveEstimate(job) });
     let sel;
     try { sel = JSON.parse(await API.text(fileUrl(jobId, 'selectivity.json'))); }
     catch { throw new Error(`The comparison finished but its result file (selectivity.json) wasn't found in ${snap.output_dir}.`); }
     const side = async (key, s, dg) => ({ protein: s.protein, deltaG: dg, site: s.site, box: s.box, ca: await bestPoseCA(jobId, key, job.peptide.length) });
     return {
-      id: newId('cmp'), kind: 'compare', demo: false, createdAt: new Date().toISOString(),
+      id: `cmp_${jobId}`, kind: 'compare', demo: false, createdAt: new Date().toISOString(),
       name: `${job.peptide}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
       peptide: job.peptide, ddg: sel.ddg_kcal_mol, ci: [sel.ddg_ci_95_low, sel.ddg_ci_95_high],
       scoreField: sel.score_field, topK: sel.top_k,
@@ -501,16 +519,17 @@ const liveAdapter = {
   },
 
   async runScore(job, opts = {}) {
-    const receptor = await receptorOnServer(job.protein, opts.signal);
-    const pose = await uploadText(job.peptidePdb.name, job.peptidePdb.text, opts.signal);
-    const start = await API.post('/api/run', { mode: 'crystal', values: crystalValues(job, receptor, pose) }, opts.signal);
-    const jobId = start.job.id;
+    const jobId = await startJob(opts, async () => {
+      const receptor = await receptorOnServer(job.protein, opts.signal);
+      const pose = await uploadText(job.peptidePdb.name, job.peptidePdb.text, opts.signal);
+      return { mode: 'crystal', values: crystalValues(job, receptor, pose) };
+    });
     const snap = await watch(jobId, { ...opts, estimateSeconds: liveEstimate(job) });
     const res = await API.get(`/api/jobs/${jobId}/results`);
     const dg = res.headline?.delta_g;
     if (dg == null) throw new Error('The scoring finished but no ΔG could be read from its output.');
     return {
-      id: newId('scr'), kind: 'score', demo: false, createdAt: new Date().toISOString(),
+      id: `scr_${jobId}`, kind: 'score', demo: false, createdAt: new Date().toISOString(),
       name: `${job.peptide} on ${job.protein.name} (scored)`, protein: job.protein, peptide: job.peptide, deltaG: dg,
       ca: peptideCA(job.peptidePdb.text, job.peptide.length), command: snap.command, outputDir: snap.output_dir, jobId, job: stripJob(job),
     };
