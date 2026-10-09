@@ -32,6 +32,19 @@ from hybridock_pep.ui import tui
 
 logger = logging.getLogger(__name__)
 
+# Content types for what the page loads. mimetypes reads the OS: on Windows the registry has no entry for `.mjs`
+# (the module bundle then went out as text/plain and browsers refuse to run it) and often maps `.js` to text/plain.
+_CONTENT_TYPES = {
+    ".mjs": "text/javascript", ".js": "text/javascript", ".css": "text/css", ".html": "text/html",
+    ".json": "application/json", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".png": "image/png",
+    ".csv": "text/csv", ".pdb": "chemical/x-pdb", ".txt": "text/plain",
+}
+
+
+def _content_type(name: str) -> str:
+    """Content-Type for a file name: our table first, then the system's, then a safe default."""
+    return _CONTENT_TYPES.get(Path(name).suffix.lower()) or mimetypes.guess_type(name)[0] or "application/octet-stream"
+
 WEB_DIR = Path(__file__).resolve().parent
 STATIC_DIR = WEB_DIR / "static"
 
@@ -681,7 +694,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         if not path.is_file():
             self._error("Not found", 404)
             return
-        ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        ctype = _content_type(path.name)
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)

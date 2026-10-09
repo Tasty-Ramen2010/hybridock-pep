@@ -33,7 +33,7 @@ def digest(paths: list[Path]) -> str:
     h = hashlib.sha256()
     for p in sorted(paths):
         h.update(p.relative_to(STATIC).as_posix().encode())
-        h.update(p.read_bytes())
+        h.update(p.read_bytes().replace(b"\r\n", b"\n"))  # a Windows checkout may have CRLF; the hash must not care
     return h.hexdigest()[:16]
 
 

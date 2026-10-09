@@ -1,0 +1,9 @@
+# Files whose exact bytes matter must be identical on every OS, whatever core.autocrlf says.
+# - the web UI's sources and its generated bundle (a hash of the sources is stored in the bundle, and a CRLF
+#   checkout on Windows made the bundle look stale);
+# - shell scripts (bash refuses a CRLF shebang line, e.g. install.sh run from WSL on a Windows checkout).
+src/hybridock_pep/web/static/**/*.mjs text eol=lf
+src/hybridock_pep/web/static/**/*.css text eol=lf
+src/hybridock_pep/web/static/**/*.json text eol=lf
+src/hybridock_pep/web/index.html text eol=lf
+*.sh text eol=lf

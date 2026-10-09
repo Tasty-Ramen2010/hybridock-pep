@@ -34,11 +34,24 @@ FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "web_requests.json").
 
 def _real(body: dict) -> dict:
     """Swap the fixture's placeholder paths for files that exist on this machine."""
-    receptor = str(server._example_receptor("pdbs/1YCR_mdm2.pdb"))
-    offtarget = str(server._example_receptor("pdbs/1I0Z.pdb"))
-    pose = str(server._example_receptor("pdbs/1YCR_peptide.pdb"))
-    text = json.dumps(body).replace("__RECEPTOR__", receptor).replace("__OFFTARGET__", offtarget)
-    return json.loads(text.replace("__PEPTIDE_POSE__", pose).replace("\\\\", "\\"))
+    swaps = {
+        "__RECEPTOR__": str(server._example_receptor("pdbs/1YCR_mdm2.pdb")),
+        "__OFFTARGET__": str(server._example_receptor("pdbs/1I0Z.pdb")),
+        "__PEPTIDE_POSE__": str(server._example_receptor("pdbs/1YCR_peptide.pdb")),
+    }
+
+    def walk(node):  # substitute in the parsed structure, never in JSON text (Windows paths contain backslashes)
+        if isinstance(node, str):
+            for key, value in swaps.items():
+                node = node.replace(key, value)
+            return node
+        if isinstance(node, dict):
+            return {k: walk(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [walk(v) for v in node]
+        return node
+
+    return walk(body)
 
 
 # --------------------------------------------------------------------------- #
@@ -215,3 +228,19 @@ def test_static_site_is_self_contained_and_relative(tmp_path):
         assert (out / "static" / "dist" / url).resolve().is_file(), url
     # the older studio page is not part of the static site
     assert not (out / "static" / "studio.html").exists()
+
+
+def test_bundle_hash_ignores_line_endings(tmp_path, monkeypatch):
+    """git on Windows checks files out with CRLF; that must not make the committed bundle look stale."""
+    spec = importlib.util.spec_from_file_location("build_web", REPO / "scripts" / "build_web.py")
+    build_web = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_web)
+    monkeypatch.setattr(build_web, "STATIC", tmp_path)
+    lf, crlf = tmp_path / "a.mjs", tmp_path / "b" / "a.mjs"
+    (tmp_path / "b").mkdir()
+    lf.write_bytes(b"export const x = 1;\nexport const y = 2;\n")
+    crlf.write_bytes(b"export const x = 1;\r\nexport const y = 2;\r\n")
+    # same relative name needed for equal digests, so hash each from its own root
+    first = build_web.digest([lf])
+    monkeypatch.setattr(build_web, "STATIC", tmp_path / "b")
+    assert build_web.digest([crlf]) == first
