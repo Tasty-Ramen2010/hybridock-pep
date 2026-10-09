@@ -29,7 +29,7 @@ export function mountTopbar(ctx) {
 
   // avatar popover (rename)
   const nameInput = h('input', { class: 'field', type: 'text', 'aria-label': 'Your name', maxlength: '40', onInput: (e) => store.set({ userName: e.target.value.trim() }) });
-  const avatar = h('button', { class: 'avatar', type: 'button', 'aria-label': 'Your name', 'aria-expanded': 'false', onClick: () => { togglePop(namePop, avatar); nameInput.focus(); } });
+  const avatar = h('button', { class: 'avatar', type: 'button', 'aria-label': 'Set your name', 'aria-expanded': 'false', onClick: () => { togglePop(namePop, avatar); nameInput.focus(); } });
   const namePop = h('div', { class: 'popover glass', hidden: true }, h('label', { class: 'small muted' }, 'Your name (optional, used in the greeting)'), nameInput);
 
   let envPop = null, envBtn = null; // set below when the live server is connected

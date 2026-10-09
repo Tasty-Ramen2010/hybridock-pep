@@ -282,3 +282,22 @@ class TestCpuOnlyInstallUsesPrebuiltWheels:
         monkeypatch.setattr(mod.platform, "machine", lambda: "x86_64")
         info = mod.detect_platform(force_backend="cuda")
         assert info.torch_index_url.endswith("cu128") and info.pyg_find_url.endswith("torch-2.7.0+cu128.html")
+
+
+class TestPygFallback:
+    """PyG's prebuilt Linux wheels need glibc >= 2.32 and fail to import on Ubuntu 20.04; the installer must notice and compile."""
+
+    def test_compiler_packages_per_platform(self):
+        mod = _load_setup_environment()
+        assert mod.conda_compiler_packages("Linux", "x86_64") == ["gxx_linux-64", "gcc_linux-64"]
+        assert mod.conda_compiler_packages("Linux", "aarch64") == ["gxx_linux-aarch64", "gcc_linux-aarch64"]
+        assert mod.conda_compiler_packages("Darwin", "arm64") == []  # Apple's command-line tools do this
+        assert mod.conda_compiler_packages("Windows", "AMD64") == []
+
+    def test_all_four_extensions_are_covered(self):
+        mod = _load_setup_environment()
+        assert mod.PYG_EXTENSIONS == ["torch-scatter", "torch-sparse", "torch-cluster", "torch-spline-conv"]
+
+    def test_the_check_runs_for_prebuilt_paths_only(self):
+        src = (REPO / "scripts" / "setup_environment.py").read_text(encoding="utf-8")
+        assert "_pyg_importable()" in src and "_build_pyg_from_source(info, dry_run)" in src
