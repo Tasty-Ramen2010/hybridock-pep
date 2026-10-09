@@ -222,7 +222,8 @@ binds to this machine only. The previous single-page layout is still at `/static
 Served from anywhere else (or with `?demo` on the URL) the same page runs in a clearly-labelled **Demo
 mode** with simulated results, which is handy for screen recordings on a machine with no GPU. The
 front end lives in `src/hybridock_pep/web/`; `js/app/adapter.mjs` is the one file that talks to the
-server. See `src/hybridock_pep/web/README.md`.
+server. See `src/hybridock_pep/web/README.md`. A demo-only copy is also hosted for free on GitHub Pages:
+<https://tasty-ramen2010.github.io/hybridock-pep/> (simulated results, labelled Demo; no install needed to look around).
 
 Below are screenshots of the software in action, including ASCII art, a finished demo, and the help screen.
 

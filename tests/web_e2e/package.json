@@ -1,0 +1,13 @@
+{
+  "name": "hybridock-pep-web-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser end-to-end and stress suites for the hybridock-pep web UI (not part of the Python package).",
+  "scripts": {
+    "test": "node run_all.mjs"
+  },
+  "devDependencies": {
+    "axe-core": "4.10.2",
+    "playwright": "1.63.0"
+  }
+}
