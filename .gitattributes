@@ -7,3 +7,5 @@ src/hybridock_pep/web/static/**/*.css text eol=lf
 src/hybridock_pep/web/static/**/*.json text eol=lf
 src/hybridock_pep/web/index.html text eol=lf
 *.sh text eol=lf
+# Windows batch files need CRLF line endings (labels and GOTO misbehave with bare LF).
+*.bat text eol=crlf

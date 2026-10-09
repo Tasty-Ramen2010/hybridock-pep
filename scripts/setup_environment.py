@@ -133,6 +133,15 @@ def _intel_xpu_present() -> bool:
 # Platform detection
 # ---------------------------------------------------------------------------
 
+# CPU-only Linux and Windows. A bare `pip install torch` on Linux (x86_64 AND aarch64) fetches the CUDA build with
+# ~3 GB of nvidia-* libraries (it filled a small disk on an ARM board) and an untested latest version, and PyG's
+# extensions then compile from source, which needs a compiler. PyTorch and PyG publish prebuilt CPU wheels for
+# Linux x86_64/aarch64 and Windows, pinned here to the version the CUDA path uses (2.7.0).
+_CPU_TORCH_INDEX = "https://download.pytorch.org/whl/cpu"
+_CPU_TORCH_VERSION = "torch==2.7.0"
+_CPU_PYG_FIND_URL = "https://data.pyg.org/whl/torch-2.7.0+cpu.html"
+
+
 def detect_platform(force_backend: str | None = None) -> PlatformInfo:
     """Detect OS, architecture, and compute backend.
 
@@ -184,9 +193,9 @@ def detect_platform(force_backend: str | None = None) -> PlatformInfo:
             os_name=os_name, arch=arch,
             backend="cpu",
             gpu_label="CPU (no NVIDIA GPU found)",
-            torch_index_url="",
-            torch_version="torch",
-            pyg_find_url="",
+            torch_index_url=_CPU_TORCH_INDEX,
+            torch_version=_CPU_TORCH_VERSION,
+            pyg_find_url=_CPU_PYG_FIND_URL,
             ipex=False,
         )
 
@@ -246,9 +255,9 @@ def detect_platform(force_backend: str | None = None) -> PlatformInfo:
         os_name=os_name, arch=arch,
         backend="cpu",
         gpu_label="CPU (no GPU detected)",
-        torch_index_url="",
-        torch_version="torch",
-        pyg_find_url="",
+        torch_index_url=_CPU_TORCH_INDEX,
+        torch_version=_CPU_TORCH_VERSION,
+        pyg_find_url=_CPU_PYG_FIND_URL,
         ipex=False,
     )
 
