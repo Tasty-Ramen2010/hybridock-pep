@@ -1,5 +1,5 @@
-/* fonts.css — bundled so the page looks the same offline (Cormorant Garamond, Inter and JetBrains Mono are
-   all SIL Open Font License). Latin subset only. */
-@font-face { font-family: 'Cormorant Garamond'; font-style: normal; font-weight: 500 700; font-display: swap; src: url('/static/fonts/cormorant-garamond-latin.woff2') format('woff2'); }
-@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 600; font-display: swap; src: url('/static/fonts/inter-latin.woff2') format('woff2'); }
-@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400 500; font-display: swap; src: url('/static/fonts/jetbrains-mono-latin.woff2') format('woff2'); }
+/* fonts.css — the interface uses the system font (SF Pro on Apple devices). Inter and JetBrains Mono are bundled
+   (both SIL Open Font License, Latin subset) as the fallback so it looks the same on every machine, offline.
+   The URLs are relative to dist/app.css so the app also works when it is hosted under a sub-path. */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('../fonts/inter-latin.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400 500; font-display: swap; src: url('../fonts/jetbrains-mono-latin.woff2') format('woff2'); }

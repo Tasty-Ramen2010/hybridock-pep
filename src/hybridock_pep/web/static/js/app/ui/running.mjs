@@ -62,7 +62,7 @@ export function mountRunning(ctx) {
   function paintBody() {
     body.replaceChildren(
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
-        h('div', {}, h('h1', { class: 'serif', id: 'run-title' }, copy.title), h('p', { class: 'muted', style: { marginTop: '6px' } }, h('span', { class: 'mono' }, copy.sub(job)))),
+        h('div', {}, h('h1', { id: 'run-title' }, copy.title), h('p', { class: 'muted', style: { marginTop: '6px' } }, h('span', { class: 'mono' }, copy.sub(job)))),
         adapter.kind === 'demo' && h('span', { class: 'badge-demo' }, 'Demo')),
       h('ol', { class: 'track', 'aria-label': 'Stages' }, steps),
       barWrap,
@@ -80,7 +80,7 @@ export function mountRunning(ctx) {
   function paintError(r) {
     clearInterval(timer);
     body.replaceChildren(h('div', { class: 'error-card', role: 'alert' },
-      h('h2', { class: 'serif' }, r.error.title),
+      h('h2', {}, r.error.title),
       h('p', {}, r.error.body),
       h('div', { class: 'row' },
         h('button', { class: 'btn primary', type: 'button', onClick: () => runner.start(kind, job, { backTo: r.backTo }) }, 'Try again'),

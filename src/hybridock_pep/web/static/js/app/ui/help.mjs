@@ -23,7 +23,7 @@ export function openHelp() {
   const dlg = h('dialog', { class: 'modal', 'aria-labelledby': 'help-title' });
   const close = () => { dlg.close(); dlg.remove(); };
   dlg.append(
-    h('div', { class: 'dialog-head' }, h('h2', { class: 'serif', id: 'help-title', style: { fontSize: '30px' } }, 'Help'),
+    h('div', { class: 'dialog-head' }, h('h2', { id: 'help-title' }, 'Help'),
       h('button', { class: 'btn icon ghost', type: 'button', 'aria-label': 'Close help', onClick: close }, icon('x'))),
     h('div', { class: 'dialog-body' },
       h('p', { class: 'muted', style: { marginBottom: '16px' } }, 'HybriDock-Pep predicts how tightly a short protein piece (a peptide) sticks to a protein, and shows you where. Here is what the words mean.'),

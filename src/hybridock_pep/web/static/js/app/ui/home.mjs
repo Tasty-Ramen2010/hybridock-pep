@@ -84,7 +84,6 @@ export function mountHome(ctx) {
     h('div', { class: 'home-head' },
       h('div', {},
         h('h1', { class: 'display', id: 'greeting' }, `${greeting()}, `, nameEl),
-        h('span', { class: 'accent-bar' }),
         h('p', { class: 'lede' }, 'Let’s find out how tightly a peptide sticks. Pick a protein, type a sequence, and watch it dock.')),
       h('button', { class: 'btn primary', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, icon('plus', 18), 'New prediction')),
 
@@ -119,9 +118,9 @@ export function mountHome(ctx) {
 
   function startCard(title, text, tech, ic, onClick) {
     return h('button', { class: 'card start-card', type: 'button', onClick },
+      h('span', { class: 'icon-tile', 'aria-hidden': 'true' }, icon(ic, 20)),
       h('h3', {}, title), h('p', {}, text), h('span', { class: 'tech' }, tech),
-      h('span', { class: 'go' }, 'Open', icon('arrow', 16)),
-      h('span', { class: 'deco' }, icon(ic, 120)));
+      h('span', { class: 'go' }, 'Open', icon('arrow', 16)));
   }
 
   function update() {

@@ -19,7 +19,7 @@ export function mountTopbar(ctx) {
   const modeSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Detail level' }, guided, expert);
 
   const themeBtn = h('button', { class: 'btn icon', type: 'button', onClick: () => store.set({ theme: store.get().theme === 'dark' ? 'light' : 'dark' }) });
-  const runPill = h('button', { class: 'btn sm primary', type: 'button', hidden: true, onClick: () => go('/running') }, icon('play', 14), h('span', { class: 'label' }, 'Run in progress'));
+  const runPill = h('button', { class: 'btn sm primary', type: 'button', hidden: true, 'aria-label': 'Run in progress', onClick: () => go('/running') }, icon('play', 14), h('span', { class: 'label' }, 'Run in progress'));
 
   // accent popover
   const swatchBtns = ACCENTS.map((a) => h('button', { class: 'swatch', type: 'button', 'aria-label': a.name, title: a.name, onClick: () => store.set({ accent: a.id }) }));
@@ -66,8 +66,8 @@ export function mountTopbar(ctx) {
       runPill,
       modeSeg,
       statusEl,
-      h('button', { class: 'btn sm', type: 'button', onClick: () => openHistory(ctx) }, icon('history', 16), h('span', { class: 'label' }, 'History')),
-      h('button', { class: 'btn sm', type: 'button', onClick: () => openHelp() }, icon('help', 16), h('span', { class: 'label' }, 'Help')),
+      h('button', { class: 'btn sm', type: 'button', 'aria-label': 'History', onClick: () => openHistory(ctx) }, icon('history', 16), h('span', { class: 'label' }, 'History')),
+      h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Help', onClick: () => openHelp() }, icon('help', 16), h('span', { class: 'label' }, 'Help')),
       h('div', { class: 'rel' }, accentBtn, accentPop),
       themeBtn,
       h('div', { class: 'rel' }, avatar, namePop)),

@@ -1,19 +1,23 @@
 /* layout.css — top bar, screen container, and the two-column "stage + panel" grid. */
 
+/* The top bar is a thin material: content scrolls under it and stays faintly visible. */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px var(--gutter);
-  background: color-mix(in srgb, var(--bg) 62%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+  display: flex; align-items: center; gap: 8px;
+  min-height: 52px; padding: 6px var(--gutter);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--line);
 }
 .brand {
-  display: inline-flex; align-items: center; gap: 10px; margin-right: auto;
-  font: 600 26px/1 var(--font-serif); color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; padding: 4px 6px; border-radius: var(--r-md);
+  display: inline-flex; align-items: center; gap: 8px; margin-right: auto;
+  font: 600 17px/1 var(--font-sans); letter-spacing: -0.012em; color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; padding: 6px 8px; border-radius: var(--r-md);
 }
 .brand svg { color: var(--accent); }
-.topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.topbar-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* Plain buttons in the bar: no outline, just a label that lights up on hover (like a macOS toolbar). */
+.topbar .btn:not(.primary) { background: transparent; border-color: transparent; color: var(--ink-2); }
+.topbar .btn:not(.primary):hover { background: var(--field); color: var(--ink); }
 
 .screen {
   width: min(100%, var(--maxw));
@@ -21,9 +25,9 @@
   padding: clamp(18px, 3vw, 34px) var(--gutter) 64px;
   animation: screen-in var(--t-med) var(--ease) both;
 }
-@keyframes screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes screen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* Setup / Results: the model on the left, a frosted-glass panel on the right.
+/* Setup / Results: the model on the left, a material panel on the right.
    On narrow screens the panel moves BELOW the 3D view. */
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 430px); gap: clamp(16px, 3vw, 36px); align-items: start; }
 .stage-slot { position: relative; min-height: clamp(380px, 62vh, 640px); pointer-events: none; }
@@ -40,7 +44,6 @@
 }
 
 @media (max-width: 720px) {
-  .topbar { flex-wrap: wrap; row-gap: 8px; padding-block: 8px; }
-  .brand { font-size: 23px; }
+  .topbar { flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
   .topbar .btn .label { display: none; }
 }

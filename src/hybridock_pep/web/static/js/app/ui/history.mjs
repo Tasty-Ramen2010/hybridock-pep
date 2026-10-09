@@ -25,7 +25,7 @@ export function openHistory({ store, go }) {
   }
 
   dlg.append(
-    h('div', { class: 'dialog-head' }, h('h2', { class: 'serif', id: 'hist-title', style: { fontSize: '30px' } }, 'History'),
+    h('div', { class: 'dialog-head' }, h('h2', { id: 'hist-title' }, 'History'),
       h('button', { class: 'btn icon ghost', type: 'button', 'aria-label': 'Close history', onClick: close }, icon('x'))),
     body);
   dlg.addEventListener('click', (e) => { if (e.target === dlg) close(); });
