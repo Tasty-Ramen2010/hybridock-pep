@@ -204,6 +204,7 @@ test('friendlyError: known failures get a plain title and keep the raw message a
   const cases = [
     ["RuntimeError: Cannot locate Python 3 in conda env 'rapidock'. Set RAPIDOCK_PYTHON", /docking engine isn.t installed/],
     ['hybridock-pep: error: Crystal scoring failed for 1YCR_peptide.pdb.', /couldn.t be scored/],
+    ['A run is already going. Wait for it, or stop it first.', /Another run is already going/],
     ['Killed', /ran out of memory/],
     ['process exited with exit code -9', /ran out of memory/],
     ['FileNotFoundError: [Errno 2] No such file or directory: runs/x.pdb', /file for this run went missing/],
