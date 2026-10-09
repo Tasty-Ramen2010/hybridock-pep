@@ -44,6 +44,8 @@
 }
 
 @media (max-width: 720px) {
-  .topbar { flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
+  .topbar { position: static; flex-wrap: wrap; row-gap: 6px; padding-block: 6px; } /* a two-row bar scrolls away on a phone */
   .topbar .btn .label { display: none; }
 }
+
+@media (pointer: coarse) { .brand { min-height: 44px; } }
