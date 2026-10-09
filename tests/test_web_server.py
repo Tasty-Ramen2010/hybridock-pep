@@ -533,3 +533,57 @@ def test_environment_reports_autogrid(monkeypatch):
     assert server.check_environment()["checks"]["autogrid"]["ok"] is True
     monkeypatch.setattr(tui, "_resolve_exe", lambda name: None)
     assert server.check_environment()["checks"]["autogrid"]["ok"] is False
+
+
+def test_only_one_of_many_simultaneous_start_requests_wins(monkeypatch, tmp_path):
+    """Two tabs pressing Run together both used to pass the 'is a run going?' check and both started."""
+    import threading
+    import time as _time
+
+    monkeypatch.setattr(tui, "_resolve_exe", lambda name: sys.executable)
+    manager = server.JobManager()
+    barrier = threading.Barrier(8)
+    outcomes: list[str] = []
+
+    def press_run():
+        barrier.wait()
+        try:
+            manager.start([sys.executable, "-c", "import time; time.sleep(1.5)"], "dock", {}, tmp_path)
+            outcomes.append("started")
+        except RuntimeError as exc:
+            outcomes.append("busy" if "already going" in str(exc) else f"other: {exc}")
+
+    threads = [threading.Thread(target=press_run) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert outcomes.count("started") == 1, outcomes
+    assert outcomes.count("busy") == 7, outcomes
+    _time.sleep(2)  # let the one job finish so it does not outlive the test
+
+
+def test_simultaneous_uploads_of_the_same_file_never_leave_a_partial_file(monkeypatch, tmp_path):
+    import threading
+
+    monkeypatch.setattr(server, "SESSION_ROOT", tmp_path)
+    handler = server.StudioHandler.__new__(server.StudioHandler)  # only _upload is used; no socket needed
+    content = "ATOM      1  N   ALA A   1      11.104  13.207   2.100  1.00  0.00           N\n" * 5000
+    body = {"name": "same.pdb", "content": content}
+    errors: list[str] = []
+
+    def upload():
+        try:
+            for _ in range(15):
+                handler._upload(body)
+                assert (tmp_path / "uploads" / "same.pdb").read_text(encoding="utf-8") == content
+        except Exception as exc:  # noqa: BLE001
+            errors.append(repr(exc))
+
+    threads = [threading.Thread(target=upload) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+    assert not errors, errors[:2]
+    assert not list((tmp_path / "uploads").glob(".*tmp")), "temp files were left behind"
