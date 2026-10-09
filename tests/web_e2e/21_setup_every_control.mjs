@@ -102,7 +102,7 @@ const geom = () => p.evaluate(() => {
   const s = window.hybridock.stage; const hull = s._boxHull, corners = s._boxCornersScreen, b = s._buf, P = s.P;
   const pip = (x, y, poly) => { let inside = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside; } return inside; };
   const c = s._project(s.box.center); const pts = [];
-  for (let i = 0; i < P.n; i++) { const x = b.sx[i], y = b.sy[i]; if (x > 100 && x < 640 && y > 150 && y < 760 && b.vz[i] > 0 && !pip(x, y, hull)) pts.push([x, y, b.vz[i]]); }
+  for (let i = 0; i < P.n; i++) { const x = b.sx[i], y = b.sy[i]; if (x > 100 && x < 640 && y > 150 && y < 760 && !pip(x, y, hull)) pts.push([x, y, b.vz[i]]); }
   pts.sort((a, z) => z[2] - a[2]);
   return { center: [c[0], c[1]], corners, backbone: pts.slice(0, 40), box: s.box.size };
 });
@@ -124,7 +124,8 @@ const sizeBefore = await boxSize();
 await p.mouse.move(cr[0], cr[1]); await p.mouse.down(); await p.mouse.move(cr[0] + (cr[0] - g.center[0]) * 0.5, cr[1] + (cr[1] - g.center[1]) * 0.5, { steps: 8 }); await p.mouse.up(); await sleep(250);
 const sizeAfter = await boxSize();
 check('dragging a corner outward makes the box bigger', sizeAfter > sizeBefore, `${sizeBefore} -> ${sizeAfter} Å`);
-// click the protein to jump there
+// click the protein to jump there (shrink the box first so there is protein outside it)
+await slider.fill('14'); await sleep(300);
 g = await geom();
 if (g.backbone.length) {
   const [bx, by] = g.backbone[Math.min(5, g.backbone.length - 1)];
@@ -200,6 +201,9 @@ if (isLive) {
   check('calibration reaches --calibration', /--calibration \/tmp\/cal\.json/.test(await cmdText()), '');
   await field('Output folder').fill('/tmp/myout'); await sleep(900);
   check('output folder reaches --output-dir', /--output-dir \/tmp\/myout/.test(await cmdText()), '');
+  const serverMsgs = (await p.locator('.msg.error').allTextContents()).join(' | ');
+  check('nonexistent input-poses / calibration paths are flagged with the server\'s own words', /Input poses|input poses|Calibration|calibration/i.test(serverMsgs) && /not found|does not exist|no such|missing|not a/i.test(serverMsgs), serverMsgs.slice(0, 200));
+  await field('Input-poses folder').fill(''); await field('Calibration file').fill(''); await sleep(1200);
   // turning things off removes the flags again
   await tick('Ultra mode').uncheck(); await tick('Skip pre-minimization').uncheck(); await tick('ensemble ΔG column').uncheck(); await field('Random seed').fill(''); await sleep(1100);
   const off = await cmdText();
