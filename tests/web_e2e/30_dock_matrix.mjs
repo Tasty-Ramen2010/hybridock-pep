@@ -23,6 +23,9 @@ export const CASES = {
   'ultra': { protein: '1YCR', peptide: PEP, expert: { ultra: true, ultraK: 4, seed: 7 }, cmd: ['--ultra'] },
   'no-minimize': { protein: '1YCR', peptide: PEP, expert: { noMinimize: true, seed: 7 }, cmd: ['--no-minimize'] },
   'scoring-ad4': { protein: '1YCR', peptide: PEP, expert: { scoring: 'vina,ad4' }, cmd: ['--scoring vina,ad4'], maybeFail: /autogrid|AD4|ad4/i },
+  // these two need paths on the SERVER'S machine: CAL_PATH = a calibration JSON, INPUT_POSES = a folder of saved poses (e.g. a finished run's poses/)
+  'calibration': { protein: '1YCR', peptide: PEP, expert: { calibration: process.env.CAL_PATH || '', seed: 7 }, cmd: ['--calibration'], needs: 'CAL_PATH' },
+  'input-poses': { protein: '1YCR', peptide: PEP, expert: { inputPoses: process.env.INPUT_POSES || '', seed: 7 }, cmd: ['--input-poses'], needs: 'INPUT_POSES' },
   'custom-output': { protein: '1YCR', peptide: PEP, expert: { outputDir: 'runs/e2e/custom_out', seed: 7 }, cmd: ['--output-dir runs/e2e/custom_out'] },
   'long-threshold': { protein: '1YCR', peptide: PEP, expert: { longThreshold: 10, seed: 7 }, cmd: ['--long-checkpoint-threshold 10'] },
   'small-box': { protein: '1YCR', peptide: PEP, box: 20, expert: { seed: 7 }, cmd: ['--box 20'] },
@@ -59,6 +62,7 @@ for (const id of want) {
   const c = CASES[id];
   const label = id;
   console.log(`\n=== case ${id}`);
+  if (c.needs && !process.env[c.needs]) { console.log(`   skipped: set ${c.needs}`); continue; }
   const ctx = await b.newContext({ viewport: { width: 1360, height: 880 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
   const p = await ctx.newPage(); p.diag = { pageErrors: [] }; p.on('pageerror', (e) => p.diag.pageErrors.push(String(e).slice(0, 300)));
   try {

@@ -203,3 +203,45 @@ class TestSubmodulePointerIsFetchable:
             "`git clone --recurse-submodules` will fail and leave the submodule "
             "empty. Push the submodule before pushing the superproject."
         )
+
+
+class TestDefaultCalibrationResolvesOutsideACheckout:
+    """`hybridock-pep dock` run from any other directory failed AFTER sampling: the default calibration path is cwd-relative."""
+
+    def test_default_falls_back_to_the_packaged_copy(self, tmp_path, monkeypatch):
+        from hybridock_pep import cli
+
+        monkeypatch.chdir(tmp_path)  # a directory with no data/ folder
+        resolved = cli._calibration_path(cli._DEFAULT_CALIBRATION)
+        assert resolved.is_file() and resolved.name == "calibration_v1_2_production_entropy.json"
+        assert str(tmp_path) not in str(resolved)
+
+    def test_an_explicit_path_is_never_silently_replaced(self, tmp_path, monkeypatch):
+        from hybridock_pep import cli
+
+        monkeypatch.chdir(tmp_path)
+        assert cli._calibration_path("mine/missing.json") == (tmp_path / "mine" / "missing.json").resolve()
+        real = tmp_path / "cal.json"
+        real.write_text("{}")
+        assert cli._calibration_path(str(real)) == real.resolve()
+
+    def test_the_file_is_in_the_package_data(self):
+        from pathlib import Path
+        import tomllib
+
+        root = Path(__file__).resolve().parent.parent
+        assert (root / "src" / "hybridock_pep" / "data" / "calibration_v1_2_production_entropy.json").is_file()
+        globs = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"]["package-data"]["hybridock_pep"]
+        assert "data/*.json" in globs
+
+
+def test_the_rank_model_is_packaged_and_found_from_any_directory(tmp_path, monkeypatch):
+    """rank_score uses affinity_rank_ifp.joblib; a repo-relative path made it vanish outside a checkout."""
+    from pathlib import Path
+
+    from hybridock_pep.scoring import interaction_map
+
+    monkeypatch.chdir(tmp_path)
+    artifact = Path(interaction_map._RANK_ARTIFACT)
+    assert artifact.is_absolute() and artifact.is_file(), artifact
+    assert (Path(__file__).resolve().parent.parent / "src" / "hybridock_pep" / "data" / "affinity_rank_ifp.joblib").is_file()
