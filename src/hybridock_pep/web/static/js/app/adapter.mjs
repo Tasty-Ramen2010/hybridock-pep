@@ -127,7 +127,7 @@ const mockAdapter = {
   supports: { allowClashes: true },
 
   /** Same shape as the live adapter's preview(): the command and a time estimate. */
-  async preview(job) { return { command: buildDockCommand(job), estimateSeconds: this.estimate({ ...job, kind: 'dock' }) }; },
+  async preview(job) { return { command: buildDockCommand(job), estimateSeconds: this.estimate({ ...job, kind: 'dock' }), problems: [] }; },
 
   /** Rough seconds a run takes. Demo runs are short on purpose. */
   estimate(job) {
@@ -451,7 +451,10 @@ const liveAdapter = {
       API.post('/api/preview', body).catch(() => null),
       API.post('/api/validate', body).catch(() => null),
     ]);
-    return { command: cmd?.command || null, estimateSeconds: val?.estimate_seconds ?? null };
+    const problems = val && val.ok === false
+      ? await Promise.all(Object.entries(val.errors || {}).map(async ([k, m]) => `${await labelFor(k)}: ${m}`))
+      : [];
+    return { command: cmd?.command || null, estimateSeconds: val?.estimate_seconds ?? null, problems };
   },
 
   async runDock(job, opts = {}) {

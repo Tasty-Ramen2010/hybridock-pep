@@ -78,17 +78,17 @@ const avatar = p.locator('.avatar');
 check('with no name the avatar shows a person icon, not initials', (await avatar.locator('svg').count()) === 1, '');
 check('greeting has no stranger\'s name in it', !/, \w/.test((await p.locator('#greeting').textContent()) || ''), await p.locator('#greeting').textContent());
 await avatar.click();
-const nameField = p.getByLabel('Your name');
+const nameField = p.locator('input[aria-label="Your name"]');
 await nameField.fill('Ada Lovelace');
 check('typing a name shows initials on the avatar', (await avatar.textContent()).trim() === 'AL', await avatar.textContent());
 check('the greeting uses the name', /Ada Lovelace/.test(await p.locator('#greeting').textContent()), await p.locator('#greeting').textContent());
 await p.reload(); await p.waitForSelector('.hero-card');
 check('the name is remembered across a reload', /Ada Lovelace/.test(await p.locator('#greeting').textContent()), '');
-await p.locator('.avatar').click(); await p.getByLabel('Your name').fill('');
+await p.locator('.avatar').click(); await p.locator('input[aria-label="Your name"]').fill('');
 check('clearing the name restores the icon and the plain greeting', (await p.locator('.avatar svg').count()) === 1 && !/Ada/.test(await p.locator('#greeting').textContent()), '');
-await p.getByLabel('Your name').fill('<b>x</b>');
+await p.locator('input[aria-label="Your name"]').fill('<b>x</b>');
 check('HTML in the name is shown as text, never rendered', (await p.locator('#greeting b').count()) === 0, await p.locator('#greeting').textContent());
-await p.getByLabel('Your name').fill(''); await p.keyboard.press('Escape');
+await p.locator('input[aria-label="Your name"]').fill(''); await p.keyboard.press('Escape');
 
 // ---------------------------------------------------------------- Home
 await p.goto(BASE + '/#/'); await p.waitForSelector('.hero-card');
