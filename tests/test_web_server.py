@@ -447,3 +447,16 @@ def test_environment_check_does_not_demand_adfrsuite(monkeypatch):
     report = server.check_environment()
     assert report["checks"]["receptor_prep"]["ok"] is False
     assert "meeko" in report["checks"]["receptor_prep"]["fix"]
+
+
+def test_content_types_do_not_depend_on_the_operating_system(monkeypatch):
+    """Windows' registry has no .mjs entry (the bundle went out as text/plain and browsers refused to run it)."""
+    monkeypatch.setattr("mimetypes.guess_type", lambda *a, **k: ("text/plain", None))  # the worst case: the OS says plain text
+    assert server._content_type("app.mjs") == "text/javascript"
+    assert server._content_type("app.js") == "text/javascript"
+    assert server._content_type("app.css") == "text/css"
+    assert server._content_type("index.html") == "text/html"
+    assert server._content_type("proteins.json") == "application/json"
+    assert server._content_type("inter-latin.woff2") == "font/woff2"
+    monkeypatch.setattr("mimetypes.guess_type", lambda *a, **k: (None, None))
+    assert server._content_type("mystery.xyz") == "application/octet-stream"
