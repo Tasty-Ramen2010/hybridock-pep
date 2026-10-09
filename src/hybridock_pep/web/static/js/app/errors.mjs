@@ -38,7 +38,7 @@ const RULES = [
 export function friendlyError(err) {
   const message = String(err?.message || '').trim();
   if (err?.name === 'NotWiredError') return { title: 'The live backend isn’t connected yet', body: message, detail: '' };
-  if (err?.name === 'TypeError' && /fetch|network|load failed/i.test(message)) {
+  if (err?.name === 'NetworkError' || (err?.name === 'TypeError' && /fetch|network|load failed/i.test(message))) {
     return { title: 'Couldn’t reach the server', body: 'Check that it is running and your connection is working, then try again.', detail: message };
   }
   if (err?.status === 404 && !/pose|file/i.test(message)) {

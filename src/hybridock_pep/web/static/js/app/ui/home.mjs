@@ -89,7 +89,7 @@ export function mountHome(ctx) {
       h('button', { class: 'btn primary', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, icon('plus', 18), 'New prediction')),
 
     h('div', { class: 'stats', role: 'list' },
-      stats.map((s) => h('article', { class: 'card stat', role: 'listitem' },
+      stats.map((s) => h('div', { class: 'card stat', role: 'listitem' },
         h('div', { class: 'label' }, s.label, s.tech && h('span', { class: 'tech' }, s.tech)),
         h('div', { class: 'value nums' }, s.ref))),
       statsNote),

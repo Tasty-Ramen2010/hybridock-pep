@@ -280,7 +280,7 @@ const API = {
       });
     } catch (err) {
       if (err?.name === 'AbortError') throw err;
-      throw new Error('Couldn’t reach the HybriDock-Pep server. Is `hybridock-pep serve` still running?');
+      throw Object.assign(new Error('Couldn’t reach the HybriDock-Pep server. Is `hybridock-pep serve` still running?'), { name: 'NetworkError' });
     }
     if (!res.ok) throw await failure(res);
     return res;
