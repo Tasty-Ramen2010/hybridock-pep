@@ -244,3 +244,13 @@ def test_bundle_hash_ignores_line_endings(tmp_path, monkeypatch):
     first = build_web.digest([lf])
     monkeypatch.setattr(build_web, "STATIC", tmp_path / "b")
     assert build_web.digest([crlf]) == first
+
+
+def test_example_structures_are_packaged_not_just_in_the_checkout():
+    """`serve`'s examples need their receptor files in the wheel, or a pip install shows no example at all."""
+    pkg = REPO / "src" / "hybridock_pep"
+    globs = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"]["package-data"]["hybridock_pep"]
+    assert "data/pdbs/*.pdb" in globs
+    for ex in server.EXAMPLES:
+        assert (pkg / "data" / ex["receptor"]).is_file(), f"{ex['receptor']} is not under src/hybridock_pep/data/"
+    assert (pkg / "data" / "pdbs" / "1YCR_peptide.pdb").is_file()  # the Score example's bound pose

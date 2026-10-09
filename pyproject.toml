@@ -91,6 +91,8 @@ where = ["src"]
 # web/* is the `serve` studio UI — it is served off disk at runtime, so the
 # html/css/js/fonts have to be in the wheel too or `serve` 404s on a pip install.
 hybridock_pep = ["py.typed", "data/*.joblib", "data/*.json", "data/*.csv",
+                 # the example receptors/pose the server's "Run example" uses (hybridock_pep/web/server.py EXAMPLES)
+                 "data/pdbs/*.pdb",
                  "web/index.html", "web/static/studio.html",
                  "web/static/css/*.css", "web/static/js/*.js", "web/static/fonts/*.ttf",
                  # the browser UI (web/static/js/app is native ES modules; .mjs is always served as JavaScript)

@@ -486,6 +486,31 @@ def _pip_in(env_name: str) -> list[str]:
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def prebuilt_vina_yaml(text: str) -> str:
+    """Rewrite score-env.yml so conda installs a PREBUILT ``vina`` instead of letting pip compile it.
+
+    envs/score-env.yml gets ``vina`` from pip, which builds it from source (C++, Boost, SWIG). That needs a
+    compiler, so on a stock Linux box without one (a minimal server, an ARM board — found on an aarch64
+    machine with no g++) the whole install died. conda-forge ships a prebuilt ``vina`` for Linux x86_64 and
+    aarch64 and for macOS (Apple Silicon and Intel), so the installer uses that where it exists. The yml itself
+    is left alone: it stays the documented ``conda env create -f`` path, and the only route on Windows
+    (conda-forge has no win-64 build), where the compile path is unchanged.
+    """
+    out: list[str] = []
+    for line in text.splitlines():
+        if line.strip().strip("-").strip().strip('"\'').startswith("vina"):
+            continue  # the pip entry:   - "vina>=1.2.5"
+        if line.strip() == "- pip:":
+            out.append("  - conda-forge::vina")
+        out.append(line)
+    return "\n".join(out) + "\n"
+
+
+def _prebuilt_vina_available() -> bool:
+    """conda-forge builds vina for Linux and macOS but not Windows."""
+    return sys.platform != "win32"
+
+
 def install_score_env(dry_run: bool, force: bool) -> None:
     """Create score-env (if missing) and install hybridock-pep in editable mode."""
     print("\n── score-env (Vina, OpenMM, meeko, scikit-learn) ─────────────────")
@@ -496,7 +521,21 @@ def install_score_env(dry_run: bool, force: bool) -> None:
     else:
         if exists and force:
             _run(["conda", "env", "remove", "-n", "score-env", "--yes"], dry_run)
-        _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run, retries=2)
+        created = False
+        if _prebuilt_vina_available():
+            # Prefer conda-forge's prebuilt vina (no compiler needed); fall back to the stock file if that fails.
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                prebuilt = Path(tmp) / "score-env-prebuilt-vina.yml"
+                prebuilt.write_text(prebuilt_vina_yaml(yml.read_text(encoding="utf-8")), encoding="utf-8")
+                print("  (using conda-forge's prebuilt vina: no compiler needed)")
+                created = _run(["conda", "env", "create", "-f", str(prebuilt), "--yes"], dry_run, retries=1, optional=True)
+            if not created and not dry_run:
+                print("  prebuilt-vina env failed; falling back to envs/score-env.yml (pip builds vina from source)")
+                if _env_exists("score-env"):
+                    _run(["conda", "env", "remove", "-n", "score-env", "--yes"], dry_run, optional=True)
+        if not created:
+            _run(["conda", "env", "create", "-f", str(yml), "--yes"], dry_run, retries=2)
     # Runs on both paths: a fresh env has never had these, and an env skipped
     # above may predate them. See _install_optional_score_env_tools.
     if not dry_run:
