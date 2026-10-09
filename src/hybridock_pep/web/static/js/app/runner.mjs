@@ -14,6 +14,12 @@ export function createRunner({ store, go }) {
    * dropped connection. The job id is saved the moment the server accepts the run, so closing the tab never loses it.
    */
   async function start(kind, job, { backTo = '/', resume = null } = {}) {
+    // One run at a time, like the server. Starting a second one used to overwrite the first run's state: the server then
+    // refused it, and the person lost the way back to the run that was still going (the pill vanished, Stop hit the wrong job).
+    if (store.get().run.status === 'running') {
+      toast('A run is already going. Wait for it to finish (use “Run in progress” at the top), or stop it first.', 7000);
+      return;
+    }
     controller = new AbortController();
     const startedAt = resume?.startedAt || Date.now();
     const clearActive = () => { if (store.get().activeRun) store.set({ activeRun: null }); };

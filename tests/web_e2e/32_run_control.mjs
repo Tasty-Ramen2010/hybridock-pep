@@ -37,10 +37,10 @@ if (want.includes('multitask')) {
   const files = p.locator('input[type=file]');
   const MDM2 = new URL('../../data/pdbs/1YCR_mdm2.pdb', import.meta.url).pathname, POSE = new URL('../../data/pdbs/1YCR_peptide.pdb', import.meta.url).pathname;
   await files.nth(0).setInputFiles(MDM2); await p.waitForSelector('.msg.ok'); await files.nth(1).setInputFiles(POSE);
-  await p.getByRole('button', { name: /Score it/ }).click(); await p.waitForSelector('.error-card', { timeout: 60000 });
-  check('multitask: a second run during a run says "Another run is already going"', /Another run is already going/.test(await p.locator('.error-card h2').textContent()), await p.locator('.error-card h2').textContent());
-  await p.getByRole('button', { name: 'Go back' }).click(); await sleep(500);
-  check('multitask: the first run is still going after the refused second run', (await pill(p).count()) === 1, '');
+  await p.getByRole('button', { name: /Score it/ }).click(); await p.waitForSelector('.toast', { timeout: 15000 });
+  const refused = (await p.locator('.toast').allTextContents()).join(' ');
+  check('multitask: a second run during a run is refused in words ("A run is already going")', /A run is already going/.test(refused), refused);
+  check('multitask: the refused attempt did not start anything or replace the first run (still on Score, pill still there)', p.url().includes('#/score') && (await pill(p).count()) === 1 && (await p.locator('.error-card').count()) === 0, p.url());
   await pill(p).click(); await p.waitForSelector('.track');
   check('multitask: the pill takes you back to the live Running screen', /Finding how your peptide binds/.test(await p.locator('h1').first().textContent()), '');
   const outcome = await waitResult(p, 'multitask');
@@ -102,16 +102,18 @@ if (want.includes('stop')) {
   console.log('\n=== stop');
   const ctx = await newCtx(); const p = await ctx.newPage(); p.diag = { pageErrors: [] }; p.on('pageerror', (e) => p.diag.pageErrors.push(String(e)));
   await startRun(p); await sleep(150000);
+  const logText = (await p.locator('pre[aria-label="Live log"]').textContent().catch(() => '')) || '';
+  const outDir = (/--output-dir\s+\S*?(dock_[a-z]+_[a-z0-9]+)/.exec(logText) || [])[1];
   await p.getByRole('button', { name: 'Stop' }).click();
   await p.waitForSelector('.summary, .steps', { timeout: 30000 });
   check('stop: Stop returns to the setup, with a toast saying nothing was saved', /Stopped/.test((await p.locator('.toast').allTextContents()).join(' ')) || true, p.url());
   check('stop: the "Run in progress" pill is gone', (await pill(p).count()) === 0, '');
   const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('hybridock-web:v1') || '{}'));
   check('stop: nothing was added to History and no run is left to resume', !saved.activeRun && (saved.history || []).length === 0, JSON.stringify({ a: !!saved.activeRun, h: (saved.history || []).length }));
-  if (HOST) {
+  if (HOST && outDir) {
     await sleep(5000);
-    const left = ssh(`pgrep -fc "[${PAT[0]}]${PAT.slice(1)}" || true`).trim();
-    check('stop: no sampling process is left running on the server machine', left === '0', `${left} left`);
+    const left = ssh(`pgrep -fc "[${PAT[0]}]${PAT.slice(1)}.*${outDir}" || true`).trim();
+    check('stop: no sampling process of that run is left on the server machine', left === '0', `${left} left for ${outDir}`);
   }
   // run again immediately: the slot must be free
   await p.getByRole('button', { name: /Run prediction/ }).click(); await p.waitForSelector('.track', { timeout: 30000 });
@@ -127,7 +129,7 @@ if (want.includes('restart') && HOST && START) {
   console.log('\n=== restart');
   const ctx = await newCtx(); const p = await ctx.newPage(); p.diag = { pageErrors: [] }; p.on('pageerror', (e) => p.diag.pageErrors.push(String(e)));
   await startRun(p); await sleep(30000);
-  ssh('pkill -f "[b]in/hybridock-pep serve"; pkill -f "[r]un_rapidock"; true');
+  ssh(`pkill -f "[b]in/hybridock-pep serve.*--port ${process.env.SERVER_PORT || 8765}"; true`); // only THIS server (other servers may be running real jobs)
   execSync(`ssh -f -n ${HOST} '${START}'`, { stdio: 'ignore', timeout: 30000 });
   const t0 = Date.now(); while (Date.now() - t0 < 60000) { try { execSync(`curl -s -m 2 ${BASE}/api/env > /dev/null`, { timeout: 5000 }); break; } catch { await sleep(1000); } }
   const outcome = await waitResult(p, 'restart', 5 * 60000);
