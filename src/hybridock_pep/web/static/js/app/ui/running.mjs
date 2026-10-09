@@ -36,11 +36,21 @@ export function mountRunning(ctx) {
   const el = h('section', { class: 'screen running', 'aria-labelledby': 'run-title' },
     h('div', { class: 'stage-slot run-slot', 'data-stage-slot': '' }), body, live);
 
-  let lastStage = -1;
+  let lastStage = -1, showingError = false;
+  function startTimer() {
+    clearInterval(timer);
+    timer = setInterval(() => { elapsedEl.textContent = mmss((Date.now() - store.get().run.startedAt) / 1000); }, 500);
+    elapsedEl.textContent = mmss((Date.now() - store.get().run.startedAt) / 1000);
+  }
   function paint() {
     const r = store.get().run;
     if (!alive || r.status === 'idle') return; // the runner is about to navigate away
-    if (r.status === 'error') { paintError(r); return; }
+    if (r.status === 'error') { showingError = true; paintError(r); return; }
+    if (showingError) { // "Try again" restarted the run on this same screen: bring the progress view back
+      showingError = false;
+      logLines = []; logEl.textContent = ''; lastProgress = null; lastStage = -1;
+      paintBody(); startTimer(); stage.setPeptideMode('tumble');
+    }
     const { stageIndex, fraction, etaSeconds, counter, lines, overdue } = r.progress;
     steps.forEach((li, i) => { li.className = i < stageIndex ? 'done' : i === stageIndex ? 'active' : ''; li.toggleAttribute('aria-current', i === stageIndex); });
     bar.style.width = `${Math.round(fraction * 100)}%`;
@@ -91,8 +101,7 @@ export function mountRunning(ctx) {
 
   paintBody();
   paint();
-  timer = setInterval(() => { elapsedEl.textContent = mmss((Date.now() - run.startedAt) / 1000); }, 500);
-  elapsedEl.textContent = '0:00';
+  startTimer();
   const unsub = store.subscribe(paint);
 
   // backdrop: the chosen protein, with the peptide tumbling around it
