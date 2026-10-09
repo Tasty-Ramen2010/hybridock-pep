@@ -1,6 +1,8 @@
 // peptide.js — checking what the user typed, plus the decorative helix we draw for it.
 
 export const STANDARD = 'ACDEFGHIKLMNPQRSTVWY';
+export const MIN_LEN = 3;
+export const MAX_LEN = 30;
 
 // Average residue masses (Da). A peptide's mass is the sum plus one water.
 const MASS = {
@@ -19,6 +21,12 @@ export function cleanSequence(raw) {
     .toUpperCase();
 }
 
+/** How many digits / symbols cleanSequence dropped (pasted UniProt-style sequences are numbered). */
+function countIgnored(raw) {
+  const text = String(raw || '').split(/\r?\n/).filter((l) => !l.trim().startsWith('>')).join('').replace(/\s/g, '');
+  return (text.match(/[\d*-]/g) || []).length;
+}
+
 /**
  * Friendly validation. `level` is 'empty' | 'error' | 'warn' | 'ok'.
  * Only the 20 standard one-letter amino acids are accepted.
@@ -34,11 +42,16 @@ export function validatePeptide(raw) {
       message: `${list} ${bad.length > 1 ? "aren't" : "isn't"} one of the 20 standard amino acids. Use only these letters: ${STANDARD}.`,
     };
   }
-  if (seq.length < 2) return { ok: false, level: 'error', seq, bad: [], message: 'A peptide needs at least 2 amino acids.' };
-  if (seq.length > 30) {
-    return { ok: true, level: 'warn', seq, bad: [], message: `${seq.length} amino acids is long. It will run slower and the result is less reliable.` };
+  // The backend accepts 3-30 residues (hybridock_pep.ui.tui._valid_peptide); say so here instead of failing on Run.
+  if (seq.length < MIN_LEN) return { ok: false, level: 'error', seq, bad: [], message: `A peptide needs at least ${MIN_LEN} amino acids.` };
+  if (seq.length > MAX_LEN) {
+    return { ok: false, level: 'error', seq, bad: [], message: `Peptides up to ${MAX_LEN} amino acids are supported, and this one has ${seq.length}. Try a shorter piece.` };
   }
-  return { ok: true, level: 'ok', seq, bad: [], message: 'Looks good.' };
+  if (seq.length > 20) {
+    return { ok: true, level: 'warn', seq, bad: [], message: `${seq.length} amino acids is on the long side, so it will take longer to run.` };
+  }
+  const ignored = countIgnored(raw);
+  return { ok: true, level: 'ok', seq, bad: [], message: ignored ? `Looks good. ${ignored} number${ignored > 1 ? 's or symbols were' : ' or symbol was'} ignored.` : 'Looks good.' };
 }
 
 /** Length, approximate weight (Da) and approximate net charge at neutral pH (K/R +1, D/E −1). */

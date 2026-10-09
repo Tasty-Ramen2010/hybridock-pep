@@ -73,9 +73,21 @@ test('validatePeptide: friendly messages', () => {
   assert.match(bad.message, /“B”/);
   assert.match(bad.message, /20 standard amino acids/);
   assert.equal(validatePeptide('A').ok, false);
+  assert.equal(validatePeptide('AC').ok, false); // the backend needs 3-30 residues
+  assert.equal(validatePeptide('ACD').ok, true);
   assert.equal(validatePeptide('liyk wvnk').seq, 'LIYKWVNK');
   assert.equal(validatePeptide('LIYKWVNK').level, 'ok');
-  assert.equal(validatePeptide('A'.repeat(40)).level, 'warn');
+  assert.equal(validatePeptide('A'.repeat(25)).level, 'warn'); // valid but slow
+  assert.equal(validatePeptide('A'.repeat(30)).ok, true);
+  const tooLong = validatePeptide('A'.repeat(31));
+  assert.equal(tooLong.ok, false); // the backend would reject it on Run, so say so now
+  assert.match(tooLong.message, /up to 30 amino acids/);
+  assert.equal(validatePeptide('A'.repeat(5000)).ok, false);
+  const numbered = validatePeptide('LIYKWVN1');
+  assert.equal(numbered.ok, true); // digits are ignored (numbered sequences)...
+  assert.match(numbered.message, /ignored/); // ...but never silently
+  assert.equal(numbered.seq, 'LIYKWVN');
+  assert.equal(validatePeptide('LIYK WVNK').message, 'Looks good.');
   assert.equal(cleanSequence('>seq1\nLIY\nKWV 12 NK'), 'LIYKWVNK');
 });
 
