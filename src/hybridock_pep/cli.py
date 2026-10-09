@@ -8,6 +8,23 @@ from pathlib import Path
 
 from hybridock_pep.models import DockConfig
 
+#: The default for --calibration. A path relative to the CURRENT directory, so it only existed when the command was run from a
+#: source checkout; run from anywhere else (or after a pip install) a dock failed AFTER sampling and scoring with
+#: "Calibration file not found". A copy ships with the package, and :func:`_calibration_path` falls back to it.
+_DEFAULT_CALIBRATION = "data/calibration_v1_2_production_entropy.json"
+
+
+def _calibration_path(arg: str) -> Path:
+    """Resolve --calibration: an existing path as given, else (for the default only) the packaged copy."""
+    given = Path(arg)
+    if not given.exists() and arg == _DEFAULT_CALIBRATION:
+        from hybridock_pep._paths import data_file
+
+        packaged = data_file(Path(_DEFAULT_CALIBRATION).name)
+        if packaged.exists():
+            return packaged.resolve()
+    return given.resolve()  # a missing explicit path still gets the loader's clear "not found" error
+
 logger = logging.getLogger(__name__)
 
 
@@ -680,7 +697,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     input_poses_dir: Path | None = (
         Path(args.input_poses).resolve() if args.input_poses else None
     )
-    calibration_path = Path(args.calibration).resolve()
+    calibration_path = _calibration_path(args.calibration)
 
     if config.verbosity == 0 and sys.stderr.isatty():
         _print_dock_banner(config)
@@ -775,7 +792,7 @@ def _run_reproducibility(args: argparse.Namespace, parser: argparse.ArgumentPars
 
     result = run_reproducibility(
         base_config=cfg,
-        calibration_path=Path(args.calibration).resolve(),
+        calibration_path=_calibration_path(args.calibration),
         seeds=args.seeds,
     )
     out_root.mkdir(parents=True, exist_ok=True)
@@ -830,7 +847,7 @@ def _run_selectivity(args: argparse.Namespace, parser: argparse.ArgumentParser) 
         peptide=args.peptide,
         target_config=target_cfg,
         offtarget_config=offtarget_cfg,
-        calibration_path=Path(args.calibration).resolve(),
+        calibration_path=_calibration_path(args.calibration),
         top_k=args.top_k,
         bootstrap_n=args.bootstrap,
         seed=args.seed,
