@@ -10,7 +10,7 @@ import { cleanSequence, peptideStats, validatePeptide } from '../peptide.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
 import { adapter } from '../adapter.mjs';
-import { BOX_DEFAULT, EXPERT_DEFAULTS, THOROUGHNESS } from '../config.mjs';
+import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, settingProblems } from '../config.mjs';
 import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
 
@@ -50,6 +50,7 @@ export function mountSetup(ctx) {
   const panel = h('aside', { class: 'glass panel setup-panel', 'aria-label': 'Setup' });
   const el = h('section', { class: 'screen setup' }, stepsEl, h('div', { class: 'split' }, slot, panel));
   let nextBtn = null;
+  let reviewProblems = []; // what the Review step currently objects to; Run stays off while there is any
 
   function renderSteps() {
     const cur = S().step;
@@ -225,15 +226,26 @@ export function mountSetup(ctx) {
     const poses = poseCount(s.thorough);
     const cmd = h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Command preview' });
     const eta = h('p', { class: 'small muted' });
+    const problemsEl = h('div', { class: 'msg error', role: 'alert', hidden: true });
     const jobNow = () => dockJob({ ...S(), peptide: v.seq });
     let previewToken = 0;
+    /** Show what the settings get wrong, in words, and keep "Run prediction" off until it is fixed. */
+    function showProblems(list) {
+      reviewProblems = list;
+      problemsEl.hidden = !list.length;
+      problemsEl.replaceChildren(...(list.length ? [icon('alert', 18), h('div', {}, list.map((m) => h('div', {}, m)))] : []));
+      if (nextBtn) { nextBtn.disabled = list.length > 0; nextBtn.title = list.length ? 'Fix the setting above first' : ''; }
+    }
     function refreshCmd() {
       const job = jobNow();
       cmd.textContent = buildDockCommand(job); // instant local version, replaced by the server's exact one below
+      const local = settingProblems({ box: job.box, expert: job.expert });
+      showProblems(local);
       const token = ++previewToken;
       eta.textContent = 'Working out how long this will take…';
-      adapter.preview(job).then(({ command, estimateSeconds }) => {
+      adapter.preview(job).then(({ command, estimateSeconds, problems = [] }) => {
         if (token !== previewToken) return; // a newer change superseded this one
+        showProblems([...new Set([...local, ...problems])]);
         if (command) cmd.textContent = command.replace(/ --/g, ' \\\n  --');
         lastEstimate = estimateSeconds;
         eta.textContent = adapter.kind === 'demo'
@@ -276,16 +288,17 @@ export function mountSetup(ctx) {
       h('div', {}, h('div', { class: 'row', style: { justifyContent: 'space-between', marginBottom: '6px' } },
         h('span', { class: 'field-label', style: { margin: 0 } }, 'How thorough? ', h('span', { class: 'tech' }, 'Number of poses')), poseLine), thorough),
       eta,
+      problemsEl,
       h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Advanced settings ', h('span', { class: 'tech' }, 'Expert options for the docking run'))),
         h('div', { class: 'stack' },
-          num('longCheckpointThreshold', 'Long-peptide model starts at', '--long-checkpoint-threshold (residues)', { min: 1 }),
+          num('longCheckpointThreshold', 'Long-peptide model starts at', '--long-checkpoint-threshold (residues)', { min: LIMITS.longCheckpointThreshold[0], max: LIMITS.longCheckpointThreshold[1] }),
           h('div', {}, h('label', { class: 'field-label' }, 'Scoring mode', h('span', { class: 'tech' }, '--scoring')),
             h('select', { class: 'field', onChange: (e) => setEx({ scoring: e.target.value }) },
               ['vina', 'vina,ad4'].map((o) => h('option', { value: o, selected: ex().scoring === o }, o === 'vina' ? 'vina (default)' : 'vina + AD4 (telemetry)')))),
-          num('refineTopK', 'Refine the top poses (MM-GBSA)', '--refine-topk K (blank = off)', { min: 1, placeholder: 'off' }),
+          num('refineTopK', 'Refine the top poses (MM-GBSA)', '--refine-topk K (blank = off)', { min: 1, max: LIMITS.refineTopK[1], placeholder: 'off' }),
           tick('ultra', 'Ultra mode', '--ultra: the slow, high-certainty stack'),
-          num('ultraK', 'Ultra mode K', '--ultra smoothing depth (used when Ultra is on)', { min: 1 }),
-          num('seed', 'Random seed', '--seed (blank = random)', { placeholder: 'random' }),
+          num('ultraK', 'Ultra mode K', '--ultra smoothing depth (used when Ultra is on)', { min: 1, max: LIMITS.ultraK[1] }),
+          num('seed', 'Random seed', '--seed (blank = random)', { min: 0, max: LIMITS.seed[1], placeholder: 'random' }),
           txt('inputPoses', 'Input-poses folder', '--input-poses (skips pose generation)', 'optional folder path'),
           tick('noMinimize', 'Skip pre-minimization', '--no-minimize'),
           tick('ensemble', 'Add the ensemble ΔG column', '--ensemble'),
@@ -315,8 +328,9 @@ export function mountSetup(ctx) {
     if (s.step === 1) ok = !!(s.proteinRef && structure);
     if (s.step === 2) ok = pepCheck().ok;
     if (s.step === 3 && s.siteMode === 'known') ok = !!structure && !(lastAssess?.level === 'bad' && store.get().mode === 'guided');
+    if (s.step === 4) ok = reviewProblems.length === 0;
     nextBtn.disabled = !ok;
-    nextBtn.title = ok ? '' : s.step === 3 ? 'Move the box onto the protein first' : 'Finish this step to continue';
+    nextBtn.title = ok ? '' : s.step === 4 ? 'Fix the setting above first' : s.step === 3 ? 'Move the box onto the protein first' : 'Finish this step to continue';
   }
 
   function run() {

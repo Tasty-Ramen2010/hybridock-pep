@@ -228,3 +228,23 @@ test('friendlyError: known failures get a plain title and keep the raw message a
   assert.equal(g.detail, 'weird');
   assert.ok(!/undefined|\[object/.test(friendlyError({}).body + friendlyError({}).detail));
 });
+
+test('settingProblems: the backend limits (box 10-60, threshold 3-30, top-K 0-50, ultra K 0-256, seed >= 0)', async () => {
+  const { settingProblems, LIMITS, BOX_MAX } = await import('../../src/hybridock_pep/web/static/js/app/config.mjs');
+  assert.equal(BOX_MAX, 60); // the slider must not offer a size the server rejects
+  const ok = { box: 30, expert: { longCheckpointThreshold: 13, refineTopK: '', ultra: false, ultraK: 32, seed: '' } };
+  assert.deepEqual(settingProblems(ok), []);
+  const bad = (patch, box = 30) => settingProblems({ box, expert: { ...ok.expert, ...patch } });
+  assert.match(bad({}, 61)[0], /Box size must be between 10 and 60/);
+  assert.match(bad({}, 9)[0], /Box size/);
+  assert.match(bad({ longCheckpointThreshold: 2 })[0], /between 3 and 30/);
+  assert.match(bad({ longCheckpointThreshold: 31 })[0], /between 3 and 30/);
+  assert.match(bad({ longCheckpointThreshold: 4.5 })[0], /whole number/);
+  assert.match(bad({ refineTopK: 51 })[0], /between 0 and 50/);
+  assert.deepEqual(bad({ refineTopK: 0 }), []); // 0 = off is allowed
+  assert.match(bad({ ultra: true, ultraK: 300 })[0], /Ultra mode K/);
+  assert.deepEqual(bad({ ultra: false, ultraK: 300 }), []); // K is ignored while Ultra is off
+  assert.match(bad({ seed: -1 })[0], /Random seed/);
+  assert.deepEqual(bad({ seed: 2147483647 }), []);
+  assert.deepEqual(LIMITS.box, [10, 60]);
+});

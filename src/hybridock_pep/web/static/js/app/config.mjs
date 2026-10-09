@@ -23,7 +23,38 @@ export const DEFAULT_THOROUGHNESS = 'full';
 /** Search box (grid box) edge length in Å. */
 export const BOX_DEFAULT = 30;
 export const BOX_MIN = 10;
-export const BOX_MAX = 80;
+export const BOX_MAX = 60; // the backend refuses anything larger (hybridock_pep/ui/tui.py: --box is an integer in [10, 60])
+
+/** The backend's accepted ranges for the settings the UI exposes (tui.FIELDS validators). */
+export const LIMITS = {
+  box: [10, 60],
+  longCheckpointThreshold: [3, 30],
+  poses: [1, 500],
+  refineTopK: [0, 50],
+  ultraK: [0, 256],
+  seed: [0, 2 ** 31 - 1],
+};
+
+/**
+ * Problems with the numeric settings, in plain words (an empty list = fine). The server's own validator stays the
+ * authority; this catches the same mistakes before a request is made, in demo mode too.
+ */
+export function settingProblems({ box, expert = {} }) {
+  const out = [];
+  const int = (v) => (v === '' || v == null ? null : Number(v));
+  const check = (label, v, [lo, hi], { optional = false } = {}) => {
+    if ((v === '' || v == null) && optional) return;
+    const n = Number(v);
+    if (v === '' || v == null || !Number.isInteger(n)) out.push(`${label} must be a whole number.`);
+    else if (n < lo || n > hi) out.push(`${label} must be between ${lo} and ${hi}.`);
+  };
+  check('Box size', box, LIMITS.box);
+  check('Long-peptide model threshold', expert.longCheckpointThreshold, LIMITS.longCheckpointThreshold);
+  check('Refine the top poses', int(expert.refineTopK), LIMITS.refineTopK, { optional: true });
+  if (expert.ultra) check('Ultra mode K', expert.ultraK, LIMITS.ultraK);
+  check('Random seed', int(expert.seed), LIMITS.seed, { optional: true });
+  return out;
+}
 
 /** The one-click example on the home screen. */
 export const EXAMPLE = { proteinKey: 'tau', peptide: 'LIYKWVNK' };
