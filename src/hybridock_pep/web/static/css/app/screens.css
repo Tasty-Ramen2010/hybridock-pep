@@ -138,6 +138,7 @@
 /* ================= Errors ================= */
 .error-card { padding: 22px; display: flex; flex-direction: column; gap: 12px; border-color: var(--danger); }
 .error-card h2 { color: var(--danger); }
+.error-card .cmd { padding-right: 16px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
 
 /* Home: recent predictions (last four runs) */
 .recent { margin-bottom: 22px; }

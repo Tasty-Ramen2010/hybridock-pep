@@ -1,18 +1,10 @@
 // runner.js — starts a run, reports progress to the Running screen, and handles stop / errors.
 // It only ever calls the adapter; it never knows how the backend works.
 
-import { adapter, NotWiredError } from './adapter.mjs';
+import { adapter } from './adapter.mjs';
+import { friendlyError } from './errors.mjs';
 import { historyEntryFor } from './state.mjs';
 import { toast } from './ui/toast.mjs';
-
-/** Turn any error into a sentence a student can act on. */
-export function friendlyError(err) {
-  if (err instanceof NotWiredError) return { title: 'The live backend isn’t connected yet', body: err.message };
-  if (err?.name === 'TypeError' && /fetch|network/i.test(err.message)) {
-    return { title: 'Couldn’t reach the server', body: 'Check that it is running and your connection is working, then try again.' };
-  }
-  return { title: 'Something went wrong', body: err?.message || 'The run stopped unexpectedly.' };
-}
 
 export function createRunner({ store, go }) {
   let controller = null;
