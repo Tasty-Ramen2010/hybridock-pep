@@ -731,19 +731,21 @@ def print_next_steps(info: PlatformInfo) -> None:
     print("""
 ┌─ Next steps ────────────────────────────────────────────────────┐
 │                                                                   │
-│  1. Download RAPiDock model weights (~55 MB, not in git):        │
-│     https://zenodo.org/records/14193621                          │
-│     → third_party/RAPiDock/train_models/                        │
-│       CGTensorProductEquivariantModel/rapidock_local.pt          │
+│  1. The RAPiDock model weights ship in this repository (weights/) │
+│     and install.sh copies them into place: nothing to download.  │
 │                                                                   │
-│  2. Receptor prep needs nothing extra: meeko and autogrid4 both  │
-│     ship in score-env.yml. ADFRsuite is NOT required.            │
+│  2. Receptor prep needs nothing extra: meeko ships in score-env  │
+│     (autogrid4 is added where conda-forge builds it). ADFRsuite  │
+│     is NOT required.                                             │
 │                                                                   │
 │  3. Verify the full install:                                     │
 │     conda activate score-env                                     │
 │     bash scripts/smoke_test.sh                                   │
 │                                                                   │
-│  4. Run a test dock:                                             │
+│  4. Or use the browser UI:  hybridock-pep serve                  │
+│     (then open http://127.0.0.1:8000)                            │
+│                                                                   │
+│  5. Run a test dock:                                             │
 │     hybridock-pep dock \\                                         │
 │         --peptide LISAAALAAIFAAALAC \\                            │
 │         --receptor data/pdbs/1T2D_receptor.pdb \\                │
