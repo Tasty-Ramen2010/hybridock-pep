@@ -298,7 +298,7 @@ export function mountSetup(ctx) {
           num('refineTopK', 'Refine the top poses (MM-GBSA)', '--refine-topk K (blank = off)', { min: 1, max: LIMITS.refineTopK[1], placeholder: 'off' }),
           tick('ultra', 'Ultra mode', '--ultra: the slow, high-certainty stack'),
           num('ultraK', 'Ultra mode K', '--ultra smoothing depth (used when Ultra is on)', { min: 1, max: LIMITS.ultraK[1] }),
-          num('seed', 'Random seed', '--seed (blank = random)', { min: 0, max: LIMITS.seed[1], placeholder: 'random' }),
+          num('seed', 'Random seed', '--seed (blank = random). The same seed gives similar, not identical, results.', { min: 0, max: LIMITS.seed[1], placeholder: 'random' }),
           txt('inputPoses', 'Input-poses folder', '--input-poses (skips pose generation)', 'optional folder path'),
           tick('noMinimize', 'Skip pre-minimization', '--no-minimize'),
           tick('ensemble', 'Add the ensemble ΔG column', '--ensemble'),

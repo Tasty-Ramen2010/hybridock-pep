@@ -13,6 +13,11 @@ const RULES = [
     title: 'The docking engine isn’t installed on this computer',
     body: 'Predicting binding needs the sampling environment (rapidock), and it isn’t set up here. You can still use Score a structure on this computer, or run ./install.sh to add the docking engine.',
   },
+  { // every pose clashed with the protein (e.g. a site inside a packed fibril): the run "succeeds" with nothing scored
+    test: /no ΔG was reported|0 poses scored|no scored poses|no poses scored/i,
+    title: 'No pose fit at this site',
+    body: 'Every pose the program tried overlapped the protein, so there is no binding strength to report. Move the box to a more open spot, make it larger, or try a shorter peptide.',
+  },
   { // crystal-score could not read or featurise the pose
     test: /Crystal scoring failed|geometry features/i,
     title: 'That pose couldn’t be scored',

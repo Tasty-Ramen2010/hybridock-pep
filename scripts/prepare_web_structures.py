@@ -36,9 +36,11 @@ PROTEINS = [
          about="A protein that switches off the tumour-suppressor p53",
          siteNote="the groove where p53's peptide sits in the crystal", site=("fixed", 25.20, -25.61, -7.97),
          example="ETFSDLWKLLPE", backend="mdm2"),
-    dict(id="2N0A", key="asyn", name="α-synuclein", keep="ABCDE",
-         about="Clumps up in Parkinson's disease",
-         siteNote="the 'NAC core' stretch (residues 68–78)", site=("chain", "C", 68, 78),
+    # One layer of the fibril (chain A). The five-chain stack leaves no room for a peptide: every pose clashed and a real
+    # run reported "no ΔG" (found by docking every built-in protein through the browser UI).
+    dict(id="2N0A", key="asyn", name="α-synuclein", keep="A",
+         about="Clumps up in Parkinson's disease (one layer of the fibril)",
+         siteNote="the NAC core stretch (residues 61–72) on one fibril layer", site=("chain", "A", 61, 72),
          example="KTKEGVL"),
     dict(id="6OIM", key="kras", name="KRAS G12C", keep="A",
          about="A cancer-driving switch protein",
