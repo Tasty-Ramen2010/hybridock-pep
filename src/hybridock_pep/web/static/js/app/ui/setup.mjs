@@ -10,7 +10,7 @@ import { cleanSequence, peptideStats, validatePeptide } from '../peptide.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
 import { adapter } from '../adapter.mjs';
-import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, longModelAvailable, settingProblems } from '../config.mjs';
+import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, ad4Available, longModelAvailable, settingProblems } from '../config.mjs';
 import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
 
@@ -294,7 +294,7 @@ export function mountSetup(ctx) {
           num('longCheckpointThreshold', 'Long-peptide model starts at', longModelAvailable(adapter.env) ? '--long-checkpoint-threshold (residues)' : '--long-checkpoint-threshold. The long-peptide model isn’t installed here, so this has no effect.', { min: LIMITS.longCheckpointThreshold[0], max: LIMITS.longCheckpointThreshold[1] }),
           h('div', {}, h('label', { class: 'field-label' }, 'Scoring mode', h('span', { class: 'tech' }, '--scoring')),
             h('select', { class: 'field', onChange: (e) => setEx({ scoring: e.target.value }) },
-              ['vina', 'vina,ad4'].map((o) => h('option', { value: o, selected: ex().scoring === o }, o === 'vina' ? 'vina (default)' : 'vina + AD4 (telemetry)')))),
+              ['vina', 'vina,ad4'].map((o) => h('option', { value: o, selected: ex().scoring === o, disabled: o === 'vina,ad4' && !ad4Available(adapter.env) }, o === 'vina' ? 'vina (default)' : ad4Available(adapter.env) ? 'vina + AD4 (telemetry)' : 'vina + AD4 (needs autogrid4: not installed here)')))),
           num('refineTopK', 'Refine the top poses (MM-GBSA)', '--refine-topk K (blank = off)', { min: 1, max: LIMITS.refineTopK[1], placeholder: 'off' }),
           tick('ultra', 'Ultra mode', '--ultra: the slow, high-certainty stack'),
           num('ultraK', 'Ultra mode K', '--ultra smoothing depth (used when Ultra is on)', { min: 1, max: LIMITS.ultraK[1] }),

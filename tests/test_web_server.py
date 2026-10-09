@@ -514,3 +514,22 @@ def test_a_recovered_pool_failure_earlier_in_the_log_is_not_blamed_for_a_later_s
 def test_a_pool_exception_that_ends_the_run_is_still_out_of_memory():
     job = _FakeJob(["...", "concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly"], 1)
     assert "ran out of memory" in server._explain_failure(job)
+
+
+def test_a_missing_program_is_named_not_blamed_on_a_form_file():
+    """`--scoring vina,ad4` without autogrid4 raised FileNotFoundError: 'autogrid4' and the UI said a form file was missing."""
+    job = _FakeJob(["Traceback ...", "FileNotFoundError: [Errno 2] No such file or directory: 'autogrid4'"], 1)
+    text = server._explain_failure(job)
+    assert "autogrid4" in text and "form" not in text
+    other = _FakeJob(["FileNotFoundError: [Errno 2] No such file or directory: 'obabel'"], 1)
+    assert "'obabel'" in server._explain_failure(other)
+    path = _FakeJob(["FileNotFoundError: [Errno 2] No such file or directory: '/data/x.pdb'"], 1)
+    assert "file in the form" in server._explain_failure(path)  # a real path keeps the old wording
+
+
+def test_environment_reports_autogrid(monkeypatch):
+    monkeypatch.setattr(tui, "_resolve_exe", lambda name: "/x/autogrid4" if name == "autogrid4" else None)
+    monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+    assert server.check_environment()["checks"]["autogrid"]["ok"] is True
+    monkeypatch.setattr(tui, "_resolve_exe", lambda name: None)
+    assert server.check_environment()["checks"]["autogrid"]["ok"] is False

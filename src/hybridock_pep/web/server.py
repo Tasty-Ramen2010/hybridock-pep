@@ -288,6 +288,10 @@ def check_environment() -> dict[str, Any]:
         checks["openmm"] = {"ok": False, "detail": "OpenMM missing",
                             "fix": "only needed for MM-GBSA refinement"}
 
+    # AutoDock 4 grid maps (only the "vina + AD4" scoring option): conda-forge has no autogrid4 for every platform.
+    checks["autogrid"] = {"ok": bool(_which("autogrid4")), "detail": "AutoDock 4 grids (optional)",
+                          "fix": "Only the 'vina + AD4' scoring option needs it; plain Vina does not"}
+
     # The long-peptide checkpoint is optional and a fresh install does not ship it; without it every peptide silently
     # uses the standard model whatever --long-checkpoint-threshold says. Say so, so the UI does not claim otherwise.
     try:
@@ -482,6 +486,14 @@ def _explain_failure(job: Job) -> str:
     if "cuda" in low and ("out of memory" in low or "oom" in low):
         return ("The GPU ran out of memory. Try fewer poses (Quick), or close other "
                 "GPU programs and run it again.")
+    import re as _re
+    tool = _re.search(r"no such file or directory: '([^'/\\]+)'", low)  # a bare program name, not a path
+    if tool:
+        name = tool.group(1)
+        if name.startswith("autogrid"):
+            return ("The AutoDock 4 scoring option needs the autogrid4 program, which isn't installed on this computer "
+                    "(it has no build for every processor). Turn off “vina + AD4” and run again with plain Vina.")
+        return f"A program this run needs ('{name}') isn't installed on this computer. Check the status lamp at the top."
     if "no such file" in low or "does not exist" in low:
         return "A file in the form was not found. Check the receptor path and try again."
     if "not on path" in low or "command not found" in low:

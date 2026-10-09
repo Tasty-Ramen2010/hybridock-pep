@@ -35,6 +35,9 @@ export const LIMITS = {
   seed: [0, 2 ** 31 - 1],
 };
 
+/** True unless the live server says autogrid4 is missing (the "vina + AD4" scoring option cannot run without it). */
+export const ad4Available = (env) => env?.checks?.autogrid?.ok !== false;
+
 /** True unless the live server says the optional long-peptide model is missing (then the threshold has no effect). */
 export const longModelAvailable = (env) => env?.checks?.long_model?.ok !== false;
 
