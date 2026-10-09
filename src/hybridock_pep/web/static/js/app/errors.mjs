@@ -3,6 +3,11 @@
 // Pure logic, no DOM: it is unit-tested in tests/web_js/.
 
 const RULES = [
+  { // the server runs one job at a time (see web/server.py); a second request is refused
+    test: /run is already going|already running/i,
+    title: 'Another run is already going',
+    body: 'This computer runs one prediction at a time. Wait for the current one to finish (or stop it), then try again.',
+  },
   { // the sampling environment isn't there (a machine set up only for scoring)
     test: /Cannot locate Python 3 in conda env|RAPIDOCK_PYTHON|rapidock.*(not found|missing|doesn.t exist)|No module named '?(torch|e3nn|torch_geometric)/i,
     title: 'The docking engine isn’t installed on this computer',
