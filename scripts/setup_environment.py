@@ -554,6 +554,54 @@ def install_score_env(dry_run: bool, force: bool) -> None:
     print("  ✓ score-env ready — activate with: conda activate score-env")
 
 
+PYG_EXTENSIONS = ["torch-scatter", "torch-sparse", "torch-cluster", "torch-spline-conv"]
+
+
+def conda_compiler_packages(os_name: str, arch: str) -> list[str]:
+    """conda-forge compiler packages for building PyG's C++ extensions (empty where conda doesn't supply them).
+
+    macOS uses Apple's command-line tools, and Windows has no source-build path here.
+    """
+    if os_name != "Linux":
+        return []
+    plat = "linux-aarch64" if arch in ("aarch64", "arm64") else "linux-64"
+    return [f"gxx_{plat}", f"gcc_{plat}"]
+
+
+def _pyg_importable() -> bool:
+    """True when PyG's compiled extensions import in the rapidock env (a glibc mismatch shows up only here)."""
+    result = subprocess.run(
+        [_conda_python("rapidock"), "-c", "import torch, torch_scatter, torch_sparse, torch_cluster, torch_spline_conv"],
+        capture_output=True, text=True, env={**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"},
+    )
+    if result.returncode != 0:
+        print("  PyG extension import failed: " + (result.stderr.strip().splitlines() or ["?"])[-1])
+    return result.returncode == 0
+
+
+def _build_pyg_from_source(info: "PlatformInfo", dry_run: bool) -> None:
+    """Last resort when PyG's prebuilt wheels will not import: compile the four extensions against the torch installed.
+
+    PyG's prebuilt Linux wheels need glibc >= 2.32, so they fail to import on Ubuntu 20.04 and similar older systems
+    (found on an aarch64 board). Compiling needs a C++ compiler; where the machine has none, conda-forge's is put into
+    the rapidock env first. ``conda run`` is used so the compiler's activation script sets CC/CXX.
+    """
+    print("  Prebuilt PyG wheels are not usable on this machine; building them from source instead (a few minutes)")
+    pkgs = conda_compiler_packages(info.os_name, info.arch)
+    if pkgs and not dry_run:
+        has_cxx = subprocess.run(
+            ["conda", "run", "-n", "rapidock", "sh", "-c", 'command -v "${CXX:-}" || command -v g++ || command -v c++'],
+            capture_output=True,
+        ).returncode == 0
+        if not has_cxx:
+            _run(["conda", "install", "-n", "rapidock", "-c", "conda-forge", "--override-channels", "--yes", *pkgs, "make"],
+                 dry_run, optional=True)
+    _run(["conda", "run", "-n", "rapidock", "--no-capture-output", "python", "-m", "pip", "install", *PYG_EXTENSIONS,
+          "--no-build-isolation", "--force-reinstall", "--no-deps", "--no-binary", ",".join(PYG_EXTENSIONS)],
+         dry_run, env={"KMP_DUPLICATE_LIB_OK": "TRUE", "MAX_JOBS": "4"})
+
+
+
 def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None:
     """Create rapidock env (if missing), then install PyTorch + PyG for the detected backend."""
     print(f"\n── rapidock env  [{info.gpu_label}] {'─' * max(0, 45 - len(info.gpu_label))}")
@@ -641,6 +689,12 @@ def install_rapidock_env(info: PlatformInfo, dry_run: bool, force: bool) -> None
                 [*pip, *pyg_pkgs, "--no-build-isolation"], dry_run,
                 env={"KMP_DUPLICATE_LIB_OK": "TRUE"},
             )
+
+    # Prebuilt PyG wheels can be installed yet fail to import (glibc too old): check, and compile if so.
+    if not dry_run and not torch_ready and info.pyg_find_url and not _pyg_importable():
+        _build_pyg_from_source(info, dry_run)
+        if not _pyg_importable():
+            print("\n  [WARN] PyG's extensions still do not import; Stage 1 sampling will fail until this is fixed.")
 
     # ── Verify PyTorch sees the expected device ───────────────────────────
     verify_script = _build_verify_script(info.backend)
