@@ -190,3 +190,6 @@ table.poses td.num, table.poses th.num { text-align: right; }
 
 /* Touch: Apple's 44 pt minimum tap target for the small round controls too */
 @media (pointer: coarse) { .avatar { width: 44px; height: 44px; } }
+
+/* Touch: a text link that is the only thing to press still gets a 44 pt target */
+@media (pointer: coarse) { a.tap { display: inline-flex; align-items: center; min-height: 44px; } }
