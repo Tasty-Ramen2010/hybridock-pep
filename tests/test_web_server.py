@@ -12,6 +12,7 @@ import json
 import socket
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -576,7 +577,15 @@ def test_simultaneous_uploads_of_the_same_file_never_leave_a_partial_file(monkey
         try:
             for _ in range(15):
                 handler._upload(body)
-                assert (tmp_path / "uploads" / "same.pdb").read_text(encoding="utf-8") == content
+                for attempt in range(40):  # Windows refuses to read a file that is being replaced at that instant
+                    try:
+                        seen = (tmp_path / "uploads" / "same.pdb").read_text(encoding="utf-8")
+                        break
+                    except PermissionError:
+                        if attempt == 39:
+                            raise
+                        time.sleep(0.02)
+                assert seen == content
         except Exception as exc:  # noqa: BLE001
             errors.append(repr(exc))
 
