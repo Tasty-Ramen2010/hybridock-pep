@@ -483,3 +483,20 @@ def test_a_pool_worker_that_died_is_explained_as_out_of_memory():
 def test_other_failures_still_report_their_last_real_line():
     job = _FakeJob(["$ cmd", "ValueError: the peptide has an unsupported residue 'Z'"], 1)
     assert "unsupported residue" in server._explain_failure(job)
+
+
+def test_environment_reports_whether_the_optional_long_peptide_model_is_installed(monkeypatch, tmp_path):
+    """A fresh install has no longer_local.pt, so the threshold setting silently does nothing; the UI needs to know."""
+    from hybridock_pep.sampling import rapidock_runner
+
+    monkeypatch.setattr(rapidock_runner, "_find_model_dir", lambda: tmp_path)
+    missing = server.check_environment()["checks"]["long_model"]
+    assert missing["ok"] is False and "not installed" in missing["detail"]
+    (tmp_path / rapidock_runner.LONGER_CKPT_NAME).write_bytes(b"x")
+    assert server.check_environment()["checks"]["long_model"]["ok"] is True
+
+    def boom():
+        raise FileNotFoundError("no rapidock here")
+    monkeypatch.setattr(rapidock_runner, "_find_model_dir", boom)
+    assert server.check_environment()["checks"]["long_model"]["ok"] is False  # never fatal
+    assert server.check_environment()["ready"] in (True, False)  # essential checks unchanged

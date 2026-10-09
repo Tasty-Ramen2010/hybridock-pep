@@ -10,7 +10,7 @@ import { cleanSequence, peptideStats, validatePeptide } from '../peptide.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
 import { adapter } from '../adapter.mjs';
-import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, settingProblems } from '../config.mjs';
+import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, longModelAvailable, settingProblems } from '../config.mjs';
 import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
 
@@ -187,7 +187,7 @@ export function mountSetup(ctx) {
         const st = peptideStats(v.seq);
         const long = v.seq.length >= Number(S().expert.longCheckpointThreshold);
         stats.replaceChildren(`${st.length} amino acids · about ${Math.round(st.mass).toLocaleString()} Da · net charge ${st.charge > 0 ? '+' : st.charge < 0 ? '−' : ''}${Math.abs(st.charge)}`,
-          h('span', { class: 'expert-only' }, long ? ' · uses the long-peptide model' : ''));
+          h('span', { class: 'expert-only' }, long ? (longModelAvailable(adapter.env) ? ' · uses the long-peptide model' : ' · the long-peptide model isn’t installed here, so the standard model is used') : ''));
         stage.setPeptide(v.seq.length);
       } else stats.textContent = '';
       updateNav();
@@ -291,7 +291,7 @@ export function mountSetup(ctx) {
       problemsEl,
       h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Advanced settings ', h('span', { class: 'tech' }, 'Expert options for the docking run'))),
         h('div', { class: 'stack' },
-          num('longCheckpointThreshold', 'Long-peptide model starts at', '--long-checkpoint-threshold (residues)', { min: LIMITS.longCheckpointThreshold[0], max: LIMITS.longCheckpointThreshold[1] }),
+          num('longCheckpointThreshold', 'Long-peptide model starts at', longModelAvailable(adapter.env) ? '--long-checkpoint-threshold (residues)' : '--long-checkpoint-threshold. The long-peptide model isn’t installed here, so this has no effect.', { min: LIMITS.longCheckpointThreshold[0], max: LIMITS.longCheckpointThreshold[1] }),
           h('div', {}, h('label', { class: 'field-label' }, 'Scoring mode', h('span', { class: 'tech' }, '--scoring')),
             h('select', { class: 'field', onChange: (e) => setEx({ scoring: e.target.value }) },
               ['vina', 'vina,ad4'].map((o) => h('option', { value: o, selected: ex().scoring === o }, o === 'vina' ? 'vina (default)' : 'vina + AD4 (telemetry)')))),
