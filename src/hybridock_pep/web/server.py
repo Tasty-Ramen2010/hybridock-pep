@@ -404,8 +404,6 @@ class JobManager:
         Raises:
             RuntimeError: If a run is already in flight, or the CLI is not on PATH.
         """
-        if self.busy:
-            raise RuntimeError("A run is already going. Wait for it, or stop it first.")
         exe = tui._resolve_exe(cmd[0])
         if exe is None:
             raise RuntimeError(
@@ -413,7 +411,12 @@ class JobManager:
                 "conda environment (conda activate score-env)."
             )
         job = Job(uuid.uuid4().hex[:12], cmd, mode, values, output_dir)
+        # Check "is a run going?" and claim the slot in ONE critical section. They used to be two steps, so two requests
+        # arriving together (two tabs) both saw "idle", both started, and one clobbered the other's files.
         with self._lock:
+            current = self.jobs.get(self._current or "")
+            if current and current.state in ("queued", "running"):
+                raise RuntimeError("A run is already going. Wait for it, or stop it first.")
             self.jobs[job.id] = job
             self._current = job.id
         thread = threading.Thread(target=self._run, args=(job, exe), daemon=True)
@@ -869,7 +872,11 @@ class StudioHandler(BaseHTTPRequestHandler):
         target_dir = SESSION_ROOT / "uploads"
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / name
-        target.write_text(content, encoding="utf-8")
+        # Write to a temp file and rename: two tabs uploading the same file at once (or a run reading it) never see a
+        # half-written copy.
+        tmp = target_dir / f".{name}.{uuid.uuid4().hex[:8]}.tmp"
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, target)
         chains = sorted({line[21] for line in content.splitlines()
                          if line.startswith("ATOM") and len(line) > 21})
         n_atoms = sum(1 for line in content.splitlines() if line.startswith("ATOM"))
