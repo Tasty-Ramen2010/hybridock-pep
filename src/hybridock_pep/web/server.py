@@ -881,16 +881,38 @@ class StudioHandler(BaseHTTPRequestHandler):
         target_dir = SESSION_ROOT / "uploads"
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / name
-        # Write to a temp file and rename: two tabs uploading the same file at once (or a run reading it) never see a
-        # half-written copy.
-        tmp = target_dir / f".{name}.{uuid.uuid4().hex[:8]}.tmp"
-        tmp.write_text(content, encoding="utf-8")
-        os.replace(tmp, target)
+        _write_atomically(target, content)
         chains = sorted({line[21] for line in content.splitlines()
                          if line.startswith("ATOM") and len(line) > 21})
         n_atoms = sum(1 for line in content.splitlines() if line.startswith("ATOM"))
         return {"path": str(target.resolve()), "name": name,
                 "atoms": n_atoms, "chains": chains}
+
+
+def _write_atomically(target: Path, content: str) -> None:
+    """Write ``content`` to ``target`` so that no reader or concurrent writer ever sees a half-written file.
+
+    Two tabs uploading the same structure at once (names carry a content hash, so identical uploads are common) or a
+    run reading the file while it is re-uploaded must not break each other. An identical file is simply left alone;
+    otherwise write a temp file and rename it. Windows refuses to replace a file that is open elsewhere
+    (PermissionError), so the rename is retried briefly.
+    """
+    try:
+        if target.is_file() and target.read_text(encoding="utf-8") == content:
+            return
+    except OSError:
+        pass  # being replaced right now: fall through and write our own copy
+    tmp = target.with_name(f".{target.name}.{uuid.uuid4().hex[:8]}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    for attempt in range(60):
+        try:
+            os.replace(tmp, target)
+            return
+        except PermissionError:
+            if attempt == 59:
+                tmp.unlink(missing_ok=True)
+                raise
+            time.sleep(0.05)
 
 
 def validate_request(body: dict[str, Any]) -> dict[str, Any]:
