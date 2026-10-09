@@ -47,7 +47,7 @@ export async function setupDock(p, o) {
     const field = (label) => p.locator('label.field-label', { hasText: label }).locator('xpath=following-sibling::*[self::input or self::select]').first();
     const tick = (label) => p.locator('label.check', { hasText: label }).locator('input');
     if (expert.longThreshold != null) await field('Long-peptide model starts at').fill(String(expert.longThreshold));
-    if (expert.scoring) await field('Scoring mode').selectOption(expert.scoring);
+    if (expert.scoring) await field('Scoring mode').selectOption(expert.scoring).catch(() => { /* the option is disabled when autogrid4 is missing: leave the default */ });
     if (expert.refineTopK != null) await field('Refine the top poses').fill(String(expert.refineTopK));
     if (expert.ultra) { await tick('Ultra mode').check(); if (expert.ultraK != null) await field('Ultra mode K').fill(String(expert.ultraK)); }
     if (expert.seed != null) await field('Random seed').fill(String(expert.seed));

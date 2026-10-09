@@ -183,8 +183,13 @@ if (isLive) {
   check('Expert command starts with the real dock command and the chosen peptide', /hybridock-pep dock/.test(base) && /--peptide LIYKWVNK/.test(base) && /--n-samples 100/.test(base), base.slice(0, 200));
   await field('Long-peptide model starts at').fill('20'); await sleep(900);
   check('long-peptide threshold reaches --long-checkpoint-threshold', /--long-checkpoint-threshold 20/.test(await cmdText()), '');
-  await field('Scoring mode').selectOption('vina,ad4'); await sleep(900);
-  check('scoring mode reaches --scoring vina,ad4', /--scoring vina,ad4/.test(await cmdText()), '');
+  const ad4 = p.locator('option[value="vina,ad4"]');
+  if (await ad4.isDisabled()) {
+    check('"vina + AD4" is disabled, with the reason, when autogrid4 is not installed', /autogrid4/.test(await ad4.textContent()), await ad4.textContent());
+  } else {
+    await field('Scoring mode').selectOption('vina,ad4'); await sleep(900);
+    check('scoring mode reaches --scoring vina,ad4', /--scoring vina,ad4/.test(await cmdText()), '');
+  }
   await field('Refine the top poses').fill('3'); await sleep(900);
   check('refine top-K reaches --refine-topk 3', /--refine-topk 3/.test(await cmdText()), '');
   await tick('Ultra mode').check(); await sleep(900);
