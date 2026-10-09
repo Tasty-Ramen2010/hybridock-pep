@@ -228,3 +228,27 @@ class TestInstalledToolingMatchesTheSpec:
 
     def test_meeko_receptor_script_is_importable(self):
         pytest.importorskip("meeko", reason="meeko not installed")
+
+
+class TestPrebuiltVina:
+    """A stock Linux box without a C++ compiler could not install: pip built vina from source and died."""
+
+    def test_the_rewritten_env_uses_conda_vina_and_no_pip_vina(self):
+        mod = _load_setup_environment()
+        text = mod.prebuilt_vina_yaml(SCORE_ENV_YML.read_text(encoding="utf-8"))
+        assert "- conda-forge::vina" in text
+        assert '"vina>=1.2.5"' not in text and "pip install vina" not in text
+        # everything else survives, and conda's vina is listed BEFORE the pip section
+        assert "meeko>=0.7" in text and "python=3.11" in text and "gemmi" in text
+        assert text.index("conda-forge::vina") < text.index("- pip:")
+
+    def test_the_yml_itself_is_left_alone(self):
+        """envs/score-env.yml is the documented path and the only one on Windows; it keeps pip's vina."""
+        assert '"vina>=1.2.5"' in SCORE_ENV_YML.read_text(encoding="utf-8")
+
+    def test_windows_keeps_the_compile_path(self, monkeypatch):
+        mod = _load_setup_environment()
+        monkeypatch.setattr(mod.sys, "platform", "win32")
+        assert mod._prebuilt_vina_available() is False
+        monkeypatch.setattr(mod.sys, "platform", "linux")
+        assert mod._prebuilt_vina_available() is True
