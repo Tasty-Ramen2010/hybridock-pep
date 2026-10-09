@@ -457,6 +457,14 @@ def _explain_failure(job: Job) -> str:
     """
     tail = "\n".join(job.lines[-60:])
     low = tail.lower()
+    code = job.returncode
+    # A process the kernel killed leaves no message of its own (the last log line is just the last progress tick),
+    # and a Python process pool reports it as BrokenProcessPool. Exit status -9 / 137 is SIGKILL: almost always the
+    # out-of-memory killer.
+    killed = code is not None and (code == -9 or code == 137)
+    if killed or "brokenprocesspool" in low or "memoryerror" in low or "\nkilled" in low or "cannot allocate memory" in low:
+        return ("The computer ran out of memory and the system stopped the run. Close other programs, or try a "
+                "smaller job (Quick, a shorter peptide), and run it again.")
     if "cuda" in low and ("out of memory" in low or "oom" in low):
         return ("The GPU ran out of memory. Try fewer poses (Quick), or close other "
                 "GPU programs and run it again.")
