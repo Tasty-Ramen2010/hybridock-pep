@@ -28,6 +28,11 @@ const RULES = [
     title: 'The computer ran out of memory',
     body: 'Close other programs and try again. A smaller job (a shorter peptide, or Quick thoroughness) needs less memory.',
   },
+  { // something outside the program ended it (SIGTERM): a person or a supervisor stopped it
+    test: /stopped from outside|was terminated\b/i,
+    title: 'The run was stopped from outside',
+    body: 'Something other than this page ended the run (for example the computer’s owner, or a restart). Start it again if that was not intended.',
+  },
   { // the server forgot the run (it was restarted while the run was going)
     test: /unknown job|no such job|job .* not found/i,
     title: 'The server restarted during your run',

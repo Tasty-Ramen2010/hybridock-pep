@@ -500,3 +500,17 @@ def test_environment_reports_whether_the_optional_long_peptide_model_is_installe
     monkeypatch.setattr(rapidock_runner, "_find_model_dir", boom)
     assert server.check_environment()["checks"]["long_model"]["ok"] is False  # never fatal
     assert server.check_environment()["ready"] in (True, False)  # essential checks unchanged
+
+
+def test_a_recovered_pool_failure_earlier_in_the_log_is_not_blamed_for_a_later_stop():
+    """The scorer reports 'Vina worker pool failed (BrokenProcessPool ...) - finishing the remainder' and carries on."""
+    lines = ["WARNING hybridock_pep.scoring.vina: Vina worker pool failed (BrokenProcessPool: A process in the process pool was "
+             "terminated abruptly) after 21/25 poses - finishing the remainder in-process", "  ✓ Scoring poses  (121s)",
+             "0/1 poses refined (MM-GBSA) (0%)"]
+    text = server._explain_failure(_FakeJob(lines, -15))
+    assert "stopped from outside" in text and "ran out of memory" not in text
+
+
+def test_a_pool_exception_that_ends_the_run_is_still_out_of_memory():
+    job = _FakeJob(["...", "concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly"], 1)
+    assert "ran out of memory" in server._explain_failure(job)

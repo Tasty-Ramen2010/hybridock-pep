@@ -468,13 +468,17 @@ def _explain_failure(job: Job) -> str:
     tail = "\n".join(job.lines[-60:])
     low = tail.lower()
     code = job.returncode
-    # A process the kernel killed leaves no message of its own (the last log line is just the last progress tick),
-    # and a Python process pool reports it as BrokenProcessPool. Exit status -9 / 137 is SIGKILL: almost always the
-    # out-of-memory killer.
+    # The last real line of the log: a Python exception that ends the run shows up here, whereas a warning EARLIER in the
+    # log may be something the program already recovered from (e.g. "Vina worker pool failed ... finishing the remainder").
+    last = next((ln.strip().lower() for ln in reversed(job.lines) if ln.strip() and not ln.strip().startswith("$")), "")
+    # A process the kernel killed leaves no message of its own (the last log line is just the last progress tick), and a
+    # Python process pool reports it as BrokenProcessPool. Exit status -9 / 137 is SIGKILL: almost always the OOM killer.
     killed = code is not None and (code == -9 or code == 137)
-    if killed or "brokenprocesspool" in low or "memoryerror" in low or "\nkilled" in low or "cannot allocate memory" in low:
+    if killed or "brokenprocesspool" in last or "memoryerror" in last or last.startswith("killed") or "cannot allocate memory" in last:
         return ("The computer ran out of memory and the system stopped the run. Close other programs, or try a "
                 "smaller job (Quick, a shorter peptide), and run it again.")
+    if code is not None and (code == -15 or code == 143):  # SIGTERM: stopped by something outside the program
+        return "The run was stopped from outside (it was terminated). Start it again if that was not intended."
     if "cuda" in low and ("out of memory" in low or "oom" in low):
         return ("The GPU ran out of memory. Try fewer poses (Quick), or close other "
                 "GPU programs and run it again.")

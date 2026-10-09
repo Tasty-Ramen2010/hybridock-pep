@@ -207,6 +207,7 @@ test('friendlyError: known failures get a plain title and keep the raw message a
     ['A run is already going. Wait for it, or stop it first.', /Another run is already going/],
     ['The run finished but no ΔG was reported. Look in the run folder: runs/studio/x', /No pose fit at this site/],
     ['Docking complete. 0 poses scored.', /No pose fit at this site/],
+    ['The run was stopped from outside (it was terminated). Start it again if that was not intended.', /stopped from outside/],
     ['Killed', /ran out of memory/],
     ['concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly while the future was running', /ran out of memory/],
     ['process exited with exit code -9', /ran out of memory/],
