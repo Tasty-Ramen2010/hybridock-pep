@@ -91,6 +91,7 @@ export function mountResults(ctx) {
         h('div', { class: 'pose-picker-title', style: { marginBottom: '8px' } }, h('span', { class: 'field-label', style: { margin: 0 } }, 'Ranked poses', h('span', { class: 'tech' }, 'Select one to see it in 3D')),
           h('span', { class: 'small muted' }, result.nPoses > result.poses.length ? `Top ${result.poses.length} of ${result.nPoses}` : `${result.poses.length} poses`)),
         result.poses.length ? h('div', { class: 'table-wrap' }, table) : h('p', { class: 'pose-note' }, 'Pose files aren’t available for this run, so there is nothing to show in 3D.'),
+        result.poses.length > 1 && h('p', { class: 'small muted guided-only', style: { marginTop: '6px' } }, 'The poses are ordered by the program’s own ranking, so their ΔG values are not always in step. The big number above is the best-ranked pose.'),
         h('p', { class: 'small muted expert-only', style: { marginTop: '6px' } }, '*Ranking score only compares poses for this protein (lower = stronger). It is not a ΔG and shouldn’t be compared across proteins.')));
 
       const dl = (what, name, sub) => h('button', { class: 'btn sm', type: 'button', onClick: () => download(result, what) }, icon('download', 15), h('span', {}, name, h('span', { class: 'mono small muted' }, ` ${sub}`)));
