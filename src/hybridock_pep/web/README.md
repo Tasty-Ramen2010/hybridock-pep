@@ -58,6 +58,24 @@ The UI only ever sends the terminal UI's own field keys (`tui.FIELDS`).
 * The server's progress is stage-weighted, so the bar can sit still during sampling; the UI never extrapolates an
   ETA from it, only from the server's own estimate.
 
+## Long runs
+
+A real run takes minutes to hours, and the server keeps going when the tab is closed.
+
+* **Resumable.** The run's id is saved in the browser the moment the server accepts it. After a reload (or a closed tab
+  and a new one), the app picks the run up again, or fetches the finished result, and saves it to History once. After a
+  dropped connection the button says *Check again* and resumes the same run.
+* **One run at a time**, like the server (`A run is already going`). The runner refuses a second run itself, and the server
+  claims its single slot atomically, so two tabs pressing Run together can't both start.
+* **Honest time.** The server's estimate is a GPU figure, so on a machine without a GPU there is no countdown, only the
+  elapsed time. A run that is past its estimate says "Still working…" and never "Almost done" unless the bar agrees.
+* **Plain failures.** `errors.mjs` and the server's `_explain_failure` turn exit codes and tracebacks into a title and a next
+  step (out of memory, a missing program, no pose fit at this site, the docking engine not installed...), and keep the raw
+  text under *Technical details*.
+* **Only what the backend accepts.** `LIMITS` in `config.mjs` mirrors the backend's validators (box 10-60 Å, long-peptide
+  threshold 3-30, ...), the Review step lists problems and keeps *Run prediction* off until they are fixed, and options that
+  cannot work on this machine (the `vina + AD4` scoring needs `autogrid4`; the long-peptide model is optional) are marked.
+
 ## Changing common things
 
 * **Accent colour**: `ACCENTS` in `config.mjs` (default `--accent` in `tokens.css`).
