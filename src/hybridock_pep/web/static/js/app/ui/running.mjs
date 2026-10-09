@@ -95,7 +95,7 @@ export function mountRunning(ctx) {
       h('p', {}, r.error.body),
       r.error.detail && h('details', { class: 'adv' }, h('summary', {}, 'Technical details'), h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Technical details' }, r.error.detail)),
       h('div', { class: 'row' },
-        h('button', { class: 'btn primary', type: 'button', onClick: () => runner.start(kind, job, { backTo: r.backTo }) }, 'Try again'),
+        h('button', { class: 'btn primary', type: 'button', onClick: () => runner.start(kind, job, { backTo: r.backTo, resume: r.error.resume }) }, r.error.resume ? 'Check again' : 'Try again'),
         h('button', { class: 'btn', type: 'button', onClick: () => { store.set({ run: { status: 'idle' } }); go(r.backTo || '/'); } }, 'Go back'))));
     stage.setPeptideMode('float');
   }

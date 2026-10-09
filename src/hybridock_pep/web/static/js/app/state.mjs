@@ -9,7 +9,7 @@ function systemTheme() {
   try { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { return 'light'; }
 }
 
-const SAVED = ['mode', 'theme', 'accent', 'userName', 'history', 'runsTotal'];
+const SAVED = ['mode', 'theme', 'accent', 'userName', 'history', 'runsTotal', 'activeRun'];
 const MAX_HISTORY = 30;
 
 function load() {
@@ -64,6 +64,7 @@ export function createStore() {
     runsTotal: Number.isFinite(saved.runsTotal) ? saved.runsTotal : (Array.isArray(saved.history) ? saved.history.length : 0), // lifetime count: History keeps only the last 30
     history: Array.isArray(saved.history) ? saved.history : null, // null = never used: main.js seeds demo entries
     historySeeded: Array.isArray(saved.history),
+    activeRun: saved.activeRun && saved.activeRun.jobId ? saved.activeRun : null, // a run the server may still be working on: resumed after a reload
     proteins: [],
     setup: freshSetup(),
     compare: freshCompare(),
@@ -82,8 +83,9 @@ export function createStore() {
     merge(key, patch) { this.set({ [key]: { ...state[key], ...patch } }); },
     subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
     addHistory(entry) {
-      const history = [entry, ...(state.history || [])].slice(0, MAX_HISTORY);
-      this.set({ history, runsTotal: Math.max(state.runsTotal || 0, (state.history || []).length) + 1 });
+      const had = (state.history || []).some((e) => e.id === entry.id); // a resumed run can arrive twice (two tabs)
+      const history = [entry, ...(state.history || []).filter((e) => e.id !== entry.id)].slice(0, MAX_HISTORY);
+      this.set({ history, runsTotal: had ? state.runsTotal : Math.max(state.runsTotal || 0, (state.history || []).length) + 1 });
     },
     updateHistory(id, patch) {
       this.set({ history: (state.history || []).map((e) => (e.id === id ? { ...e, ...patch } : e)) });

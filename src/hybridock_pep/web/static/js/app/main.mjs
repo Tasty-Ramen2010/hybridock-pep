@@ -109,6 +109,26 @@ async function boot() {
   mountTopbar(ctx);
   addEventListener('hashchange', render);
   render();
+  resumeActiveRun();
+}
+
+/**
+ * A real run takes minutes to hours and the server keeps working when the tab is closed or reloaded. The id of the run
+ * in progress is saved when it starts, so on the next load pick it up again (and save its result to History).
+ */
+async function resumeActiveRun() {
+  const a = store.get().activeRun;
+  if (!a) return;
+  if (adapter.kind !== 'live') { store.set({ activeRun: null }); return; }
+  let snap;
+  try { snap = await adapter.jobSnapshot(a.jobId); } catch { return; } // server unreachable right now: keep it for next time
+  if (!snap) {
+    store.set({ activeRun: null });
+    toast('The run you started earlier is no longer on the server (it was restarted), so there is no result to show.', 8000);
+    return;
+  }
+  toast(snap.state === 'running' ? 'Picking up the run you started earlier…' : 'Fetching the result of the run you started earlier…', 5000);
+  runner.start(a.kind, a.job, { backTo: a.backTo, resume: { jobId: a.jobId, startedAt: a.startedAt } });
 }
 
 // Handy for debugging in the browser console.
