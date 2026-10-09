@@ -205,6 +205,8 @@ test('friendlyError: known failures get a plain title and keep the raw message a
     ["RuntimeError: Cannot locate Python 3 in conda env 'rapidock'. Set RAPIDOCK_PYTHON", /docking engine isn.t installed/],
     ['hybridock-pep: error: Crystal scoring failed for 1YCR_peptide.pdb.', /couldn.t be scored/],
     ['A run is already going. Wait for it, or stop it first.', /Another run is already going/],
+    ['The run finished but no ΔG was reported. Look in the run folder: runs/studio/x', /No pose fit at this site/],
+    ['Docking complete. 0 poses scored.', /No pose fit at this site/],
     ['Killed', /ran out of memory/],
     ['concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly while the future was running', /ran out of memory/],
     ['process exited with exit code -9', /ran out of memory/],

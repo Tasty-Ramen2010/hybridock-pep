@@ -34,15 +34,15 @@
     "key": "asyn",
     "pdb": "2N0A",
     "name": "α-synuclein",
-    "about": "Clumps up in Parkinson's disease",
+    "about": "Clumps up in Parkinson's disease (one layer of the fibril)",
     "file": "data/pdb/2N0A.pdb",
     "site": {
-      "x": 117.96,
-      "y": 138.46,
-      "z": -26.99
+      "x": 125.8,
+      "y": 131.0,
+      "z": -39.3
     },
     "box": 30,
-    "siteNote": "the 'NAC core' stretch (residues 68–78)",
+    "siteNote": "the NAC core stretch (residues 61–72) on one fibril layer",
     "examplePeptide": "KTKEGVL"
   },
   {
