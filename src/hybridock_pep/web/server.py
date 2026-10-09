@@ -288,6 +288,16 @@ def check_environment() -> dict[str, Any]:
         checks["openmm"] = {"ok": False, "detail": "OpenMM missing",
                             "fix": "only needed for MM-GBSA refinement"}
 
+    # The long-peptide checkpoint is optional and a fresh install does not ship it; without it every peptide silently
+    # uses the standard model whatever --long-checkpoint-threshold says. Say so, so the UI does not claim otherwise.
+    try:
+        from hybridock_pep.sampling import rapidock_runner as _rr
+        long_ok = (_rr._find_model_dir() / _rr.LONGER_CKPT_NAME).exists()
+    except Exception:  # RAPiDock not installed on this machine: nothing to route
+        long_ok = False
+    checks["long_model"] = {"ok": long_ok, "detail": "Long-peptide model (optional)" if long_ok else "Long-peptide model not installed (optional)",
+                            "fix": "Without it every peptide uses the standard model, whatever the threshold is set to"}
+
     weights = data_file("affinity_ai_nofix.joblib")
     checks["scorer"] = {"ok": weights.exists(), "detail": "affinity model weights",
                         "fix": "bash scripts/install_weights.sh"}

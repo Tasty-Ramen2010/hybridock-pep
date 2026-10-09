@@ -35,6 +35,9 @@ export const LIMITS = {
   seed: [0, 2 ** 31 - 1],
 };
 
+/** True unless the live server says the optional long-peptide model is missing (then the threshold has no effect). */
+export const longModelAvailable = (env) => env?.checks?.long_model?.ok !== false;
+
 /**
  * Problems with the numeric settings, in plain words (an empty list = fine). The server's own validator stays the
  * authority; this catches the same mistakes before a request is made, in demo mode too.
