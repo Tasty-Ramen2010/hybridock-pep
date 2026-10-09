@@ -94,7 +94,7 @@
     "key": "pfldh",
     "pdb": "1T2D",
     "name": "PfLDH",
-    "about": "The malaria parasite's lactate dehydrogenase (our iGEM target)",
+    "about": "The malaria parasite's lactate dehydrogenase, a drug target",
     "file": "data/pdb/1T2D.pdb",
     "site": {
       "x": 24.84,

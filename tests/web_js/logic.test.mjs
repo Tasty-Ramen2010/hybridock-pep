@@ -218,6 +218,9 @@ test('friendlyError: known failures get a plain title and keep the raw message a
   // a server that forgot the job (HTTP 404) and a dead network
   assert.match(friendlyError(Object.assign(new Error('The server answered 404.'), { status: 404 })).title, /server restarted/);
   assert.match(friendlyError(new TypeError('Failed to fetch')).title, /reach the server/);
+  const net = friendlyError(Object.assign(new Error('Couldn’t reach the HybriDock-Pep server. Is `hybridock-pep serve` still running?'), { name: 'NetworkError' }));
+  assert.match(net.title, /reach the server/); // the adapter's own wording for a dead connection
+  assert.match(net.detail, /serve/);
   // anything else: generic title, never an empty or "undefined" body
   const g = friendlyError(new Error('weird'));
   assert.equal(g.title, 'That run didn’t finish');

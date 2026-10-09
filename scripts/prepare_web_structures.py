@@ -58,7 +58,7 @@ PROTEINS = [
 #: browser shows the identical coordinates. Only ATOM records are kept (no waters, no ligands).
 LOCAL = [
     dict(id="1T2D", key="pfldh", name="PfLDH", file="data/pdbs/1T2D_receptor.pdb",
-         about="The malaria parasite's lactate dehydrogenase (our iGEM target)",
+         about="The malaria parasite's lactate dehydrogenase, a drug target",
          siteNote="the enzyme's active site, where the team docks", site=("fixed", 24.84, 22.73, 41.69),
          example="LISDAELEAIFEADC", backend="pfldh"),
     dict(id="1I0Z", key="hldh", name="Human LDH", file="data/pdbs/1I0Z.pdb",

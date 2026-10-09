@@ -71,7 +71,7 @@ EXAMPLES: list[dict[str, Any]] = [
         "receptor": "pdbs/1T2D_receptor.pdb",
         "site": [24.84, 22.73, 41.69],
         "box": 30,
-        "blurb": "Our own iGEM target: the peptide we want binding malaria LDH.",
+        "blurb": "A malaria drug target: the peptide we want binding malaria LDH.",
         "note": "Charged 15-mer, so the ΔG carries the charged-floor caveat.",
         "expect": "around −11 kcal/mol",
     },
