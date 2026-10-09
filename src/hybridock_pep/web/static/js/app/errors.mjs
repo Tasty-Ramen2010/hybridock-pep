@@ -19,7 +19,7 @@ const RULES = [
     body: 'Check that the peptide file is the pose bound to the protein you uploaded, that it has only the peptide, and that the sequence has the same number of letters as the pose.',
   },
   { // out of memory (the kernel kills the run: exit 137 / "Killed")
-    test: /out of memory|MemoryError|\bKilled\b|exit(ed)? (code|status) (-9|137)|cannot allocate memory|CUDA out of memory/i,
+    test: /out of memory|MemoryError|\bKilled\b|exit(ed)? (code|status) (-9|137)|cannot allocate memory|CUDA out of memory|BrokenProcessPool|terminated abruptly/i,
     title: 'The computer ran out of memory',
     body: 'Close other programs and try again. A smaller job (a shorter peptide, or Quick thoroughness) needs less memory.',
   },
