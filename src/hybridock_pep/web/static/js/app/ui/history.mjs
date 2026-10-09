@@ -7,7 +7,7 @@ import { fmt, fmtSigned } from '../interpret.mjs';
 
 export function openHistory({ store, go }) {
   const dlg = h('dialog', { class: 'drawer', 'aria-labelledby': 'hist-title' });
-  const body = h('div', { class: 'dialog-body' });
+  const body = h('div', { class: 'dialog-body', tabindex: '0', role: 'region', 'aria-label': 'Contents' });
   const close = () => { dlg.close(); dlg.remove(); };
 
   function render() {

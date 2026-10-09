@@ -112,7 +112,8 @@ check('Help explains ΔG in plain words', /ΔG|binding strength/i.test(help) && 
 check('Help mentions both Guided and Expert', /Guided/.test(help) && /Expert/.test(help), '');
 check('Help has no "iGEM" or "Bindwell" wording', !/igem|bindwell/i.test(help), '');
 const link = p.locator('dialog[open] a[href*="studio"]');
-check('Help offers the classic studio page', (await link.count()) === 1, await link.count() ? await link.getAttribute('href') : '');
+const liveServer = (await p.evaluate(() => window.hybridock?.adapter?.kind)) === 'live';
+check(liveServer ? 'Help offers the classic studio page' : 'the static demo has no classic page, so Help does not link to it', (await link.count()) === (liveServer ? 1 : 0), await link.count() ? await link.getAttribute('href') : '');
 await p.getByRole('button', { name: /Close/ }).first().click();
 check('the Help close button closes it', (await p.locator('dialog[open]').count()) === 0, '');
 await p.getByRole('button', { name: 'Help' }).click(); await p.keyboard.press('Escape');
