@@ -69,7 +69,8 @@ const themeBtn = p.getByRole('button', { name: /Switch to (dark|light) mode/ });
 const t0 = await p.evaluate(() => document.documentElement.dataset.theme);
 await themeBtn.click(); const t1 = await p.evaluate(() => document.documentElement.dataset.theme);
 check('theme toggle flips light/dark', t0 !== t1, `${t0} -> ${t1}`);
-const bgA = await css('body', 'backgroundColor'); await themeBtn.click(); const bgB = await css('body', 'backgroundColor');
+await sleep(600); // the background colour eases between themes: read it once the transition has finished
+const bgA = await css('body', 'backgroundColor'); await themeBtn.click(); await sleep(600); const bgB = await css('body', 'backgroundColor');
 check('the page background really changes with the theme', bgA !== bgB, `${bgA} vs ${bgB}`);
 check('the toggle label names the OTHER mode', /Switch to (dark|light) mode/.test((await themeBtn.getAttribute('aria-label')) || ''), await themeBtn.getAttribute('aria-label'));
 
