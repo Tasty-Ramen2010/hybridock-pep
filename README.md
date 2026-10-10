@@ -20,6 +20,8 @@ geometry features outputting kcal/mol with accuracy in the range of ABFE. From t
 terminal UI, it runs efficiently on consumer hardware, and tested against >1,000 real complexes. 
 [Get started](#get-started) and run it yourself.
 
+**New here?** Read the **[step-by-step guide](docs/GUIDE.md)** (also built into the app), try the **[demo site](https://tasty-ramen2010.github.io/hybridock-pep/)** with simulated results, or run it for real with no install in **[Google Colab](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)**.
+
 Creator: **[Choppa Purandhar Ram](https://www.linkedin.com/in/purandhar-ram-choppa-293916413/)**, 15 Years Old
 
 ## Table of contents
@@ -205,10 +207,11 @@ in a few seconds, and familiarizes the user with the rest of the UI.
 ./launch_ui.sh --demo
 ```
 
-Or, if you would rather work in a browser:
+Or, if you would rather work in a browser (the easiest way, and the one the **[guide](docs/GUIDE.md)** walks through):
 
 ```bash
-hybridock-pep serve
+./launch_web.sh        # macOS: double-click HybriDock-Pep.command · Windows: double-click launch_web.bat
+# the same thing, by hand:  hybridock-pep serve
 ```
 
 opens a local page at `http://127.0.0.1:8000` with the same three jobs — predict binding, compare

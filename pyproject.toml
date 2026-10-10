@@ -98,7 +98,8 @@ hybridock_pep = ["py.typed", "data/*.joblib", "data/*.json", "data/*.csv",
                  # the browser UI (web/static/js/app is native ES modules; .mjs is always served as JavaScript)
                  "web/static/css/app/*.css", "web/static/js/app/*.mjs", "web/static/js/app/stage/*.mjs",
                  "web/static/js/app/ui/*.mjs", "web/static/dist/*", "web/static/fonts/*.woff2",
-                 "web/static/data/*.json", "web/static/data/pdb/*.pdb"]
+                 "web/static/data/*.json", "web/static/data/pdb/*.pdb",
+                 "web/static/guide/*.md", "web/static/guide/guide-img/*.png"]
 
 [tool.ruff]
 line-length = 100

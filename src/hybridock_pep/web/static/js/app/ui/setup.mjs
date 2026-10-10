@@ -9,7 +9,7 @@ import { loadProtein, registerUpload, fetchFromRCSB } from '../structures.mjs';
 import { cleanSequence, peptideStats, validatePeptide } from '../peptide.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
-import { adapter } from '../adapter.mjs';
+import { adapter, estimateTrusted, noGpu } from '../adapter.mjs';
 import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, ad4Available, longModelAvailable, settingProblems } from '../config.mjs';
 import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
@@ -162,7 +162,7 @@ export function mountSetup(ctx) {
     if (S().proteinRef) status.replaceChildren(structure ? icon('check', 18) : '', structure ? `${structure.ca.length.toLocaleString()} residues loaded.` : '');
     return [
       title('Choose a protein', 'Receptor structure (PDB)'),
-      note(h('b', {}, 'Why this matters. '), 'The protein is the target your peptide tries to stick to. HybriDock-Pep uses its 3D shape from the Protein Data Bank (PDB), a free public library of structures.'),
+      note('The protein is what your peptide tries to stick to. Pick one below, search the Protein Data Bank, or upload your own structure.'),
       search, list,
       h('div', { class: 'row' }, h('button', { class: 'btn sm', type: 'button', onClick: () => file.click() }, icon('upload', 16), 'Upload my own PDB file'), file),
       status,
@@ -198,7 +198,7 @@ export function mountSetup(ctx) {
     queueMicrotask(check);
     return [
       title('Enter a peptide', 'Peptide sequence'),
-      note(h('b', {}, 'Why this matters. '), 'A peptide is a short chain of amino acids, written with one letter each. Longer peptides can fold in more ways, so they take longer and are harder to predict.'),
+      note('A peptide is a short chain of amino acids, one letter each (3 to 30). Longer ones take longer and are harder to predict.'),
       h('div', {}, h('label', { class: 'field-label', for: 'pep-input' }, 'Amino acid sequence'), ta),
       msg, stats,
       h('div', {}, h('p', { class: 'small muted', style: { marginBottom: '6px' } }, 'Try an example'),
@@ -211,7 +211,7 @@ export function mountSetup(ctx) {
     const choice = (id, label, sub) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(mode === id), onClick: () => { setS({ siteMode: id }); renderPanel(); applyStage(); } }, label, h('small', {}, sub));
     return [
       title('Choose where it binds', 'Search box (grid box)'),
-      note(h('b', {}, 'Why this matters. '), 'The search box tells the program where to look. A small box around the real binding spot is faster and more accurate than searching the whole protein.'),
+      note('The box tells the program where to look. A small box around the real binding spot is faster and more accurate.'),
       h('div', { class: 'choice-grid two', role: 'radiogroup', 'aria-label': 'How to pick the binding site' },
         choice('known', 'I know where it binds', 'Place a box on the protein'),
         choice('find', 'Find the pocket for me', 'Search the whole protein')),
@@ -230,7 +230,7 @@ export function mountSetup(ctx) {
     const eta = h('p', { class: 'small muted' });
     const problemsEl = h('div', { class: 'msg error', role: 'alert', hidden: true });
     const jobNow = () => dockJob({ ...S(), peptide: v.seq });
-    let previewToken = 0;
+    let previewToken = 0, previewTimer = null;
     /** Show what the settings get wrong, in words, and keep "Run prediction" off until it is fixed. */
     function showProblems(list) {
       reviewProblems = list;
@@ -245,15 +245,21 @@ export function mountSetup(ctx) {
       showProblems(local);
       const token = ++previewToken;
       eta.textContent = 'Working out how long this will take…';
+      clearTimeout(previewTimer); // typing in a field fires this on every key: ask the server once typing pauses
+      previewTimer = setTimeout(() => askServer(job, local, token), 220);
+    }
+    function askServer(job, local, token) {
       adapter.preview(job).then(({ command, estimateSeconds, problems = [] }) => {
         if (token !== previewToken) return; // a newer change superseded this one
         showProblems(local.length ? local : problems); // our wording first; the server's own messages when the local check found nothing
         if (command) cmd.textContent = command.replace(/ --/g, ' \\\n  --');
         lastEstimate = estimateSeconds;
+        const env = adapter.env;
         eta.textContent = adapter.kind === 'demo'
           ? `Demo runs are short on purpose (about ${estimateSeconds} seconds). Real runs can take minutes.`
-          : estimateSeconds == null ? 'A real run can take several minutes. You can leave this tab open.'
-            : `Roughly ${fmtDuration(estimateSeconds)} on a GPU (an estimate). ${adapter.env?.checks?.gpu?.ok === false ? 'This machine has no CUDA GPU, so expect it to take noticeably longer. ' : ''}You can leave this tab open.`;
+          : noGpu(env) ? 'This machine has no GPU, so a run usually takes tens of minutes. You can leave this tab open.'
+            : !estimateTrusted(env) || estimateSeconds == null ? 'A real run can take several minutes. You can leave this tab open.'
+              : `Roughly ${fmtDuration(estimateSeconds)} (an estimate for this computer). You can leave this tab open.`;
       }).catch(() => { if (token === previewToken) eta.textContent = 'A real run can take several minutes. You can leave this tab open.'; });
     }
 
@@ -282,7 +288,7 @@ export function mountSetup(ctx) {
     refreshCmd();
     return [
       title('Review and run', 'Run settings'),
-      note(h('b', {}, 'Why this matters. '), 'More poses means a more thorough search, but a longer wait. Full is the default and the most reliable.'),
+      note('More poses means a more thorough search and a longer wait.'),
       h('dl', { class: 'summary' },
         h('dt', {}, 'Protein'), h('dd', {}, s.proteinRef.name, s.proteinRef.pdb ? h('span', { class: 'mono muted' }, `  ${s.proteinRef.pdb}`) : ''),
         h('dt', {}, 'Peptide'), h('dd', {}, h('span', { class: 'mono' }, v.seq), h('span', { class: 'muted' }, `  ${v.seq.length} amino acids`)),

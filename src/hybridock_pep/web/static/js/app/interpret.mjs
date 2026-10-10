@@ -24,14 +24,13 @@ export function roughGuide(dg) {
   return ROUGH_GUIDE.find((g) => dg <= g.max);
 }
 
-/** One or two friendly sentences about what a ΔG means. */
+/** One plain sentence about what a ΔG means. */
 export function meaningOf(dg) {
-  const lead = 'A more negative number means a tighter grip. ';
-  const err = ` With a typical error of ±${TYPICAL_ERROR} kcal/mol, treat it as a good estimate rather than an exact value.`;
+  const lead = 'More negative means a tighter grip. ';
   switch (roughGuide(dg).id) {
-    case 'strong': return lead + 'This peptide is predicted to stick to the protein very tightly, a promising candidate to test.' + err;
-    case 'moderate': return lead + 'This peptide is predicted to stick fairly well, which is a reasonable starting point to improve on.' + err;
-    default: return lead + 'This peptide is predicted to stick only weakly to this spot.' + err;
+    case 'strong': return lead + 'This peptide is predicted to stick very tightly.';
+    case 'moderate': return lead + 'This peptide is predicted to stick fairly well.';
+    default: return lead + 'This peptide is predicted to stick only weakly here.';
   }
 }
 

@@ -12,12 +12,16 @@ copy-pasting the command the browser shows you.
 
 from __future__ import annotations
 
+import functools
+import gzip
 import json
 import logging
 import mimetypes
 import os
+import platform
 import re
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -37,8 +41,14 @@ logger = logging.getLogger(__name__)
 _CONTENT_TYPES = {
     ".mjs": "text/javascript", ".js": "text/javascript", ".css": "text/css", ".html": "text/html",
     ".json": "application/json", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".png": "image/png",
-    ".csv": "text/csv", ".pdb": "chemical/x-pdb", ".txt": "text/plain",
+    ".csv": "text/csv", ".pdb": "chemical/x-pdb", ".txt": "text/plain", ".md": "text/markdown; charset=utf-8",
 }
+
+
+# page assets that are worth compressing, and the ones safe to keep for a day (they change only with a release)
+_COMPRESSIBLE = {".js", ".mjs", ".css", ".json", ".html", ".svg", ".md", ".pdb", ".txt"}
+_LONG_CACHE = {".woff2"}
+_GZIP_CACHE: dict[tuple[str, int, int], bytes] = {}
 
 
 def _content_type(name: str) -> str:
@@ -159,7 +169,7 @@ def _length_band(n: int) -> str:
 def estimate_seconds(values: dict[str, str], mode: str) -> int:
     """Rough wall-clock estimate shown on the run button.
 
-    Measured anchors: RAPiDock is about 0.6 s/pose on the 5070, Stage 2 scoring is
+    Measured anchors: RAPiDock is about 0.6 s/pose on the 5070 (about 6 on Apple's Metal backend), Stage 2 scoring is
     2.8 s/pose end-to-end. MM-GBSA and ultra are per-pose on top of that. It is an
     estimate and the UI says so — nobody should be surprised by a 3× miss on CPU.
     """
@@ -173,10 +183,10 @@ def estimate_seconds(values: dict[str, str], mode: str) -> int:
         n_search = _int_or(values.get("n_pocket_search"), 300)
         n_pock = _int_or(values.get("n_pockets"), 3)
         n_per = _int_or(values.get("n_per_pocket"), 150)
-        sampling = 0.6 * (n_search + n_pock * n_per)
+        sampling = _sampling_cost() * (n_search + n_pock * n_per)
         n = n_pock * n_per
     else:
-        sampling = 0.6 * n
+        sampling = _sampling_cost() * n
     total = sampling + 2.8 * n
     topk = _int_or(values.get("refine_topk"), 0)
     if topk:
@@ -244,6 +254,65 @@ def _field_kind(field: Any) -> str:
     return "text"
 
 
+def _sampler_models_cached() -> bool | None:
+    """Have the sampler's lookup tables been built and the ESM-2 weights downloaded on this machine?
+
+    ``None`` when the sampler is not installed here at all (then the question does not apply).
+    """
+    try:
+        from hybridock_pep.sampling import rapidock_runner as _rr
+        root = _rr._find_rapidock_dir()
+    except Exception:
+        return None
+    torch_home = Path(os.environ.get("TORCH_HOME") or (Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "torch"))
+    esm = torch_home / "hub" / "checkpoints" / "esm2_t33_650M_UR50D.pt"
+    tables = (root / ".so3_omegas_array2.npy", root / ".so3_exp_score_norms2.npy")  # the first and the last one it writes
+    return esm.exists() and all(t.exists() for t in tables)
+
+
+def _run_text(cmd: list[str], timeout: float = 6) -> str:
+    """stdout of a short helper command, or "" if it is missing, slow or fails."""
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return res.stdout.strip() if res.returncode == 0 else ""
+
+
+def _detect_accelerator(which: Any, os_name: str | None = None, machine: str | None = None) -> tuple[str | None, str]:
+    """What this computer can sample on: ``("cuda" | "metal" | "rocm" | "xpu" | None, a name to show)``.
+
+    NVIDIA (also under WSL2) is found by ``nvidia-smi``; an Apple Silicon Mac always has a Metal GPU (the sampler
+    runs on it through PyTorch's MPS backend); AMD and Intel are found by their vendor tools being installed.
+    """
+    smi = which("nvidia-smi") or "/usr/lib/wsl/lib/nvidia-smi"
+    if Path(smi).exists():
+        out = _run_text([smi, "--query-gpu=name", "--format=csv,noheader"])
+        if out:
+            return "cuda", out.splitlines()[0]
+    if (os_name or sys.platform) == "darwin" and (machine or platform.machine()) == "arm64":
+        chip = _run_text(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=3) or "Apple Silicon"
+        return "metal", f"{chip} (Metal)"
+    if which("rocm-smi") or Path("/opt/rocm").exists():
+        return "rocm", "AMD GPU (ROCm)"
+    if which("xpu-smi") or which("sycl-ls"):
+        return "xpu", "Intel GPU (oneAPI)"
+    return None, ""
+
+
+# Sampling seconds per pose, from measurements: 0.6 on an RTX 5070; about ten times that on Apple's Metal backend
+# (INSTALL.md / README: "~10x slower than CUDA"; 100 poses take ~15 minutes on an M3). Nothing measured for AMD, Intel or a
+# plain CPU, so the app shows no countdown there (the UI only trusts "cuda" and "metal").
+_SAMPLING_S_PER_POSE = {"cuda": 0.6, "metal": 6.0}
+
+
+@functools.lru_cache(maxsize=1)
+def _sampling_cost() -> float:
+    import shutil as _shutil
+    kind, _ = _detect_accelerator(lambda n: tui._resolve_exe(n) or _shutil.which(n))
+    return _SAMPLING_S_PER_POSE.get(kind or "", 0.6)
+
+
 def check_environment() -> dict[str, Any]:
     """Report what this machine can actually do, for the status lamp.
 
@@ -267,18 +336,8 @@ def check_environment() -> dict[str, Any]:
                                "detail": "Receptor preparation (meeko or ADFRsuite)",
                                "fix": "pip install meeko"}
 
-    gpu = False
-    gpu_name = ""
-    smi = _which("nvidia-smi") or "/usr/lib/wsl/lib/nvidia-smi"
-    if Path(smi).exists():
-        try:
-            res = subprocess.run([smi, "--query-gpu=name", "--format=csv,noheader"],
-                                 capture_output=True, text=True, timeout=6, check=False)
-            gpu = res.returncode == 0 and bool(res.stdout.strip())
-            gpu_name = res.stdout.strip().splitlines()[0] if gpu else ""
-        except (OSError, subprocess.SubprocessError):
-            gpu = False
-    checks["gpu"] = {"ok": gpu, "detail": gpu_name or "no CUDA GPU detected",
+    kind, accel_name = _detect_accelerator(_which)
+    checks["gpu"] = {"ok": kind is not None, "kind": kind, "detail": accel_name or "no GPU detected",
                      "fix": "CPU works, just slower — or use Score for an existing pose"}
 
     try:
@@ -301,6 +360,16 @@ def check_environment() -> dict[str, Any]:
         long_ok = False
     checks["long_model"] = {"ok": long_ok, "detail": "Long-peptide model (optional)" if long_ok else "Long-peptide model not installed (optional)",
                             "fix": "Without it every peptide uses the standard model, whatever the threshold is set to"}
+
+    # The first prediction on a computer builds RAPiDock's lookup tables and downloads the ESM-2 language model
+    # (about 2.5 GB). Nothing else depends on it, but people should hear about it BEFORE a run looks stuck.
+    cached = _sampler_models_cached()
+    if cached is not None:
+        checks["first_run"] = {
+            "ok": cached,
+            "detail": "Model files are ready" if cached else "Model files still to download (first prediction)",
+            "fix": "The first prediction downloads about 2.5 GB and prepares lookup tables, which adds roughly 10 minutes, once",
+        }
 
     weights = data_file("affinity_ai_nofix.joblib")
     checks["scorer"] = {"ok": weights.exists(), "detail": "affinity model weights",
@@ -735,6 +804,44 @@ class StudioHandler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError(f"Malformed request: {exc}") from exc
 
+    def _send_static(self, path: Path) -> None:
+        """Serve a page asset: gzip-compressed when the browser accepts it, revalidated by ETag (so a reload is
+        a 304 with no body), and the bigger, rarely-changing files (fonts, structures) cached for a day."""
+        if not path.is_file():
+            self._error("Not found", 404)
+            return
+        stat = path.stat()
+        etag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
+        suffix = path.suffix.lower()
+        cache = "public, max-age=86400" if suffix in _LONG_CACHE else "no-cache"
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", cache)
+            self.end_headers()
+            return
+        data = path.read_bytes()
+        encoding = None
+        if suffix in _COMPRESSIBLE and len(data) > 1024 and "gzip" in (self.headers.get("Accept-Encoding") or ""):
+            key = (str(path), stat.st_mtime_ns, stat.st_size)
+            packed = _GZIP_CACHE.get(key)
+            if packed is None:
+                packed = gzip.compress(data, 6, mtime=0)
+                if len(_GZIP_CACHE) > 64:
+                    _GZIP_CACHE.clear()
+                _GZIP_CACHE[key] = packed
+            data, encoding = packed, "gzip"
+        self.send_response(200)
+        self.send_header("Content-Type", _content_type(path.name))
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", cache)
+        self.send_header("Vary", "Accept-Encoding")
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
+        self.end_headers()
+        self.wfile.write(data)
+
     def _send_file(self, path: Path, download: bool = False) -> None:
         if not path.is_file():
             self._error("Not found", 404)
@@ -757,7 +864,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         try:
             if route in ("/", "/index.html"):
-                self._send_file(WEB_DIR / "index.html")
+                self._send_static(WEB_DIR / "index.html")
             elif route.startswith("/static/"):
                 self._serve_static(route)
             elif route == "/api/env":
@@ -790,7 +897,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         if not str(target).startswith(str(STATIC_DIR.resolve())):
             self._error("Forbidden", 403)  # path traversal
             return
-        self._send_file(target)
+        self._send_static(target)
 
     def _job_get(self, route: str, query: dict[str, list[str]]) -> None:
         parts = route.split("/")  # ['', 'api', 'jobs', '<id>', maybe 'results'|'file']

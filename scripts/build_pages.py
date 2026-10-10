@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "src" / "hybridock_pep" / "web"
 STATIC = WEB / "static"
 # The only parts of static/ the app needs. (studio.html and the older studio.* files stay out.)
-COPY = ("dist", "fonts", "data")
+COPY = ("dist", "fonts", "data", "guide")
 
 
 def build(out: Path) -> int:

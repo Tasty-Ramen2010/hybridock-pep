@@ -24,9 +24,10 @@ export function bigNumber(result, { label = 'Binding strength' } = {}) {
     h('p', { class: 'err-line' }, 'Typical error ', h('b', {}, `±${TYPICAL_ERROR} kcal/mol`)),
     h('p', {}, meaningOf(dg)),
     h('p', { class: 'guide-line' }, h('span', { class: 'chip' }, guide.label), 'Our own rough guide, not a result from the program.'),
-    Math.abs(peptideStats(result.peptide).charge) >= 2 && h('p', { class: 'small muted' }, `This peptide carries charge (net ${peptideStats(result.peptide).charge > 0 ? '+' : '−'}${Math.abs(peptideStats(result.peptide).charge)}). The fast scorer is blind to charged residues, so read this ΔG as a direction rather than an exact value. In Expert mode, Ultra mode adds a correction for charged residues.`),
+    Math.abs(peptideStats(result.peptide).charge) >= 2 && h('p', { class: 'small muted' }, `This peptide is charged (net ${peptideStats(result.peptide).charge > 0 ? '+' : '−'}${Math.abs(peptideStats(result.peptide).charge)}), which the fast scorer handles poorly. Read the number as a direction, not an exact value.`,
+      h('span', { class: 'expert-only' }, ' Ultra mode adds a correction for charged residues.')),
     h('p', { class: 'small muted expert-only' }, `≈ ${fmtKd(kdFromDG(dg))} dissociation constant (converted from ΔG at 25 °C). One typical error is about a ×${Math.round(errorFoldChange())} change in binding.`),
-    result.demo && h('p', { class: 'small muted' }, 'Demo: this number and the pose are simulated from your inputs, not predicted by the docking program.'));
+    result.demo && h('p', { class: 'small muted' }, 'Simulated: this number and pose are made up from your inputs, not predicted.'));
 }
 
 export function commandBlock(result) {

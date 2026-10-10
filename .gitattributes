@@ -9,3 +9,4 @@ src/hybridock_pep/web/index.html text eol=lf
 *.sh text eol=lf
 # Windows batch files need CRLF line endings (labels and GOTO misbehave with bare LF).
 *.bat text eol=crlf
+*.command text eol=lf

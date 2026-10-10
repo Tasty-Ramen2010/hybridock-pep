@@ -367,7 +367,11 @@ export const crystalValues = (job, receptor, pose) => ({ peptide: job.peptide, r
  * countdown that runs out while the run is still sampling ("Almost done" at 10%) is dishonest, so there is none there.
  */
 export const noGpu = (env) => env?.checks?.gpu?.ok === false;
-const liveEstimate = (job) => (noGpu(liveAdapter.env) ? null : job.estimateSeconds ?? null);
+/** The time estimates are measured for NVIDIA (CUDA) and Apple (Metal) only; for anything else the app shows no countdown. */
+export const estimateTrusted = (env) => ['cuda', 'metal'].includes(env?.checks?.gpu?.kind) || (env?.checks?.gpu?.ok && env.checks.gpu.kind == null);
+/** True until the first real prediction has downloaded the model files (about 2.5 GB) on this computer. */
+export const firstRunPending = (env) => env?.checks?.first_run?.ok === false;
+const liveEstimate = (job) => (estimateTrusted(liveAdapter.env) ? job.estimateSeconds ?? null : null);
 
 export function progressFrom(snap, estimateSeconds) {
   const fraction = Math.min(1, Math.max(0, snap.fraction || 0));
@@ -592,6 +596,7 @@ export async function initAdapter() {
     const res = await fetch('/api/env', { cache: 'no-store', signal: AbortSignal.timeout(2500) });
     if (!res.ok) throw new Error('no api');
     liveAdapter.env = await res.json();
+    liveAdapter.refreshEnv = async () => { try { liveAdapter.env = await (await fetch('/api/env', { cache: 'no-store' })).json(); } catch { /* keep what we had */ } };
     liveAdapter.examples = (await (await fetch('/api/examples', { cache: 'no-store' })).json()).examples || [];
     return (adapter = liveAdapter);
   } catch {

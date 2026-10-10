@@ -5,12 +5,13 @@
   position: sticky; top: 0; z-index: 20;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
   height: var(--nav-h); padding: 0 var(--gutter);
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  background: var(--bg);
   border-bottom: 1px solid transparent;
-  transition: border-color var(--t-med) var(--ease);
+  transition: border-color var(--t-med) var(--ease), background-color var(--t-med) var(--ease);
 }
-.topbar.scrolled { border-bottom-color: var(--line); }
+/* the blur only exists once there is content scrolling under the bar; at the top there is nothing to blur,
+   and a live blur over the animated 3D view is the most expensive thing on the page */
+.topbar.scrolled { background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--line); }
 .brand {
   justify-self: start; display: inline-flex; align-items: center; gap: 8px;
   font: 600 17px/1 var(--font-sans); letter-spacing: -0.02em; color: var(--ink);

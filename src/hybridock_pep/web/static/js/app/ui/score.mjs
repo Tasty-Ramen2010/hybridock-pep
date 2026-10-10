@@ -86,7 +86,7 @@ export function mountScore(ctx) {
     input.value = s.peptide;
     pepMsg.id = 'sc-pep-msg';
     body.replaceChildren(
-      h('div', { class: 'note guided-only' }, icon('info', 18), h('div', {}, h('b', {}, 'Why this matters. '), 'Scoring needs a pose that is already bound, like one from a crystal structure or another program. HybriDock-Pep won’t move it; it only measures how well it fits.')),
+      h('div', { class: 'note guided-only' }, 'Scoring needs a pose that is already bound, such as one from a crystal structure. It measures how well the pose fits and doesn’t move it.'),
       h('div', {}, h('p', { class: 'field-label' }, '1. The protein', h('span', { class: 'tech' }, 'Receptor PDB, protein only')),
         dropZone({ title: 'Drop a protein file here', sub: 'A .pdb file, or click to browse', accept: '.pdb,.ent,.txt', onFile: chooseProtein, current: s.protein?.file }), msgProtein),
       h('div', {}, h('p', { class: 'field-label' }, '2. The bound peptide', h('span', { class: 'tech' }, 'Peptide pose PDB')),

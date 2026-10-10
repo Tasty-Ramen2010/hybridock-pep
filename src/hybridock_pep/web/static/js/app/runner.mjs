@@ -42,6 +42,7 @@ export function createRunner({ store, go }) {
         },
       });
       clearActive();
+      adapter.refreshEnv?.(); // the first real run has downloaded the model files: the "first prediction" notes can go
       store.addHistory(historyEntryFor(result));
       store.set({ run: { status: 'idle' } });
       go(`/results/${result.id}`);

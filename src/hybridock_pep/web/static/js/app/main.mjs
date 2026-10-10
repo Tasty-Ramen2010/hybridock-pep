@@ -19,6 +19,7 @@ import { mountRunning } from './ui/running.mjs';
 import { mountResults } from './ui/results.mjs';
 import { mountCompare } from './ui/compare.mjs';
 import { mountScore } from './ui/score.mjs';
+import { mountGuide } from './ui/guide.mjs';
 
 const store = createStore();
 const stage = new Stage(document.getElementById('stage'));
@@ -33,6 +34,7 @@ const SCREENS = {
   predict: { mount: mountSetup, title: 'Predict binding' },
   compare: { mount: mountCompare, title: 'Compare two proteins' },
   score: { mount: mountScore, title: 'Score a structure' },
+  guide: { mount: mountGuide, title: 'Guide' },
   running: { mount: mountRunning, title: 'Running…' },
   results: { mount: mountResults, title: 'Results' },
 };
