@@ -11,7 +11,13 @@ const real = await probe.evaluate(() => fetch('/api/env').then((r) => r.json()))
 /** Open Home as a computer whose /api/env answers `patch(env)`. */
 async function asMachine(patch, path = '/') {
   const p = await newPage(b);
-  await p.route('**/api/env', async (route) => { const env = JSON.parse(JSON.stringify(real)); patch(env); await route.fulfill({ json: env }); });
+  // start from a healthy machine whatever this one is (a CI runner or a laptop may lack pieces), then apply the case's change
+  await p.route('**/api/env', async (route) => {
+    const env = JSON.parse(JSON.stringify(real));
+    env.ready = true; for (const k of ['cli', 'vina', 'receptor_prep', 'scorer']) env.checks[k] = { ok: true, detail: k, fix: '' };
+    patch(env); await route.fulfill({ json: env });
+  });
+  await p.route('**/api/run', () => {}); // a run is never really started here: the request just hangs, which keeps the Running screen up
   await p.goto(BASE + path); await p.waitForSelector('.hero-card, .steps');
   return p;
 }
@@ -40,7 +46,7 @@ await p.close();
 // ---- first prediction: tell people about the download before it happens ----
 p = await asMachine((e) => { e.checks.first_run = { ok: false, detail: 'Model files still to download (first prediction)', fix: 'about 2.5 GB' }; });
 check('before the first prediction, Home mentions the 2.5 GB download', /2\.5 GB/.test(await p.locator('.hero-copy').innerText()), '');
-await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track, .toast, .error-card', { timeout: 20000 }).catch(() => {});
+await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track', { timeout: 20000 });
 const running = (await p.locator('.notice').allTextContents()).join(' ');
 check('...and so does the running screen, in a notice', /First prediction on this computer/.test(running) && /10 minutes/.test(running), running.slice(0, 120));
 await p.close();   // (the example run is refused or started on the real server; either way this page does not wait for it)
@@ -60,7 +66,7 @@ check('...and links to the troubleshooting guide', (await notice.locator('a[href
 check('the status chip says Setup needed', /Setup needed/.test(await chip(p)), await chip(p));
 await p.close();
 
-p = await asMachine((e) => { e.ready = true; for (const k of ['cli', 'vina', 'receptor_prep', 'scorer']) e.checks[k] = { ok: true, detail: k, fix: '' }; });
+p = await asMachine(() => {});
 check('a healthy machine shows no setup notice', (await p.locator('.hero-copy .notice').count()) === 0, '');
 await p.close();
 
