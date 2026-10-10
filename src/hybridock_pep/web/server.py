@@ -73,7 +73,7 @@ EXAMPLES: list[dict[str, Any]] = [
         "receptor": "pdbs/1YCR_mdm2.pdb",
         "site": [25.20, -25.61, -7.97],
         "box": 30,
-        "blurb": "The integration-test baseline. Known binder, Kd about 0.6 µM.",
+        "blurb": "A well-studied pair: p53 sticks to MDM2 with a measured Kd of about 0.6 µM.",
         "note": "If this returns weaker than −3 kcal/mol, something in the pipeline is broken.",
         "expect": "around −9 kcal/mol",
     },
