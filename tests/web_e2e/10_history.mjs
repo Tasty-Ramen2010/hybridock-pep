@@ -1,4 +1,5 @@
-import { browser, newPage, check, finish, shot, BASE, MDM2, POSE, sleep } from './lib.mjs';
+import { browser, newPage, check, finish, shot, BASE, MDM2, POSE, sleep, waitServerIdle } from './lib.mjs';
+await waitServerIdle();
 const b = await browser(); const p = await newPage(b);
 async function oneScore() {
   await p.goto(`${BASE}/#/score`); await p.waitForSelector('.drop');

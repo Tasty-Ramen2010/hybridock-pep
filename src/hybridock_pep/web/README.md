@@ -29,6 +29,19 @@ the avatar menu holds appearance (light/dark), the accent colour and your name. 
 Expert shows. 44 pt tap targets on touch screens; motion stops under *Reduce Motion*. The first visit follows the system
 light/dark setting. Tokens live in `static/css/app/tokens.css`.
 
+## The guide and the launchers
+
+* **`docs/GUIDE.md`** is the one source of the user guide (install, first prediction, every screen and setting, troubleshooting, FAQ,
+  glossary). It is readable on GitHub and built into the app as the **Guide** screen: `scripts/build_web.py` copies it and
+  `docs/guide-img/` into `static/guide/`, and its `--check` fails when the copies are stale. `js/app/markdown.mjs` turns it into data
+  (never HTML, so nothing in a guide file can inject markup) and `ui/guide.mjs` draws it. Regenerate the screenshots with
+  `tests/web_e2e/guide_shots.mjs`.
+* **Launchers** so nobody has to type a command: `launch_web.sh`, `HybriDock-Pep.command` (macOS, double-click) and `launch_web.bat`
+  (Windows, via WSL2). `install.sh` now ends by opening the web app (`--tui` opens the terminal UI instead).
+* **Speed.** Static files are gzipped, revalidated by ETag and cached, so a repeat visit transfers about 22 KB; the 3D view steps its
+  own quality down on a slow device, pauses while a sheet covers it or it is scrolled away, and the top bar's blur only exists once
+  the page has scrolled.
+
 ## Live vs Demo
 
 * Served by `hybridock-pep serve` (it answers `/api/env`) → **live**.

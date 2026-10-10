@@ -383,11 +383,11 @@ export class Stage {
     const tumble = pep.mode === 'tumble';
     const motion = this.reduced ? 0 : 1;
     const a = this.t * (tumble ? 0.9 : 0.28) * motion + 0.8;
-    const radius = F * (tumble ? 0.62 : 0.9);
+    const radius = F * (tumble ? 0.62 : 1.02); // floating: beside the protein, not tangled into it
     const oc = [Math.cos(a) * radius, Math.sin(a * 1.3) * F * (tumble ? 0.3 : 0.38) - F * 0.1, Math.sin(a) * radius * 0.9];
     const spin = qToMat3(qAxisAngle([0.3, 1, 0.2], this.t * (tumble ? 3.2 : 0.9) * motion));
     const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
-    const floatScale = clamp((0.42 * F) / halfLen, 1, 3.4); // exaggerated while floating so it reads on screen
+    const floatScale = clamp((0.34 * F) / halfLen, 1, 2.4); // a little larger than life while floating so it reads on screen
     const sc = lerp(floatScale, 1, e);
     const docked = this._dockedLocal();
     const out = new Float32Array(n * 3);
@@ -484,7 +484,7 @@ export class Stage {
     ctx.lineJoin = 'round';
     const pw = S * TUBE_WIDTH;
     // The peptide is drawn thicker once it settles, so it stays the star next to a big protein.
-    const peptideThick = lerp(1.5, 2.7, easeInOut(clamp(pep.dockT, 0, 1)));
+    const peptideThick = lerp(0.95, 2.5, easeInOut(clamp(pep.dockT, 0, 1))); // slim while floating so the helix reads as a spring
     for (let o = 0; o < total; o++) {
       const id = order[o];
       if (id < nSeg) {
@@ -495,19 +495,19 @@ export class Stage {
         const w = Math.max(1.3, pw * f);
         const dof = QUALITY[this.level].dof ? smoothstep(0.32, 1.15, Math.abs(zn - FOCUS)) * (this.reduced ? 0.5 : 1) : 0;
         const pal = this.pal[P.tone[i] % 5];
-        const a = A * (0.5 + 0.5 * depth);
+        const a = A; // depth is carried by the colour (it fades to the page): translucent strokes would stack into beads at every joint
         ctx.beginPath(); ctx.moveTo(sx[i], sy[i]); ctx.lineTo(sx[i + 1], sy[i + 1]);
         if (dof > 0.03) { // out of focus: a wide, faint stroke underneath
           ctx.globalAlpha = a * 0.16 * dof; ctx.strokeStyle = pal.body[bucket]; ctx.lineWidth = w * (1 + dof * 1.8); ctx.stroke();
         }
-        ctx.globalAlpha = a * (1 - 0.5 * dof); ctx.strokeStyle = pal.body[bucket]; ctx.lineWidth = w; ctx.stroke();
+        ctx.globalAlpha = a; ctx.strokeStyle = pal.body[bucket]; ctx.lineWidth = w; ctx.stroke();
       } else {
         const j = id - nSeg;
         const zn = clamp((ps.z[j] + ps.z[j + 1]) / (2 * R), -1.2, 1.2);
         const depth = clamp((zn + 1) / 2, 0, 1), bucket = Math.round(depth * 15);
         const f = (ps.sf[j] + ps.sf[j + 1]) / 2;
         const w = Math.max(3.5, pw * peptideThick * f * Math.sqrt(ps.sc));
-        const a = A * pep.alpha * (0.7 + 0.3 * depth);
+        const a = A * pep.alpha;
         ctx.beginPath(); ctx.moveTo(ps.sx[j], ps.sy[j]); ctx.lineTo(ps.sx[j + 1], ps.sy[j + 1]);
         ctx.globalAlpha = a; ctx.strokeStyle = this.pepPal.body[bucket]; ctx.lineWidth = w; ctx.stroke();
         if (j % ps.sub === 0) {

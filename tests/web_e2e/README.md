@@ -35,6 +35,8 @@ anything failed.
 | `20_topbar_home_help` | Every top-bar control (Guided/Expert, status chip, 4 accents, theme, name/avatar), Home, Help and History dialogs |
 | `21_setup_every_control` | All four setup steps: 8 proteins, search, upload, 20+ peptide inputs, slider, typed coordinates, the 3D box (drag, resize, click the protein, keyboard), blind mode, thoroughness, **every Expert setting's effect on the command**, validation messages, and each protein's suggested site |
 | `22_compare_score_controls` | Every Compare control (both menus, upload, 3D site editor, same-protein and invalid-peptide guards) and Score control (uploads, drag-and-drop, mismatch warnings) |
+| `23_guide` | The in-app guide: four-destination nav, contents, deep links, in-page links, Copy buttons, every screenshot loads and has a caption, no raw Markdown on the page, phone layout |
+| `24_env_states` | What the app says for each kind of computer (Apple Metal, NVIDIA, AMD, CPU-only), the first-prediction notice, and the "setup isn't finished" notice, by replaying `/api/env`. Live server only |
 | `30_dock_matrix` | A matrix of **real Dock runs** (Expert options, peptides, sites, every built-in protein, uploads, thoroughness) each followed by a full Results-screen and downloads check. `CASES=a,b BASE=... node 30_dock_matrix.mjs`; `--list` shows the cases |
 | `31_compare_matrix` | **Real Compare runs** (two dockings each), then the whole comparison result: ΔΔG, interval, verdict, ΔG cards, 3D tabs, command |
 | `32_run_control` | Real runs under real behaviour: wander the app mid-run, reload, close the tab and come back after it finished, Stop and run again, server restart (the last needs `FAULT_SSH` / `FAULT_START_CMD`) |
@@ -45,3 +47,9 @@ more cores; give each run one Vina worker (`HYBRIDOCK_VINA_WORKERS=1`) when you 
 
 Machines without a GPU or the sampling environment can still run everything except a sampled Dock: Score is real, and
 the Dock failure is checked to be a clear message.
+
+## Regenerating the guide's screenshots
+
+`guide_shots.mjs` drives a **live** server through the real UI and writes `docs/guide-img/*.png` (it starts one real Quick dock and,
+optionally, one real Compare, so allow 15 to 30 minutes on a CPU-only machine). `ONLY=home,menu` takes just some of them.
+Afterwards run `python3 scripts/build_web.py`, which copies them into the app (CI fails if you forget).

@@ -25,6 +25,20 @@ export function check(name, ok, detail = '') {
 }
 export async function browser() { return chromium.launch(); }
 
+/**
+ * Wait until the server has no run going. The app runs ONE job at a time, and a suite that starts real runs (the monkey's
+ * random clicks, "Run example") can leave one behind that would refuse the next suite's Score. A demo server has no /api/jobs.
+ */
+export async function waitServerIdle(maxMs = 25 * 60000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    let jobs;
+    try { jobs = (await (await fetch(`${BASE}/api/jobs`)).json()).jobs; } catch { return; }
+    if (!Array.isArray(jobs) || !jobs.some((j) => j.state === 'running')) return;
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+}
+
 /** Open the avatar menu (appearance, accent colour, your name) if it is closed. */
 export async function openMenu(p) {
   const a = p.locator('.avatar');

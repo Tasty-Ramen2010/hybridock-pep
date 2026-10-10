@@ -131,7 +131,7 @@ the user, then runs `install.sh` inside it. After that, you can open the WSL2/Ub
 `install.sh` does everything: installs conda if you don't have it, creates both conda environments
 with the right PyTorch build for your GPU, puts the RAPiDock model weights in place (~110 MB, shipped
 in this repository under [`weights/`](weights/) — no download), checks the receptor-prep tooling, runs
-a smoke test, and finishes by opening the guided terminal UI.
+a smoke test, and finishes by opening the [website](#serve--the-website) in your browser.
 
 1. It takes around ~15-30 minutes most of it is conda quietly solving dependencies plus a PyTorch
    download. If it looks frozen on a line like `Solving environment: \`, DO NOT Ctrl+C it.
@@ -140,7 +140,8 @@ a smoke test, and finishes by opening the guided terminal UI.
 
 | flag | effect |
 |---|---|
-| `--no-ui` | don't auto-launch the UI at the end — useful for scripted or headless installs |
+| `--no-ui` | don't open anything at the end — useful for scripted or headless installs |
+| `--tui` | open the guided terminal UI at the end instead of the website |
 | `--force` | recreate the conda environments from scratch |
 | `--skip-rapidock` | scoring environment only, skips the GPU sampling environment |
 | `--lite` | skip `rapidock_global.pt` (54 MB) — the checkpoint only `dock --blind` reads. Ordinary site-directed docking is unaffected; PyTorch and the ESM-2 weights are needed either way |
@@ -304,7 +305,7 @@ installed.
 
 HybriDock-Pep is one CLI with seven subcommands: **`dock`**, **`selectivity`**, **`reproducibility`**,
 **`crystal-score`**, **`prep`**, **`calibrate`**, **`benchmark`**. Run `hybridock-pep <command> --help`
-for the full flag list.
+for the full flag list. An eighth, **`serve`**, opens all of it as a [website](#serve--the-website) on your own machine.
 
 ### `dock` — end-to-end docking + scoring
 
@@ -452,6 +453,46 @@ hybridock-pep benchmark \
     --baselines vina,adcp \
     --report benchmark_report.md
 ```
+
+### `serve` — the website
+
+Everything above is also a website, running on your own machine. It does the same three jobs — **predict binding**,
+**compare two proteins**, **score a structure** — around a floating 3D protein, shows every result with its typical
+error (±1.6 kcal/mol), and has a step-by-step **Guide** built in. Nothing is uploaded anywhere.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/web_home.png" alt="The HybriDock-Pep website's home screen: a greeting, a floating 3D MDM2 protein with the p53 peptide, buttons to start a prediction or run the example, and four counters"></td>
+<td width="50%"><img src="docs/images/web_result.png" alt="A finished prediction on the website: the binding strength of -9.04 kcal/mol in large type, what it means, the ranked poses, and the peptide shown in 3D inside its search box"></td>
+</tr>
+</table>
+
+Start it from the command line:
+
+```bash
+conda activate score-env
+hybridock-pep serve                 # opens http://127.0.0.1:8000 in your browser
+hybridock-pep serve --port 9000     # pick a port
+hybridock-pep serve --no-browser    # on a server or in WSL2: just print the address
+```
+
+Or skip the command: `./launch_web.sh` finds the environment for you, so there is nothing to activate (on macOS
+double-click `HybriDock-Pep.command`, on Windows double-click `launch_web.bat`). Close the window or press Ctrl-C to stop it.
+
+| Flag | What it does |
+|---|---|
+| `--port PORT` | port to listen on (default `8000`; if it is busy, the next free one, up to 20 higher, is used and printed) |
+| `--host ADDR` | interface to bind (default `127.0.0.1`, this machine only — nobody else on your network can reach it) |
+| `--no-browser` | don't open a browser tab |
+
+A **Guided / Expert** switch in the top bar trades plain-language steps for coordinates, every advanced setting and the exact
+command, so anything you set up there can be reproduced in a terminal. Runs are saved under `runs/studio/`, one runs at a
+time, and you can close the tab and come back: the run keeps going. To use it from another computer, forward the port:
+`ssh -L 8000:127.0.0.1:8000 you@that-machine`.
+
+No install yet? Try the **[demo site](https://tasty-ramen2010.github.io/hybridock-pep/)** (simulated results, clearly labelled), or run
+the real thing in [Google Colab](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
+with nothing to install. The full walk-through, every setting and the troubleshooting table are in the **[guide](docs/GUIDE.md)**.
 
 ### ARM Linux (DGX Spark, Grace, Graviton, Ampere)
 

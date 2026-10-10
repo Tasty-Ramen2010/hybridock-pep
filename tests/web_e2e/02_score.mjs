@@ -1,5 +1,6 @@
-import { browser, newPage, check, finish, shot, scratch, BASE, MDM2, POSE, HLDH, sleep } from './lib.mjs';
+import { browser, newPage, check, finish, shot, scratch, BASE, MDM2, POSE, HLDH, sleep, waitServerIdle } from './lib.mjs';
 import fs from 'node:fs';
+await waitServerIdle();
 const b = await browser(); const p = await newPage(b);
 async function openScore() { await p.goto(`${BASE}/#/score`); await p.waitForSelector('.drop'); }
 async function fillScore({ protein = MDM2, pose = POSE, pep = 'ETFSDLWKLLPE' } = {}) {

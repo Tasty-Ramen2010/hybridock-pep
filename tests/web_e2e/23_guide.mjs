@@ -17,16 +17,16 @@ check('the guide has its main sections (at least 12)', heads >= 12, `${heads} se
 // ---- contents ----
 const tocLinks = await p.locator('.guide-toc a[data-toc]').count();
 check('every section is in the table of contents', tocLinks >= heads, `${tocLinks} entries for ${heads} sections`);
-await p.locator('.guide-toc a', { hasText: 'Troubleshooting' }).first().click(); await sleep(900);
-const inView = await p.evaluate(() => { const r = document.getElementById('troubleshooting').getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight * 0.5; });
-check('a contents entry scrolls to its section', inView, '');
+await p.locator('.guide-toc a', { hasText: 'Troubleshooting' }).first().click();
+const atTop = (id) => p.waitForFunction((x) => { const r = document.getElementById(x).getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight * 0.5; }, id, { timeout: 8000 }).then(() => true, () => false); // a long smooth scroll takes a moment
+check('a contents entry scrolls to its section', await atTop('troubleshooting'), '');
 check('and updates the address so it can be shared', /#\/guide\/troubleshooting$/.test(p.url()), p.url());
 await sleep(500);
 check('the contents marks the section being read', (await p.locator('.guide-toc a[aria-current="true"]').count()) === 1, '');
 
 // ---- deep links ----
-await p.goto(BASE + '/#/guide/faq'); await p.waitForSelector('.guide-body h2'); await sleep(900);
-check('a deep link opens at that section', await p.evaluate(() => { const r = document.getElementById('faq').getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight * 0.5; }), '');
+await p.goto(BASE + '/#/guide/faq'); await p.waitForSelector('.guide-body h2'); await sleep(1500); // (screenshots load lazily above it: the page must not drift)
+check('a deep link opens at that section, and stays there while images load', await atTop('faq'), '');
 await p.goto(BASE + '/#/guide/no-such-section'); await p.waitForSelector('.guide-body h2');
 check('an unknown section still shows the guide (from the top)', (await p.locator('.guide-body h1').count()) === 1, '');
 
@@ -58,7 +58,8 @@ check(`all ${total} screenshots load`, total >= 10 && broken.length === 0, broke
 check('every screenshot has a caption', (await p.locator('.guide-body figure figcaption').count()) === total, '');
 
 // ---- no stray markup from the text ----
-check('no raw Markdown marks leak onto the page', !/\*\*|\]\(|^#{1,3} /m.test(await p.locator('.guide-body').innerText()), '');
+const prose = await p.locator('.guide-body').evaluate((el) => [...el.querySelectorAll('p, li, td, th, h1, h2, h3, h4, figcaption')].map((n) => n.innerText).join('\n'));
+check('no raw Markdown marks leak into the text (code samples excluded)', !/\*\*|\]\(|^#{1,3} /m.test(prose), '');
 await shot(p, '23-guide');
 check('no uncaught page errors', p.diag.pageErrors.length === 0, p.diag.pageErrors.slice(0, 2).join('|'));
 

@@ -70,4 +70,7 @@ check('the app is still alive and rendering afterwards', alive, `${((Date.now() 
 // stop any run the monkey started, so the AGX is idle again
 await p.goto(BASE + '/#/'); await sleep(500);
 const h2 = await heapMB(); check('heap after the monkey is sane', h2 < 250, `${h2.toFixed(1)} MB`);
+// the monkey may have started real runs: stop the one still going (through the UI, as a person would) so it cannot block the next suite
+const pillNow = p.locator('.topbar button', { hasText: 'Run in progress' }).filter({ visible: true });
+if (await pillNow.count()) { await pillNow.click().catch(() => {}); await p.getByRole('button', { name: 'Stop' }).click({ timeout: 5000 }).catch(() => {}); await sleep(1500); }
 await b.close(); finish('06_monkey');
