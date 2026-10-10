@@ -1,6 +1,7 @@
-import { browser, newPage, check, finish, BASE, MDM2, POSE, OUT, sleep } from './lib.mjs';
+import { browser, newPage, check, finish, BASE, MDM2, POSE, OUT, sleep, waitServerIdle } from './lib.mjs';
 import fs from 'node:fs';
 const AXE = fs.readFileSync(new URL('./node_modules/axe-core/axe.min.js', import.meta.url), 'utf8');
+await waitServerIdle();
 const b = await browser();
 const all = [];
 async function audit(p, label) {

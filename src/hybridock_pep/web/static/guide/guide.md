@@ -271,7 +271,7 @@ Open **Compare**. Use it to ask: **does my peptide prefer one protein over anoth
 
 Why comparing is more trustworthy: error that both proteins share, such as a peptide the scorer tends to flatter, cancels out in the difference. Below about **1 kcal/mol** the result is a direction, not a measurement.
 
-> **Run it more than once.** Sampling is random, and a Quick comparison can swing. In our own testing the same Quick comparison of one peptide against two related enzymes gave −1.07 once and +2.58 on a repeat. Treat a Quick comparison as a first look, then confirm with **Full**, and trust a result that repeats.
+> **Run it more than once.** Sampling is random, and a Quick comparison can swing. In our own testing the same Quick comparison of one peptide against two related enzymes gave −1.07, +2.58 and +1.99 on three runs (the screenshot above is one of them). Treat a Quick comparison as a first look, then confirm with **Full**, and trust a result that repeats.
 
 ## Score a structure {#score}
 

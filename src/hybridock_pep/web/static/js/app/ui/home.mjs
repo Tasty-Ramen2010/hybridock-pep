@@ -67,8 +67,7 @@ export function mountHome(ctx) {
     thorough: 'quick', expert: { ...EXPERT_DEFAULTS },
   });
   const firstRun = () => (firstRunPending(adapter.env) ? ' The first prediction on this computer also downloads about 2.5 GB of model files, once.' : '');
-  const timeNote = h('p', { class: 'small muted' }, live ? `A real quick run (25 poses).${firstRun()}` : 'Takes about 7 seconds in demo mode.',
-    live ? null : [' ', h('a', { class: 'tap', href: '#/guide/get-started' }, 'Run it for real'), '.']);
+  const timeNote = h('p', { class: 'small muted' }, live ? `A real quick run (25 poses).${firstRun()}` : 'Takes about 7 seconds in demo mode.');
 
   let exEstimate = null;
   function runExample() {
@@ -85,7 +84,7 @@ export function mountHome(ctx) {
 
   const exNote = live && backendEx
     ? h('p', { class: 'small muted' }, h('span', { class: 'chip' }, 'Known binder'), ' ', h('b', {}, backendEx.name), ' with the peptide ', h('span', { class: 'mono pep' }, exPeptide), '. ', backendEx.blurb, backendEx.expect ? ` Expect around ${backendEx.expect.replace(/^around\s+/i, '')}.` : '')
-    : h('p', { class: 'small muted' }, h('span', { class: 'badge-demo' }, 'Demo'), ' ', 'The peptide ', h('span', { class: 'mono pep' }, EXAMPLE.peptide), ' docked against the Tau VQIVYK stretch, a piece of the protein that clumps in Alzheimer’s disease. Everything on this page is a simulation.');
+    : h('p', { class: 'small muted' }, h('span', { class: 'badge-demo' }, 'Demo'), ' ', 'The peptide ', h('span', { class: 'mono pep' }, EXAMPLE.peptide), ' docked against the Tau VQIVYK stretch, a piece of the protein that clumps in Alzheimer’s disease.');
 
   // A live server that is missing something: say exactly what and how to fix it, instead of letting the first run fail.
   const MISSING = ['cli', 'vina', 'receptor_prep', 'scorer'];
@@ -94,6 +93,11 @@ export function mountHome(ctx) {
     h('b', {}, 'Setup isn’t finished on this computer.'),
     h('ul', {}, broken.map(([, c]) => h('li', {}, c.detail, ' is missing. Fix: ', h('code', { class: 'mono' }, c.fix)))),
     h('a', { class: 'tap', href: '#/guide/troubleshooting' }, 'Open the install guide')) : null;
+
+  // On the public demo site (no app behind it): say so plainly, and show the way to the real thing.
+  const demoNotice = live ? null : h('div', { class: 'notice', role: 'note' },
+    h('b', {}, 'This is a demo. '), 'Every result here is simulated. To run real predictions on your own computer, or in Google Colab with nothing to install, ',
+    h('a', { class: 'tap', href: '#/guide/get-started' }, 'start with the guide'), '.');
 
   const el = h('section', { class: 'screen home', 'aria-labelledby': 'greeting' },
     h('article', { class: 'hero-card' },
@@ -104,6 +108,7 @@ export function mountHome(ctx) {
           h('button', { class: 'btn primary lg', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, 'New prediction'),
           h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, 'Run example', icon('chevron', 16))),
         setupNotice,
+        demoNotice,
         exNote,
         timeNote),
       h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),

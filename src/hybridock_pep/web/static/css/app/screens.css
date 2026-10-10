@@ -132,6 +132,7 @@
 .two-dg .target-card { box-shadow: 0 0 0 1.5px var(--accent-line) inset; }
 
 /* ================= Compare ================= */
+.screen > .note { margin-bottom: 20px; max-width: 60ch; }
 .page-head { display: flex; flex-direction: column; gap: 12px; margin-bottom: clamp(24px, 4vw, 40px); }
 .page-head h1 { letter-spacing: -0.035em; }
 .page-head .lede { max-width: 40ch; }
@@ -206,7 +207,7 @@
 .guide-body code { font-size: 0.88em; background: var(--field); padding: 1px 6px; border-radius: 6px; word-break: break-word; }
 .guide-body .cmd code { background: none; padding: 0; }
 .guide-body figure { margin: 24px 0; }
-.guide-body figure img { display: block; width: 100%; height: auto; border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--line); }
+.guide-body figure img { display: block; width: 100%; height: auto; aspect-ratio: 1100 / 820; /* every screenshot is captured at this size: reserve the space so lazy loading never shifts the page */ border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--line); }
 .guide-body figcaption { margin-top: 8px; font-size: 14px; color: var(--ink-3); }
 .guide-body hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
 .callout { padding: 14px 18px; border-radius: var(--r-md); background: var(--group); font-size: 16px; line-height: 1.5; }
