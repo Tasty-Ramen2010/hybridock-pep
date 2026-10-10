@@ -2,7 +2,8 @@
 
 These drive the real UI in a real browser (Playwright / Chromium) against a running server, the way a person would:
 they click, type, upload files and read what is on the screen. They do **not** call the API directly. They are not part
-of the Python test suite (`pytest`) or the CI; run them by hand against any server.
+of the Python test suite (`pytest`). The fast ones (01 02 04 06 07 08 10 11 14 20 21 22) run in CI (`.github/workflows/web.yml`) against a live
+server and against the static demo site; the long ones that run real dockings are run by hand against any server.
 
 ```bash
 cd tests/web_e2e

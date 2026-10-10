@@ -1,0 +1,123 @@
+name: Web UI
+
+# The browser UI, tested the way a person uses it: a real server, a real Chromium, clicks and typing only.
+#
+#   - `logic`  : bundle freshness, the JS unit tests and the web server's Python tests.
+#   - `live`   : `hybridock-pep serve` on a plain pip install (Score is real; Dock is checked to fail politely
+#                because the sampling engine is not installed on a CI runner) + the fast browser suites.
+#   - `demo`   : the static Pages copy (simulated results, labelled Demo) + the suites that work without a backend.
+#
+# The long suites that run real dockings (03 example, 05 contention, 12/13, 30-32) need the sampling engine and
+# tens of minutes per run; they are run by hand (see tests/web_e2e/README.md).
+
+on:
+  push:
+    branches: [master]
+    paths: ["src/hybridock_pep/web/**", "tests/web_e2e/**", "tests/web_js/**", "scripts/build_web.py", "scripts/build_pages.py", ".github/workflows/web.yml"]
+  pull_request:
+    branches: [master]
+    paths: ["src/hybridock_pep/web/**", "tests/web_e2e/**", "tests/web_js/**", "scripts/build_web.py", "scripts/build_pages.py", ".github/workflows/web.yml"]
+  workflow_dispatch: {}
+
+jobs:
+  logic:
+    name: Bundle, JS and server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: The built bundle matches its sources
+        run: python scripts/build_web.py --check
+      - name: JS unit tests
+        run: node --test tests/web_js/*.test.mjs
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Web server and UI tests
+        run: pytest -q tests/test_web_server.py tests/test_web_ui.py
+
+  live:
+    name: Browser suites against a live server
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Install Playwright and Chromium
+        working-directory: tests/web_e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start the server
+        run: |
+          mkdir -p "$RUNNER_TEMP/serve" && cd "$RUNNER_TEMP/serve"
+          HYBRIDOCK_VINA_WORKERS=1 nohup hybridock-pep serve --no-browser --port 8000 > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/api/env > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:8000/api/env
+      - name: Browser suites (smoke, score, setup, history, accessibility, keyboard and phone, controls, uploads)
+        working-directory: tests/web_e2e
+        env:
+          BASE: http://127.0.0.1:8000
+          E2E_OUT: ${{ runner.temp }}/e2e
+        run: node run_all.mjs 01 02 04 06 07 08_ 10 11 14 20 21 22
+      - name: Server log and screenshots on failure
+        if: failure()
+        run: tail -n 80 "$RUNNER_TEMP/serve.log" || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-live-shots
+          path: ${{ runner.temp }}/e2e
+          if-no-files-found: ignore
+
+  demo:
+    name: Browser suites against the static demo site
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build the static site
+        run: python scripts/build_pages.py --out "$RUNNER_TEMP/site"
+      - name: Install Playwright and Chromium
+        working-directory: tests/web_e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Serve the site
+        run: |
+          cd "$RUNNER_TEMP/site"
+          nohup python -m http.server 8010 > "$RUNNER_TEMP/site.log" 2>&1 &
+          for i in $(seq 1 15); do curl -sf http://127.0.0.1:8010/ > /dev/null && break; sleep 1; done
+      - name: Browser suites (demo runs, top bar, controls, accessibility, keyboard and phone)
+        working-directory: tests/web_e2e
+        env:
+          BASE: http://127.0.0.1:8010
+          E2E_OUT: ${{ runner.temp }}/e2e
+        run: node run_all.mjs 06 07 11 14 20 21 22
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-demo-shots
+          path: ${{ runner.temp }}/e2e
+          if-no-files-found: ignore

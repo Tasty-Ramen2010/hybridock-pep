@@ -1,0 +1,32 @@
+name: Publish the demo site
+
+# Rebuilds the free, demo-only copy of the web UI and force-pushes it to the `gh-pages` branch
+# (the same thing scripts/publish_pages.sh does by hand). The site is simulated and labelled Demo.
+
+on:
+  push:
+    branches: [master]
+    paths: ["src/hybridock_pep/web/**", "scripts/build_pages.py", "scripts/build_web.py", "scripts/publish_pages.sh"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build and push to gh-pages
+        env:
+          PAGES_REMOTE_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: bash scripts/publish_pages.sh
