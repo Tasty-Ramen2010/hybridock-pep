@@ -694,7 +694,7 @@ def test_an_intel_mac_and_a_plain_linux_box_have_no_gpu(monkeypatch):
 
 
 def test_an_nvidia_card_wins_and_amd_or_intel_are_recognised_by_their_tools(monkeypatch):
-    monkeypatch.setattr(server.Path, "exists", lambda self: str(self) == "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(server.Path, "exists", lambda self: self.as_posix() == "/usr/bin/nvidia-smi")
     monkeypatch.setattr(server, "_run_text", lambda cmd, timeout=6: "NVIDIA RTX 5070\n" if "nvidia" in cmd[0] else "")
     assert server._detect_accelerator(lambda n: "/usr/bin/nvidia-smi" if n == "nvidia-smi" else None, os_name="linux", machine="x86_64") == ("cuda", "NVIDIA RTX 5070")
     monkeypatch.setattr(server.Path, "exists", lambda self: False)
