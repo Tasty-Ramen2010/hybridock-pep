@@ -144,7 +144,7 @@ const mockAdapter = {
     const poses = demoPoses(job, structure, center, headline, Math.min(20, job.poses));
     return {
       id: newId('run'), kind: 'dock', demo: true, createdAt: new Date().toISOString(),
-      name: `${job.peptide} → ${job.protein.name}`,
+      name: `${job.peptide} on ${job.protein.name}`,
       protein: job.protein, peptide: job.peptide,
       site: { x: round1(center[0]), y: round1(center[1]), z: round1(center[2]) }, box: job.box, blind: !!job.blind,
       nPoses: job.poses, deltaG: headline, poses,
@@ -440,7 +440,7 @@ function dockResult(job, jobId, snap, res) {
   }
   return {
     id: `run_${jobId}`, kind: 'dock', demo: false, createdAt: new Date().toISOString(),
-    name: `${job.peptide} → ${job.protein.name}`, protein: job.protein, peptide: job.peptide,
+    name: `${job.peptide} on ${job.protein.name}`, protein: job.protein, peptide: job.peptide,
     site: job.site, box: job.box, blind: !!job.blind, nPoses: job.poses, deltaG: headline, poses,
     command: snap.command, outputDir: snap.output_dir, jobId, files: res.files || [], job: stripJob(job),
   };

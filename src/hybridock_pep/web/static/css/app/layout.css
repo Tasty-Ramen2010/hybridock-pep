@@ -1,51 +1,90 @@
-/* layout.css — top bar, screen container, and the two-column "stage + panel" grid. */
+/* layout.css — the navigation bar, the screen container, and the "3D view + content" split. */
 
-/* The top bar is a thin material: content scrolls under it and stays faintly visible. */
+/* ---- the navigation bar: a thin translucent material, like apple.com's. A hairline appears once you scroll. ---- */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  display: flex; align-items: center; gap: 8px;
-  min-height: 52px; padding: 6px var(--gutter);
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
+  height: var(--nav-h); padding: 0 var(--gutter);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-med) var(--ease);
 }
+.topbar.scrolled { border-bottom-color: var(--line); }
 .brand {
-  display: inline-flex; align-items: center; gap: 8px; margin-right: auto;
-  font: 600 17px/1 var(--font-sans); letter-spacing: -0.012em; color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; padding: 6px 8px; border-radius: var(--r-md);
+  justify-self: start; display: inline-flex; align-items: center; gap: 8px;
+  font: 600 17px/1 var(--font-sans); letter-spacing: -0.02em; color: var(--ink);
+  background: none; border: 0; cursor: pointer; padding: 8px 4px; margin-left: -4px; border-radius: 8px;
 }
-.brand svg { color: var(--accent); }
-.topbar-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-/* Plain buttons in the bar: no outline, just a label that lights up on hover (like a macOS toolbar). */
-.topbar .btn:not(.primary) { background: transparent; border-color: transparent; color: var(--ink-2); }
+.brand svg { color: var(--ink); }
+.nav-links { display: flex; align-items: center; gap: clamp(4px, 2vw, 28px); }
+.nav-links a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 10px; font-size: 14px; font-weight: 400; letter-spacing: -0.01em; color: var(--ink-3); border-radius: 8px; text-decoration: none; transition: color var(--t-fast) var(--ease); }
+.nav-links a:hover { color: var(--ink); text-decoration: none; }
+.nav-links a[aria-current='page'] { color: var(--ink); font-weight: 500; }
+.topbar-actions { justify-self: end; display: flex; align-items: center; gap: 4px; }
+.topbar .btn:not(.primary) { background: transparent; color: var(--ink-2); }
 .topbar .btn:not(.primary):hover { background: var(--field); color: var(--ink); }
+.topbar .seg { margin-right: 6px; }
+.topbar .chip { background: none; padding: 4px 8px; font-size: 13px; color: var(--ink-3); }
+.topbar button.chip:hover { background: var(--field); color: var(--ink); }
+
+/* phones and small tablets: the three destinations move to a tab bar at the bottom, like an iPhone app */
+.tabbar { display: none; }
+@media (max-width: 900px) {
+  .topbar { grid-template-columns: 1fr auto; }
+  .topbar .nav-links { display: none; }
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; justify-content: space-around;
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--line);
+  }
+  .tabbar a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 48px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--ink-3); text-decoration: none; border-radius: 10px; }
+  .tabbar a[aria-current='page'] { color: var(--accent); }
+  .tabbar a svg { width: 24px; height: 24px; }
+  #main { padding-bottom: 72px; }
+}
 
 .screen {
   width: min(100%, var(--maxw));
   margin: 0 auto;
-  padding: clamp(18px, 3vw, 34px) var(--gutter) 64px;
+  padding: clamp(24px, 4vw, 48px) var(--gutter) 80px;
   animation: screen-in var(--t-med) var(--ease) both;
 }
 @keyframes screen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* Setup / Results: the model on the left, a material panel on the right.
-   On narrow screens the panel moves BELOW the 3D view. */
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 430px); gap: clamp(16px, 3vw, 36px); align-items: start; }
+/* Setup / Results: the model stays put on the left while the content scrolls on the right (like apple.com's buy flow).
+   On narrow screens the content moves BELOW the 3D view. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); gap: clamp(24px, 5vw, 72px); align-items: start; }
 .stage-slot { position: relative; min-height: clamp(380px, 62vh, 640px); pointer-events: none; }
-.stage-slot .legend { position: absolute; left: 4px; bottom: 6px; display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
-.stage-slot .hint { position: absolute; left: 4px; top: 4px; font-size: 13px; color: var(--ink-2); max-width: 36ch; }
+.split > .stage-slot { position: sticky; top: calc(var(--nav-h) + 24px); height: calc(100vh - var(--nav-h) - 72px); min-height: 420px; max-height: 680px; }
+.stage-slot .legend { position: absolute; left: 0; bottom: 0; display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--ink-3); }
+.stage-slot .hint { position: absolute; left: 0; top: 0; font-size: 14px; color: var(--ink-3); max-width: 36ch; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .dot.protein { background: var(--protein); }
 .dot.peptide { background: var(--peptide); }
 .dot.box { background: transparent; border: 2px solid var(--accent); border-radius: 3px; }
 
 @media (max-width: 900px) {
-  .split { grid-template-columns: minmax(0, 1fr); }
-  .stage-slot { min-height: clamp(260px, 42vh, 420px); }
+  .split { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .stage-slot, .split > .stage-slot { position: relative; top: auto; height: auto; min-height: clamp(260px, 42vh, 420px); max-height: none; }
 }
 
-@media (max-width: 720px) {
-  .topbar { position: static; flex-wrap: wrap; row-gap: 6px; padding-block: 6px; } /* a two-row bar scrolls away on a phone */
-  .topbar .btn .label { display: none; }
+/* a phone: a short bar (name, detail level, status dot, avatar); History and Help move into the avatar menu */
+.menu-links { display: none; }
+@media (max-width: 640px) {
+  .topbar { gap: 8px; }
+  .brand { font-size: 16px; white-space: nowrap; }
+  .topbar .bar-only { display: none; }
+  .topbar .badge-demo { font-size: 0; } /* "Demo mode" is shortened to "Demo" on a phone; the full words stay for screen readers */
+  .topbar .badge-demo::before { content: 'Demo'; font-size: 12px; }
+  .topbar .chip-text { display: none; }
+  .topbar .chip { padding: 4px; }
+  .topbar .seg { margin-right: 0; }
+  .menu-links { display: flex; gap: 8px; }
+  .menu-links .btn { flex: 1; }
 }
+@media (max-width: 520px) { .brand { font-size: 0; gap: 0; } .brand svg { width: 28px; height: 28px; } }
 
-@media (pointer: coarse) { .brand { min-height: 44px; } }
+@media (pointer: coarse) { :root { --nav-h: 56px; } .brand { min-height: 44px; min-width: 44px; justify-content: center; } .nav-links a { min-height: 44px; } }

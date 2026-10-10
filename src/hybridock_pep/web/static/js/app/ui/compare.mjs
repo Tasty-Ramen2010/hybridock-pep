@@ -58,7 +58,7 @@ export function mountCompare(ctx) {
   }
 
   // ---- main view --------------------------------------------------------------------------------
-  const runBtn = h('button', { class: 'btn primary', type: 'button', onClick: run }, 'Compare', icon('arrow', 16));
+  const runBtn = h('button', { class: 'btn primary', type: 'button', onClick: run }, 'Compare');
   const runMsg = h('p', { class: 'small muted' });
   const pepMsg = h('div', { class: 'msg empty', role: 'status' });
   let cards = {};
@@ -155,13 +155,12 @@ export function mountCompare(ctx) {
     el.replaceChildren(
       h('div', { class: 'page-head' },
         h('h1', {}, 'Compare two proteins'),
-        h('p', { class: 'lede' }, 'Does your peptide prefer one protein over another? Give it a target and a look-alike, and we’ll tell you.'),
-        h('span', { class: 'tech' }, 'Selectivity, ΔΔG')),
+        h('p', { class: 'lede' }, 'Does your peptide prefer one protein over another? Give it a target and a look-alike, and we’ll tell you.')),
       h('div', { class: 'note guided-only' }, icon('info', 18), h('div', {}, h('b', {}, 'Why compare? '), 'Comparing two proteins is more trustworthy than a single number, because error they share cancels out.')),
-      h('div', { class: 'card panel', style: { marginTop: '14px' } },
+      h('div', { class: 'panel compare-pep' },
         h('label', { class: 'field-label', for: 'cmp-pep' }, 'Peptide', h('span', { class: 'tech' }, 'Amino acid sequence')), pepInput(), pepMsg),
       h('div', { class: 'vs-grid' }, cards.target.el, slot, cards.offTarget.el),
-      h('div', { class: 'card panel', style: { maxWidth: '520px', margin: '0 auto 18px' } },
+      h('div', { class: 'panel compare-pep', style: { margin: '0 auto 24px' } },
         h('span', { class: 'field-label', style: { margin: 0 } }, 'How thorough? ', h('span', { class: 'tech' }, 'Number of poses per protein; a comparison runs both')),
         h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How thorough?' },
           THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(C().thorough === t.id),
@@ -247,7 +246,7 @@ export function compareResultView(ctx, result, host, isAlive) {
     }).catch(() => toast('The protein file isn’t stored in History, so the 3D view is empty.', 6000));
   }
 
-  const dgCard = (label, side, cls) => h('div', { class: `card ${cls}` }, h('span', { class: 'small muted' }, label), h('div', { class: 'v nums' }, fmt(side.deltaG)), h('span', { class: 'small muted' }, `${side.protein.name} · kcal/mol`));
+  const dgCard = (label, side, cls) => h('div', { class: `card ${cls}` }, h('span', { class: 'small muted' }, label), h('div', { class: 'v nums' }, fmt(side.deltaG)), h('span', { class: 'small muted' }, `${side.protein.name}, kcal/mol`));
 
   const panel = h('aside', { class: 'glass panel', 'aria-label': 'Comparison result' },
     h('h1', { class: 'visually-hidden', tabindex: '-1' }, `Result: ${result.name}`),
@@ -271,7 +270,7 @@ export function compareResultView(ctx, result, host, isAlive) {
 
   host.replaceChildren(
     h('div', { class: 'row', style: { marginBottom: '14px', justifyContent: 'space-between' } },
-      h('div', { class: 'row' }, h('button', { class: 'btn ghost sm', type: 'button', onClick: () => go('/') }, icon('back', 15), 'Home'), h('span', { class: 'mono muted small' }, result.name)),
+      h('div', { class: 'row' }, h('button', { class: 'btn ghost sm', type: 'button', onClick: () => go('/') }, icon('chevronL', 15), 'Home'), h('span', { class: 'mono muted small' }, result.name)),
       h('div', { class: 'seg', role: 'group', 'aria-label': 'Which protein to show in 3D' }, tabs)),
     h('div', { class: 'split' }, slot, panel));
   stage.setSlot(slot);

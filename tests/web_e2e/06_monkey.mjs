@@ -1,4 +1,4 @@
-import { browser, newPage, check, finish, shot, BASE, sleep } from './lib.mjs';
+import { browser, newPage, check, finish, shot, BASE, sleep, flipTheme, openMenu } from './lib.mjs';
 const b = await browser();
 const p = await newPage(b);
 const cdp = await p.context().newCDPSession(p);
@@ -19,10 +19,10 @@ check('400 route changes: no page errors', p.diag.pageErrors.length === 0, p.dia
 // ---- 2. 200 flips of theme / guided-expert / accent ----
 await p.goto(BASE + '/#/'); await p.waitForSelector('.hero-card');
 for (let i = 0; i < 100; i++) {
-  await p.getByRole('button', { name: /Switch to (dark|light) mode/ }).click();
+  await flipTheme(p);
   await p.getByRole('button', { name: i % 2 ? 'Guided' : 'Expert' }).click();
 }
-await p.getByRole('button', { name: 'Accent colour' }).click();
+await openMenu(p);
 const sw = p.locator('.swatch'); const n = await sw.count();
 for (let i = 0; i < 40; i++) await sw.nth(i % n).click();
 check('200 theme/mode/accent flips: still responsive, no page errors', p.diag.pageErrors.length === 0 && (await p.locator('.hero-card').count()) === 1, p.diag.pageErrors.slice(0, 2).join('|'));

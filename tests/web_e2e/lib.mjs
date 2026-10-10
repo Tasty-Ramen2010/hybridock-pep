@@ -25,6 +25,18 @@ export function check(name, ok, detail = '') {
 }
 export async function browser() { return chromium.launch(); }
 
+/** Open the avatar menu (appearance, accent colour, your name) if it is closed. */
+export async function openMenu(p) {
+  const a = p.locator('.avatar');
+  if ((await a.getAttribute('aria-expanded')) !== 'true') await a.click();
+}
+/** Switch light <-> dark through the avatar menu, the way a person does. */
+export async function flipTheme(p) {
+  await openMenu(p);
+  const dark = (await p.evaluate(() => document.documentElement.dataset.theme)) === 'dark';
+  await p.getByRole('button', { name: dark ? 'Light appearance' : 'Dark appearance' }).click();
+}
+
 /** A page that records console errors, page errors, 5xx responses and 404s. */
 export async function newPage(b, opts = {}) {
   const ctx = await b.newContext({ viewport: { width: 1360, height: 880 }, acceptDownloads: true, ...opts });

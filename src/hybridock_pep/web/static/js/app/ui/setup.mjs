@@ -63,6 +63,7 @@ export function mountSetup(ctx) {
     renderSteps();
     renderPanel();
     applyStage();
+    scrollTo({ top: 0 }); // each step starts at the top, so its title is never hidden under the nav bar
     panel.querySelector('h1')?.focus({ preventScroll: true });
   }
 
@@ -125,18 +126,19 @@ export function mountSetup(ctx) {
     const list = h('div', { class: 'pick-list', role: 'radiogroup', 'aria-label': 'Proteins' });
     const file = h('input', { type: 'file', accept: '.pdb,.ent,.txt', hidden: true, onChange: onUpload });
 
-    function row(ref, sub) {
+    function row(ref, about, id) {
       const on = S().proteinRef && (S().proteinRef.id || S().proteinRef.key) === (ref.id || ref.key);
       return h('button', { class: 'pick', type: 'button', role: 'radio', 'aria-checked': String(!!on), onClick: () => { selectProtein(ref); renderList(); } },
-        h('span', {}, ref.name, h('small', {}, sub)), on && icon('check', 18));
+        h('span', { class: 'pick-main' }, ref.name, h('small', {}, about)),
+        h('span', { class: 'pick-meta' }, h('span', { class: 'mono' }, id), on && icon('check', 18)));
     }
     function renderList() {
       const q = search.value.trim().toLowerCase();
       const rows = proteins
         .filter((p) => !q || `${p.name} ${p.pdb} ${p.about}`.toLowerCase().includes(q))
-        .map((p) => row(p, [h('span', { class: 'mono' }, `PDB ${p.pdb}`), ` · ${p.about}`]));
+        .map((p) => row(p, p.about, `PDB ${p.pdb}`));
       const cur = S().proteinRef;
-      if (cur && !cur.key && !q) rows.unshift(row(cur, [h('span', { class: 'mono' }, cur.pdb ? `PDB ${cur.pdb}` : 'Your file'), ' · loaded']));
+      if (cur && !cur.key && !q) rows.unshift(row(cur, 'Loaded', cur.pdb ? `PDB ${cur.pdb}` : 'Your file'));
       if (/^[0-9][a-z0-9]{3}$/i.test(q) && !proteins.some((p) => p.pdb.toLowerCase() === q)) {
         rows.push(h('button', { class: 'pick', type: 'button', onClick: async () => {
           try { const ref = await fetchFromRCSB(q); selectProtein(ref); search.value = ''; renderList(); toast(`Loaded ${ref.name} from the Protein Data Bank.`); }
@@ -186,8 +188,8 @@ export function mountSetup(ctx) {
       if (v.ok) {
         const st = peptideStats(v.seq);
         const long = v.seq.length >= Number(S().expert.longCheckpointThreshold);
-        stats.replaceChildren(`${st.length} amino acids · about ${Math.round(st.mass).toLocaleString()} Da · net charge ${st.charge > 0 ? '+' : st.charge < 0 ? '−' : ''}${Math.abs(st.charge)}`,
-          h('span', { class: 'expert-only' }, long ? (longModelAvailable(adapter.env) ? ' · uses the long-peptide model' : ' · the long-peptide model isn’t installed here, so the standard model is used') : ''));
+        stats.replaceChildren(`${st.length} amino acids, about ${Math.round(st.mass).toLocaleString()} Da, net charge ${st.charge > 0 ? '+' : st.charge < 0 ? '−' : ''}${Math.abs(st.charge)}`,
+          h('span', { class: 'expert-only' }, long ? (longModelAvailable(adapter.env) ? '. Uses the long-peptide model.' : '. The long-peptide model isn’t installed here, so the standard model is used.') : ''));
         stage.setPeptide(v.seq.length);
       } else stats.textContent = '';
       updateNav();
@@ -313,8 +315,8 @@ export function mountSetup(ctx) {
   function renderPanel() {
     const step = S().step;
     const body = [stepProtein, stepPeptide, stepSite, stepReview][step - 1]();
-    const back = step > 1 ? h('button', { class: 'btn ghost', type: 'button', onClick: () => goStep(step - 1) }, icon('back', 16), 'Back') : h('span');
-    nextBtn = h('button', { class: 'btn primary', type: 'button', onClick: () => (step === 4 ? run() : goStep(step + 1)) }, step === 4 ? 'Run prediction' : 'Continue', step === 4 ? icon('play', 16) : icon('arrow', 16));
+    const back = step > 1 ? h('button', { class: 'btn ghost', type: 'button', onClick: () => goStep(step - 1) }, icon('chevronL', 16), 'Back') : h('span');
+    nextBtn = h('button', { class: 'btn primary', type: 'button', onClick: () => (step === 4 ? run() : goStep(step + 1)) }, step === 4 ? 'Run prediction' : 'Continue');
     panel.replaceChildren(...body, h('div', { class: 'panel-foot' }, back, nextBtn));
     updateNav();
     picker.setExpertOpen(store.get().mode === 'expert');

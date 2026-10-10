@@ -1,6 +1,6 @@
 // Every control in the top bar, on Home and in the Help / History dialogs, clicked the way a person would.
 // No run is started here. Runs against any server (live or demo).
-import { browser, newPage, check, finish, shot, BASE, sleep } from './lib.mjs';
+import { browser, newPage, check, finish, shot, BASE, sleep, openMenu, flipTheme } from './lib.mjs';
 
 const b = await browser();
 const p = await newPage(b);
@@ -46,8 +46,7 @@ if (hasChip) {
 }
 
 // ---------------------------------------------------------------- accent colours
-const accentBtn = p.getByRole('button', { name: 'Accent colour' });
-await accentBtn.click();
+await openMenu(p);
 const swatches = p.locator('.swatch'); const nSw = await swatches.count();
 check('four accent swatches', nSw === 4, String(nSw));
 const seen = new Set();
@@ -61,31 +60,31 @@ for (let i = 0; i < nSw; i++) {
 check('the four accents are four different colours', seen.size === 4, [...seen].join(' '));
 await p.reload(); await p.waitForSelector('.hero-card');
 check('the chosen accent survives a reload', (await rootVar('--accent')) === [...seen][3], await rootVar('--accent'));
-// back to teal
-await accentBtn.click(); await swatches.nth(0).click(); await p.keyboard.press('Escape');
+// back to the default blue
+await openMenu(p); await swatches.nth(0).click(); await p.keyboard.press('Escape');
 
 // ---------------------------------------------------------------- theme
-const themeBtn = p.getByRole('button', { name: /Switch to (dark|light) mode/ });
 const t0 = await p.evaluate(() => document.documentElement.dataset.theme);
-await themeBtn.click(); const t1 = await p.evaluate(() => document.documentElement.dataset.theme);
+await flipTheme(p); const t1 = await p.evaluate(() => document.documentElement.dataset.theme);
 check('theme toggle flips light/dark', t0 !== t1, `${t0} -> ${t1}`);
 await sleep(600); // the background colour eases between themes: read it once the transition has finished
-const bgA = await css('body', 'backgroundColor'); await themeBtn.click(); await sleep(600); const bgB = await css('body', 'backgroundColor');
+const bgA = await css('body', 'backgroundColor'); await flipTheme(p); await sleep(600); const bgB = await css('body', 'backgroundColor');
 check('the page background really changes with the theme', bgA !== bgB, `${bgA} vs ${bgB}`);
-check('the toggle label names the OTHER mode', /Switch to (dark|light) mode/.test((await themeBtn.getAttribute('aria-label')) || ''), await themeBtn.getAttribute('aria-label'));
+const pressed = await p.locator('.seg[aria-label="Appearance"] button[aria-pressed="true"]').allTextContents();
+check('exactly one of Light / Dark is marked as selected', pressed.length === 1 && /Light|Dark/.test(pressed[0]), pressed.join(','));
 
 // ---------------------------------------------------------------- name / avatar
 const avatar = p.locator('.avatar');
 check('with no name the avatar shows a person icon, not initials', (await avatar.locator('svg').count()) === 1, '');
 check('greeting has no stranger\'s name in it', !/, \w/.test((await p.locator('#greeting').textContent()) || ''), await p.locator('#greeting').textContent());
-await avatar.click();
+await openMenu(p);
 const nameField = p.locator('input[aria-label="Your name"]');
 await nameField.fill('Ada Lovelace');
 check('typing a name shows initials on the avatar', (await avatar.textContent()).trim() === 'AL', await avatar.textContent());
 check('the greeting uses the name', /Ada Lovelace/.test(await p.locator('#greeting').textContent()), await p.locator('#greeting').textContent());
 await p.reload(); await p.waitForSelector('.hero-card');
 check('the name is remembered across a reload', /Ada Lovelace/.test(await p.locator('#greeting').textContent()), '');
-await p.locator('.avatar').click(); await p.locator('input[aria-label="Your name"]').fill('');
+await openMenu(p); await p.locator('input[aria-label="Your name"]').fill('');
 check('clearing the name restores the icon and the plain greeting', (await p.locator('.avatar svg').count()) === 1 && !/Ada/.test(await p.locator('#greeting').textContent()), '');
 await p.locator('input[aria-label="Your name"]').fill('<b>x</b>');
 check('HTML in the name is shown as text, never rendered', (await p.locator('#greeting b').count()) === 0, await p.locator('#greeting').textContent());

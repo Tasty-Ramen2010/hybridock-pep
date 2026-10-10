@@ -72,7 +72,7 @@ export function mountResults(ctx) {
       h('p', { class: 'hint pose-label', 'aria-live': 'polite' }),
       h('div', { class: 'legend' }, h('span', {}, h('i', { class: 'dot protein' }), 'Protein'), h('span', {}, h('i', { class: 'dot peptide' }), 'Peptide pose')));
     const panel = h('aside', { class: 'glass panel', 'aria-label': 'Result' });
-    el.replaceChildren(h('div', { class: 'row', style: { marginBottom: '14px' } }, h('button', { class: 'btn ghost sm', type: 'button', onClick: () => go('/') }, icon('back', 15), 'Home'), h('span', { class: 'mono muted small' }, result.name)),
+    el.replaceChildren(h('div', { class: 'row', style: { marginBottom: '14px' } }, h('button', { class: 'btn ghost sm', type: 'button', onClick: () => go('/') }, icon('chevronL', 15), 'Home'), h('span', { class: 'mono muted small' }, result.name)),
       h('div', { class: 'split' }, slot, panel));
     stage.setSlot(slot); // the slot is new, so tell the stage where to float
 

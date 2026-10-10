@@ -18,12 +18,12 @@ export function mountScore(ctx) {
   const msgProtein = h('div', { class: 'msg empty', role: 'status' });
   const msgPose = h('div', { class: 'msg empty', role: 'status' });
   const pepMsg = h('div', { class: 'msg empty', role: 'status' });
-  const runBtn = h('button', { class: 'btn primary', type: 'button', onClick: run }, 'Score it', icon('arrow', 16));
+  const runBtn = h('button', { class: 'btn primary', type: 'button', onClick: run }, 'Score it');
 
   function dropZone({ title, sub, accept, onFile, current }) {
     const input = h('input', { type: 'file', accept, hidden: true, onChange: (e) => { if (e.target.files[0]) onFile(e.target.files[0]); e.target.value = ''; } });
     const zone = h('button', { class: `drop ${current ? 'has-file' : ''}`, type: 'button', onClick: () => input.click() },
-      icon('upload', 22), h('b', {}, current || title), h('span', { class: 'small muted' }, current ? 'Click to choose a different file' : sub), input);
+      icon('upload', 22), h('span', { class: 'drop-text' }, h('b', {}, current || title), h('span', { class: 'small muted' }, current ? 'Click to choose a different file' : sub)), input);
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('over'));
     zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('over'); if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]); });
@@ -77,7 +77,7 @@ export function mountScore(ctx) {
   const body = h('div', { class: 'glass panel', style: { maxWidth: '640px' } });
   const slot = h('div', { class: 'stage-slot', 'data-stage-slot': '', style: { minHeight: '260px' } });
   const el = h('section', { class: 'screen score' },
-    h('div', { class: 'page-head' }, h('h1', {}, 'Score a structure'), h('p', { class: 'lede' }, 'Already have a protein with a peptide bound to it? Upload both and get a binding strength straight away.'), h('span', { class: 'tech' }, 'Score an existing pose')),
+    h('div', { class: 'page-head' }, h('h1', {}, 'Score a structure'), h('p', { class: 'lede' }, 'Already have a protein with a peptide bound to it? Upload both and get a binding strength straight away.')),
     h('div', { class: 'split', style: { gridTemplateColumns: 'minmax(0,1fr) minmax(340px, 480px)' } }, slot, body));
 
   function render() {

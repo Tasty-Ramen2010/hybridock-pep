@@ -90,10 +90,11 @@ export const EXPERT_DEFAULTS = {
 
 /** Accent presets for the small colour control. All are far from the peptide orange. */
 export const ACCENTS = [
-  { id: 'teal', name: 'Teal', light: '#0f766e', dark: '#2dd4bf' },
-  { id: 'indigo', name: 'Indigo', light: '#4f46e5', dark: '#818cf8' },
-  { id: 'plum', name: 'Plum', light: '#9333ea', dark: '#c084fc' },
-  { id: 'forest', name: 'Forest', light: '#15803d', dark: '#4ade80' },
+  // fill: the colour of the primary button (white text on it is always >= 4.5:1); link: text links on that appearance
+  { id: 'blue', name: 'Blue', light: '#0071e3', dark: '#0071e3', linkLight: '#0066cc', linkDark: '#2997ff' },
+  { id: 'purple', name: 'Purple', light: '#8944ab', dark: '#a050c8', linkLight: '#8944ab', linkDark: '#d18bf5' },
+  { id: 'green', name: 'Green', light: '#1f7a37', dark: '#1f7a37', linkLight: '#1f7a37', linkDark: '#5fd47a' },
+  { id: 'graphite', name: 'Graphite', light: '#636366', dark: '#6e6e73', linkLight: '#636366', linkDark: '#aeaeb2' },
 ];
 
 /** Our own rough wording for ΔG. NOT backend output — the UI labels it as such. */

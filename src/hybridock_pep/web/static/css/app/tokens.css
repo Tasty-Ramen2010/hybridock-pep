@@ -1,47 +1,53 @@
 /* tokens.css — every colour, font and size lives here. Change a token, change the whole app.
 
-   Design language: Apple's Human Interface Guidelines. Content first, flat system-gray surfaces, hairline
-   separators, the system font, segmented controls, and colour used sparingly.
+   Design language: Apple. White and system-gray surfaces, one blue accent, the system font set large and tight,
+   hairline separators instead of boxes and shadows, pill buttons, grouped lists, and the molecule as the
+   product shot. Colour is spent in one place per screen (the primary action); everything else is type and space.
 
-   THE ACCENT: one colour for the primary button on each screen. It is a single token (--accent).
-   The little colour control in the top bar swaps it at runtime (see ACCENTS in js/config.mjs).
+   THE ACCENT: one token (--accent) fills the primary button; --link colours text links. The avatar menu swaps
+   both at runtime (see ACCENTS in js/config.mjs).
 
    Note: the 3D stage reads --stage-haze, --protein, --peptide, --accent, --warn and --danger as plain
-   hex colours, so keep those six as hex. */
+   hex colours, so keep those six as hex. --stage-haze must equal the page background. */
 
 :root {
-  /* ---- the one accent (teal) ---- */
-  --accent: #0f766e;
+  /* ---- the accent ---- */
+  --accent: #0071e3;
   --accent-ink: #ffffff;                      /* text on top of the accent */
-  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
-  --accent-line: color-mix(in srgb, var(--accent) 40%, transparent);
+  --link: #0066cc;                            /* text links (needs 4.5:1 on the page) */
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 42%, transparent);
 
-  /* ---- the two molecule colours (always the same: protein gray-blue, peptide warm orange) ---- */
-  --protein: #7a8ca3;
-  --peptide: #f08a3c;
+  /* ---- the two molecule colours (always the same: protein cool gray, peptide orange) ---- */
+  --protein: #8593a8;
+  --peptide: #ff9500;
 
-  /* ---- light appearance (default follows the system; the top bar toggle overrides it) ---- */
-  --bg: #f5f5f7;
+  /* ---- light appearance (default follows the system; the avatar menu overrides it) ---- */
+  --bg: #ffffff;
+  --bg-2: #f5f5f7;                            /* the second page tone (bands below the first screenful) */
   --bg-image: none;
-  --stage-haze: #f5f5f7;                      /* far parts of the protein fade towards this */
+  --stage-haze: #ffffff;                      /* far parts of the protein fade towards this */
   --ink: #1d1d1f;                             /* label */
-  --ink-2: #515154;                           /* secondary label */
-  --ink-3: #6e6e73;                           /* tertiary label (still ≥ 4.5:1 on --bg) */
-  --line: rgba(60, 60, 67, 0.16);             /* hairline separator */
-  --line-strong: rgba(60, 60, 67, 0.3);
-  --glass: rgba(255, 255, 255, 0.72);         /* thin material: panels floating over the protein */
-  --glass-strong: rgba(255, 255, 255, 0.94);  /* grouped surface: cards, rows */
+  --ink-2: #424245;                           /* secondary label */
+  --ink-3: #6e6e73;                           /* tertiary label (still ≥ 4.5:1 on --bg and --group) */
+  --line: rgba(0, 0, 0, 0.12);                /* hairline separator */
+  --line-strong: rgba(0, 0, 0, 0.24);
+  --group: #f5f5f7;                           /* grouped list / tile fill */
+  --group-hover: #ebebf0;
+  --glass: rgba(255, 255, 255, 0.78);         /* thin material: the nav bar, popovers */
+  --glass-strong: var(--group);               /* legacy name: grouped surface */
   --field: rgba(118, 118, 128, 0.12);         /* control fill (fields, segmented track) */
+  --field-on-group: #ffffff;                  /* a field that sits inside a grouped list */
   --thumb: #ffffff;                           /* the selected segment */
-  --shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 8px 28px -14px rgba(0, 0, 0, 0.18);
-  --shadow-soft: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 12px 40px rgba(0, 0, 0, 0.14);
+  --shadow-soft: none;
   --warn: #a35200;
   --danger: #d70015;
   --ok: #217a3a;
   --demo-bg: rgba(255, 149, 0, 0.16);
   --demo-ink: #8a4600;
 
-  /* ---- type: the system font (SF Pro on Apple devices); Inter is bundled as the fallback ---- */
+  /* ---- type: the system font (SF Pro on Apple devices); Inter is bundled as the look-alike fallback ---- */
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 
@@ -49,37 +55,36 @@
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 18px;
-  --r-pill: 999px;
+  --r-pill: 980px;
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
   --t-fast: 150ms;
   --t-med: 260ms;
-  --gutter: clamp(16px, 4vw, 40px);
+  --gutter: clamp(20px, 5vw, 48px);
   --maxw: 1180px;
+  --nav-h: 48px;
 }
 
-/* ---- dark appearance: a deep "space" gradient, not just inverted colours ---- */
+/* ---- dark appearance: true black with elevated gray groups (what Apple does), not inverted colours ---- */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --accent-ink: #04201d;
-  --protein: #9db3cf;
-  --peptide: #ff9a4d;
-  --bg: #090c18;
-  --bg-image:
-    radial-gradient(1000px 720px at 72% -8%, #18244d 0%, rgba(24, 36, 77, 0) 62%),
-    linear-gradient(180deg, #0a0e1f 0%, #05060c 100%);
-  --stage-haze: #090c18;
+  --protein: #a4b2c7;
+  --peptide: #ff9f0a;
+  --bg: #000000;
+  --bg-2: #0a0a0c;
+  --stage-haze: #000000;
   --ink: #f5f5f7;
-  --ink-2: #c7c7cf;
-  --ink-3: #9a9aa3;
-  --line: rgba(255, 255, 255, 0.13);
-  --line-strong: rgba(255, 255, 255, 0.26);
-  --glass: rgba(28, 30, 40, 0.62);
-  --glass-strong: rgba(34, 36, 46, 0.9);
-  --field: rgba(118, 118, 128, 0.26);
-  --thumb: #5b5d6b;
-  --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 12px 34px -16px rgba(0, 0, 0, 0.7);
-  --shadow-soft: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --ink-2: #d1d1d6;
+  --ink-3: #98989f;
+  --line: rgba(255, 255, 255, 0.16);
+  --line-strong: rgba(255, 255, 255, 0.3);
+  --group: #1c1c1e;
+  --group-hover: #2c2c2e;
+  --glass: rgba(29, 29, 31, 0.72);
+  --field: rgba(118, 118, 128, 0.24);
+  --field-on-group: #2c2c2e;
+  --thumb: #636366;
+  --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 16px 48px rgba(0, 0, 0, 0.7);
   --warn: #ffb340;
   --danger: #ff6961;
   --ok: #4cd964;

@@ -18,7 +18,7 @@ export function openHistory({ store, go }) {
         ? h('ul', { class: 'hist-list' }, hist.map((e) => h('li', {},
           h('button', { class: 'hist-item', type: 'button', onClick: () => { close(); go(`/results/${e.id}`); } },
             h('span', { class: 'name' }, e.name),
-            h('span', { class: 'when' }, fmtDate(e.createdAt), e.demo && ' · ', e.demo && h('span', { class: 'badge-demo' }, 'Demo')),
+            h('span', { class: 'when' }, fmtDate(e.createdAt), e.demo && ' ', e.demo && h('span', { class: 'badge-demo' }, 'Demo')),
             h('span', { class: 'val nums' }, e.headline.label === 'ΔΔG' ? fmtSigned(e.headline.value) : fmt(e.headline.value), h('small', {}, e.headline.label + ' kcal/mol'))))))
         : h('div', { class: 'empty-state' }, h('p', {}, 'No runs yet.'), h('p', { class: 'small' }, 'Your predictions will show up here so you can reopen them.')),
       hist.length ? h('div', { class: 'row', style: { justifyContent: 'flex-end', marginTop: '14px' } }, clear) : null);

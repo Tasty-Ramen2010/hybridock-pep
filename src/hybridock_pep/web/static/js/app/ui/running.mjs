@@ -8,7 +8,7 @@ import { RUN_STAGES } from '../config.mjs';
 import { adapter, noGpu } from '../adapter.mjs';
 
 const COPY = {
-  dock: { title: 'Finding how your peptide binds', sub: (j) => `${j.peptide} → ${j.protein.name} · ${j.poses} poses${j.blind ? ' · searching the whole protein' : ''}` },
+  dock: { title: 'Finding how your peptide binds', sub: (j) => `${j.peptide} on ${j.protein.name}, ${j.poses} poses${j.blind ? ', searching the whole protein' : ''}` },
   compare: { title: 'Comparing the two proteins', sub: (j) => `${j.peptide}: ${j.target.protein.name} vs ${j.offTarget.protein.name}` },
   score: { title: 'Scoring your structure', sub: (j) => `${j.peptide} on ${j.protein.name}` },
 };
@@ -32,7 +32,7 @@ export function mountRunning(ctx) {
   const logEl = h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Live log', style: { maxHeight: '220px', overflow: 'auto', margin: 0, paddingRight: '16px' } });
   let logLines = [], lastProgress = null;
   const stopBtn = h('button', { class: 'btn', type: 'button', onClick: () => runner.stop() }, icon('stop', 16), 'Stop');
-  const body = h('div', { class: 'glass run-panel' });
+  const body = h('div', { class: 'run-panel' });
   const el = h('section', { class: 'screen running', 'aria-labelledby': 'run-title' },
     h('div', { class: 'stage-slot run-slot', 'data-stage-slot': '' }), body, live);
 
