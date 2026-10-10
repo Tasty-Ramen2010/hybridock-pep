@@ -20,7 +20,7 @@ export function seedHistory(proteins) {
     const job = dockJob({ proteinRef: protein, peptide: s.peptide, siteMode: 'known', site: protein.site, box: protein.box, thorough: 'full', expert: { ...EXPERT_DEFAULTS } });
     out.push({
       id: `seed_${i}`, kind: 'dock', demo: true, seeded: true,
-      name: `${s.peptide} → ${protein.name}`,
+      name: `${s.peptide} on ${protein.name}`,
       createdAt: new Date(Date.now() - s.daysAgo * 86400000).toISOString(),
       headline: { label: 'ΔG', value: demoDeltaG(protein.key, s.peptide) },
       proteinNames: [protein.name], job, result: undefined,

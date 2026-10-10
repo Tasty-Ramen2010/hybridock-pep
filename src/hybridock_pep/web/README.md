@@ -19,11 +19,15 @@ under `/static/`, and every run is still the CLI command the terminal UI would b
 
 ## Look and feel
 
-The styling follows Apple's Human Interface Guidelines: content first, flat system-gray surfaces with hairline
-separators, the system font (SF Pro on Apple devices), a segmented control with a raised thumb for Guided / Expert and
-for the choices, accent colour only on primary actions, thin-material panels over the protein, 44 pt tap targets on touch
-screens, and motion that stops under *Reduce Motion*. The first visit follows the system light/dark setting; the toggle in
-the top bar overrides it. Tokens live in `static/css/app/tokens.css`.
+The design follows Apple's Human Interface Guidelines and its product pages, and avoids the usual templated-UI tells.
+White and system-gray surfaces (true black in dark mode), one blue accent that fills only the primary action, the system
+font set large and tight (SF Pro on Apple devices, bundled Inter elsewhere), pill buttons, inset grouped lists, iOS-style
+switches and segmented controls, hairlines instead of boxes and shadows, and the molecule as the product shot: it floats in
+the Home hero and stays put (sticky) beside the content on Setup and Results. There are no card grids, uppercase labels,
+gradient washes, glows or star fields. A translucent navigation bar holds Predict / Compare / Score (a tab bar on phones);
+the avatar menu holds appearance (light/dark), the accent colour and your name. Guided hides the technical captions that
+Expert shows. 44 pt tap targets on touch screens; motion stops under *Reduce Motion*. The first visit follows the system
+light/dark setting. Tokens live in `static/css/app/tokens.css`.
 
 ## Live vs Demo
 

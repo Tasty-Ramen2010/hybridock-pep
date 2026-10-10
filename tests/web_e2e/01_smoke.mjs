@@ -1,4 +1,4 @@
-import { browser, newPage, check, finish, shot, BASE } from './lib.mjs';
+import { browser, newPage, check, finish, shot, BASE, flipTheme } from './lib.mjs';
 const b = await browser();
 const p = await newPage(b);
 let t0 = Date.now();
@@ -20,7 +20,7 @@ for (const [route, sel] of [['#/predict', '.steps'], ['#/compare', '.pcard'], ['
 }
 // guided/expert + theme persistence across a reload
 await p.getByRole('button', { name: 'Expert' }).click();
-await p.getByRole('button', { name: /Switch to dark mode|Switch to light mode/ }).click();
+await flipTheme(p);
 await p.reload(); await p.waitForSelector('.hero-card');
 const attrs = await p.evaluate(() => [document.documentElement.dataset.mode, document.documentElement.dataset.theme]);
 check('mode + theme persist across reload', attrs[0] === 'expert' && attrs[1] === 'dark', attrs.join('/'));

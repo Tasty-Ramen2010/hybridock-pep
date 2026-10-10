@@ -28,7 +28,7 @@ console.log('server mode:', isLive ? 'live' : 'demo');
 check('step 1 is "Protein"', (await stepName()) === 'Protein', '');
 check('a protein (Tau) is already chosen, so a newcomer can simply press Continue', (await p.locator('.pick[aria-checked=true]').count()) === 1 && /Tau/.test(await p.locator('.pick[aria-checked=true]').first().textContent()), '');
 check('there is no Back button on step 1', (await p.getByRole('button', { name: 'Back' }).count()) === 0, '');
-const names = await p.locator('.pick > span').evaluateAll((els) => els.map((e) => e.childNodes[0].textContent.trim()));
+const names = await p.locator('.pick > .pick-main').evaluateAll((els) => els.map((e) => e.childNodes[0].textContent.trim()));
 check('eight built-in proteins are listed', names.length === 8, names.join(' | '));
 for (let i = 0; i < names.length; i++) {
   await p.locator('.pick').nth(i).click(); await sleep(250);

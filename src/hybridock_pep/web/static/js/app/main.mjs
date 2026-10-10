@@ -45,6 +45,7 @@ function applyAppearance() {
   root.dataset.mode = mode;
   const a = ACCENTS.find((x) => x.id === accent) || ACCENTS[0];
   root.style.setProperty('--accent', a[theme]);
+  root.style.setProperty('--link', theme === 'dark' ? a.linkDark : a.linkLight);
   stage.refreshTheme();
 }
 let lastLook = '';

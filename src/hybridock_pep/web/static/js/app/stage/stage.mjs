@@ -24,7 +24,7 @@ import { BOX_MIN, BOX_MAX } from '../config.mjs';
 
 const DEPTH_FACTOR = 4.5; // camera distance in protein radii: smaller = stronger perspective
 const FOCUS = 0.15; //       depth (−1 far … +1 near) that is perfectly sharp
-const TUBE_WIDTH = 1.25; //  protein tube thickness in Å
+const TUBE_WIDTH = 1.05; //  protein tube thickness in Å
 const FPS_INTERVAL = 1000 / 32;
 
 // ---- colour helpers ---------------------------------------------------------------------------
@@ -388,7 +388,7 @@ export class Stage {
     const { ctx, W, H, col } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    if (this.dark) this._drawStars();
+    // (no star field in the dark appearance: it is plain black, like the rest of the page)
     const P = this.P;
     if (!P || this.modelAlpha < 0.01) return;
 
@@ -409,16 +409,7 @@ export class Stage {
     this.view = { cx, cy, S, D, R, M };
     const A = this.modelAlpha;
 
-    // soft glow behind everything
-    const gr = this.cur.size * 0.62;
-    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, gr);
-    const pc = col.protein.map((v) => v | 0).join(',');
-    halo.addColorStop(0, `rgba(${pc},${(this.dark ? 0.2 : 0.07) * A})`);
-    halo.addColorStop(1, `rgba(${pc},0)`);
-    ctx.globalCompositeOperation = this.dark ? 'lighter' : 'source-over';
-    ctx.fillStyle = halo;
-    ctx.fillRect(cx - gr, cy - gr, gr * 2, gr * 2);
-    ctx.globalCompositeOperation = 'source-over';
+    // (no halo behind the model: it sits on the plain page, like a product shot)
 
     // transform the protein tube
     const n = P.n, pts = P.pts;
@@ -483,13 +474,9 @@ export class Stage {
         const a = A * (0.5 + 0.5 * depth);
         ctx.beginPath(); ctx.moveTo(sx[i], sy[i]); ctx.lineTo(sx[i + 1], sy[i + 1]);
         if (dof > 0.03) { // out of focus: a wide, faint stroke underneath
-          ctx.globalAlpha = a * 0.28 * dof; ctx.strokeStyle = pal.body[bucket]; ctx.lineWidth = w * (1 + dof * 2.2); ctx.stroke();
+          ctx.globalAlpha = a * 0.16 * dof; ctx.strokeStyle = pal.body[bucket]; ctx.lineWidth = w * (1 + dof * 1.8); ctx.stroke();
         }
         ctx.globalAlpha = a * (1 - 0.5 * dof); ctx.strokeStyle = pal.body[bucket]; ctx.lineWidth = w; ctx.stroke();
-        if (depth > 0.5) { // a thin highlight so the tube reads as round
-          ctx.globalAlpha = a * 0.55 * (1 - dof); ctx.strokeStyle = pal.sheen[bucket]; ctx.lineWidth = w * 0.3;
-          ctx.beginPath(); ctx.moveTo(sx[i] - w * 0.16, sy[i] - w * 0.16); ctx.lineTo(sx[i + 1] - w * 0.16, sy[i + 1] - w * 0.16); ctx.stroke();
-        }
       } else {
         const j = id - nSeg;
         const zn = clamp((ps.z[j] + ps.z[j + 1]) / (2 * R), -1.2, 1.2);
@@ -497,17 +484,8 @@ export class Stage {
         const f = (ps.sf[j] + ps.sf[j + 1]) / 2;
         const w = Math.max(3.5, pw * peptideThick * f * Math.sqrt(ps.sc));
         const a = A * pep.alpha * (0.7 + 0.3 * depth);
-        if (j % ps.sub === 0) { // glow + bead at each residue
-          const gs = w * 5;
-          ctx.globalCompositeOperation = this.dark ? 'lighter' : 'source-over';
-          ctx.globalAlpha = a * (this.dark ? 0.55 : 0.3);
-          ctx.drawImage(this.glowSprite, ps.sx[j] - gs / 2, ps.sy[j] - gs / 2, gs, gs);
-          ctx.globalCompositeOperation = 'source-over';
-        }
         ctx.beginPath(); ctx.moveTo(ps.sx[j], ps.sy[j]); ctx.lineTo(ps.sx[j + 1], ps.sy[j + 1]);
         ctx.globalAlpha = a; ctx.strokeStyle = this.pepPal.body[bucket]; ctx.lineWidth = w; ctx.stroke();
-        ctx.globalAlpha = a * 0.6; ctx.strokeStyle = this.pepPal.sheen[bucket]; ctx.lineWidth = w * 0.32;
-        ctx.beginPath(); ctx.moveTo(ps.sx[j] - w * 0.18, ps.sy[j] - w * 0.18); ctx.lineTo(ps.sx[j + 1] - w * 0.18, ps.sy[j + 1] - w * 0.18); ctx.stroke();
         if (j % ps.sub === 0) {
           ctx.globalAlpha = a; ctx.fillStyle = this.pepPal.body[bucket];
           ctx.beginPath(); ctx.arc(ps.sx[j], ps.sy[j], w * 0.62, 0, 6.2832); ctx.fill();

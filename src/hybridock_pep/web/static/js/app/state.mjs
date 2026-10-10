@@ -59,7 +59,7 @@ export function createStore() {
   let state = {
     mode: saved.mode || 'guided',
     theme: saved.theme || systemTheme(),
-    accent: saved.accent || 'teal',
+    accent: saved.accent || 'blue',
     userName: saved.userName && saved.userName !== 'there' ? saved.userName : '', // empty until the visitor adds one
     runsTotal: Number.isFinite(saved.runsTotal) ? saved.runsTotal : (Array.isArray(saved.history) ? saved.history.length : 0), // lifetime count: History keeps only the last 30
     history: Array.isArray(saved.history) ? saved.history : null, // null = never used: main.js seeds demo entries
