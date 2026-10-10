@@ -81,6 +81,7 @@
   .topbar .badge-demo::before { content: 'Demo'; font-size: 12px; }
   .topbar .chip-text { display: none; }
   .topbar .chip { padding: 4px; }
+  .topbar button.chip { min-width: 44px; min-height: 44px; justify-content: center; }
   .topbar .seg { margin-right: 0; }
   .menu-links { display: flex; gap: 8px; }
   .menu-links .btn { flex: 1; }
