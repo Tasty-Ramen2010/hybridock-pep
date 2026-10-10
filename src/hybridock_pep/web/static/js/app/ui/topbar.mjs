@@ -14,6 +14,7 @@ const DESTINATIONS = [
   { id: 'predict', label: 'Predict', icon: 'zap' },
   { id: 'compare', label: 'Compare', icon: 'columns' },
   { id: 'score', label: 'Score', icon: 'badge' },
+  { id: 'guide', label: 'Guide', icon: 'book' },
 ];
 
 export function mountTopbar(ctx) {

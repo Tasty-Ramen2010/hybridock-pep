@@ -16,8 +16,8 @@
 #      license click-through, no manual download. ADFRsuite is NOT required,
 #      though it is used automatically if you already have it on PATH.
 #   6. Runs the smoke test.
-#   7. Launches the guided terminal UI so you can run your first dock without
-#      memorizing any CLI flags.
+#   7. Opens the web app in your browser, so you can run your first prediction
+#      without memorizing any CLI flags. (Prefer the terminal? Use --tui.)
 #
 # Flags:
 #   --backend cuda|rocm|xpu|mps|cpu   Force a compute backend (default: auto-detect)
@@ -28,7 +28,8 @@
 #                                      only 'dock --blind' reads. Ordinary site-directed
 #                                      docking is unaffected. PyTorch and the 2.4 GB
 #                                      ESM-2 weights are required either way.
-#   --no-ui                            Don't auto-launch the terminal UI at the end
+#   --no-ui                            Don't open anything at the end
+#   --tui                              Open the guided terminal UI at the end instead of the web app
 #   -h, --help                         Show this help
 set -euo pipefail
 
@@ -36,15 +37,17 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
 NO_UI=0
+USE_TUI=0
 LITE=0
 PASSTHROUGH_ARGS=()
 for arg in "$@"; do
     case "$arg" in
         --no-ui) NO_UI=1 ;;
+        --tui) USE_TUI=1 ;;
         # Not passed through: setup_environment.py does not know this flag.
         --lite)  LITE=1 ;;
         -h|--help)
-            sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) PASSTHROUGH_ARGS+=("$arg") ;;
@@ -268,12 +271,18 @@ fi
 # ---------------------------------------------------------------------------
 # 7. Launch the guided UI
 # ---------------------------------------------------------------------------
-if [ "$NO_UI" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+if [ "$NO_UI" -eq 0 ] && [ -t 0 ] && [ -t 1 ] && [ "$USE_TUI" -eq 1 ]; then
     step "Launching the guided terminal UI"
     exec ./launch_ui.sh
+elif [ "$NO_UI" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+    step "Opening the web app"
+    echo "  Next time, start it with ./launch_web.sh (macOS: double-click HybriDock-Pep.command)."
+    exec ./launch_web.sh
 else
     step "Setup complete"
-    echo "  Run './launch_ui.sh' for the guided terminal UI, or:"
+    echo "  Start the web app:  ./launch_web.sh   (macOS: double-click HybriDock-Pep.command)"
+    echo "  Or the terminal UI: ./launch_ui.sh"
+    echo "  Or the command line:"
     echo "    conda activate score-env"
     echo "    hybridock-pep dock --peptide ETFSDLWKLLPE \\"
     echo "        --receptor data/pdbs/1YCR_mdm2.pdb --site 25.20 -25.61 -7.97 --box 30 \\"

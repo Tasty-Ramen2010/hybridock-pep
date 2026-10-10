@@ -26,7 +26,7 @@ export function openHelp() {
     h('div', { class: 'dialog-head' }, h('h2', { id: 'help-title' }, 'Help'),
       h('button', { class: 'btn icon ghost', type: 'button', 'aria-label': 'Close help', onClick: close }, icon('x'))),
     h('div', { class: 'dialog-body', tabindex: '0', role: 'region', 'aria-label': 'Contents' },
-      h('p', { class: 'muted', style: { marginBottom: '16px' } }, 'HybriDock-Pep predicts how tightly a short protein piece (a peptide) sticks to a protein, and shows you where. Here is what the words mean.'),
+      h('p', { class: 'muted', style: { marginBottom: '16px' } }, 'HybriDock-Pep predicts how tightly a short protein piece (a peptide) sticks to a protein, and shows you where. Here is what the words mean. For a walk-through of everything, open the ', h('a', { href: '#/guide', onClick: () => dlg.close() }, 'Guide'), '.'),
       h('dl', { class: 'glossary' }, TERMS.flatMap(([t, d]) => [h('dt', {}, t), h('dd', {}, d)])),
       adapter.kind === 'live' && h('p', { class: 'small', style: { marginTop: '14px' } }, 'Prefer the original layout? ', h('a', { href: '/static/studio.html' }, 'Open the classic studio'), '.'),
       h('p', { class: 'small muted', style: { marginTop: '18px' } }, 'Tip: drag the floating protein to turn it. Keyboard: Tab moves between controls, Esc closes this window.')));

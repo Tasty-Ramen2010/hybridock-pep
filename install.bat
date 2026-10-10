@@ -79,15 +79,13 @@ echo ============================================================
 echo.
 echo You do NOT need to run install.bat again for normal use - it is only
 echo the one-time (or occasional, e.g. after a git pull) setup step. For
-echo everyday use, open your WSL2/Ubuntu terminal directly ^(Start menu -^>
-echo Ubuntu, or run `wsl` from any Windows terminal^) and run:
+echo everyday use, start the app by double-clicking this file, in this folder:
 echo.
-echo     cd '%WSL_REPO_DIR%'
-echo     conda activate score-env
-echo     hybridock-pep serve --no-browser
+echo     launch_web.bat
 echo.
-echo and open http://127.0.0.1:8000 in your normal Windows browser ^(WSL2 forwards
-echo localhost to Windows^). For the terminal version, run ./launch_ui.sh instead.
+echo Your browser opens at
+echo http://127.0.0.1:8000 ^(WSL2 forwards localhost to Windows^). For the
+echo terminal version, run ./launch_ui.sh inside WSL2 instead.
 echo.
 echo Re-running install.bat later is harmless if you ever want to - it will
 echo detect everything that is already set up and skip straight past it.

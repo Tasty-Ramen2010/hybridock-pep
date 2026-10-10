@@ -71,7 +71,7 @@ export function createSitePicker(o) {
     assessEl, atomsEl, pickMsg,
     h('div', { class: 'row' }, suggestBtn, suggestNote),
     coordsBlock,
-    h('p', { class: 'coords-note' }, 'Keyboard: click the 3D view, then arrow keys move the box, Page Up/Down move it in depth, and + / − resize it.'));
+    h('p', { class: 'coords-note expert-only' }, 'Keyboard: click the 3D view, then arrow keys move the box, Page Up/Down move it in depth, and + / − resize it.'));
 
   function center() { const s = o.getValue().site; return [s.x, s.y, s.z]; }
 

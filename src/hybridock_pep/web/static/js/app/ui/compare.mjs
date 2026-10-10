@@ -156,7 +156,7 @@ export function mountCompare(ctx) {
       h('div', { class: 'page-head' },
         h('h1', {}, 'Compare two proteins'),
         h('p', { class: 'lede' }, 'Does your peptide prefer one protein over another? Give it a target and a look-alike, and we’ll tell you.')),
-      h('div', { class: 'note guided-only' }, icon('info', 18), h('div', {}, h('b', {}, 'Why compare? '), 'Comparing two proteins is more trustworthy than a single number, because error they share cancels out.')),
+      h('div', { class: 'note guided-only' }, 'Comparing two proteins is more trustworthy than one number, because error they share cancels out.'),
       h('div', { class: 'panel compare-pep' },
         h('label', { class: 'field-label', for: 'cmp-pep' }, 'Peptide', h('span', { class: 'tech' }, 'Amino acid sequence')), pepInput(), pepMsg),
       h('div', { class: 'vs-grid' }, cards.target.el, slot, cards.offTarget.el),

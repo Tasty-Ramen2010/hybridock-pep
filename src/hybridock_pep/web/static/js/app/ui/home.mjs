@@ -7,7 +7,7 @@ import { fmt, fmtSigned } from '../interpret.mjs';
 import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR } from '../config.mjs';
 import { dockJob, findProtein, greeting } from '../jobs.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
-import { adapter, adapterFor, demoAdapter, noGpu } from '../adapter.mjs';
+import { adapter, adapterFor, demoAdapter, estimateTrusted, firstRunPending, noGpu } from '../adapter.mjs';
 import { fmtDate, fmtDuration, saveBlob } from './dom.mjs';
 import { openHistory } from './history.mjs';
 import { toast } from './toast.mjs';
@@ -66,8 +66,9 @@ export function mountHome(ctx) {
     proteinRef: exProtein, peptide: exPeptide, siteMode: 'known', site: exProtein.site, box: exProtein.box,
     thorough: 'quick', expert: { ...EXPERT_DEFAULTS },
   });
-  const timeNote = h('p', { class: 'small muted' }, live ? 'A real quick run (25 poses)' : 'Takes about 7 seconds in demo mode',
-    live ? null : [' ', h('a', { class: 'tap', href: 'https://github.com/Tasty-Ramen2010/hybridock-pep', target: '_blank', rel: 'noopener' }, 'Get the real tool', '.')]);
+  const firstRun = () => (firstRunPending(adapter.env) ? ' The first prediction on this computer also downloads about 2.5 GB of model files, once.' : '');
+  const timeNote = h('p', { class: 'small muted' }, live ? `A real quick run (25 poses).${firstRun()}` : 'Takes about 7 seconds in demo mode.',
+    live ? null : [' ', h('a', { class: 'tap', href: '#/guide/get-started' }, 'Run it for real'), '.']);
 
   let exEstimate = null;
   function runExample() {
@@ -77,14 +78,22 @@ export function mountHome(ctx) {
   if (live && exProtein) {
     adapter.preview(exJob()).then(({ estimateSeconds }) => {
       exEstimate = estimateSeconds;
-      if (noGpu(adapter.env)) timeNote.textContent = 'A real quick run (25 poses). This machine has no GPU, so allow tens of minutes.';
-      else if (estimateSeconds) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (estimate)`;
+      if (noGpu(adapter.env)) timeNote.textContent = `A real quick run (25 poses). This machine has no GPU, so allow tens of minutes.${firstRun()}`;
+      else if (estimateSeconds && estimateTrusted(adapter.env)) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (an estimate for this computer).${firstRun()}`;
     }).catch(() => {});
   }
 
   const exNote = live && backendEx
     ? h('p', { class: 'small muted' }, h('span', { class: 'chip' }, 'Known binder'), ' ', h('b', {}, backendEx.name), ' with the peptide ', h('span', { class: 'mono pep' }, exPeptide), '. ', backendEx.blurb, backendEx.expect ? ` Expect around ${backendEx.expect.replace(/^around\s+/i, '')}.` : '')
-    : h('p', { class: 'small muted' }, h('span', { class: 'badge-demo' }, 'Demo'), ' ', 'The peptide ', h('span', { class: 'mono pep' }, EXAMPLE.peptide), ' docked against the Tau VQIVYK stretch, a piece of the protein that clumps in Alzheimer’s disease. The result is simulated.');
+    : h('p', { class: 'small muted' }, h('span', { class: 'badge-demo' }, 'Demo'), ' ', 'The peptide ', h('span', { class: 'mono pep' }, EXAMPLE.peptide), ' docked against the Tau VQIVYK stretch, a piece of the protein that clumps in Alzheimer’s disease. Everything on this page is a simulation.');
+
+  // A live server that is missing something: say exactly what and how to fix it, instead of letting the first run fail.
+  const MISSING = ['cli', 'vina', 'receptor_prep', 'scorer'];
+  const broken = live && adapter.env ? MISSING.map((k) => [k, adapter.env.checks?.[k]]).filter(([, c]) => c && !c.ok) : [];
+  const setupNotice = broken.length ? h('div', { class: 'notice', role: 'status' },
+    h('b', {}, 'Setup isn’t finished on this computer.'),
+    h('ul', {}, broken.map(([, c]) => h('li', {}, c.detail, ' is missing. Fix: ', h('code', { class: 'mono' }, c.fix)))),
+    h('a', { class: 'tap', href: '#/guide/troubleshooting' }, 'Open the install guide')) : null;
 
   const el = h('section', { class: 'screen home', 'aria-labelledby': 'greeting' },
     h('article', { class: 'hero-card' },
@@ -94,6 +103,7 @@ export function mountHome(ctx) {
         h('div', { class: 'row' },
           h('button', { class: 'btn primary lg', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, 'New prediction'),
           h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, 'Run example', icon('chevron', 16))),
+        setupNotice,
         exNote,
         timeNote),
       h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),

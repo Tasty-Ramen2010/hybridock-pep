@@ -610,3 +610,108 @@ def test_poses_of_an_input_poses_run_are_found_in_the_input_folder(tmp_path):
     assert server._find_pose(out, "pose_3.pdb", src) == out / "poses" / "pose_3.pdb"  # the run's own copy wins
     assert server._find_pose(out, "../saved/pose_3.pdb", src) is None  # names only, never paths
     assert server._find_pose(out, "", src) is None
+
+
+# --- the first-prediction notice ------------------------------------------------------------------------------
+
+def test_first_run_check_reports_missing_models_then_ready(monkeypatch, tmp_path):
+    from hybridock_pep.sampling import rapidock_runner as rr
+    rapidock = tmp_path / "RAPiDock"; rapidock.mkdir()
+    monkeypatch.setattr(rr, "_find_rapidock_dir", lambda: rapidock)
+    monkeypatch.setenv("TORCH_HOME", str(tmp_path / "torch"))
+    check = server.check_environment()["checks"]["first_run"]
+    assert check["ok"] is False and "2.5 GB" in check["fix"]
+    (tmp_path / "torch" / "hub" / "checkpoints").mkdir(parents=True)
+    (tmp_path / "torch" / "hub" / "checkpoints" / "esm2_t33_650M_UR50D.pt").write_bytes(b"x")
+    assert server.check_environment()["checks"]["first_run"]["ok"] is False  # tables still missing
+    (rapidock / ".so3_omegas_array2.npy").write_bytes(b"x"); (rapidock / ".so3_exp_score_norms2.npy").write_bytes(b"x")
+    assert server.check_environment()["checks"]["first_run"]["ok"] is True
+
+
+def test_first_run_check_is_left_out_when_the_sampler_is_not_installed(monkeypatch):
+    from hybridock_pep.sampling import rapidock_runner as rr
+    def missing(): raise RuntimeError("Cannot locate RAPiDock")
+    monkeypatch.setattr(rr, "_find_rapidock_dir", missing)
+    assert "first_run" not in server.check_environment()["checks"]
+    assert server.check_environment()["ready"] in (True, False)  # and it never makes the machine "not ready"
+
+
+# --- static assets: compressed, revalidated, cheap to reload ---------------------------------------------------
+
+def _raw_get(base: str, path: str, headers: dict | None = None):
+    req = urllib.request.Request(base + path, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status, dict(resp.headers), resp.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, dict(exc.headers), exc.read()
+
+
+def test_static_assets_are_gzipped_when_the_browser_accepts_it(live_server):
+    import gzip
+    status, headers, body = _raw_get(live_server, "/static/dist/app.mjs", {"Accept-Encoding": "gzip"})
+    assert status == 200 and headers.get("Content-Encoding") == "gzip"
+    plain_status, plain_headers, plain = _raw_get(live_server, "/static/dist/app.mjs")
+    assert "Content-Encoding" not in plain_headers and gzip.decompress(body) == plain
+    assert len(body) < len(plain) * 0.6
+    assert headers["Content-Type"] == "text/javascript" and headers["Vary"] == "Accept-Encoding"
+
+
+def test_static_assets_are_revalidated_by_etag(live_server):
+    status, headers, _ = _raw_get(live_server, "/static/dist/app.css")
+    assert status == 200 and headers["ETag"] and headers["Cache-Control"] == "no-cache"
+    again, again_headers, body = _raw_get(live_server, "/static/dist/app.css", {"If-None-Match": headers["ETag"]})
+    assert again == 304 and body == b"" and again_headers["ETag"] == headers["ETag"]
+    changed, _, _ = _raw_get(live_server, "/static/dist/app.css", {"If-None-Match": '"stale"'})
+    assert changed == 200
+
+
+def test_the_home_page_and_fonts_get_sensible_cache_headers(live_server):
+    status, headers, _ = _raw_get(live_server, "/")
+    assert status == 200 and headers["Cache-Control"] == "no-cache"
+    status, headers, _ = _raw_get(live_server, "/static/fonts/inter-latin.woff2", {"Accept-Encoding": "gzip"})
+    assert status == 200 and "Content-Encoding" not in headers and "max-age" in headers["Cache-Control"]
+
+
+def test_path_traversal_through_the_static_route_is_still_refused(live_server):
+    status, _, _ = _raw_get(live_server, "/static/../server.py")
+    assert status in (403, 404)
+
+
+# --- which accelerator does this computer have? -------------------------------------------------------------------
+
+def test_an_apple_silicon_mac_is_reported_as_a_metal_gpu(monkeypatch):
+    monkeypatch.setattr(server, "_run_text", lambda cmd, timeout=6: "Apple M3" if cmd[0] == "sysctl" else "")
+    kind, name = server._detect_accelerator(lambda n: None, os_name="darwin", machine="arm64")
+    assert (kind, name) == ("metal", "Apple M3 (Metal)")
+
+
+def test_an_intel_mac_and_a_plain_linux_box_have_no_gpu(monkeypatch):
+    monkeypatch.setattr(server, "_run_text", lambda cmd, timeout=6: "")
+    monkeypatch.setattr(server.Path, "exists", lambda self: False)
+    assert server._detect_accelerator(lambda n: None, os_name="darwin", machine="x86_64") == (None, "")
+    assert server._detect_accelerator(lambda n: None, os_name="linux", machine="aarch64") == (None, "")
+
+
+def test_an_nvidia_card_wins_and_amd_or_intel_are_recognised_by_their_tools(monkeypatch):
+    monkeypatch.setattr(server.Path, "exists", lambda self: str(self) == "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(server, "_run_text", lambda cmd, timeout=6: "NVIDIA RTX 5070\n" if "nvidia" in cmd[0] else "")
+    assert server._detect_accelerator(lambda n: "/usr/bin/nvidia-smi" if n == "nvidia-smi" else None, os_name="linux", machine="x86_64") == ("cuda", "NVIDIA RTX 5070")
+    monkeypatch.setattr(server.Path, "exists", lambda self: False)
+    assert server._detect_accelerator(lambda n: "/x" if n == "rocm-smi" else None, os_name="linux", machine="x86_64")[0] == "rocm"
+    assert server._detect_accelerator(lambda n: "/x" if n == "sycl-ls" else None, os_name="linux", machine="x86_64")[0] == "xpu"
+
+
+def test_the_environment_report_names_the_accelerator(monkeypatch):
+    monkeypatch.setattr(server, "_detect_accelerator", lambda which, os_name=None, machine=None: ("metal", "Apple M3 (Metal)"))
+    gpu = server.check_environment()["checks"]["gpu"]
+    assert gpu == {"ok": True, "kind": "metal", "detail": "Apple M3 (Metal)", "fix": gpu["fix"]}
+
+
+def test_sampling_estimates_use_the_measured_speed_of_this_computer(monkeypatch):
+    monkeypatch.setattr(server, "_sampling_cost", lambda: 6.0)
+    metal = server.estimate_seconds({"n_samples": "100"}, "dock")
+    monkeypatch.setattr(server, "_sampling_cost", lambda: 0.6)
+    cuda = server.estimate_seconds({"n_samples": "100"}, "dock")
+    assert metal - cuda == int(5.4 * 100)
+    assert 800 < metal < 1000  # about 15 minutes for 100 poses on an M3, as documented

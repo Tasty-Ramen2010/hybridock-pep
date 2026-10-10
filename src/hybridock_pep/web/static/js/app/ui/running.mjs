@@ -5,7 +5,7 @@ import { h, mmss } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { RUN_STAGES } from '../config.mjs';
-import { adapter, noGpu } from '../adapter.mjs';
+import { adapter, firstRunPending, noGpu } from '../adapter.mjs';
 
 const COPY = {
   dock: { title: 'Finding how your peptide binds', sub: (j) => `${j.peptide} on ${j.protein.name}, ${j.poses} poses${j.blind ? ', searching the whole protein' : ''}` },
@@ -83,6 +83,7 @@ export function mountRunning(ctx) {
         h('div', { class: 'times' }, h('div', {}, h('span', { class: 'small muted' }, 'Estimated time left'), etaEl), h('div', {}, h('span', { class: 'small muted' }, 'Time so far'), elapsedEl)),
         stopBtn),
       h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Live log ', h('span', { class: 'tech' }, 'What the program is printing'))), h('div', { class: 'stack' }, logEl)),
+      firstRunPending(adapter.env) && h('p', { class: 'notice', role: 'status' }, h('b', {}, 'First prediction on this computer. '), 'It also downloads about 2.5 GB of model files and prepares some lookup tables, which adds roughly 10 minutes. This happens once.'),
       h('p', { class: 'small muted' },
         adapter.kind === 'demo' ? 'Demo run: the progress and the result are simulated, and short on purpose. ' : noGpu(adapter.env) ? 'This machine has no GPU, so a real run can take tens of minutes or longer, and there is no countdown. You can leave this tab open. ' : 'A real run can take several minutes. You can leave this tab open. ',
         'The floating molecule is just decoration; the stages above show where the run really is.'));

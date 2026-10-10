@@ -15,7 +15,7 @@
 // All drawing is plain Canvas 2D (no WebGL, no libraries) so it is light on a laptop battery.
 
 import {
-  clamp, lerp, smoothstep, easeInOut, mulberry32, qAxisAngle, qMul, qNormalize, qToMat3,
+  clamp, lerp, smoothstep, easeInOut, qAxisAngle, qMul, qNormalize, qToMat3,
   mat3Apply, mat3ApplyInverse, convexHull, pointInPolygon,
 } from './math.mjs';
 import { helixPoints } from '../peptide.mjs';
@@ -25,7 +25,11 @@ import { BOX_MIN, BOX_MAX } from '../config.mjs';
 const DEPTH_FACTOR = 4.5; // camera distance in protein radii: smaller = stronger perspective
 const FOCUS = 0.15; //       depth (−1 far … +1 near) that is perfectly sharp
 const TUBE_WIDTH = 1.05; //  protein tube thickness in Å
-const FPS_INTERVAL = 1000 / 32;
+const QUALITY = [ // the stage starts at level 0 and steps down by itself if frames keep arriving late
+  { dpr: 1.5, fps: 32, dof: true },
+  { dpr: 1.25, fps: 24, dof: false },
+  { dpr: 1, fps: 15, dof: false },
+];
 
 // ---- colour helpers ---------------------------------------------------------------------------
 const hexToRgb = (hex) => {
@@ -69,7 +73,8 @@ export class Stage {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    this.level = 0; this._slow = 0; this._lastDrawAt = 0; this._hiddenAt = 0; this._occluded = false;
+    this.dpr = Math.min(window.devicePixelRatio || 1, QUALITY[0].dpr);
     this.W = 0; this.H = 0;
 
     this.q = qNormalize(qMul(qAxisAngle([1, 0, 0], -0.5), qAxisAngle([0, 1, 0], 0.6)));
@@ -92,14 +97,9 @@ export class Stage {
     this.pulse = null;
 
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.stars = Array.from({ length: 150 }, (_, i) => {
-      const r = mulberry32(i * 977 + 13);
-      return { x: r(), y: r(), s: 0.4 + r() * 1.1, ph: r() * 6.28, sp: 0.6 + r() * 1.6 };
-    });
     this.pickable = false;
     this._settle = 0;
     this._running = false;
-    this.glowSprite = null;
 
     this._bindEvents();
     this.refreshTheme();
@@ -144,15 +144,6 @@ export class Stage {
       pSheen.push(css(mix(mix(peptide, white, 0.55), bg, haze)));
     }
     this.pepPal = { body: pBody, sheen: pSheen };
-    // soft orange glow sprite
-    const sp = document.createElement('canvas');
-    sp.width = sp.height = 64;
-    const g = sp.getContext('2d').createRadialGradient(32, 32, 0, 32, 32, 32);
-    g.addColorStop(0, `rgba(${peptide.map((v) => v | 0).join(',')},0.9)`);
-    g.addColorStop(1, `rgba(${peptide.map((v) => v | 0).join(',')},0)`);
-    sp.getContext('2d').fillStyle = g;
-    sp.getContext('2d').fillRect(0, 0, 64, 64);
-    this.glowSprite = sp;
   }
 
   /** Centre the model on this element (it glides there). Pass null for the middle of the page. */
@@ -261,6 +252,7 @@ export class Stage {
 
   destroy() {
     cancelAnimationFrame(this._raf);
+    clearTimeout(this._timer);
     this._running = false;
     removeEventListener('resize', this._onResize);
     removeEventListener('scroll', this._onScroll, true);
@@ -296,12 +288,44 @@ export class Stage {
     this._raf = requestAnimationFrame(this._tick);
   }
 
+  /** Is anything of the stage on screen? Not when a sheet covers the page or the model's slot has scrolled away. */
+  _checkOccluded() {
+    const sheet = !!document.querySelector('dialog[open]');
+    let away = false;
+    if (this.slot && this.slot.isConnected) {
+      const r = this.slot.getBoundingClientRect();
+      away = r.bottom < -40 || r.top > this.H + 40;
+    }
+    this._occluded = sheet || away;
+  }
+
+  /** Step the quality down when frames keep arriving late (a slow phone, a busy machine), so it never stutters. */
+  _govern(now) {
+    const gap = now - this._lastDrawAt;
+    this._lastDrawAt = now;
+    if (gap > 500 || this.dragging) return; // a pause (tab switch, sheet) says nothing about speed
+    const target = 1000 / QUALITY[this.level].fps;
+    this._slow = gap > target * 1.45 ? this._slow + 1 : Math.max(0, this._slow - 1);
+    if (this._slow >= 24 && this.level < QUALITY.length - 1) {
+      this.level++; this._slow = 0;
+      this.dpr = Math.min(window.devicePixelRatio || 1, QUALITY[this.level].dpr);
+      this.resize();
+    }
+  }
+
   _tick = (now) => {
     if (document.hidden) { this._running = false; return; }
-    const interval = this.dragging ? 0 : FPS_INTERVAL;
+    if (now - (this._checkedAt || 0) > 250) { this._checkedAt = now; this._checkOccluded(); }
+    if (this._occluded && !this.dragging) { // nothing visible: idle at 4 checks a second instead of drawing
+      this._timer = setTimeout(() => { this._raf = requestAnimationFrame(this._tick); }, 250);
+      this._last = now; this._lastDrawAt = 0;
+      return;
+    }
+    const interval = this.dragging ? 0 : 1000 / QUALITY[this.level].fps;
     if (now - this._last >= interval - 2) {
       const dt = Math.min(0.06, (now - this._last) / 1000);
       this._last = now;
+      this._govern(now);
       this.t += dt;
       this._update(dt);
       this._draw();
@@ -469,7 +493,7 @@ export class Stage {
         const depth = clamp((zn + 1) / 2, 0, 1), bucket = Math.round(depth * 15);
         const f = (sf[i] + sf[i + 1]) / 2;
         const w = Math.max(1.3, pw * f);
-        const dof = smoothstep(0.32, 1.15, Math.abs(zn - FOCUS)) * (this.reduced ? 0.5 : 1);
+        const dof = QUALITY[this.level].dof ? smoothstep(0.32, 1.15, Math.abs(zn - FOCUS)) * (this.reduced ? 0.5 : 1) : 0;
         const pal = this.pal[P.tone[i] % 5];
         const a = A * (0.5 + 0.5 * depth);
         ctx.beginPath(); ctx.moveTo(sx[i], sy[i]); ctx.lineTo(sx[i + 1], sy[i + 1]);
@@ -498,17 +522,6 @@ export class Stage {
 
     if (this.boxAlpha > 0.01 && this.box) this._drawBox(A);
     if (this.pulse) this._drawPulse();
-  }
-
-  _drawStars() {
-    const { ctx, W, H } = this;
-    for (const s of this.stars) {
-      const tw = this.reduced ? 0.7 : 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(this.t * s.sp + s.ph));
-      ctx.globalAlpha = 0.5 * tw;
-      ctx.fillStyle = '#dbe7ff';
-      ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.s, 0, 6.2832); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
   }
 
   /** Project a point in the protein's frame to the screen: [x, y, depth]. */
@@ -593,7 +606,7 @@ export class Stage {
   _bindEvents() {
     const cv = this.canvas;
     this._onResize = () => this.resize();
-    this._onScroll = () => this._measure();
+    this._onScroll = () => { if (this._scrollQueued) return; this._scrollQueued = true; requestAnimationFrame(() => { this._scrollQueued = false; this._measure(); }); };
     addEventListener('resize', this._onResize);
     addEventListener('scroll', this._onScroll, true);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.invalidate(); });

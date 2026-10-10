@@ -22,7 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-STATIC = Path(__file__).resolve().parent.parent / "src" / "hybridock_pep" / "web" / "static"
+ROOT = Path(__file__).resolve().parent.parent
+STATIC = ROOT / "src" / "hybridock_pep" / "web" / "static"
 DIST = STATIC / "dist"
 CSS_ORDER = ["fonts", "tokens", "base", "layout", "components", "screens"]
 ESBUILD = "esbuild@0.25.0"
@@ -56,12 +57,43 @@ def stored_hash(path: Path) -> str | None:
     return first.rsplit("source-hash: ", 1)[-1].split(" ")[0] if "source-hash:" in first else None
 
 
+# The guide is written once, in docs/GUIDE.md (readable on GitHub, with its screenshots in docs/guide-img/). The app serves
+# a copy of both from static/guide/, so the in-app guide and the GitHub one can never differ.
+GUIDE_FILES = [(ROOT / "docs" / "GUIDE.md", STATIC / "guide" / "guide.md")]
+
+
+def guide_pairs() -> list[tuple[Path, Path]]:
+    pairs = list(GUIDE_FILES)
+    for shot in sorted((ROOT / "docs" / "guide-img").glob("*.png")):
+        pairs.append((shot, STATIC / "guide" / "guide-img" / shot.name))
+    return pairs
+
+
+def guide_fresh() -> bool:
+    pairs = guide_pairs()
+    if not (ROOT / "docs" / "GUIDE.md").exists():
+        return True  # nothing to copy (e.g. a source tarball without docs/)
+    on_disk = {p.relative_to(STATIC / "guide") for p in (STATIC / "guide").rglob("*") if p.is_file()} if (STATIC / "guide").exists() else set()
+    wanted = {dst.relative_to(STATIC / "guide") for _, dst in pairs}
+    return on_disk == wanted and all(d.exists() and d.read_bytes().replace(b"\r\n", b"\n") == s.read_bytes().replace(b"\r\n", b"\n") for s, d in pairs)
+
+
+def sync_guide() -> None:
+    if not (ROOT / "docs" / "GUIDE.md").exists():
+        return
+    shutil.rmtree(STATIC / "guide", ignore_errors=True)
+    for src, dst in guide_pairs():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+
+
 def is_fresh() -> bool:
     js, css = current_hashes()
-    return stored_hash(DIST / "app.mjs") == js and stored_hash(DIST / "app.css") == css
+    return stored_hash(DIST / "app.mjs") == js and stored_hash(DIST / "app.css") == css and guide_fresh()
 
 
 def build() -> None:
+    sync_guide()
     js_hash, css_hash = current_hashes()
     DIST.mkdir(exist_ok=True)
 

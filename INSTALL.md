@@ -3,6 +3,8 @@
 This document walks you through setting up both conda environments and the
 non-redistributable third-party tools required to run HybriDock-Pep end-to-end.
 
+> **Brand new?** The [user guide](docs/GUIDE.md) covers installing, your first prediction and every screen, step by step.
+
 > **Just want it installed?** Run `./install.sh` (Linux/WSL2/macOS) or
 > `install.bat` (Windows) from the repo root — it automates every step below
 > including receptor-prep tooling (see Step 4), and finishes by launching a
