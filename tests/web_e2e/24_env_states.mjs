@@ -60,7 +60,7 @@ check('...and links to the troubleshooting guide', (await notice.locator('a[href
 check('the status chip says Setup needed', /Setup needed/.test(await chip(p)), await chip(p));
 await p.close();
 
-p = await asMachine(() => {});
+p = await asMachine((e) => { e.ready = true; for (const k of ['cli', 'vina', 'receptor_prep', 'scorer']) e.checks[k] = { ok: true, detail: k, fix: '' }; });
 check('a healthy machine shows no setup notice', (await p.locator('.hero-copy .notice').count()) === 0, '');
 await p.close();
 

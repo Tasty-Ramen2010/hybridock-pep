@@ -176,6 +176,9 @@
 .error-card h2 { color: var(--ink); }
 .error-card .cmd { background: var(--field); padding-right: 16px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
 
+/* links inside running text are never told apart by colour alone */
+.notice a, .hero-copy p a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
 /* a short factual notice: what is wrong or what to expect, in a flat gray block */
 .notice { padding: 14px 16px; border-radius: var(--r-md); background: var(--group); font-size: 15px; line-height: 1.45; color: var(--ink-2); max-width: 52ch; }
 .notice b { color: var(--ink); font-weight: 600; }
