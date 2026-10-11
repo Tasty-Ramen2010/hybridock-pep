@@ -1,6 +1,6 @@
 @echo off
 REM HybriDock-Pep - start the web app on Windows (it runs inside WSL2, which install.bat set up).
-REM Double-click this file. Your browser opens at http://127.0.0.1:8000 ; close this window to stop the app.
+REM Double-click this file. Your browser opens by itself (the address is also printed in this window); close this window to stop the app.
 setlocal enabledelayedexpansion
 
 where wsl >nul 2>nul
@@ -20,9 +20,9 @@ if "%WSL_REPO_DIR%"=="" (
     exit /b 1
 )
 
-REM open the browser a few seconds from now, once the app is listening (WSL2 forwards localhost to Windows)
-start "" cmd /c "timeout /t 6 >nul & start http://127.0.0.1:8000"
-wsl bash -lc "cd '%WSL_REPO_DIR%' && ./launch_web.sh --no-browser"
+REM the app opens your browser itself, at whichever port it ends up on (WSL2 hands the address to Windows);
+REM if no window appears, open the address it prints below.
+wsl bash -lc "cd '%WSL_REPO_DIR%' && ./launch_web.sh"
 echo.
 echo HybriDock-Pep has stopped.
 pause
