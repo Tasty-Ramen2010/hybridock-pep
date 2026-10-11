@@ -708,13 +708,20 @@ def test_the_environment_report_names_the_accelerator(monkeypatch):
     assert gpu == {"ok": True, "kind": "metal", "detail": "Apple M3 (Metal)", "fix": gpu["fix"]}
 
 
-def test_sampling_estimates_use_the_measured_speed_of_this_computer(monkeypatch):
-    monkeypatch.setattr(server, "_sampling_cost", lambda: 6.0)
+def test_estimates_use_the_measured_speed_of_this_computer(monkeypatch):
+    monkeypatch.setattr(server, "_accelerator_kind", lambda: "metal")
     metal = server.estimate_seconds({"n_samples": "100"}, "dock")
-    monkeypatch.setattr(server, "_sampling_cost", lambda: 0.6)
+    monkeypatch.setattr(server, "_accelerator_kind", lambda: "cuda")
     cuda = server.estimate_seconds({"n_samples": "100"}, "dock")
-    assert metal - cuda == int(5.4 * 100)
-    assert 800 < metal < 1000  # about 15 minutes for 100 poses on an M3, as documented
+    assert cuda == 340                      # 0.6 s/pose sampling + 2.8 s/pose after, unchanged
+    assert 300 < metal < 480                # a few minutes for 100 poses on an M3 (README: under 15 min as an upper bound)
+
+
+def test_a_default_whole_protein_search_on_metal_matches_the_measured_run(monkeypatch):
+    # Measured on an M3 through the website: 750 poses sampled, 150 scored, 967 s in all.
+    monkeypatch.setattr(server, "_accelerator_kind", lambda: "metal")
+    est = server.estimate_seconds({"blind": "y", "n_samples": "25", "n_pocket_search": "300", "n_pockets": "3", "n_per_pocket": "150", "site": ""}, "dock")
+    assert 967 * 0.9 < est < 967 * 1.3, est
 
 
 class TestOpenInBrowser:
@@ -735,3 +742,19 @@ class TestOpenInBrowser:
              mock.patch.object(server.webbrowser, "open") as wb:
             server._open_in_browser("http://127.0.0.1:8000/")
         wb.assert_called_once_with("http://127.0.0.1:8000/")
+
+
+class TestProgressAcrossPhases:
+    """A blind run samples twice (1200 denoising steps, then 480); the bar must not jump back when the counter restarts."""
+
+    def test_bar_never_goes_backwards_when_the_counter_restarts(self):
+        from hybridock_pep.ui.tui import PipelineProgress
+        p = PipelineProgress()
+        seen = []
+        for line in ["▶ [1/5] Generating poses…", "   1/1200 denoising steps (0%)", "   600/1200 denoising steps (50%)",
+                     "   1200/1200 denoising steps (100%)", "   48/480 denoising steps (10%)", "   480/480 denoising steps (100%)",
+                     "▶ [2/5] Scoring poses…"]:
+            p.feed(line)
+            seen.append(p.fraction())
+        assert seen == sorted(seen), seen
+        assert seen[0] == 0.0 and seen[3] == pytest.approx(0.5) and seen[5] == pytest.approx(0.5)  # the step marker "[1/5]" is not a count
