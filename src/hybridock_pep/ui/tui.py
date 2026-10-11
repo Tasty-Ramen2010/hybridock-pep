@@ -616,6 +616,8 @@ class PipelineProgress:
     def __init__(self):
         self.stage = None
         self.cur = self.total = 0
+        self.hw = 0.0  # furthest this stage has been (the bar never goes back)
+        self.carry = 0  # units of earlier counted phases inside this stage (a blind run samples twice: 1200 steps, then 480)
         self.done: set[str] = set()
         self.finished = False
         self.t0 = time.time()
@@ -626,7 +628,7 @@ class PipelineProgress:
         if key in _ORDER:
             for k in _ORDER[:_ORDER.index(key)]:
                 self.done.add(k)
-        self.stage, self.cur, self.total = key, 0, 0
+        self.stage, self.cur, self.total, self.carry, self.hw = key, 0, 0, 0, 0.0
 
     def feed(self, line):
         low = line.lower()
@@ -661,17 +663,24 @@ class PipelineProgress:
         if "complete" in low and self.stage:
             self.done.add(self.stage)
             self.cur = self.total or self.cur
-        if (m := _COUNT.search(line)):
-            self.cur, self.total = int(m.group(1)), int(m.group(2))
+        if line.strip().startswith("▶"):
+            pass  # "▶ [1/5] Generating poses…" is the pipeline's own step number, not a progress count
+        elif (m := _COUNT.search(line)):
+            cur, total = int(m.group(1)), int(m.group(2))
+            if self.total and total != self.total and self.cur >= self.total:
+                self.carry += self.total  # the counter restarted after a finished phase: keep that work, don't let the bar go back
+            self.cur, self.total = cur, total
+            self.hw = max(self.hw, min((self.carry + cur) / (self.carry + total), 1.0))
         elif (p := _PCT.search(line)):
             self.total, self.cur = 100, int(p.group(1))
+            self.hw = max(self.hw, min(self.cur / 100, 1.0))
 
     def fraction(self):
         if self.finished:
             return 1.0
         frac = sum(_WEIGHT[k] for k in self.done)
         if self.stage and self.stage not in self.done:
-            frac += _WEIGHT.get(self.stage, 0) * min((self.cur / self.total) if self.total else 0, 1)
+            frac += _WEIGHT.get(self.stage, 0) * self.hw
         return max(0.0, min(frac, 1.0))
 
     def counter(self):

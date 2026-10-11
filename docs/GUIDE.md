@@ -343,7 +343,7 @@ Times depend entirely on your hardware. These are the numbers we have, with the 
 | Machine | Quick (25 poses) | Half (50) | Full (100) | Whole-protein search |
 | --- | --- | --- | --- | --- |
 | NVIDIA RTX 5070 (estimated from per-pose timings) | 1.5 min | 3 min | 6 min | 30 min |
-| Apple M3, Metal (estimated from per-pose timings) | 4 min | 7 min | 15 min | 1.5 hours |
+| Apple M3, Metal (whole-protein search **measured**: 16 min; the others estimated from it) | 2 min | 3.5 min | 6 min | 16 min |
 | 12-core ARM board, **no GPU** (measured) | 6 min | 11 min | 21 min | 2 hours |
 
 Add about **10 minutes, once**, to the first prediction on a computer for the model download and setup. Whole-protein search also wants 16 GB of memory or more, so run nothing else beside it.

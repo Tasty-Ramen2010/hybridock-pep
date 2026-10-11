@@ -169,7 +169,7 @@ def _length_band(n: int) -> str:
 def estimate_seconds(values: dict[str, str], mode: str) -> int:
     """Rough wall-clock estimate shown on the run button.
 
-    Measured anchors: RAPiDock is about 0.6 s/pose on the 5070 (about 6 on Apple's Metal backend), Stage 2 scoring is
+    Measured anchors: RAPiDock is about 0.6 s/pose on the 5070 (about 1 on Apple's Metal backend), Stage 2 scoring is
     2.8 s/pose end-to-end. MM-GBSA and ultra are per-pose on top of that. It is an
     estimate and the UI says so — nobody should be surprised by a 3× miss on CPU.
     """
@@ -177,6 +177,7 @@ def estimate_seconds(values: dict[str, str], mode: str) -> int:
         return 10
     n = _int_or(values.get("n_samples"), 100)
     sampling: float
+    score_s, fixed = _scoring_cost()
     if (values.get("input_poses") or "").strip():
         sampling = 0.0
     elif _truthy(values.get("blind")) and not (values.get("site") or "").strip():
@@ -184,10 +185,10 @@ def estimate_seconds(values: dict[str, str], mode: str) -> int:
         n_pock = _int_or(values.get("n_pockets"), 3)
         n_per = _int_or(values.get("n_per_pocket"), 150)
         sampling = _sampling_cost() * (n_search + n_pock * n_per)
-        n = n_pock * n_per
+        n = n_per  # measured: a default blind run samples 750 poses but scores the best pocket's 150
     else:
         sampling = _sampling_cost() * n
-    total = sampling + 2.8 * n
+    total = sampling + score_s * n + fixed
     topk = _int_or(values.get("refine_topk"), 0)
     if topk:
         total += 45 * topk  # MM-GBSA, GPU; CPU-only is roughly 30-60 s/pose on top
@@ -300,17 +301,27 @@ def _detect_accelerator(which: Any, os_name: str | None = None, machine: str | N
     return None, ""
 
 
-# Sampling seconds per pose, from measurements: 0.6 on an RTX 5070; about ten times that on Apple's Metal backend
-# (INSTALL.md / README: "~10x slower than CUDA"; 100 poses take ~15 minutes on an M3). Nothing measured for AMD, Intel or a
+# Seconds per pose, from measurements. CUDA: 0.6 sampling (RTX 5070) and 2.8 end-to-end afterwards. Metal: a default
+# whole-protein search on an M3 (750 poses sampled, 150 scored) took 16 min: 0.93 s/pose sampling, then 1.75 s/pose for
+# minimising, scoring and ranking, plus about a minute of start-up and final ranking. Nothing is measured for AMD, Intel or a
 # plain CPU, so the app shows no countdown there (the UI only trusts "cuda" and "metal").
-_SAMPLING_S_PER_POSE = {"cuda": 0.6, "metal": 6.0}
+_SAMPLING_S_PER_POSE = {"cuda": 0.6, "metal": 1.0}
+_SCORING_S_PER_POSE = {"cuda": (2.8, 0), "metal": (1.8, 60)}  # (seconds per scored pose, fixed seconds per run)
 
 
 @functools.lru_cache(maxsize=1)
-def _sampling_cost() -> float:
+def _accelerator_kind() -> str:
     import shutil as _shutil
     kind, _ = _detect_accelerator(lambda n: tui._resolve_exe(n) or _shutil.which(n))
-    return _SAMPLING_S_PER_POSE.get(kind or "", 0.6)
+    return kind or ""
+
+
+def _sampling_cost() -> float:
+    return _SAMPLING_S_PER_POSE.get(_accelerator_kind(), 0.6)
+
+
+def _scoring_cost() -> tuple[float, int]:
+    return _SCORING_S_PER_POSE.get(_accelerator_kind(), (2.8, 0))
 
 
 def check_environment() -> dict[str, Any]:
