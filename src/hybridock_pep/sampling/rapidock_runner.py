@@ -314,6 +314,18 @@ def _install_bundled_checkpoint(model_dir: Path, ckpt_name: str) -> None:
 LONGER_CKPT_NAME = "longer_local.pt"
 
 
+def has_long_checkpoint(model_dir: Path) -> bool:
+    """True when the long-peptide checkpoint can be used: in the model directory, or dropped into the repo's ``weights/``.
+
+    A file in ``weights/`` is copied into the model directory the first time it is needed (the same way the two
+    shipped checkpoints are), so "put longer_local.pt in weights/" is the whole install on every platform.
+    """
+    if (model_dir / LONGER_CKPT_NAME).exists():
+        return True
+    _install_bundled_checkpoint(model_dir, LONGER_CKPT_NAME)
+    return (model_dir / LONGER_CKPT_NAME).exists()
+
+
 def select_checkpoint(peptide_len: int, threshold: int, model_dir: Path) -> str:
     """Route to the long-peptide checkpoint when the peptide is long enough and
     the checkpoint is actually present; otherwise use the standard local checkpoint.
@@ -337,8 +349,7 @@ def select_checkpoint(peptide_len: int, threshold: int, model_dir: Path) -> str:
         return override
     if peptide_len < threshold:
         return _CKPT_DEFAULT
-    longer_path = model_dir / LONGER_CKPT_NAME
-    if longer_path.exists():
+    if has_long_checkpoint(model_dir):
         logger.info(
             "Peptide length %d ≥ threshold %d — routing to %s",
             peptide_len, threshold, LONGER_CKPT_NAME,
@@ -346,7 +357,7 @@ def select_checkpoint(peptide_len: int, threshold: int, model_dir: Path) -> str:
         return LONGER_CKPT_NAME
     logger.warning(
         "Peptide length %d ≥ threshold %d would route to %s, but it is not "
-        "present in %s — falling back to %s. See INSTALL.md for how to add it.",
+        "present in %s — falling back to %s. To add it, put longer_local.pt in the repo's weights/ folder.",
         peptide_len, threshold, LONGER_CKPT_NAME, model_dir, _CKPT_DEFAULT,
     )
     return _CKPT_DEFAULT

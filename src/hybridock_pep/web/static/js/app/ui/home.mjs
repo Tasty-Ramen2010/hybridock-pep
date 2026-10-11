@@ -87,7 +87,7 @@ export function mountHome(ctx) {
     : h('p', { class: 'small muted' }, h('span', { class: 'badge-demo' }, 'Demo'), ' ', 'The peptide ', h('span', { class: 'mono pep' }, EXAMPLE.peptide), ' docked against the Tau VQIVYK stretch, a piece of the protein that clumps in Alzheimer’s disease.');
 
   // A live server that is missing something: say exactly what and how to fix it, instead of letting the first run fail.
-  const MISSING = ['cli', 'vina', 'receptor_prep', 'scorer'];
+  const MISSING = ['cli', 'vina', 'receptor_prep', 'scorer', 'models'];
   const broken = live && adapter.env ? MISSING.map((k) => [k, adapter.env.checks?.[k]]).filter(([, c]) => c && !c.ok) : [];
   const setupNotice = broken.length ? h('div', { class: 'notice', role: 'status' },
     h('b', {}, 'Setup isn’t finished on this computer.'),

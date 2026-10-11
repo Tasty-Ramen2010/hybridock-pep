@@ -758,3 +758,32 @@ class TestProgressAcrossPhases:
             seen.append(p.fraction())
         assert seen == sorted(seen), seen
         assert seen[0] == 0.0 and seen[3] == pytest.approx(0.5) and seen[5] == pytest.approx(0.5)  # the step marker "[1/5]" is not a count
+
+
+class TestModelFiles:
+    def test_every_scoring_model_the_pipeline_uses_exists_and_loads(self):
+        joblib = pytest.importorskip("joblib")
+        from hybridock_pep._paths import data_file
+        for name in server.SCORING_MODELS:
+            assert isinstance(joblib.load(data_file(name + ".joblib")), dict), name
+
+    def test_the_models_check_counts_what_is_there(self, monkeypatch, tmp_path):
+        from hybridock_pep.sampling import rapidock_runner
+        monkeypatch.setattr(rapidock_runner, "_find_model_dir", lambda: tmp_path)
+        (tmp_path / "rapidock_local.pt").write_bytes(b"x")
+        c = server._models_check()
+        assert "scoring 6 of 6" in c["detail"] and c["ok"] is True
+        monkeypatch.setattr(server, "data_file", lambda rel: tmp_path / rel)  # no scoring models anywhere
+        c = server._models_check()
+        assert c["ok"] is False and "scoring 0 of 6" in c["detail"] and "affinity_ai_nofix" in c["fix"]
+
+    def test_a_long_peptide_model_dropped_into_weights_is_picked_up(self, monkeypatch, tmp_path):
+        from hybridock_pep.sampling import rapidock_runner as rr
+        root = tmp_path / "repo"; model_dir = root / "third_party" / "RAPiDock" / "train_models" / "CGTensorProductEquivariantModel"
+        (root / "weights").mkdir(parents=True); model_dir.mkdir(parents=True)
+        monkeypatch.delenv("RAPIDOCK_CKPT", raising=False)
+        assert rr.select_checkpoint(15, 13, model_dir) == "rapidock_local.pt"          # not there: standard model
+        (root / "weights" / rr.LONGER_CKPT_NAME).write_bytes(b"x")
+        assert rr.select_checkpoint(15, 13, model_dir) == rr.LONGER_CKPT_NAME           # dropped in: used for long peptides
+        assert (model_dir / rr.LONGER_CKPT_NAME).exists()                                # ...and copied next to the others
+        assert rr.select_checkpoint(8, 13, model_dir) == "rapidock_local.pt"            # short peptides never use it

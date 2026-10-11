@@ -350,6 +350,25 @@ The whole-protein column is for **Full**. With *Find the pocket for me*, the cho
 
 Add about **10 minutes, once**, to the first prediction on a computer for the model download and setup. Whole-protein search also wants 16 GB of memory or more, so run nothing else beside it.
 
+## The model files {#models}
+
+Everything the program loads comes with the download, apart from one language model fetched the first time you predict. **This machine** (the status chip in the top bar) shows a *Models* line that counts what is present.
+
+| File | What it does | Where it comes from |
+| --- | --- | --- |
+| `rapidock_local.pt` | Proposes poses around the box you chose, and again around each pocket in a whole-protein search | In the project's `weights/` folder |
+| `rapidock_global.pt` | Searches the whole protein for pockets (only *Find the pocket for me* uses it) | In the project's `weights/` folder |
+| ESM-2 (about 2.5 GB) | Reads the protein sequence for RAPiDock | Downloaded once, on the first prediction |
+| `affinity_ai_nofix` | The model behind the headline ΔG of a prediction | Inside the program |
+| `pose_ranker_ml` | Orders the poses | Inside the program |
+| `affinity_crystal_ifp` | Scores a pose you already have (the Score screen) | Inside the program |
+
+Three more scoring files (`affinity_crystal_sizefix`, `affinity_rank_ifp`, `skempi_ddg_model`) ship inside the program too, but no screen in the website uses them.
+
+**Long peptides.** Peptides of 13 residues or more can use a separate long-peptide model, `longer_local.pt`. It is not part of the public release, so by default every peptide uses the standard model, and the *Long-peptide model* line in the status chip says so. If you have the file, put it in the project's `weights/` folder: the next run picks it up and uses it for peptides at or above the threshold in Expert settings.
+
+The other scoring files in the project's `data/` folder are research variants kept for the record. The model card (`MODEL_CARD.md`) explains why they are not used for results.
+
 ## Troubleshooting {#troubleshooting}
 
 | What you see | What it means and what to do |

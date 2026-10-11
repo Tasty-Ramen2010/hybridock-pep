@@ -14,7 +14,7 @@ async function asMachine(patch, path = '/') {
   // start from a healthy machine whatever this one is (a CI runner or a laptop may lack pieces), then apply the case's change
   await p.route('**/api/env', async (route) => {
     const env = JSON.parse(JSON.stringify(real));
-    env.ready = true; for (const k of ['cli', 'vina', 'receptor_prep', 'scorer']) env.checks[k] = { ok: true, detail: k, fix: '' };
+    env.ready = true; for (const k of ['cli', 'vina', 'receptor_prep', 'scorer', 'models']) env.checks[k] = { ok: true, detail: k, fix: '' };
     patch(env); await route.fulfill({ json: env });
   });
   await p.route('**/api/run', () => {}); // a run is never really started here: the request just hangs, which keeps the Running screen up

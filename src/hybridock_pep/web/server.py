@@ -324,6 +324,30 @@ def _scoring_cost() -> tuple[float, int]:
     return _SCORING_S_PER_POSE.get(_accelerator_kind(), (2.8, 0))
 
 
+# The scoring models the pipeline loads (MODEL_CARD.md: the headline AI-pose model, the crystal and interaction-map
+# models, the pose ranker and the mutation model). The other .joblib files in data/ are research variants, not wired in.
+SCORING_MODELS = ("affinity_ai_nofix", "affinity_crystal_sizefix", "affinity_crystal_ifp", "affinity_rank_ifp",
+                  "pose_ranker_ml", "skempi_ddg_model")
+DOCKING_MODELS = ("rapidock_local.pt", "rapidock_global.pt")
+
+
+def _models_check() -> dict[str, Any]:
+    """Are the model files the program loads actually here? (A missing RAPiDock checkpoint is copied in from weights/ at run time.)"""
+    scoring = [n for n in SCORING_MODELS if data_file(n + ".joblib").is_file()]
+    try:
+        from hybridock_pep.sampling import rapidock_runner as _rr
+        model_dir = _rr._find_model_dir()
+    except Exception:  # RAPiDock is not installed on this machine
+        model_dir = None
+    repo_weights = Path(__file__).resolve().parents[3] / "weights"
+    docking = [n for n in DOCKING_MODELS if (model_dir and (model_dir / n).is_file()) or (repo_weights / n).is_file()]
+    ok = len(scoring) == len(SCORING_MODELS) and DOCKING_MODELS[0] in docking
+    missing = [n for n in SCORING_MODELS if n not in scoring] + [n for n in DOCKING_MODELS if n not in docking]
+    return {"ok": ok,
+            "detail": f"Models: docking {len(docking)} of {len(DOCKING_MODELS)}, scoring {len(scoring)} of {len(SCORING_MODELS)}",
+            "fix": "Reinstall with ./install.sh (or bash scripts/install_weights.sh)" + (f". Missing: {', '.join(missing)}" if missing else "")}
+
+
 def check_environment() -> dict[str, Any]:
     """Report what this machine can actually do, for the status lamp.
 
@@ -366,11 +390,11 @@ def check_environment() -> dict[str, Any]:
     # uses the standard model whatever --long-checkpoint-threshold says. Say so, so the UI does not claim otherwise.
     try:
         from hybridock_pep.sampling import rapidock_runner as _rr
-        long_ok = (_rr._find_model_dir() / _rr.LONGER_CKPT_NAME).exists()
+        long_ok = _rr.has_long_checkpoint(_rr._find_model_dir())
     except Exception:  # RAPiDock not installed on this machine: nothing to route
         long_ok = False
     checks["long_model"] = {"ok": long_ok, "detail": "Long-peptide model (optional)" if long_ok else "Long-peptide model not installed (optional)",
-                            "fix": "Without it every peptide uses the standard model, whatever the threshold is set to"}
+                            "fix": "Peptides of 13+ residues use the standard model. To add it, put longer_local.pt in the weights/ folder"}
 
     # The first prediction on a computer builds RAPiDock's lookup tables and downloads the ESM-2 language model
     # (about 2.5 GB). Nothing else depends on it, but people should hear about it BEFORE a run looks stuck.
@@ -385,6 +409,8 @@ def check_environment() -> dict[str, Any]:
     weights = data_file("affinity_ai_nofix.joblib")
     checks["scorer"] = {"ok": weights.exists(), "detail": "affinity model weights",
                         "fix": "bash scripts/install_weights.sh"}
+
+    checks["models"] = _models_check()
 
     essential = ("cli", "scorer")
     checks_ok = all(checks[k]["ok"] for k in essential)
