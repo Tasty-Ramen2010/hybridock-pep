@@ -491,6 +491,7 @@ def test_environment_reports_whether_the_optional_long_peptide_model_is_installe
     from hybridock_pep.sampling import rapidock_runner
 
     monkeypatch.setattr(rapidock_runner, "_find_model_dir", lambda: tmp_path)
+    monkeypatch.setattr(rapidock_runner, "_REPO_ROOT", tmp_path / "no_repo")  # the real weights/ now ships the file
     missing = server.check_environment()["checks"]["long_model"]
     assert missing["ok"] is False and "not installed" in missing["detail"]
     (tmp_path / rapidock_runner.LONGER_CKPT_NAME).write_bytes(b"x")
@@ -781,6 +782,7 @@ class TestModelFiles:
         from hybridock_pep.sampling import rapidock_runner as rr
         root = tmp_path / "repo"; model_dir = root / "third_party" / "RAPiDock" / "train_models" / "CGTensorProductEquivariantModel"
         (root / "weights").mkdir(parents=True); model_dir.mkdir(parents=True)
+        monkeypatch.setattr(rr, "_REPO_ROOT", tmp_path / "no_repo")  # the real weights/ now ships the file
         monkeypatch.delenv("RAPIDOCK_CKPT", raising=False)
         assert rr.select_checkpoint(15, 13, model_dir) == "rapidock_local.pt"          # not there: standard model
         (root / "weights" / rr.LONGER_CKPT_NAME).write_bytes(b"x")

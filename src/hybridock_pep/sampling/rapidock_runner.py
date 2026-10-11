@@ -250,6 +250,11 @@ def _find_model_dir() -> Path:
     )
 
 
+#: Repo root when running from a source checkout (<root>/src/hybridock_pep/sampling/); a module constant so tests can
+#: point it at a scratch directory instead of the real ``weights/``.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
 def _install_bundled_checkpoint(model_dir: Path, ckpt_name: str) -> None:
     """Copy a checkpoint shipped in the repo's ``weights/`` into the model dir.
 
@@ -284,7 +289,7 @@ def _install_bundled_checkpoint(model_dir: Path, ckpt_name: str) -> None:
     roots = []
     if len(model_dir.parents) >= 4:
         roots.append(model_dir.parents[3])
-    roots.append(Path(__file__).resolve().parents[3])
+    roots.append(_REPO_ROOT)
 
     for root in roots:
         src = root / "weights" / ckpt_name
