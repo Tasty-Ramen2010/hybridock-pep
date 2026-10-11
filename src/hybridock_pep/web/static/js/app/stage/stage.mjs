@@ -662,8 +662,9 @@ export class Stage {
     d.moved += Math.abs(dx) + Math.abs(dy);
     d.x = e.clientX; d.y = e.clientY;
     if (d.mode === 'rotate') {
-      this.q = qNormalize(qMul(qMul(qAxisAngle([0, 1, 0], dx * 0.008), qAxisAngle([1, 0, 0], dy * 0.008)), this.q));
-      this.angVel = [dx * 0.5, dy * 0.5];
+      // screen y points down, so dragging down must tip the near side down: that is a NEGATIVE turn about x (left-right is right as it was)
+      this.q = qNormalize(qMul(qMul(qAxisAngle([0, 1, 0], dx * 0.008), qAxisAngle([1, 0, 0], -dy * 0.008)), this.q));
+      this.angVel = [dx * 0.5, -dy * 0.5];
     } else if (d.mode === 'move') {
       const { S, D, M } = this.view, cs = this._project(this.box.center);
       const f = D / (D - cs[2]);

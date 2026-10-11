@@ -112,6 +112,17 @@ const before = await coords(); const size0 = await boxSize();
 await p.mouse.move(150, 800); await p.mouse.down(); await p.mouse.move(260, 780, { steps: 6 }); await p.mouse.up(); await sleep(200);
 check('dragging empty space rotates the protein without moving the box', JSON.stringify(await coords()) === JSON.stringify(before) && (await boxSize()) === size0, '');
 g = await geom();
+// the protein follows the pointer: the point that faces us moves the way the pointer moves, in both directions
+{
+  const turn = async (dx, dy) => {
+    const f0 = await p.evaluate(() => { const q = window.hybridock.stage.q, c = [-q[0], -q[1], -q[2], q[3]]; window.__rot = (r, v) => { const [x, y, z, w] = r, t = [2 * (y * v[2] - z * v[1]), 2 * (z * v[0] - x * v[2]), 2 * (x * v[1] - y * v[0])]; return [v[0] + w * t[0] + (y * t[2] - z * t[1]), v[1] + w * t[1] + (z * t[0] - x * t[2]), v[2] + w * t[2] + (x * t[1] - y * t[0])]; }; return window.__rot(c, [0, 0, 1]); });
+    await p.mouse.move(150, 800); await p.mouse.down(); await p.mouse.move(150 + dx, 800 + dy, { steps: 8 }); await p.mouse.up(); await sleep(60);
+    return p.evaluate((f) => window.__rot(window.hybridock.stage.q, f), f0);
+  };
+  const dragUp = await turn(0, -60), dragDown = await turn(0, 60), right = await turn(60, 0), left = await turn(-60, 0);
+  check('dragging up tips the near side up, dragging down tips it down (not inverted)', dragUp[1] < -0.2 && dragDown[1] > 0.2, `${dragUp[1].toFixed(2)} / ${dragDown[1].toFixed(2)}`);
+  check('dragging right turns the near side right, left turns it left', right[0] > 0.2 && left[0] < -0.2, `${right[0].toFixed(2)} / ${left[0].toFixed(2)}`);
+}
 // move the box: drag inside it
 await p.mouse.move(g.center[0], g.center[1]); await p.mouse.down(); await p.mouse.move(g.center[0] + 45, g.center[1] + 30, { steps: 8 }); await p.mouse.up(); await sleep(250);
 const afterMove = await coords();
