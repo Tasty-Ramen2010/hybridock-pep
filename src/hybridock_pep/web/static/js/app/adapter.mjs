@@ -587,20 +587,34 @@ export let adapter = mockAdapter;
 export const demoAdapter = mockAdapter;
 export const adapterFor = (result) => (result?.demo ? mockAdapter : adapter);
 
+/**
+ * Is there a HybriDock-Pep server behind this page? Only a definite "no" means Demo: a static host answers /api/env with
+ * 404/405 (or a page that is not JSON). A server that is merely slow, busy or restarting is retried, and if it still does
+ * not answer the app stays in live mode and says "Server not reached", so a slow start never turns into pretend results.
+ */
+async function probeServer() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch('/api/env', { cache: 'no-store', signal: AbortSignal.timeout(attempt ? 10000 : 6000) });
+      if (res.status === 404 || res.status === 405 || res.status === 501) return { absent: true };
+      if (res.ok) return { env: await res.json() };
+    } catch (e) {
+      if (e instanceof SyntaxError) return { absent: true }; // 200 but not JSON: some other web server
+    }
+    await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+  }
+  return { unreachable: true };
+}
+
 /** Pick live when this page is served by `hybridock-pep serve`, otherwise demo. Call once at start-up. */
 export async function initAdapter() {
   const q = new URLSearchParams(globalThis.location?.search || '');
   // A static copy (GitHub Pages, scripts/build_pages.py) has no server behind it: go straight to the demo.
   if (q.has('demo') || globalThis.location?.protocol === 'file:' || globalThis.HYBRIDOCK_STATIC) return (adapter = mockAdapter);
-  try {
-    const res = await fetch('/api/env', { cache: 'no-store', signal: AbortSignal.timeout(2500) });
-    if (!res.ok) throw new Error('no api');
-    liveAdapter.env = await res.json();
-    liveAdapter.refreshEnv = async () => { try { liveAdapter.env = await (await fetch('/api/env', { cache: 'no-store' })).json(); } catch { /* keep what we had */ } };
-    liveAdapter.examples = (await (await fetch('/api/examples', { cache: 'no-store' })).json()).examples || [];
-    return (adapter = liveAdapter);
-  } catch {
-    if (q.has('live')) { liveAdapter.env = null; return (adapter = liveAdapter); } // forced: errors will say why
-    return (adapter = mockAdapter);
-  }
+  const probe = await probeServer();
+  if (probe.absent && !q.has('live')) return (adapter = mockAdapter);
+  liveAdapter.env = probe.env || null;
+  liveAdapter.refreshEnv = async () => { try { liveAdapter.env = await (await fetch('/api/env', { cache: 'no-store' })).json(); } catch { /* keep what we had */ } };
+  try { liveAdapter.examples = (await (await fetch('/api/examples', { cache: 'no-store' })).json()).examples || []; } catch { liveAdapter.examples = []; }
+  return (adapter = liveAdapter);
 }

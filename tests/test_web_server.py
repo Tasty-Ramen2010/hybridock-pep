@@ -715,3 +715,23 @@ def test_sampling_estimates_use_the_measured_speed_of_this_computer(monkeypatch)
     cuda = server.estimate_seconds({"n_samples": "100"}, "dock")
     assert metal - cuda == int(5.4 * 100)
     assert 800 < metal < 1000  # about 15 minutes for 100 poses on an M3, as documented
+
+
+class TestOpenInBrowser:
+    def test_wsl_hands_the_address_to_windows(self):
+        from unittest import mock
+        from hybridock_pep.web import server
+        with mock.patch.object(server.Path, "read_text", return_value="Linux version 5.15 microsoft-standard-WSL2"), \
+             mock.patch.object(server.subprocess, "Popen") as popen, mock.patch.object(server.webbrowser, "open") as wb:
+            server._open_in_browser("http://127.0.0.1:8001/")
+        assert popen.call_args[0][0][:3] == ["cmd.exe", "/c", "start"]
+        assert popen.call_args[0][0][-1] == "http://127.0.0.1:8001/"
+        wb.assert_not_called()
+
+    def test_everywhere_else_uses_the_default_browser(self):
+        from unittest import mock
+        from hybridock_pep.web import server
+        with mock.patch.object(server.Path, "read_text", return_value="Darwin"), \
+             mock.patch.object(server.webbrowser, "open") as wb:
+            server._open_in_browser("http://127.0.0.1:8000/")
+        wb.assert_called_once_with("http://127.0.0.1:8000/")

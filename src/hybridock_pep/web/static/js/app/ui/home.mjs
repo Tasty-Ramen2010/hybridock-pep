@@ -94,6 +94,11 @@ export function mountHome(ctx) {
     h('ul', {}, broken.map(([, c]) => h('li', {}, c.detail, ' is missing. Fix: ', h('code', { class: 'mono' }, c.fix)))),
     h('a', { class: 'tap', href: '#/guide/troubleshooting' }, 'Open the install guide')) : null;
 
+  // The page came from a HybriDock-Pep server that is not answering (still starting, busy, or stopped): say so, never fall back to pretend results.
+  const offlineNotice = live && !adapter.env ? h('div', { class: 'notice', role: 'alert' },
+    h('b', {}, 'HybriDock-Pep isn’t answering. '), 'It may still be starting, or the window that runs it was closed. Wait a few seconds, then ',
+    h('button', { class: 'btn sm', type: 'button', onClick: () => location.reload() }, 'Try again'), '.') : null;
+
   // On the public demo site (no app behind it): say so plainly, and show the way to the real thing.
   const demoNotice = live ? null : h('div', { class: 'notice', role: 'note' },
     h('b', {}, 'This is a demo. '), 'Every result here is simulated. To run real predictions on your own computer, or in Google Colab with nothing to install, ',
@@ -107,6 +112,7 @@ export function mountHome(ctx) {
         h('div', { class: 'row' },
           h('button', { class: 'btn primary lg', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, 'New prediction'),
           h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, 'Run example', icon('chevron', 16))),
+        offlineNotice,
         setupNotice,
         demoNotice,
         exNote,

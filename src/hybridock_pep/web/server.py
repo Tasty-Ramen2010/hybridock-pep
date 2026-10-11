@@ -1116,6 +1116,17 @@ def _build_command(body: dict[str, Any]) -> list[str]:
 #  Entry point
 # --------------------------------------------------------------------------- #
 
+def _open_in_browser(url: str) -> None:
+    """Open ``url`` in the user's browser. Inside WSL2 that means the Windows browser (the Linux side has none)."""
+    try:
+        if "microsoft" in Path("/proc/version").read_text().lower():
+            subprocess.Popen(["cmd.exe", "/c", "start", "", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+    except (OSError, ValueError):
+        pass
+    webbrowser.open(url)
+
+
 def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) -> int:
     """Run the studio until interrupted.
 
@@ -1150,7 +1161,7 @@ def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) 
     print(f"\n  HybriDock-Pep studio is running at  {url}", flush=True)
     print("  Open that in your browser. Ctrl-C here when you're done.\n", flush=True)
     if open_browser:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.6, lambda: _open_in_browser(url)).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

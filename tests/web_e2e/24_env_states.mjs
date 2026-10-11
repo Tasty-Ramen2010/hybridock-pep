@@ -70,4 +70,30 @@ p = await asMachine(() => {});
 check('a healthy machine shows no setup notice', (await p.locator('.hero-copy .notice').count()) === 0, '');
 await p.close();
 
+// ---- which mode: a slow or dead server must never turn into pretend results ----
+const modeOf = (pg) => pg.evaluate(() => window.hybridock?.adapter?.kind);
+{
+  const slow = await newPage(b);
+  let first = true;
+  await slow.route('**/api/env', async (route) => { if (first) { first = false; await sleep(7500); } await route.fulfill({ json: real }); }); // the first answer comes after the 6 s limit
+  await slow.goto(BASE + '/'); await slow.waitForSelector('.hero-card', { timeout: 40000 });
+  check('a server that answers late (after 6 s) still opens in live mode, not Demo', (await modeOf(slow)) === 'live' && (await slow.locator('.badge-demo').count()) === 0, await modeOf(slow));
+  await slow.close();
+
+  const dead = await newPage(b);
+  await dead.route('**/api/env', (route) => route.abort('connectionrefused'));
+  await dead.goto(BASE + '/'); await dead.waitForSelector('.hero-card', { timeout: 40000 });
+  check('a server that does not answer stays live and says "Server not reached"', (await modeOf(dead)) === 'live' && /Server not reached/.test(await chip(dead)), await chip(dead));
+  const alert = dead.locator('.hero-copy .notice[role=alert]');
+  check('...with a plain "isn’t answering" notice and a Try again button', (await alert.count()) === 1 && /isn’t answering/.test(await alert.textContent()) && (await alert.getByRole('button', { name: 'Try again' }).count()) === 1, '');
+  check('...and no "Demo" label anywhere', (await dead.locator('.badge-demo').count()) === 0, '');
+  await dead.close();
+
+  const plain = await newPage(b);
+  await plain.route('**/api/env', (route) => route.fulfill({ status: 404, body: 'not found' }));
+  await plain.goto(BASE + '/'); await plain.waitForSelector('.hero-card');
+  check('a plain web host (no API: 404) is Demo, and says so', (await modeOf(plain)) === 'demo' && (await plain.locator('.badge-demo').count()) >= 1, await modeOf(plain));
+  await plain.close();
+}
+
 await b.close(); finish('24_env_states');
