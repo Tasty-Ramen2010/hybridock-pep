@@ -346,6 +346,8 @@ Times depend entirely on your hardware. These are the numbers we have, with the 
 | Apple M3, Metal (whole-protein search **measured**: 16 min; the others estimated from it) | 2 min | 3.5 min | 6 min | 16 min |
 | 12-core ARM board, **no GPU** (measured) | 6 min | 11 min | 21 min | 2 hours |
 
+The whole-protein column is for **Full**. With *Find the pocket for me*, the choice of Quick, Half or Full scales the search itself (Quick searches a quarter as many poses), so those take roughly a quarter, a half and all of that time.
+
 Add about **10 minutes, once**, to the first prediction on a computer for the model download and setup. Whole-protein search also wants 16 GB of memory or more, so run nothing else beside it.
 
 ## Troubleshooting {#troubleshooting}

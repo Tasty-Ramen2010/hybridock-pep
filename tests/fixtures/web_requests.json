@@ -51,6 +51,8 @@
       "site": "",
       "box": "30",
       "n_samples": "25",
+      "n_pocket_search": "75",
+      "n_per_pocket": "38",
       "long_checkpoint_threshold": "13",
       "refine_topk": "0",
       "ultra": "0",

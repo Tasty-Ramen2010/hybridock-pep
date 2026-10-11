@@ -331,6 +331,17 @@ async function startJob(opts, buildBody) {
 
 const siteStr = (s) => `${s.x} ${s.y} ${s.z}`;
 
+/**
+ * "How thorough?" has to mean something for a whole-protein search too. There the CLI ignores --n-samples and uses its own
+ * sizes (300 search poses, then 150 per pocket for 3 pockets), so every choice would run, and be timed as, the same job.
+ * Full (100 poses) is those defaults; Quick and Half scale both numbers down in proportion.
+ */
+export function blindSearchSize(job) {
+  if (!job.blind) return {};
+  const k = Math.min(5, Math.max(0.05, Number(job.poses) / 100));
+  return { n_pocket_search: String(Math.max(50, Math.round(300 * k))), n_per_pocket: String(Math.max(10, Math.round(150 * k))) };
+}
+
 /** The terminal UI's field values for a dock job. Blank means "use the default". */
 export function dockValues(job, receptor) {
   const e = { ...EXPERT_DEFAULTS, ...(job.expert || {}) };
@@ -339,6 +350,7 @@ export function dockValues(job, receptor) {
     blind: yn(job.blind),
     site: job.blind ? '' : siteStr(job.site), box: String(job.box),
     n_samples: String(job.poses),
+    ...blindSearchSize(job),
     long_checkpoint_threshold: String(e.longCheckpointThreshold),
     refine_topk: e.refineTopK === '' || e.refineTopK == null ? '0' : String(e.refineTopK),
     ultra: e.ultra ? String(e.ultraK || EXPERT_DEFAULTS.ultraK) : '0',

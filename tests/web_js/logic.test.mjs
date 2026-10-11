@@ -251,3 +251,12 @@ test('settingProblems: the backend limits (box 10-60, threshold 3-30, top-K 0-50
   assert.deepEqual(bad({ seed: 2147483647 }), []);
   assert.deepEqual(LIMITS.box, [10, 60]);
 });
+
+test('whole-protein search scales with How thorough: Full is the CLI default, Quick and Half are smaller', async () => {
+  const { blindSearchSize } = await import('../../src/hybridock_pep/web/static/js/app/adapter.mjs');
+  assert.deepEqual(blindSearchSize({ blind: false, poses: 100 }), {});
+  assert.deepEqual(blindSearchSize({ blind: true, poses: 100 }), { n_pocket_search: '300', n_per_pocket: '150' });
+  const quick = blindSearchSize({ blind: true, poses: 25 }), half = blindSearchSize({ blind: true, poses: 50 });
+  assert.ok(Number(quick.n_pocket_search) < Number(half.n_pocket_search) && Number(half.n_pocket_search) < 300);
+  assert.ok(Number(quick.n_per_pocket) >= 10, 'never below what the CLI accepts');
+});
