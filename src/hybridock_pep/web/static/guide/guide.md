@@ -365,7 +365,7 @@ Everything the program loads comes with the download, apart from one language mo
 
 Three more scoring files (`affinity_crystal_sizefix`, `affinity_rank_ifp`, `skempi_ddg_model`) ship inside the program too, but no screen in the website uses them.
 
-**Long peptides.** Peptides of 13 residues or more can use a separate long-peptide model, `longer_local.pt`. It is not part of the public release, so by default every peptide uses the standard model, and the *Long-peptide model* line in the status chip says so. If you have the file, put it in the project's `weights/` folder: the next run picks it up and uses it for peptides at or above the threshold in Expert settings.
+**Long peptides.** Peptides of 13 residues or more use a separate long-peptide model, `longer_local.pt`, which ships in the project's `weights/` folder. It is the RAPiDock `rapidock_local.pt` checkpoint fine-tuned for 10 epochs on 13-25 residue crystal complexes (details and caveats in `weights/README.md`). If you delete the file, every peptide falls back to the standard model, and the *Long-peptide model* line in the status chip says so. The threshold is set in Expert settings.
 
 The other scoring files in the project's `data/` folder are research variants kept for the record. The model card (`MODEL_CARD.md`) explains why they are not used for results.
 

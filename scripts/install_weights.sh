@@ -167,9 +167,9 @@ else
     install_ckpt rapidock_global.pt || rc=1
 fi
 
-# Optional: the long-peptide checkpoint is not part of the public release. If you have longer_local.pt, drop it in
-# weights/ and it is picked up here (and, if you skip this script, at run time) with no further setup.
-if [ -f "$SRC_DIR/longer_local.pt" ]; then
+# The long-peptide checkpoint (weights/longer_local.pt, fine-tuned from rapidock_local.pt) is copied in when present, here and,
+# if you skip this script, at run time. Its checksum is in weights/SHA256SUMS.longer.
+if [ -f "$SRC_DIR/longer_local.pt" ] && ! cmp -s "$SRC_DIR/longer_local.pt" "$MODEL_DIR/longer_local.pt"; then
     cp "$SRC_DIR/longer_local.pt" "$MODEL_DIR/longer_local.pt.part" && mv "$MODEL_DIR/longer_local.pt.part" "$MODEL_DIR/longer_local.pt" \
         && say "longer_local.pt (long-peptide model) installed from weights/"
 fi

@@ -205,3 +205,14 @@ class TestRuntimeFallback:
 
         _install_bundled_checkpoint(tmp_path / "m", "definitely_not_a_checkpoint.pt")
         assert not (tmp_path / "m" / "definitely_not_a_checkpoint.pt").exists()
+
+
+class TestLongPeptideCheckpoint:
+    def test_longer_local_matches_its_checksum_file(self) -> None:
+        """weights/longer_local.pt is this project's own fine-tune; its digest is pinned in SHA256SUMS.longer."""
+        import hashlib
+
+        listed = (WEIGHTS_DIR / "SHA256SUMS.longer").read_text().split()
+        digest = hashlib.sha256((WEIGHTS_DIR / "longer_local.pt").read_bytes()).hexdigest()
+        assert listed == [digest, "longer_local.pt"]
+        assert (WEIGHTS_DIR / "longer_local.pt").stat().st_size < 100 * 1024 * 1024
