@@ -62,6 +62,11 @@ residues or fewer (best-of-24 samples):
 | 13-25 aa (epoch 10) | 57 | 24 -> 35 | 0 -> 5 | median 5.28 -> 4.60 A, sign test p = 0.0002 |
 | <=12 aa (epoch 20, same run) | 69 | 62 -> 64 | 25 -> 33 | no regression, not significant on its own |
 
+Loading it needs the model code in `third_party/RAPiDock` at commit `d003cff` or later: the checkpoint has one layer the
+original RAPiDock model lacks (`encoder.cross_type_embedding`, a 4 x 48 contact-type embedding). `inference.load_model`
+turns it on only when the checkpoint contains that key, so the two upstream checkpoints are loaded and run exactly as
+before. `tests/test_long_checkpoint_loads.py` loads all three strictly.
+
 Caveats: one training run, one checkpoint; the metric is best-of-24 oracle RMSD, not a ranked top-1; the benchmark was
 not homology-filtered against the training set; validation loss did not predict the gain. Peptides longer than 25
 residues are out of scope and were not trained on. Verify with `cd weights && sha256sum -c SHA256SUMS.longer`.

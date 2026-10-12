@@ -328,7 +328,7 @@ def _scoring_cost() -> tuple[float, int]:
 # models, the pose ranker and the mutation model). The other .joblib files in data/ are research variants, not wired in.
 SCORING_MODELS = ("affinity_ai_nofix", "affinity_crystal_sizefix", "affinity_crystal_ifp", "affinity_rank_ifp",
                   "pose_ranker_ml", "skempi_ddg_model")
-DOCKING_MODELS = ("rapidock_local.pt", "rapidock_global.pt")
+DOCKING_MODELS = ("rapidock_local.pt", "rapidock_global.pt", "longer_local.pt")  # only the first is required to run; the long one is optional
 
 
 def _models_check() -> dict[str, Any]:
