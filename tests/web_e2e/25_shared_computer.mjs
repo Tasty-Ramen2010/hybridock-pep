@@ -9,11 +9,13 @@ import { browser, newPage, check, finish, shot, BASE, sleep } from './lib.mjs';
 
 const SHARED = (process.env.SHARED || 'http://127.0.0.1:8765').replace(/\/$/, '');
 const REAL = process.env.REAL === '1';
+// DISCOVER=1: no ?backend= in the address, so the page must find the computer itself (the way a judge's browser does)
+const QS = process.env.DISCOVER === '1' ? '' : `?backend=${encodeURIComponent(SHARED)}`;
 const b = await browser();
 
 // ---- 1. connected: the page becomes the real app ----
 const p = await newPage(b);
-await p.goto(`${BASE}/?backend=${encodeURIComponent(SHARED)}`); await p.waitForSelector('.hero-card');
+await p.goto(`${BASE}/${QS}`); await p.waitForSelector('.hero-card');
 await p.waitForSelector('.chip-text', { timeout: 20000 });
 const chip = (await p.locator('.chip-text').first().textContent()).trim();
 check('the top bar says Live and names the computer', /^Live · /.test(chip), chip);
@@ -40,15 +42,15 @@ check('Expert mode has no advanced settings that could name files on the compute
 await p.getByRole('button', { name: 'Guided' }).click();
 
 // the guide speaks to a person using the shared computer
-await p.goto(`${BASE}/?backend=${encodeURIComponent(SHARED)}#/guide`); await p.waitForSelector('.lesson');
+await p.goto(`${BASE}/${QS}#/guide`); await p.waitForSelector('.lesson');
 check('the guide opens with the first prediction and has no install steps in the way', (await p.locator('.lesson-title').first().textContent()) === 'Your first prediction', '');
-await p.goto(`${BASE}/?backend=${encodeURIComponent(SHARED)}#/guide/troubleshooting`); await p.waitForSelector('.qa');
+await p.goto(`${BASE}/${QS}#/guide/troubleshooting`); await p.waitForSelector('.qa');
 const qa = await p.locator('.qa-list').innerText();
 check('troubleshooting is about the shared computer, not about ./launch_web.sh', /shared computer is busy/.test(qa) && !/launch_web|install\.sh/.test(qa), '');
 
 // ---- 2. a real prediction ----
 if (REAL) {
-  await p.goto(`${BASE}/?backend=${encodeURIComponent(SHARED)}`); await p.waitForSelector('.hero-card');
+  await p.goto(`${BASE}/${QS}`); await p.waitForSelector('.hero-card');
   await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track', { timeout: 30000 });
   const t0 = Date.now();
   while (!(await p.locator('.big-number, .error-card').count())) {
