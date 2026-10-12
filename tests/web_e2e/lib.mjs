@@ -23,7 +23,8 @@ export function check(name, ok, detail = '') {
   results.push({ name, ok: !!ok, detail: String(detail) });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
 }
-export async function browser() { return chromium.launch(); }
+// E2E_SOFTWARE_GL=1 turns the GPU off, as on a CI runner (together with E2E_CPU_SLOWDOWN it reproduces timing-only failures)
+export async function browser() { return chromium.launch(process.env.E2E_SOFTWARE_GL ? { args: ['--disable-gpu', '--disable-gpu-compositing', '--use-gl=disabled'] } : {}); }
 
 /**
  * Wait until the server has no run going. The app runs ONE job at a time, and a suite that starts real runs (the monkey's
@@ -55,6 +56,8 @@ export async function flipTheme(p) {
 export async function newPage(b, opts = {}) {
   const ctx = await b.newContext({ viewport: { width: 1360, height: 880 }, acceptDownloads: true, ...opts });
   const page = await ctx.newPage();
+  // E2E_CPU_SLOWDOWN=6 makes the browser behave like a slow CI runner, to reproduce timing-only failures locally
+  if (Number(process.env.E2E_CPU_SLOWDOWN) > 1) await (await ctx.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.E2E_CPU_SLOWDOWN) });
   page.diag = { errors: [], bad: [], pageErrors: [], notFound: [] };
   page.on('console', (m) => { if (m.type() === 'error') page.diag.errors.push(m.text().slice(0, 300)); });
   page.on('pageerror', (e) => page.diag.pageErrors.push(String(e).slice(0, 300)));
