@@ -108,6 +108,17 @@ const geom = () => p.evaluate(() => {
   pts.sort((a, z) => z[2] - a[2]);
   return { center: [c[0], c[1]], corners, backbone: pts.slice(0, 40), box: s.box.size };
 });
+// The model glides into its place when the layout changes, and that takes longer on a slow machine: wait until the box
+// stops moving on screen before aiming the mouse at it (a CI runner without a GPU drew it where it used to be).
+const settle = async () => {
+  let last = null;
+  for (let i = 0; i < 60; i++) {
+    const c = (await geom()).center;
+    if (last && Math.hypot(c[0] - last[0], c[1] - last[1]) < 0.5) return;
+    last = c; await sleep(300);
+  }
+};
+await settle();
 let g = await geom();
 const before = await coords(); const size0 = await boxSize();
 // rotate: drag on empty space, nothing in the form may change
@@ -129,6 +140,8 @@ g = await geom();
 await p.mouse.move(g.center[0], g.center[1]); await p.mouse.down(); await p.mouse.move(g.center[0] + 45, g.center[1] + 30, { steps: 8 }); await p.mouse.up(); await sleep(250);
 const afterMove = await coords();
 check('dragging the box changes its centre coordinates', JSON.stringify(afterMove) !== JSON.stringify(before), `${before} -> ${afterMove}`);
+await settle();
+const underCentre = await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName}.${e.className || e.id}` : 'nothing'; }, [g.center[0], g.center[1]]);
 g = await geom();
 // resize: drag a corner outward
 const far = g.corners.map((c, i) => [Math.hypot(c[0] - g.center[0], c[1] - g.center[1]), i]).sort((a, z) => z[0] - a[0])[0][1];
@@ -136,7 +149,7 @@ const cr = g.corners[far];
 const sizeBefore = await boxSize();
 await p.mouse.move(cr[0], cr[1]); await p.mouse.down(); await p.mouse.move(cr[0] + (cr[0] - g.center[0]) * 0.5, cr[1] + (cr[1] - g.center[1]) * 0.5, { steps: 8 }); await p.mouse.up(); await sleep(250);
 const sizeAfter = await boxSize();
-check('dragging a corner outward makes the box bigger', sizeAfter > sizeBefore, `${sizeBefore} -> ${sizeAfter} Å`);
+check('dragging a corner outward makes the box bigger', sizeAfter > sizeBefore, `${sizeBefore} -> ${sizeAfter} Å (box was ${size0} Å at the start; the first drag started at ${g.center.map(Math.round)} on ${underCentre}; scrollY ${await p.evaluate(() => scrollY)})`);
 // click the protein to jump there (shrink the box first so there is protein outside it)
 await slider.fill('14'); await sleep(300);
 g = await geom();
