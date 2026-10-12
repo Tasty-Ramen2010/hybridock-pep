@@ -846,10 +846,13 @@ class TestMemoryStats:
         mgr = server.JobManager()
         job = server.Job("abc", ["x"], "dock", {}, Path("."))
         job.state = "running"
-        job.proc = sp.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        # a child that really holds memory (touched, so it is resident), and says when it does
+        job.proc = sp.Popen([sys.executable, "-c", "import time; x = bytearray(b'1' * 120_000_000); print('ready', flush=True); time.sleep(30)"],
+                            stdout=sp.PIPE, text=True)
+        assert job.proc.stdout.readline().strip() == "ready"
         mgr.jobs["abc"], mgr._current = job, "abc"
         try:
             m = server.memory_stats(mgr)
-            assert m["run_gb"] is not None and m["run_gb"] > 0
+            assert m["run_gb"] is not None and m["run_gb"] >= 0.1
         finally:
             job.proc.kill()
