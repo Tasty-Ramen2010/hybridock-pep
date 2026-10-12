@@ -21,6 +21,7 @@ import { placeHelixAt } from './placement.mjs';
 import { mulberry32, hashString } from './stage/math.mjs';
 import { buildDockCommand, buildCompareCommand, buildScoreCommand } from './command.mjs';
 import { EXPERT_DEFAULTS } from './config.mjs';
+import { peptideTitle } from './peptides.mjs';
 
 /* ------------------------------------------------------------------------------------------------
  * Types (documentation only)
@@ -144,7 +145,7 @@ const mockAdapter = {
     const poses = demoPoses(job, structure, center, headline, Math.min(20, job.poses));
     return {
       id: newId('run'), kind: 'dock', demo: true, createdAt: new Date().toISOString(),
-      name: `${job.peptide} on ${job.protein.name}`,
+      name: `${peptideTitle(job.peptide)} on ${job.protein.name}`,
       protein: job.protein, peptide: job.peptide,
       site: { x: round1(center[0]), y: round1(center[1]), z: round1(center[2]) }, box: job.box, blind: !!job.blind,
       nPoses: job.poses, deltaG: headline, poses,
@@ -167,7 +168,7 @@ const mockAdapter = {
     };
     return {
       id: newId('cmp'), kind: 'compare', demo: true, createdAt: new Date().toISOString(),
-      name: `${job.peptide}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
+      name: `${peptideTitle(job.peptide)}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
       peptide: job.peptide, ddg, ci: [Math.round((ddg - half) * 100) / 100, Math.round((ddg + half) * 100) / 100],
       target: side(job.target, t.structure, dgT), offTarget: side(job.offTarget, o.structure, dgO),
       command: buildCompareCommand(job), job,
@@ -193,7 +194,7 @@ const mockAdapter = {
     pep.ca.forEach((a, i) => { ca[i * 3] = a.x; ca[i * 3 + 1] = a.y; ca[i * 3 + 2] = a.z; });
     return {
       id: newId('scr'), kind: 'score', demo: true, createdAt: new Date().toISOString(),
-      name: `${job.peptide} on ${job.protein.name} (scored)`,
+      name: `${peptideTitle(job.peptide)} on ${job.protein.name} (scored)`,
       protein: job.protein, peptide: job.peptide, deltaG, ca: Array.from(ca, round1),
       command: buildScoreCommand(job), job: { ...job, protein: job.protein, peptidePdb: { name: job.peptidePdb.name } },
     };
@@ -456,7 +457,7 @@ function dockResult(job, jobId, snap, res) {
   }
   return {
     id: `run_${jobId}`, kind: 'dock', demo: false, createdAt: new Date().toISOString(),
-    name: `${job.peptide} on ${job.protein.name}`, protein: job.protein, peptide: job.peptide,
+    name: `${peptideTitle(job.peptide)} on ${job.protein.name}`, protein: job.protein, peptide: job.peptide,
     site: job.site, box: job.box, blind: !!job.blind, nPoses: job.poses, deltaG: headline, poses,
     command: snap.command, outputDir: snap.output_dir, jobId, files: res.files || [], job: stripJob(job),
   };
@@ -525,7 +526,7 @@ const liveAdapter = {
     const side = async (key, s, dg) => ({ protein: s.protein, deltaG: dg, site: s.site, box: s.box, ca: await bestPoseCA(jobId, key, job.peptide.length) });
     return {
       id: `cmp_${jobId}`, kind: 'compare', demo: false, createdAt: new Date().toISOString(),
-      name: `${job.peptide}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
+      name: `${peptideTitle(job.peptide)}: ${job.target.protein.name} vs ${job.offTarget.protein.name}`,
       peptide: job.peptide, ddg: sel.ddg_kcal_mol, ci: [sel.ddg_ci_95_low, sel.ddg_ci_95_high],
       scoreField: sel.score_field, topK: sel.top_k,
       target: await side('target', job.target, sel.target_dg_mean_kcal_mol),
@@ -546,7 +547,7 @@ const liveAdapter = {
     if (dg == null) throw new Error('The scoring finished but no ΔG could be read from its output.');
     return {
       id: `scr_${jobId}`, kind: 'score', demo: false, createdAt: new Date().toISOString(),
-      name: `${job.peptide} on ${job.protein.name} (scored)`, protein: job.protein, peptide: job.peptide, deltaG: dg,
+      name: `${peptideTitle(job.peptide)} on ${job.protein.name} (scored)`, protein: job.protein, peptide: job.peptide, deltaG: dg,
       ca: peptideCA(job.peptidePdb.text, job.peptide.length), command: snap.command, outputDir: snap.output_dir, jobId, job: stripJob(job),
     };
   },

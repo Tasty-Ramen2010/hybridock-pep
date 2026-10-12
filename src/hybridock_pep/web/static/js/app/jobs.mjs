@@ -52,8 +52,3 @@ export function initials(name) {
   if (!parts.length) return '?';
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
-
-export function greeting(date = new Date()) {
-  const hour = date.getHours();
-  return hour < 5 ? 'Good evening' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-}

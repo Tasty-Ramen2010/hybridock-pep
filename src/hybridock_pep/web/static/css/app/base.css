@@ -27,7 +27,7 @@ body {
 /* Interactive things (and the text blocks people want to select) catch clicks; everything else
    lets them fall through to the canvas so the protein can be dragged. Note `main` has
    tabindex="-1" for focus management, so it must NOT match the [tabindex] rule. */
-#app :where(button, a, input, select, textarea, summary, label, .glass, .card, .hero-copy, .page-head, .home-head, [tabindex]:not(#main), [role='dialog'], table) { pointer-events: auto; }
+#app :where(button, a, input, select, textarea, summary, label, .glass, .card, .start-card, .notice, .hero-copy, .page-head, .home-head, [tabindex]:not(#main), [role='dialog'], table) { pointer-events: auto; }
 #topbar { pointer-events: auto; }
 
 /* Type scale: large, tight, and few sizes. Weight and colour carry the hierarchy; there are no uppercase labels. */

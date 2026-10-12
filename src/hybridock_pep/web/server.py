@@ -363,7 +363,14 @@ def check_environment() -> dict[str, Any]:
     checks["cli"] = {"ok": bool(_which("hybridock-pep")),
                      "detail": "hybridock-pep on PATH",
                      "fix": "conda activate score-env"}
-    checks["vina"] = {"ok": bool(_which("vina")), "detail": "AutoDock Vina",
+    # The pipeline drives Vina through its Python module (scoring/vina.py: `from vina import Vina`), so the module
+    # being importable is what matters; a `vina` program on PATH is optional and a pip install does not provide one.
+    import importlib.util as _ilu
+    try:
+        vina_ok = _ilu.find_spec("vina") is not None
+    except (ImportError, ValueError):
+        vina_ok = False
+    checks["vina"] = {"ok": vina_ok or bool(_which("vina")), "detail": "AutoDock Vina",
                       "fix": "conda install -c conda-forge vina"}
     # meeko's mk_prepare_receptor.py is the default; ADFRsuite's prepare_receptor is used if present.
     prep_tool = _which("mk_prepare_receptor.py") or _which("prepare_receptor")

@@ -57,11 +57,13 @@ check('the Protein step is marked done in the progress list', (await p.locator('
 await p.getByRole('button', { name: 'Back' }).click(); await p.waitForSelector('.pick');
 check('Back returns to step 1 and keeps the chosen protein', (await p.locator('.pick[aria-checked=true]').count()) === 1, '');
 await cont().click(); await p.waitForSelector('#pep-input');
-const chips = await p.locator('.chip.mono').allTextContents();
-check('example peptides are offered', chips.length >= 2, chips.join(' '));
-for (const c of chips) {
-  await p.locator('.chip.mono', { hasText: c }).first().click();
+const picks = await p.locator('.pep-pick-seq').allTextContents();
+check('example peptides are offered, each with a name', picks.length >= 2 && (await p.locator('.pep-pick-name').count()) === picks.length, picks.join(' '));
+check('the example peptides are described in words', (await p.locator('.pep-pick-about').count()) === picks.length, '');
+for (const c of picks) {
+  await p.locator('.pep-pick', { hasText: c }).first().click();
   check(`example "${c}" fills the box and enables Continue`, ((await p.locator('#pep-input').inputValue()).trim() === c.trim()) && (await cont().isEnabled()), '');
+  check(`example "${c}" shows its name under the box`, (await p.locator('.pep-name').textContent()).length > 5, await p.locator('.pep-name').textContent());
 }
 await p.locator('#pep-input').fill('  liyk wvnk ');
 await p.locator('#pep-input').blur(); await sleep(150);
@@ -252,7 +254,7 @@ const lines = [];
 for (let i = 0; i < names.length; i++) {
   await fresh();
   await p.locator('.pick').nth(i).click(); await cont().click(); await p.waitForSelector('#pep-input');
-  await p.locator('.chip.mono').first().click(); await cont().click(); await p.waitForSelector('.choice');
+  await p.locator('.pep-pick').first().click(); await cont().click(); await p.waitForSelector('.choice');
   await sleep(500);
   const sg = p.getByRole('button', { name: /Use the suggested site/ });
   if (await sg.isVisible()) await sg.click();

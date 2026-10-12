@@ -63,7 +63,7 @@ export function settingProblems({ box, expert = {} }) {
 }
 
 /** The one-click example on the home screen. */
-export const EXAMPLE = { proteinKey: 'tau', peptide: 'LIYKWVNK' };
+export const EXAMPLE = { proteinKey: 'mdm2', peptide: 'ETFSDLWKLLPE' }; // the p53 peptide on MDM2: a famous, named pair (also the live server's own example)
 
 /** Plain-language stage names shown while a run is going. `tech` is the small text under each. */
 export const RUN_STAGES = [

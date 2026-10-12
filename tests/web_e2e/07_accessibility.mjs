@@ -21,7 +21,7 @@ for (const scheme of ['light', 'dark']) {
   await p.getByRole('button', { name: 'Appearance and name' }).click(); await audit(p, `${scheme} avatar menu`); await p.keyboard.press('Escape');
   await p.goto(BASE + '/#/predict'); await p.waitForSelector('.pick'); await audit(p, `${scheme} setup 1 protein`);
   await p.locator('.pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('#pep-input'); await audit(p, `${scheme} setup 2 peptide`);
-  await p.locator('.chip.mono').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice'); await audit(p, `${scheme} setup 3 binding site`);
+  await p.locator('.pep-pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice'); await audit(p, `${scheme} setup 3 binding site`);
   await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.summary'); await audit(p, `${scheme} setup 4 review`);
   await p.goto(BASE + '/#/compare'); await p.waitForSelector('.pcard'); await audit(p, `${scheme} compare`);
   await p.goto(BASE + '/#/score'); await p.waitForSelector('.drop'); await audit(p, `${scheme} score`);

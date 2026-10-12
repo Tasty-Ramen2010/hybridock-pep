@@ -5,7 +5,8 @@ import { h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { assetUrl } from '../config.mjs';
 import { fetchRetry } from '../structures.mjs';
-import { outline, parseMarkdown, safeHref } from '../markdown.mjs';
+import { applyAudience, outline, parseMarkdown, safeHref } from '../markdown.mjs';
+import { adapter } from '../adapter.mjs';
 import { toast } from './toast.mjs';
 
 /** Inline nodes → DOM (text only, never HTML). */
@@ -91,7 +92,8 @@ export function mountGuide(ctx) {
     try {
       const res = await fetchRetry(assetUrl('guide/guide.md'));
       if (!res.ok) throw new Error(String(res.status));
-      const { blocks } = parseMarkdown(await res.text());
+      const { blocks: all } = parseMarkdown(await res.text());
+      const blocks = applyAudience(all, adapter.kind === 'live' ? 'live' : 'demo');
       if (!alive) return;
       const title = blocks.find((b) => b.type === 'heading' && b.level === 1);
       const items = outline(blocks);

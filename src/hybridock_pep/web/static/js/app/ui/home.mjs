@@ -5,7 +5,8 @@ import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { fmt, fmtSigned } from '../interpret.mjs';
 import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR } from '../config.mjs';
-import { dockJob, findProtein, greeting } from '../jobs.mjs';
+import { dockJob, findProtein } from '../jobs.mjs';
+import { namedPeptide } from '../peptides.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
 import { adapter, adapterFor, demoAdapter, estimateTrusted, firstRunPending, noGpu } from '../adapter.mjs';
 import { fmtDate, fmtDuration, saveBlob } from './dom.mjs';
@@ -16,7 +17,6 @@ export function mountHome(ctx) {
   const { store, stage, go, runner } = ctx;
   let alive = true;
 
-  const nameEl = h('span');
   const stats = [
     { label: 'Predictions run', tech: null, ref: h('span') },
     { label: 'Proteins targeted', tech: null, ref: h('span') },
@@ -56,7 +56,7 @@ export function mountHome(ctx) {
       e.kind === 'dock' && h('button', { class: 'btn sm ghost recent-dl', type: 'button', 'aria-label': `Download the ranked list for ${e.name}`, onClick: () => downloadRanked(e) }, 'Download'))));
   }
 
-  // The example: the spec's Tau example in demo mode; with the live server, its own validated example (known binder).
+  // The example: the p53 peptide on MDM2 in demo mode; with the live server, its own validated example (a known binder).
   const live = adapter.kind === 'live';
   const proteins = store.get().proteins;
   const backendEx = live ? adapter.examples?.[0] : null;
@@ -82,9 +82,15 @@ export function mountHome(ctx) {
     }).catch(() => {});
   }
 
+  // The example, said in words first (a row of letters means nothing to someone new): its name, its letters, the protein.
+  const named = namedPeptide(exPeptide);
+  const exLine = h('p', { class: 'example-line' },
+    h('span', { class: 'eyebrow' }, 'Example'),
+    h('b', {}, named?.name || 'Peptide'), h('span', { class: 'mono pep' }, exPeptide), h('span', { class: 'muted' }, 'on'), h('b', {}, exProtein?.name || 'a protein'),
+    !live && h('span', { class: 'badge-demo' }, 'Demo'));
   const exNote = live && backendEx
-    ? h('p', { class: 'small muted' }, h('span', { class: 'chip' }, 'Known binder'), ' ', h('b', {}, backendEx.name), ' with the peptide ', h('span', { class: 'mono pep' }, exPeptide), '. ', backendEx.blurb, backendEx.expect ? ` Expect around ${backendEx.expect.replace(/^around\s+/i, '')}.` : '')
-    : h('p', { class: 'small muted' }, h('span', { class: 'badge-demo' }, 'Demo'), ' ', 'The peptide ', h('span', { class: 'mono pep' }, EXAMPLE.peptide), ' docked against the Tau VQIVYK stretch, a piece of the protein that clumps in Alzheimer’s disease.');
+    ? h('p', { class: 'small muted' }, h('span', { class: 'chip' }, 'Known binder'), ' ', backendEx.blurb, backendEx.expect ? ` Expect around ${backendEx.expect.replace(/^around\s+/i, '')}.` : '')
+    : h('p', { class: 'small muted' }, `${named ? `${named.about} ` : ''}Each letter is one amino acid. Pressing Run example shows a simulated result.`);
 
   // A live server that is missing something: say exactly what and how to fix it, instead of letting the first run fail.
   const MISSING = ['cli', 'vina', 'receptor_prep', 'scorer', 'models'];
@@ -99,24 +105,32 @@ export function mountHome(ctx) {
     h('b', {}, 'HybriDock-Pep isn’t answering. '), 'It may still be starting, or the window that runs it was closed. Wait a few seconds, then ',
     h('button', { class: 'btn sm', type: 'button', onClick: () => location.reload() }, 'Try again'), '.') : null;
 
-  // On the public demo site (no app behind it): say so plainly, and show the way to the real thing.
-  const demoNotice = live ? null : h('div', { class: 'notice', role: 'note' },
-    h('b', {}, 'This is a demo. '), 'Every result here is simulated. To run real predictions on your own computer, or in Google Colab with nothing to install, ',
-    h('a', { class: 'tap', href: '#/guide/get-started' }, 'start with the guide'), '.');
+  // On the public demo site (no app behind it): say so once, plainly, with the two commands that give the real thing.
+  const INSTALL = 'git clone --recurse-submodules https://github.com/Tasty-Ramen2010/hybridock-pep.git\ncd hybridock-pep\n./install.sh';
+  const copyInstall = h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Copy the install commands', onClick: async () => {
+    try { await navigator.clipboard.writeText(INSTALL); toast('Copied. Paste it into a terminal.'); } catch { toast('Couldn’t copy. Select the text and copy it by hand.'); }
+  } }, icon('copy', 15), 'Copy');
+  const demoNotice = live ? null : h('div', { class: 'notice get-app', role: 'note' },
+    h('b', {}, 'This is the preview. '), 'Results here are simulated and marked Demo. For real predictions, install the app on your computer (about 30 minutes, once):',
+    h('div', { class: 'cmd-wrap' }, h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Install commands' }, INSTALL), copyInstall),
+    h('p', { class: 'small' }, 'Then start it any time with ', h('code', { class: 'mono' }, './launch_web.sh'), '. Nothing to install? ',
+      h('a', { class: 'tap', href: 'https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb', target: '_blank', rel: 'noopener noreferrer' }, 'Open it in Google Colab'),
+      ', or see ', h('a', { class: 'tap', href: '#/guide/get-started' }, 'every way to run it'), '.'));
 
-  const el = h('section', { class: 'screen home', 'aria-labelledby': 'greeting' },
+  const el = h('section', { class: 'screen home', 'aria-labelledby': 'home-title' },
     h('article', { class: 'hero-card' },
       h('div', { class: 'hero-copy' },
-        h('h1', { class: 'display', id: 'greeting' }, greeting(), nameEl),
-        h('p', { class: 'lede' }, 'Predict how tightly a peptide sticks to a protein.'),
+        h('h1', { class: 'display home-title', id: 'home-title' }, 'Predict how a peptide binds a protein.'),
+        h('p', { class: 'lede' }, 'A peptide is a short chain of amino acids, written as letters. Choose a protein, type a peptide, and see how strongly they stick.'),
         h('div', { class: 'row' },
           h('button', { class: 'btn primary lg', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, 'New prediction'),
           h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, 'Run example', icon('chevron', 16))),
+        exLine,
+        exNote,
+        timeNote,
         offlineNotice,
         setupNotice,
-        demoNotice,
-        exNote,
-        timeNote),
+        demoNotice),
       h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),
 
     h('div', { class: 'stats', role: 'list' },
@@ -129,20 +143,20 @@ export function mountHome(ctx) {
 
     h('div', { class: 'section-head' }, h('h2', {}, 'Start something new')),
     h('div', { class: 'start-row' },
-      startCard('Predict binding', 'Dock a peptide to a protein and get a binding strength.', 'Docking + ΔG', startNew(() => ({ setup: freshSetup() }), '/predict')),
-      startCard('Compare two proteins', 'See which of two proteins a peptide prefers.', 'Selectivity, ΔΔG', startNew(() => ({ compare: freshCompare() }), '/compare')),
-      startCard('Score a structure', 'Already have a bound pose? Score it directly.', 'Score an existing pose', startNew(() => ({ score: freshScore() }), '/score'))),
+      startCard('Predict binding', 'Dock a peptide to a protein and get a binding strength.', 'Docking + ΔG', 'Start predicting', startNew(() => ({ setup: freshSetup() }), '/predict')),
+      startCard('Compare two proteins', 'See which of two proteins a peptide prefers.', 'Selectivity, ΔΔG', 'Compare proteins', startNew(() => ({ compare: freshCompare() }), '/compare')),
+      startCard('Score a structure', 'Already have a bound pose? Score it directly.', 'Score an existing pose', 'Score a structure', startNew(() => ({ score: freshScore() }), '/score'))),
   );
 
-  function startCard(title, text, tech, onClick) {
-    return h('button', { class: 'start-card', type: 'button', onClick },
-      h('h3', {}, title), h('p', {}, text), h('span', { class: 'tech' }, tech),
-      h('span', { class: 'go' }, 'Open', icon('chevron', 16)));
+  // Each card carries a real button (that is what people look for); a click anywhere else on the card presses it too.
+  function startCard(title, text, tech, buttonLabel, onClick) {
+    const btn = h('button', { class: 'btn', type: 'button', onClick }, buttonLabel, icon('chevron', 16));
+    return h('article', { class: 'start-card', onClick: (e) => { if (!e.target.closest('button')) btn.click(); } },
+      h('h3', {}, title), h('p', {}, text), h('span', { class: 'tech' }, tech), btn);
   }
 
   function update() {
     const s = store.get(), hist = s.history || [];
-    nameEl.textContent = s.userName ? `, ${s.userName}` : '';
     const dgs = hist.filter((e) => e.kind !== 'compare').map((e) => e.headline.value);
     stats[0].ref.textContent = String(Math.max(s.runsTotal || 0, hist.length));
     stats[1].ref.textContent = String(new Set(hist.flatMap((e) => e.proteinNames)).size);
@@ -154,12 +168,11 @@ export function mountHome(ctx) {
   const unsub = store.subscribe(update);
   update();
 
-  // the floating model: Tau with the example peptide drifting beside it
+  // the floating model: the example protein with its peptide drifting beside it
   stage.setPeptide(exPeptide.length);
   stage.setDockPose(null);
   stage.setPeptideMode('float');
-  const tau = exProtein;
-  if (tau) loadProtein(tau).then(({ structure }) => { if (alive) stage.setProtein(structure); }).catch(() => {});
+  if (exProtein) loadProtein(exProtein).then(({ structure }) => { if (alive) stage.setProtein(structure); }).catch(() => {});
 
   return { el, destroy() { alive = false; unsub(); } };
 }

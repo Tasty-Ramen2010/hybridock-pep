@@ -34,7 +34,7 @@ const b = await browser();
   check('focus returns to the page after the dialog closes', await p.evaluate(() => document.activeElement && document.activeElement !== document.body), await focusLabel());
   // box keyboard control on the binding site
   await p.goto(BASE + '/'); await p.waitForSelector('.hero-card'); await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick'); await p.locator('.pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click();
-  await p.locator('.chip.mono').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice');
+  await p.locator('.pep-pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice');
   const before = (await p.locator('.coords').first().textContent().catch(() => '')) || '';
   await p.locator('#stage').focus(); for (let i = 0; i < 6; i++) await p.keyboard.press('ArrowRight');
   await sleep(300); const after = (await p.locator('.coords').first().textContent().catch(() => '')) || '';
