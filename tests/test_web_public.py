@@ -232,6 +232,11 @@ def test_too_many_runs_from_one_visitor_are_slowed(tmp_path):
         httpd.server_close()
 
 
+def test_the_memory_meter_works_for_visitors(pub):
+    status, data, _ = pub.call("GET", "/api/stats", headers={"Origin": PAGE})
+    assert status == 200 and 0 <= data["percent"] <= 100 and str(Path.home()) not in json.dumps(data)
+
+
 def test_other_visitors_runs_cannot_be_listed(pub, local):
     assert pub.call("GET", "/api/jobs")[0] == 404
     assert local.call("GET", "/api/jobs")[0] == 200, "the ordinary local tool still lists them"

@@ -21,21 +21,21 @@ async function asMachine(patch, path = '/') {
   await p.goto(BASE + path); await p.waitForSelector('.hero-card, .steps');
   return p;
 }
-const chip = (p) => p.locator('.topbar .chip').first().textContent().then((t) => t.trim());
+const chip = (p) => p.locator('.topbar .chip').first().evaluate((e) => `${(e.querySelector('.chip-text') || e).textContent.trim()} [${e.title}]`);
 
 // ---- the status chip names the hardware ----
 let p = await asMachine((e) => { e.checks.gpu = { ok: true, kind: 'metal', detail: 'Apple M3 (Metal)', fix: '' }; });
-check('an Apple Silicon Mac shows its chip and Metal, not "CPU only"', /Apple M3 \(Metal\)/.test(await chip(p)) && !/CPU only/.test(await chip(p)), await chip(p));
+check('an Apple Silicon Mac says GPU (its chip and Metal in the tooltip), not CPU', /GPU/.test(await chip(p)) && /Apple M3 \(Metal\)/.test(await chip(p)) && !/CPU/.test(await chip(p)), await chip(p));
 const home = (await p.locator('.hero-copy').innerText()).replace(/\s+/g, ' ');
 check('...and the example does not claim the machine has no GPU', !/no GPU/i.test(home), home.slice(0, 160));
 await p.close();
 
 p = await asMachine((e) => { e.checks.gpu = { ok: true, kind: 'cuda', detail: 'NVIDIA GeForce RTX 5070', fix: '' }; });
-check('an NVIDIA machine shows the card', /RTX 5070/.test(await chip(p)), await chip(p));
+check('an NVIDIA machine says GPU and names the card', /GPU/.test(await chip(p)) && /RTX 5070/.test(await chip(p)), await chip(p));
 await p.close();
 
 p = await asMachine((e) => { e.checks.gpu = { ok: false, kind: null, detail: 'no GPU detected', fix: 'CPU works' }; });
-check('a computer without a GPU says CPU only', /CPU only/.test(await chip(p)), await chip(p));
+check('a computer without a GPU says CPU', /^CPU/.test(await chip(p)) && /CPU only/.test(await chip(p)), await chip(p));
 check('...and warns that a run takes tens of minutes', /no GPU.*tens of minutes/i.test((await p.locator('.hero-copy').innerText()).replace(/\s+/g, ' ')), '');
 await p.close();
 

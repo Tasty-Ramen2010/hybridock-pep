@@ -110,3 +110,13 @@ node tests/web_js/regen_fixtures.mjs                             # after changin
 12 tabs at once, a random-click "monkey", axe accessibility audits in light and dark, very large uploads, fault injection
 (server frozen / killed, browser offline, reload mid-run), the History cap, keyboard-only use and a phone viewport. See
 its README; they run against any server with `BASE=http://host:port`.
+
+## The memory meter
+
+The status chip in the top bar says only `GPU` or `CPU` (the machine's name and a list of anything missing are one click away).
+Beside it is a dot that shows how full the computer's memory is (`GET /api/stats`, numbers only, read with psutil). While a
+prediction runs the dot widens into a small tank of liquid: green when memory is free, amber, then red as it fills, spilling
+over at 97 %. Under 12 % free (or under 1 GB) a speech bubble warns. `js/app/ui/ram-meter.mjs` draws it, `memoryLevel()` in
+`js/app/config.mjs` decides the colour and level, `tests/web_e2e/26_memory_meter.mjs` feeds it every level. The demo site has no
+meter (nothing real to measure).
+

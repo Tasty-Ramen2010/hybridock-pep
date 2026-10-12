@@ -810,3 +810,46 @@ class TestVinaCheck:
         monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a, **k: None if name == "vina" else real(name, *a, **k))
         c = server.check_environment()["checks"]["vina"]
         assert c["ok"] is False and "conda install" in c["fix"]
+
+
+# --------------------------------------------------------------------------- #
+#  The memory meter's numbers
+# --------------------------------------------------------------------------- #
+
+class TestMemoryStats:
+    def test_shape_and_ranges(self):
+        m = server.memory_stats(None)
+        assert m["ok"] is True
+        assert m["total_gb"] > 0 and 0 <= m["available_gb"] <= m["total_gb"]
+        assert 0 <= m["percent"] <= 100
+        assert m["run_gb"] is None, "no run is going"
+
+    def test_numbers_only(self):
+        text = json.dumps(server.memory_stats(None))
+        assert str(Path.home()) not in text
+
+    def test_a_missing_psutil_gives_an_empty_meter_not_an_error(self, monkeypatch):
+        import builtins
+        real = builtins.__import__
+
+        def no_psutil(name, *a, **k):
+            if name == "psutil":
+                raise ImportError("no psutil here")
+            return real(name, *a, **k)
+
+        monkeypatch.setattr(builtins, "__import__", no_psutil)
+        m = server.memory_stats(None)
+        assert m["ok"] is False and m["percent"] is None
+
+    def test_the_running_job_is_counted(self):
+        import subprocess as sp
+        mgr = server.JobManager()
+        job = server.Job("abc", ["x"], "dock", {}, Path("."))
+        job.state = "running"
+        job.proc = sp.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        mgr.jobs["abc"], mgr._current = job, "abc"
+        try:
+            m = server.memory_stats(mgr)
+            assert m["run_gb"] is not None and m["run_gb"] > 0
+        finally:
+            job.proc.kill()

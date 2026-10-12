@@ -478,6 +478,9 @@ const liveAdapter = {
 
   estimate: (job) => liveEstimate(job),
 
+  /** How full the computer's memory is right now (numbers only), for the top bar's meter. */
+  memory: () => API.get('/api/stats'),
+
   /** The exact command (from the server's own builder) and its rough time estimate. */
   async preview(job) {
     // Put the protein on the server first (cached per protein), so the server validates a real file and the command shows

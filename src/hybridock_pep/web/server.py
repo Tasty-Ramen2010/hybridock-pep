@@ -352,6 +352,29 @@ def _models_check() -> dict[str, Any]:
             "fix": "Reinstall with ./install.sh (or bash scripts/install_weights.sh)" + (f". Missing: {', '.join(missing)}" if missing else "")}
 
 
+def memory_stats(manager: JobManager | None = None) -> dict[str, Any]:
+    """How full this computer's memory is, for the top bar's liquid meter. Numbers only: no paths, no process names.
+
+    ``percent`` is the share NOT available to programs (total minus what the system can hand out), which is what decides
+    whether a run gets killed for memory. ``run_gb`` is what the running prediction (and the programs it started) holds.
+    """
+    out: dict[str, Any] = {"ok": False, "total_gb": None, "available_gb": None, "percent": None, "run_gb": None}
+    try:
+        import psutil
+
+        vm = psutil.virtual_memory()
+        out.update(ok=True, total_gb=round(vm.total / 1e9, 2), available_gb=round(vm.available / 1e9, 2),
+                   percent=round(100.0 * (vm.total - vm.available) / vm.total, 1))
+        job = manager.jobs.get(manager._current or "") if manager is not None else None
+        if job is not None and job.state == "running" and job.proc is not None:
+            root = psutil.Process(job.proc.pid)
+            procs = [root, *root.children(recursive=True)]
+            out["run_gb"] = round(sum(p.memory_info().rss for p in procs if p.is_running()) / 1e9, 2)
+    except Exception:  # noqa: BLE001 - a meter must never break the page: no psutil, a process that just ended, ...
+        pass
+    return out
+
+
 def check_environment() -> dict[str, Any]:
     """Report what this machine can actually do, for the status lamp.
 
@@ -974,6 +997,8 @@ class StudioHandler(BaseHTTPRequestHandler):
                 if self.policy is not None:
                     env["public"] = self.policy.describe()
                 self._send_json(env)
+            elif route == "/api/stats":
+                self._send_json(memory_stats(self.manager))
             elif route == "/api/fields":
                 self._send_json({
                     "fields": serialize_fields(),
