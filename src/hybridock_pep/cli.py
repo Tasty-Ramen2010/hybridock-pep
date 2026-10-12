@@ -516,6 +516,15 @@ def _build_parser() -> argparse.ArgumentParser:
                               "Only change this if you know why.")
     p_serve.add_argument("--no-browser", action="store_true", default=False,
                          help="Do not open a browser window; just print the URL.")
+    p_serve.add_argument("--public", action="store_true", default=False,
+                         help="Let other people use this computer through a web page (see docs/SHARING.md): "
+                              "visitors can only use built-in or uploaded proteins, run small jobs, and never "
+                              "name a file on this machine. Without this flag the server trusts its caller.")
+    p_serve.add_argument("--allow-origin", action="append", default=[], metavar="URL",
+                         help="With --public: a web page allowed to call this server, e.g. "
+                              "https://tasty-ramen2010.github.io (repeatable).")
+    p_serve.add_argument("--max-samples", type=int, default=50, metavar="N",
+                         help="With --public: the most poses one visitor's run may ask for (default 50).")
 
     return parser
 
@@ -529,7 +538,8 @@ def _run_serve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
     """
     from hybridock_pep.web import serve
 
-    raise SystemExit(serve(host=args.host, port=args.port, open_browser=not args.no_browser))
+    raise SystemExit(serve(host=args.host, port=args.port, open_browser=not args.no_browser, public=args.public,
+                           allow_origins=tuple(args.allow_origin), max_samples=args.max_samples))
 
 
 def _print_dock_banner(config: DockConfig) -> None:
