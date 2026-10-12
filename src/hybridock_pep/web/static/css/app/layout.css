@@ -1,51 +1,38 @@
 /* layout.css — the navigation bar, the screen container, and the "3D view + content" split. */
 
-/* ---- the navigation bar: a black pill that floats at the top, like the iPhone's Dynamic Island. It pops in once when the
-   page opens, lifts a little when you scroll (never changing size: a bar that resizes while it is scrolled under shifts the page and flickers), and glows while a prediction is running. ---- */
+/* ---- the navigation bar: a thin translucent material, like apple.com's. A hairline appears once you scroll. ---- */
 .topbar {
-  position: sticky; top: 10px; z-index: 20;
-  width: min(calc(100% - 2 * var(--gutter)), 1060px); height: var(--island-h); margin: 10px auto;
+  position: sticky; top: 0; z-index: 20;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;
-  padding: 0 10px 0 22px; border-radius: 999px;
-  background: #000; color: #f5f5f7;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 10px 32px rgba(0, 0, 0, 0.16);
-  transform-origin: 50% 0;
-  animation: island-in 640ms var(--ease-sheet) both;
-  transition: box-shadow var(--t-med) var(--ease);
+  height: var(--nav-h); padding: 0 var(--gutter);
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-med) var(--ease), background-color var(--t-med) var(--ease);
 }
-:root[data-theme='dark'] .topbar { background: #1c1c1e; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 10px 32px rgba(0, 0, 0, 0.5); }
-@keyframes island-in { from { opacity: 0; transform: scale(0.55, 0.6); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
-.topbar.scrolled { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 14px 40px rgba(0, 0, 0, 0.26); }
-/* a run is going: a soft pulse in the accent colour around the pill, the way a live activity glows */
-.topbar.busy { animation: island-in 640ms var(--ease-sheet) both, island-glow 2.4s var(--ease) 700ms infinite; }
-@keyframes island-glow { 0%, 100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 10px 32px rgba(0, 0, 0, 0.16), 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 1px var(--accent-line), 0 10px 32px rgba(0, 0, 0, 0.16), 0 0 0 6px var(--accent-soft); } }
+/* the blur only exists once there is content scrolling under the bar; at the top there is nothing to blur,
+   and a live blur over the animated 3D view is the most expensive thing on the page */
+.topbar.scrolled { background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom-color: var(--line); }
 .brand {
   justify-self: start; display: inline-flex; align-items: center; gap: 8px;
-  font: 600 16px/1 var(--font-sans); letter-spacing: -0.02em; color: #f5f5f7; white-space: nowrap;
-  background: none; border: 0; cursor: pointer; padding: 8px 4px; margin-left: -4px; border-radius: 999px;
+  font: 600 17px/1 var(--font-sans); letter-spacing: -0.02em; color: var(--ink); white-space: nowrap;
+  background: none; border: 0; cursor: pointer; padding: 8px 4px; margin-left: -4px; border-radius: 8px;
 }
-.brand svg { color: #f5f5f7; }
-.nav-links { justify-self: center; display: flex; align-items: center; gap: clamp(2px, 1vw, 8px); }
-.nav-links a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; font-size: 14px; font-weight: 400; letter-spacing: -0.01em; color: #a1a1a6; border-radius: 999px; text-decoration: none; transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
-.nav-links a:hover { color: #fff; text-decoration: none; }
-.nav-links a[aria-current='page'] { color: #fff; font-weight: 500; background: rgba(255, 255, 255, 0.14); }
+.brand svg { color: var(--ink); }
+.nav-links { justify-self: center; display: flex; align-items: center; gap: clamp(4px, 2vw, 28px); }
+.nav-links a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 10px; font-size: 14px; font-weight: 400; letter-spacing: -0.01em; color: var(--ink-3); border-radius: 8px; text-decoration: none; transition: color var(--t-fast) var(--ease); }
+.nav-links a:hover { color: var(--ink); text-decoration: none; }
+.nav-links a[aria-current='page'] { color: var(--ink); font-weight: 500; }
 .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 4px; }
-.topbar .btn:not(.primary) { background: transparent; color: #d2d2d7; }
-.topbar .btn:not(.primary):hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
-.topbar .seg { margin-right: 6px; background: rgba(255, 255, 255, 0.14); border-radius: 999px; }
-.topbar .seg button { color: #d2d2d7; border-radius: 999px; }
-.topbar .seg button[aria-pressed='true'] { background: #f5f5f7; color: #1d1d1f; box-shadow: none; }
-.topbar .seg button:not([aria-pressed='true']):hover { background: rgba(255, 255, 255, 0.1); }
-.topbar .chip { background: none; padding: 4px 8px; font-size: 13px; color: #a1a1a6; }
-.topbar button.chip:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
-.topbar .badge-demo { background: rgba(255, 149, 0, 0.22); color: #ffb340; }
-.topbar .avatar { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.2); }
-@media (prefers-reduced-motion: reduce) { .topbar, .topbar.busy { animation: none; } }
+.topbar .btn:not(.primary) { background: transparent; color: var(--ink-2); }
+.topbar .btn:not(.primary):hover { background: var(--field); color: var(--ink); }
+.topbar .seg { margin-right: 6px; }
+.topbar .chip { background: none; padding: 4px 8px; font-size: 13px; color: var(--ink-3); }
+.topbar button.chip:hover { background: var(--field); color: var(--ink); }
 
 /* phones and small tablets: the three destinations move to a tab bar at the bottom, like an iPhone app */
 .tabbar { display: none; }
 @media (max-width: 900px) {
-  .topbar { grid-template-columns: 1fr auto; width: calc(100% - 16px); padding: 0 8px 0 16px; }
+  .topbar { grid-template-columns: 1fr auto; }
   .topbar .nav-links { display: none; }
   .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; justify-content: space-around;
@@ -102,4 +89,4 @@
 }
 @media (max-width: 520px) { .brand { font-size: 0; gap: 0; } .brand svg { width: 28px; height: 28px; } }
 
-@media (pointer: coarse) { :root { --island-h: 56px; --nav-h: 76px; } .brand { min-height: 44px; min-width: 44px; justify-content: center; } .nav-links a { min-height: 44px; } }
+@media (pointer: coarse) { :root { --nav-h: 56px; } .brand { min-height: 44px; min-width: 44px; justify-content: center; } .nav-links a { min-height: 44px; } }
