@@ -32,6 +32,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from hybridock_pep._paths import data_file
+from hybridock_pep.web.public import PublicPolicy, scrub
 from hybridock_pep.ui import tui
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,9 @@ STATIC_DIR = WEB_DIR / "static"
 SESSION_ROOT = Path("runs/studio")
 
 MAX_BODY_BYTES = 64 * 1024 * 1024  # a big receptor PDB is a few MB; this is slack
+#: the only run files a visitor to a public server may download (the ones the result screen offers)
+_PUBLIC_FILES = frozenset({"ranked_poses.csv", "cluster_summary.csv", "best_pose.pdb", "convergence_plot.png",
+                           "silhouette_plot.png", "dendrogram.png", "run_metadata.json", "selectivity.json"})
 LOG_RING = 4000  # lines kept per job for the live console
 
 _AA_CHARGE = {"D": -1, "E": -1, "K": 1, "R": 1, "H": 0.1}
@@ -816,6 +820,54 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     server_version = "HybriDockStudio"
     manager: JobManager  # injected on the server instance
+    policy: PublicPolicy | None = None  # set only by `serve --public`; None is the ordinary local tool
+    timeout = None  # public servers set a socket timeout so a stalled client cannot hold a thread forever
+
+    # ---- public mode (see web/public.py) ----
+
+    def _origin(self) -> str | None:
+        return self.headers.get("Origin")
+
+    def _client(self) -> str:
+        """Who is calling, for rate limits: the address a tunnel forwards, else the socket's."""
+        fwd = self.headers.get("CF-Connecting-IP") or (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        return fwd or self.client_address[0]
+
+    def _headers_for_all(self) -> None:
+        """Headers on every API answer: never sniffed, and readable from the hosted page when public mode allows it."""
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if self.policy is not None:
+            allow = self.policy.allow_origin_header(self._origin(), self.headers.get("Host"))
+            if allow:
+                self.send_header("Access-Control-Allow-Origin", allow)
+                self.send_header("Vary", "Origin")
+
+    def _scrub(self, text: str) -> str:
+        if self.policy is None:
+            return text
+        return scrub(text, str(Path.home()), str(Path.cwd()))
+
+    def _snapshot(self, job: Job, since: int = 0) -> dict[str, Any]:
+        """A job as the page sees it. In public mode no folder of this computer is named."""
+        snap = job.snapshot(since)
+        if self.policy is not None:
+            snap["lines"] = [self._scrub(x) for x in snap["lines"]]
+            snap["command"] = self._scrub(snap["command"])
+            snap["error"] = self._scrub(snap["error"]) if snap["error"] else snap["error"]
+            snap["output_dir"] = self._scrub(snap["output_dir"])
+        return snap
+
+    def do_OPTIONS(self) -> None:  # the browser's permission check before a cross-site POST
+        allow = self.policy.allow_origin_header(self._origin(), self.headers.get("Host")) if self.policy else None
+        self.send_response(204 if allow else 403)
+        if allow:
+            self.send_header("Access-Control-Allow-Origin", allow)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Max-Age", "600")
+            self.send_header("Vary", "Origin")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     # quieter logs: one line per request at DEBUG, not stderr spam
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -829,6 +881,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self._headers_for_all()
         self.end_headers()
         self.wfile.write(body)
 
@@ -839,7 +892,8 @@ class StudioHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             return {}
-        if length > MAX_BODY_BYTES:
+        limit = MAX_BODY_BYTES if self.policy is None else self.policy.max_upload_bytes * 2
+        if length > limit:
             raise ValueError("Request body too large")
         raw = self.rfile.read(length)
         try:
@@ -881,6 +935,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         self.send_header("ETag", etag)
         self.send_header("Cache-Control", cache)
         self.send_header("Vary", "Accept-Encoding")
+        self.send_header("X-Content-Type-Options", "nosniff")
         if encoding:
             self.send_header("Content-Encoding", encoding)
         self.end_headers()
@@ -892,11 +947,14 @@ class StudioHandler(BaseHTTPRequestHandler):
             return
         ctype = _content_type(path.name)
         data = path.read_bytes()
+        if self.policy is not None and path.suffix.lower() in (".csv", ".json", ".txt"):
+            data = self._scrub(data.decode("utf-8", "replace")).encode("utf-8")  # no folder names of this computer
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         if download:
             self.send_header("Content-Disposition", f'attachment; filename="{path.name}"')
+        self._headers_for_all()
         self.end_headers()
         self.wfile.write(data)
 
@@ -912,7 +970,10 @@ class StudioHandler(BaseHTTPRequestHandler):
             elif route.startswith("/static/"):
                 self._serve_static(route)
             elif route == "/api/env":
-                self._send_json(check_environment())
+                env = check_environment()
+                if self.policy is not None:
+                    env["public"] = self.policy.describe()
+                self._send_json(env)
             elif route == "/api/fields":
                 self._send_json({
                     "fields": serialize_fields(),
@@ -922,9 +983,16 @@ class StudioHandler(BaseHTTPRequestHandler):
                     "stages": [{"key": k, "label": lbl, "weight": w} for k, lbl, w in tui.STAGES],
                 })
             elif route == "/api/examples":
-                self._send_json({"examples": available_examples()})
+                examples = available_examples()
+                if self.policy is not None:  # a name the server understands, never a folder of this computer
+                    for ex in examples:
+                        ex["receptor_path"] = f"example:{ex['receptor']}"
+                self._send_json({"examples": examples})
             elif route == "/api/jobs":
-                self._send_json({"jobs": [j.snapshot() for j in self.manager.jobs.values()]})
+                if self.policy is not None:  # other visitors' runs are not for browsing
+                    self._error("Not found", 404)
+                else:
+                    self._send_json({"jobs": [j.snapshot() for j in self.manager.jobs.values()]})
             elif route.startswith("/api/jobs/"):
                 self._job_get(route, query)
             else:
@@ -938,7 +1006,7 @@ class StudioHandler(BaseHTTPRequestHandler):
     def _serve_static(self, route: str) -> None:
         rel = route[len("/static/"):]
         target = (STATIC_DIR / rel).resolve()
-        if not str(target).startswith(str(STATIC_DIR.resolve())):
+        if not target.is_relative_to(STATIC_DIR.resolve()):
             self._error("Forbidden", 403)  # path traversal
             return
         self._send_static(target)
@@ -952,19 +1020,25 @@ class StudioHandler(BaseHTTPRequestHandler):
         tail = parts[4] if len(parts) > 4 else ""
         if not tail:
             since = _int_or(query.get("since", ["0"])[0], 0)
-            self._send_json(job.snapshot(since))
+            self._send_json(self._snapshot(job, since))
         elif tail == "results":
-            self._send_json(read_results(job))
+            payload = read_results(job)
+            if self.policy is not None:
+                payload["output_dir"] = self._scrub(payload["output_dir"])
+            self._send_json(payload)
         elif tail == "file":
             name = query.get("name", [""])[0]
             target = (job.output_dir / name).resolve()
-            if not str(target).startswith(str(job.output_dir.resolve())):
+            if not target.is_relative_to(job.output_dir.resolve()):
                 self._error("Forbidden", 403)
+                return
+            if self.policy is not None and name not in _PUBLIC_FILES:  # only what the result screen offers
+                self._error("Not found", 404)
                 return
             self._send_file(target, download=query.get("download", ["0"])[0] == "1")
         elif tail == "pose":
             name = query.get("name", [""])[0]
-            source = job.values.get("input_poses") if isinstance(job.values, dict) else None
+            source = job.values.get("input_poses") if isinstance(job.values, dict) and self.policy is None else None
             pose = _find_pose(job.output_dir, name, Path(source).expanduser() if source else None)
             if pose is None:
                 self._error("Pose file not found", 404)
@@ -977,16 +1051,24 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         route = urlparse(self.path).path
+        if self.policy is not None and not self.policy.origin_ok(self._origin(), self.headers.get("Host")):
+            self._error("This page is not allowed to use this computer.", 403)
+            return
         try:
             body = self._read_json()
         except ValueError as exc:
             self._error(str(exc), 400)
             return
         try:
+            if route in ("/api/validate", "/api/preview") and self.policy is not None:
+                body = self._public_body(body)
             if route == "/api/validate":
-                self._send_json(validate_request(body))
+                result = validate_request(body)
+                if self.policy is not None and result.get("command"):
+                    result["command"] = self._scrub(result["command"])
+                self._send_json(result)
             elif route == "/api/preview":
-                self._send_json({"command": " ".join(_build_command(body))})
+                self._send_json({"command": self._scrub(" ".join(_build_command(body)))})
             elif route == "/api/run":
                 self._start_run(body)
             elif route == "/api/upload":
@@ -1006,7 +1088,28 @@ class StudioHandler(BaseHTTPRequestHandler):
             logger.exception("POST %s failed", route)
             self._error(str(exc), 500)
 
+    def _public_body(self, body: dict[str, Any]) -> dict[str, Any]:
+        """The request a visitor sent, rebuilt from the allow-list (see web/public.py). Raises ValueError."""
+        assert self.policy is not None
+        mode = str(body.get("mode") or "ai").strip().lower()
+        mode = "dock" if mode == "ai" else mode
+        if mode not in ("dock", "selectivity", "crystal"):
+            raise ValueError("Unknown kind of run.")
+        examples = {ex["receptor"]: Path(ex["receptor_path"]) for ex in available_examples()}
+        run_dir = self.policy.run_dir(uuid.uuid4().hex[:12])
+        clean = self.policy.clean_values(body.get("values") or {}, mode, examples, run_dir)
+        return {"mode": mode, "values": clean, "scoring": "vina"}
+
     def _start_run(self, body: dict[str, Any]) -> None:
+        if self.policy is not None:
+            if self.policy.too_many(self._client(), "run", self.policy.runs_per_window):
+                self._error("That is a lot of runs in a short time. Please wait a few minutes and try again.", 429)
+                return
+            body = self._public_body(body)
+            if self.manager.busy:
+                self._error("The shared computer is busy with someone else’s prediction. Please try again in a few minutes.", 409)
+                return
+            self.policy.prune()
         check = validate_request(body)
         if not check["ok"]:
             self._error("Some settings still need fixing.", 400, fields=check["errors"])
@@ -1015,7 +1118,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         cmd = _build_command(body)
         out_dir = Path(values.get("output_dir") or SESSION_ROOT).expanduser()
         job = self.manager.start(cmd, mode, values, out_dir)
-        self._send_json({"job": job.snapshot()})
+        self._send_json({"job": self._snapshot(job)})
 
     def _upload(self, body: dict[str, Any]) -> dict[str, Any]:
         """Accept a PDB as text and write it where the CLI can read it.
@@ -1023,6 +1126,14 @@ class StudioHandler(BaseHTTPRequestHandler):
         JSON rather than multipart on purpose: PDB files are text, the server is
         loopback-only, and this keeps the stdlib server free of a form parser.
         """
+        if self.policy is not None:
+            if self.policy.too_many(self._client(), "upload", self.policy.uploads_per_window):
+                raise RuntimeError("That is a lot of uploads in a short time. Please wait a few minutes.")
+            content = str(body.get("content") or "")
+            token = self.policy.save_upload(str(body.get("name") or ""), content)
+            chains = sorted({line[21] for line in content.splitlines() if line.startswith("ATOM") and len(line) > 21})
+            return {"path": token, "name": Path(str(body.get("name"))).name,
+                    "atoms": sum(1 for line in content.splitlines() if line.startswith("ATOM")), "chains": chains}
         name = Path(str(body.get("name") or "uploaded.pdb")).name
         if not name.lower().endswith(".pdb"):
             raise ValueError("That file is not a .pdb — HybriDock-Pep needs a PDB structure.")
@@ -1171,19 +1282,24 @@ def _open_in_browser(url: str) -> None:
     webbrowser.open(url)
 
 
-def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) -> int:
+def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True,
+          public: bool = False, allow_origins: tuple[str, ...] = (), max_samples: int = 50) -> int:
     """Run the studio until interrupted.
 
     Args:
         host: Interface to bind. Loopback by default — this is a local tool.
         port: TCP port; if taken, the next 20 are tried.
         open_browser: Open the default browser at the URL once bound.
+        public: Serve strangers (see :mod:`hybridock_pep.web.public`): allow-listed requests, no file paths, run limits.
+        allow_origins: Web pages (``https://name.github.io``) allowed to call this server from a browser. Public mode only.
+        max_samples: The most poses one public run may ask for.
 
     Returns:
         Process exit code (0 on a clean Ctrl-C).
     """
     manager = JobManager()
-    handler = type("BoundHandler", (StudioHandler,), {"manager": manager})
+    policy = PublicPolicy(allowed_origins=tuple(o.rstrip("/") for o in allow_origins), max_samples=max_samples) if public else None
+    handler = type("BoundHandler", (StudioHandler,), {"manager": manager, "policy": policy, "timeout": 60 if public else None})
 
     httpd = None
     for candidate in range(port, port + 20):
@@ -1200,6 +1316,12 @@ def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) 
 
     url = f"http://{host}:{port}/"
     SESSION_ROOT.mkdir(parents=True, exist_ok=True)
+    if policy is not None:
+        policy.runs_dir.mkdir(parents=True, exist_ok=True)
+        policy.prune()
+        print("  PUBLIC MODE: visitors are limited to "
+              f"{policy.max_samples} poses, no whole-protein search, no file paths; "
+              f"pages allowed: {', '.join(policy.allowed_origins) or 'this server only'}", flush=True)
     # flush: the URL is the only thing this command exists to tell you, and a
     # piped/redirected stdout would otherwise buffer it until the server exits.
     print(f"\n  HybriDock-Pep studio is running at  {url}", flush=True)
