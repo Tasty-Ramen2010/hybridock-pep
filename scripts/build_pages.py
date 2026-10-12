@@ -3,8 +3,9 @@
 
     python3 scripts/build_pages.py [--out DIR]        # default: _site/
 
-The copy has no backend: it flags itself with ``window.HYBRIDOCK_STATIC`` so the app goes straight to
-its Demo adapter (every result is simulated and labelled "Demo"). It uses relative URLs, so it works at
+The copy has no backend of its own: it flags itself with ``window.HYBRIDOCK_STATIC``. It is the Demo adapter (every result
+is simulated and labelled "Demo") unless the team's own computer is sharing itself (scripts/share_my_computer.py, docs/SHARING.md),
+in which case the page runs the real app against that computer and says so. It uses relative URLs, so it works at
 the root of a domain or under a sub-path such as ``https://<user>.github.io/hybridock-pep/``.
 
 Real predictions need the real tool: ``hybridock-pep serve`` (see src/hybridock_pep/web/README.md).

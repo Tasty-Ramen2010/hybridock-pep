@@ -20,7 +20,7 @@ import { loadProtein } from './structures.mjs';
 import { placeHelixAt } from './placement.mjs';
 import { mulberry32, hashString } from './stage/math.mjs';
 import { buildDockCommand, buildCompareCommand, buildScoreCommand } from './command.mjs';
-import { EXPERT_DEFAULTS } from './config.mjs';
+import { EXPERT_DEFAULTS, LIVE_LINK, apiUrl, backend } from './config.mjs';
 import { peptideTitle } from './peptides.mjs';
 
 /* ------------------------------------------------------------------------------------------------
@@ -252,7 +252,7 @@ let fieldLabels = null; // key -> human label, from /api/fields (used to word va
 
 async function labelFor(key) {
   if (!fieldLabels) {
-    try { fieldLabels = Object.fromEntries((await (await fetch('/api/fields')).json()).fields.map((f) => [f.key, f.label])); }
+    try { fieldLabels = Object.fromEntries((await (await fetch(apiUrl('/api/fields'))).json()).fields.map((f) => [f.key, f.label])); }
     catch { fieldLabels = {}; }
   }
   return fieldLabels[key] || key;
@@ -274,7 +274,7 @@ const API = {
   async request(method, path, body, signal) {
     let res;
     try {
-      res = await fetch(path, {
+      res = await fetch(apiUrl(path), {
         method, signal, cache: 'no-store',
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,
@@ -442,8 +442,8 @@ function peptideCA(text, n) {
   return Array.from(all.slice(start), round1);
 }
 
-const poseUrl = (jobId, file) => `/api/jobs/${jobId}/pose?name=${encodeURIComponent(file)}`;
-const fileUrl = (jobId, name, download) => `/api/jobs/${jobId}/file?name=${encodeURIComponent(name)}${download ? '&download=1' : ''}`;
+const poseUrl = (jobId, file) => apiUrl(`/api/jobs/${jobId}/pose?name=${encodeURIComponent(file)}`);
+const fileUrl = (jobId, name, download) => apiUrl(`/api/jobs/${jobId}/file?name=${encodeURIComponent(name)}${download ? '&download=1' : ''}`);
 
 function dockResult(job, jobId, snap, res) {
   const dgOf = (r) => num(r.pooled_affinity_dg) ?? num(r.delta_g) ?? num(r.mmgbsa_dg);
@@ -608,7 +608,7 @@ export const adapterFor = (result) => (result?.demo ? mockAdapter : adapter);
 async function probeServer() {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch('/api/env', { cache: 'no-store', signal: AbortSignal.timeout(attempt ? 10000 : 6000) });
+      const res = await fetch(apiUrl('/api/env'), { cache: 'no-store', signal: AbortSignal.timeout(attempt ? 10000 : 6000) });
       if (res.status === 404 || res.status === 405 || res.status === 501) return { absent: true };
       if (res.ok) return { env: await res.json() };
     } catch (e) {
@@ -619,15 +619,62 @@ async function probeServer() {
   return { unreachable: true };
 }
 
-/** Pick live when this page is served by `hybridock-pep serve`, otherwise demo. Call once at start-up. */
+/** The only places a hosted page may send people's work: a tunnel the team set up, or this very computer (for tests). */
+const trustedBackend = (u) => /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.(trycloudflare\.com|ts\.net)$/i.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(u);
+
+/**
+ * The hosted website has no server of its own, but the team may have left a computer running for it. The address of
+ * that computer is published in LIVE_LINK (a tiny file that changes whenever the tunnel is restarted). If it answers
+ * AND says it is a shared server (it limits what visitors may do), the page runs the real app against it. If not, the
+ * page is the plain demo and says why.
+ */
+async function probeRemote(q) {
+  let url = null;
+  const forced = q.get('backend'); // lets a test (or the team) point a page at a computer; only a trusted address is used
+  if (forced) url = forced;
+  else {
+    try {
+      const res = await fetch(LIVE_LINK, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      if (res.ok) url = (await res.json())?.url || null;
+    } catch { /* no link published, or no network: plain demo */ }
+  }
+  if (!url) return { none: true };
+  url = String(url).replace(/\/+$/, '');
+  if (!trustedBackend(url)) return { none: true };
+  backend.url = url;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(apiUrl('/api/env'), { cache: 'no-store', signal: AbortSignal.timeout(attempt ? 12000 : 8000) });
+      if (res.ok) { const env = await res.json(); if (env?.public) return { env }; break; } // not a shared server: never send work to it
+    } catch { /* asleep, restarting, or unreachable: try once more */ }
+  }
+  backend.url = '';
+  return { offline: true };
+}
+
+/** Pick live when this page is served by `hybridock-pep serve`, or the team's shared computer answers; otherwise demo. Call once at start-up. */
 export async function initAdapter() {
   const q = new URLSearchParams(globalThis.location?.search || '');
-  // A static copy (GitHub Pages, scripts/build_pages.py) has no server behind it: go straight to the demo.
-  if (q.has('demo') || globalThis.location?.protocol === 'file:' || globalThis.HYBRIDOCK_STATIC) return (adapter = mockAdapter);
+  if (q.has('demo')) return (adapter = mockAdapter);
+  // A static copy (GitHub Pages, scripts/build_pages.py) has no server behind it. It looks for the team's shared computer;
+  // without one it goes to the demo.
+  if (globalThis.location?.protocol === 'file:' || globalThis.HYBRIDOCK_STATIC) {
+    if (globalThis.location?.protocol === 'file:') return (adapter = mockAdapter);
+    const remote = await probeRemote(q);
+    if (remote.env) {
+      backend.remote = true;
+      liveAdapter.env = remote.env;
+      liveAdapter.refreshEnv = async () => { try { liveAdapter.env = await (await fetch(apiUrl('/api/env'), { cache: 'no-store' })).json(); } catch { /* keep what we had */ } };
+      try { liveAdapter.examples = (await (await fetch(apiUrl('/api/examples'), { cache: 'no-store' })).json()).examples || []; } catch { liveAdapter.examples = []; }
+      return (adapter = liveAdapter);
+    }
+    backend.offline = !!remote.offline;
+    return (adapter = mockAdapter);
+  }
   const probe = await probeServer();
   if (probe.absent && !q.has('live')) return (adapter = mockAdapter);
   liveAdapter.env = probe.env || null;
-  liveAdapter.refreshEnv = async () => { try { liveAdapter.env = await (await fetch('/api/env', { cache: 'no-store' })).json(); } catch { /* keep what we had */ } };
-  try { liveAdapter.examples = (await (await fetch('/api/examples', { cache: 'no-store' })).json()).examples || []; } catch { liveAdapter.examples = []; }
+  liveAdapter.refreshEnv = async () => { try { liveAdapter.env = await (await fetch(apiUrl('/api/env'), { cache: 'no-store' })).json(); } catch { /* keep what we had */ } };
+  try { liveAdapter.examples = (await (await fetch(apiUrl('/api/examples'), { cache: 'no-store' })).json()).examples || []; } catch { liveAdapter.examples = []; }
   return (adapter = liveAdapter);
 }

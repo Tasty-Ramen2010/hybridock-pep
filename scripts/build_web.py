@@ -57,21 +57,21 @@ def stored_hash(path: Path) -> str | None:
     return first.rsplit("source-hash: ", 1)[-1].split(" ")[0] if "source-hash:" in first else None
 
 
-# The guide is written once, in docs/GUIDE.md (readable on GitHub, with its screenshots in docs/guide-img/). The app serves
-# a copy of both from static/guide/, so the in-app guide and the GitHub one can never differ.
-GUIDE_FILES = [(ROOT / "docs" / "GUIDE.md", STATIC / "guide" / "guide.md")]
+# The guide's words are data in js/app/guide-content.mjs (they are bundled into the app). Its screenshots live in
+# docs/guide-img/ (the short docs/GUIDE.md on GitHub uses them too); the app serves a copy from static/guide/guide-img/.
+GUIDE_IMG = ROOT / "docs" / "guide-img"
 
 
 def guide_pairs() -> list[tuple[Path, Path]]:
-    pairs = list(GUIDE_FILES)
-    for shot in sorted((ROOT / "docs" / "guide-img").glob("*.png")):
+    pairs: list[tuple[Path, Path]] = []
+    for shot in sorted(GUIDE_IMG.glob("*.png")):
         pairs.append((shot, STATIC / "guide" / "guide-img" / shot.name))
     return pairs
 
 
 def guide_fresh() -> bool:
     pairs = guide_pairs()
-    if not (ROOT / "docs" / "GUIDE.md").exists():
+    if not GUIDE_IMG.exists():
         return True  # nothing to copy (e.g. a source tarball without docs/)
     on_disk = {p.relative_to(STATIC / "guide") for p in (STATIC / "guide").rglob("*") if p.is_file()} if (STATIC / "guide").exists() else set()
     wanted = {dst.relative_to(STATIC / "guide") for _, dst in pairs}
@@ -79,7 +79,7 @@ def guide_fresh() -> bool:
 
 
 def sync_guide() -> None:
-    if not (ROOT / "docs" / "GUIDE.md").exists():
+    if not GUIDE_IMG.exists():
         return
     shutil.rmtree(STATIC / "guide", ignore_errors=True)
     for src, dst in guide_pairs():

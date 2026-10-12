@@ -4,7 +4,7 @@
 
 import { h } from './dom.mjs';
 import { icon, logo } from './icons.mjs';
-import { ACCENTS } from '../config.mjs';
+import { ACCENTS, backend } from '../config.mjs';
 import { initials } from '../jobs.mjs';
 import { adapter } from '../adapter.mjs';
 import { openHistory } from './history.mjs';
@@ -70,7 +70,7 @@ export function mountTopbar(ctx) {
     const label = (text) => [h('span', { class: 'visually-hidden' }, 'Live, '), h('span', { class: 'chip-text' }, text)];
     if (!env) return h('span', { class: 'chip' }, dot('var(--warn)'), ...label('Server not reached'));
     const gpu = env.checks?.gpu;
-    const text = !env.ready ? 'Setup needed' : gpu?.ok ? gpu.detail : 'CPU only';
+    const text = !env.ready ? 'Setup needed' : backend.remote ? `Live · ${gpu?.ok ? gpu.detail : 'CPU'}` : gpu?.ok ? gpu.detail : 'CPU only';
     const rows = Object.entries(env.checks || {}).map(([key, c]) => h('li', { class: 'env-row' },
       h('i', { class: 'dot', style: { background: c.ok ? 'var(--ok)' : 'var(--warn)' } }),
       h('span', {}, h('b', {}, c.detail), !c.ok && c.fix ? h('small', { class: 'tech' }, c.fix) : null)));

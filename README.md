@@ -490,7 +490,7 @@ time, and you can close the tab and come back: the run keeps going. To use it fr
 
 No install yet? Try the **[demo site](https://tasty-ramen2010.github.io/hybridock-pep/)** (simulated results, clearly labelled), or run
 the real thing in [Google Colab](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
-with nothing to install. The full walk-through, every setting and the troubleshooting table are in the **[guide](docs/GUIDE.md)**.
+with nothing to install. While the team is sharing its computer (judging, demos), the demo site runs real predictions on it: see **[docs/SHARING.md](docs/SHARING.md)**. A short written guide is in **[docs/GUIDE.md](docs/GUIDE.md)**, and the same lessons are in the app's Guide tab.
 
 ### ARM Linux (DGX Spark, Grace, Graviton, Ampere)
 

@@ -62,18 +62,18 @@ let routeToken = 0;
 let firstRender = true; // on page load, leave focus alone so the first Tab reaches the skip link and the top bar
 
 function parseHash() {
-  const [name = '', param] = location.hash.replace(/^#\/?/, '').split('/');
-  return { name, param };
+  const [name = '', param, sub] = location.hash.replace(/^#\/?/, '').split('/');
+  return { name, param, sub };
 }
 
 async function render() {
-  const { name, param } = parseHash();
+  const { name, param, sub } = parseHash();
   const def = SCREENS[name] || SCREENS[''];
   const token = ++routeToken;
   current?.destroy?.();
   stage.editBox(null);
   stage.setBox(null);
-  current = def.mount({ ...ctx, param });
+  current = def.mount({ ...ctx, param, sub });
   main.replaceChildren(current.el);
   document.title = name in SCREENS && name !== '' ? `${def.title} · HybriDock-Pep` : 'HybriDock-Pep: see how a peptide binds a protein';
   stage.setSlot(current.el.querySelector('[data-stage-slot]'));

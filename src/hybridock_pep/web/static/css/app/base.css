@@ -63,6 +63,7 @@ a:hover { text-decoration: underline; }
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
+#main:focus { outline: none; } /* the page container takes focus after in-app navigation; it is not a control, so no ring */
 /* Guided shows plain-language help; Expert shows the technical detail. One attribute flips both. */
 [data-mode='guided'] .expert-only { display: none !important; }
 [data-mode='expert'] .guided-only { display: none !important; }

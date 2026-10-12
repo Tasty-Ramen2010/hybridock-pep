@@ -40,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Web server and UI tests
-        run: pytest -q tests/test_web_server.py tests/test_web_ui.py
+        run: pytest -q tests/test_web_server.py tests/test_web_ui.py tests/test_web_public.py
 
   live:
     name: Browser suites against a live server
@@ -75,6 +75,18 @@ jobs:
           BASE: http://127.0.0.1:8000
           E2E_OUT: ${{ runner.temp }}/e2e
         run: node run_all.mjs 01 02 04 06 07 08_ 10 11 14 20 21 22 23 24
+      - name: The hosted page against a shared (public-mode) server, on another origin
+        working-directory: tests/web_e2e
+        env:
+          E2E_OUT: ${{ runner.temp }}/e2e
+        run: |
+          python "$GITHUB_WORKSPACE/scripts/build_pages.py" --out "$RUNNER_TEMP/site"
+          (cd "$RUNNER_TEMP/site" && nohup python -m http.server 8010 > "$RUNNER_TEMP/site.log" 2>&1 &)
+          mkdir -p "$RUNNER_TEMP/shared" && cd "$RUNNER_TEMP/shared"
+          HYBRIDOCK_VINA_WORKERS=1 nohup hybridock-pep serve --public --no-browser --port 8765 --allow-origin http://127.0.0.1:8010 > "$RUNNER_TEMP/shared.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8765/api/env > /dev/null && curl -sf http://127.0.0.1:8010/ > /dev/null && break; sleep 1; done
+          cd "$GITHUB_WORKSPACE/tests/web_e2e"
+          BASE=http://127.0.0.1:8010 SHARED=http://127.0.0.1:8765 UNSHARED=http://127.0.0.1:8000 node run_all.mjs 25
       - name: Server log and screenshots on failure
         if: failure()
         run: tail -n 80 "$RUNNER_TEMP/serve.log" || true
