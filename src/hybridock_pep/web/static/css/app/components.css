@@ -218,6 +218,45 @@ table.poses td.num, table.poses th.num { text-align: right; }
 .env-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
 .env-row .dot { margin: 6px 0 0; flex: none; }
 .env-row b { font-weight: 500; }
+.env-machine { font-size: 15px; font-weight: 600; }
+.env-memory { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 12px; }
+
+/* ---- the memory tank: a dot while idle; a tank of liquid while a prediction runs ---- */
+.status-chip { gap: 8px; }
+.ram-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.ram { --liq: hsl(215 10% 60%); --fill: 0%; position: relative; flex: none; width: 10px; height: 10px; transition: width 440ms var(--ease-sheet), height 440ms var(--ease-sheet); }
+.ram-glass { position: absolute; inset: 0; overflow: hidden; border-radius: 50%; background: var(--liq); box-shadow: inset 0 0 0 1px transparent; transition: border-radius 440ms var(--ease-sheet), background 300ms var(--ease), box-shadow 300ms var(--ease); }
+.ram-liquid { position: absolute; left: 0; right: 0; bottom: 0; height: var(--fill); background: var(--liq); opacity: 0; transition: height 900ms var(--ease-sheet), background 600ms var(--ease), opacity 300ms var(--ease); }
+.ram-liquid::before { content: ''; position: absolute; left: 0; right: 0; top: -4px; height: 5px; background: var(--liq); transition: background 600ms var(--ease);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 5'%3E%3Cpath d='M0 5V2.5C2.8 0 5.7 0 8.5 2.5S14.2 5 17 2.5V5Z'/%3E%3C/svg%3E") repeat-x 0 0 / 17px 5px;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 5'%3E%3Cpath d='M0 5V2.5C2.8 0 5.7 0 8.5 2.5S14.2 5 17 2.5V5Z'/%3E%3C/svg%3E") repeat-x 0 0 / 17px 5px;
+  animation: ram-wave 1.7s linear infinite; }
+@keyframes ram-wave { to { -webkit-mask-position: 17px 0; mask-position: 17px 0; } }
+.ram-pct { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-2); max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; transition: max-width 440ms var(--ease-sheet), opacity 300ms var(--ease); }
+/* running: the dot widens into a tank */
+.ram[data-on='true'] { width: 42px; height: 24px; }
+.ram[data-on='true'] .ram-glass { border-radius: 8px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ram[data-on='true'] .ram-liquid { opacity: 1; }
+.ram[data-on='true'] + .ram-pct { max-width: 3.2em; opacity: 1; }
+/* nearly full: the liquid slops over the rim */
+.ram-foam { position: absolute; left: 0; right: 0; top: 0; height: 0; pointer-events: none; opacity: 0; }
+.ram-foam i { position: absolute; top: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--liq); }
+.ram-foam i:nth-child(1) { left: 6px; animation: ram-drip 1.5s ease-in infinite; }
+.ram-foam i:nth-child(2) { left: 19px; width: 4px; height: 4px; animation: ram-drip 1.5s ease-in 0.5s infinite; }
+.ram-foam i:nth-child(3) { left: 31px; animation: ram-drip 1.5s ease-in 1s infinite; }
+@keyframes ram-drip { 0% { transform: translateY(-4px) scale(0.6); opacity: 0; } 25% { opacity: 1; } 100% { transform: translateY(14px) scale(1); opacity: 0; } }
+.ram[data-level='full'][data-on='true'] .ram-foam { opacity: 1; }
+.ram[data-level='full'][data-on='true'] .ram-liquid { height: 112%; }
+/* the warning bubble under the chip */
+.ram-bubble { position: absolute; top: calc(100% + 12px); right: -4px; z-index: 30; display: flex; gap: 10px; align-items: flex-start; width: max-content; max-width: min(300px, calc(100vw - 32px)); padding: 12px 10px 12px 14px; border-radius: 16px; background: var(--bg); color: var(--ink); box-shadow: var(--shadow), 0 0 0 1px var(--line); font-size: 14px; line-height: 1.35; animation: bubble-in 360ms var(--ease-sheet) both; }
+.ram-bubble[hidden] { display: none; }
+.ram-bubble::before { content: ''; position: absolute; top: -6px; right: 24px; width: 12px; height: 12px; background: var(--bg); transform: rotate(45deg); box-shadow: -1px -1px 0 0 var(--line); }
+.ram-bubble > svg { flex: none; margin-top: 1px; color: var(--warn); }
+.ram-bubble-text b { font-weight: 600; }
+.ram-bubble-x { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--field); color: var(--ink-3); cursor: pointer; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(-6px) scale(0.92); transform-origin: 90% 0; } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ram-liquid::before, .ram-foam i, .ram-bubble { animation: none; } }
+
 
 /* Touch: Apple's 44 pt minimum tap target for the small round controls too */
 @media (pointer: coarse) { .avatar { width: 44px; height: 44px; } }

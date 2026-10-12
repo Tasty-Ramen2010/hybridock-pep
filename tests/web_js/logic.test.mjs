@@ -306,3 +306,18 @@ test('the guide: every lesson is short, plain and complete, for both audiences',
   assert.ok(!/launch_web|\.\/install|data\/pdbs|on this computer/.test(remoteText), 'remote: nothing that only makes sense on your own computer');
   assert.deepEqual(richParts('Press **Run** or `./x`.').map((p) => p.t), ['text', 'strong', 'text', 'code', 'text']);
 });
+
+test('memory meter: levels and colours follow how full memory is', async () => {
+  const { memoryLevel } = await import('../../src/hybridock_pep/web/static/js/app/config.mjs');
+  assert.equal(memoryLevel(null).id, 'unknown');
+  assert.equal(memoryLevel(NaN).id, 'unknown');
+  assert.equal(memoryLevel(40).id, 'ok');
+  assert.equal(memoryLevel(80).id, 'busy');
+  assert.equal(memoryLevel(90).id, 'low');
+  assert.equal(memoryLevel(99).id, 'full');
+  assert.equal(memoryLevel(80, 0.5).id, 'low', 'under 1 GB free is low even at 80 %');
+  assert.equal(memoryLevel(-5).fill, 0); assert.equal(memoryLevel(250).fill, 100);
+  const hues = [10, 50, 70, 80, 90, 100].map((p) => memoryLevel(p).hue);
+  for (let i = 1; i < hues.length; i++) assert.ok(hues[i] < hues[i - 1], `the colour keeps moving from green to red: ${hues}`);
+  assert.ok(memoryLevel(10).hue > 120 && memoryLevel(100).hue < 10, 'green when empty, red when full');
+});

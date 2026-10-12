@@ -12,6 +12,25 @@ export const assetUrl = (rel) => ASSET_BASE + rel;
 export const backend = { url: '', remote: false, offline: false };
 export const apiUrl = (path) => backend.url + path;
 export const LIVE_LINK = 'https://raw.githubusercontent.com/Tasty-Ramen2010/hybridock-pep/live-link/backend.json';
+/**
+ * The top bar's memory meter: how full memory is, as a colour and a level.
+ *   ok < 75 %      busy 75-88 %      low >= 88 % or under 1 GB free      full >= 97 % (the liquid spills over)
+ * `hue` slides from green through amber to red as the tank fills; `fill` is 0-100 for the height of the liquid.
+ */
+const HUE_STOPS = [[0, 150], [55, 142], [75, 48], [88, 26], [100, 2]];
+export function memoryLevel(percent, availableGb = null) {
+  if (typeof percent !== 'number' || !Number.isFinite(percent)) return { id: 'unknown', hue: 215, fill: 0, percent: null };
+  const pct = Math.min(100, Math.max(0, percent));
+  let hue = HUE_STOPS[HUE_STOPS.length - 1][1];
+  for (let i = 1; i < HUE_STOPS.length; i++) {
+    const [p1, h1] = HUE_STOPS[i];
+    if (pct <= p1) { const [p0, h0] = HUE_STOPS[i - 1]; hue = h0 + ((h1 - h0) * (pct - p0)) / (p1 - p0); break; }
+  }
+  const low = pct >= 88 || (typeof availableGb === 'number' && availableGb < 1);
+  const id = pct >= 97 ? 'full' : low ? 'low' : pct >= 75 ? 'busy' : 'ok';
+  return { id, hue: Math.round(hue), fill: pct, percent: Math.round(pct) };
+}
+
 /** A shared computer limits what one visitor can ask for (it tells us in /api/env). Infinity when there is no limit. */
 export const sharedLimits = (env) => env?.public || null;
 export const poseCap = (env, compare = false) => { const p = sharedLimits(env); return p ? (compare ? p.max_compare_samples : p.max_samples) : Infinity; };

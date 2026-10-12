@@ -34,13 +34,13 @@ const chip = p.locator('.topbar button.chip').first();
 const hasChip = await chip.count();
 if (hasChip) {
   await chip.click();
-  const rows = await p.locator('.env-row').count();
-  check('status chip opens a popover of machine checks', rows >= 5, `${rows} rows`);
+  const machine = await p.locator('.env-machine:visible').count();
+  check('status chip opens a popover naming the machine and its memory', machine === 1 && /Memory/.test(await p.locator('.popover:visible').innerText()), '');
   check('chip is marked expanded for assistive tech', (await chip.getAttribute('aria-expanded')) === 'true', '');
   await p.keyboard.press('Escape');
-  check('Escape closes the status popover', (await p.locator('.env-row:visible').count()) === 0, '');
+  check('Escape closes the status popover', (await p.locator('.env-machine:visible').count()) === 0, '');
   await chip.click(); await p.locator('h1').first().click({ position: { x: 5, y: 5 } });
-  check('clicking elsewhere closes the status popover', (await p.locator('.env-row:visible').count()) === 0, '');
+  check('clicking elsewhere closes the status popover', (await p.locator('.env-machine:visible').count()) === 0, '');
 } else {
   check('demo badge is shown instead of a status chip', (await p.locator('.topbar .badge-demo').count()) === 1, 'demo server');
 }

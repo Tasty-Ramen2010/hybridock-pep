@@ -18,7 +18,7 @@ const p = await newPage(b);
 await p.goto(`${BASE}/${QS}`); await p.waitForSelector('.hero-card');
 await p.waitForSelector('.chip-text', { timeout: 20000 });
 const chip = (await p.locator('.chip-text').first().textContent()).trim();
-check('the top bar says Live and names the computer', /^Live · /.test(chip), chip);
+check('the top bar says Live and GPU or CPU', /^Live · (GPU|CPU)$/.test(chip), chip);
 check('no "Demo mode" badge anywhere on the page', (await p.locator('.badge-demo').count()) === 0, '');
 const home = await p.locator('.hero-card').innerText();
 check('Home carries no banner about the live computer', !/team’s own computer|Live\. /.test(home) && (await p.locator('.hero-card .notice').count()) === 0, home.replace(/\s+/g, ' ').slice(0, 120));

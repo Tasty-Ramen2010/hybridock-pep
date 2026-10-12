@@ -9,6 +9,7 @@ import { initials } from '../jobs.mjs';
 import { adapter } from '../adapter.mjs';
 import { openHistory } from './history.mjs';
 import { openHelp } from './help.mjs';
+import { createRamMeter } from './ram-meter.mjs';
 
 const DESTINATIONS = [
   { id: 'predict', label: 'Predict', icon: 'zap' },
@@ -61,24 +62,33 @@ export function mountTopbar(ctx) {
   const avatar = h('button', { class: 'avatar', type: 'button', 'aria-label': 'Appearance and name', 'aria-expanded': 'false', 'aria-haspopup': 'true', onClick: () => togglePop(menuPop, avatar) });
 
   let envPop = null, envBtn = null; // set below when the live server is connected
-  // status: "Demo mode" badge, or the live server's readiness (from /api/env) with the details in a popover
+  const meter = createRamMeter();
+  let memLine = null, runLine = null;
+  // status: "Demo mode" badge, or one small chip for the live server: CPU or GPU, and the memory dot (see ram-meter.mjs).
+  // Details (the machine, memory in numbers, anything that needs fixing) are one click away in a small popover.
   const statusEl = (() => {
     if (adapter.kind === 'demo') return h('span', { class: 'badge-demo', title: 'Results in this build are simulated' }, 'Demo mode');
     const env = adapter.env;
-    const dot = (colour) => h('i', { class: 'dot', style: { background: colour, marginRight: 0 } });
-    // "Live" stays in the text for screen readers; what people see is the part that matters
     const label = (text) => [h('span', { class: 'visually-hidden' }, 'Live, '), h('span', { class: 'chip-text' }, text)];
-    if (!env) return h('span', { class: 'chip' }, dot('var(--warn)'), ...label('Server not reached'));
+    if (!env) return h('span', { class: 'chip' }, h('i', { class: 'dot', style: { background: 'var(--warn)', marginRight: 0 } }), ...label('Server not reached'));
     const gpu = env.checks?.gpu;
-    const text = !env.ready ? 'Setup needed' : backend.remote ? `Live · ${gpu?.ok ? gpu.detail : 'CPU'}` : gpu?.ok ? gpu.detail : 'CPU only';
-    const rows = Object.entries(env.checks || {}).map(([key, c]) => h('li', { class: 'env-row' },
-      h('i', { class: 'dot', style: { background: c.ok ? 'var(--ok)' : 'var(--warn)' } }),
-      h('span', {}, h('b', {}, c.detail), !c.ok && c.fix ? h('small', { class: 'tech' }, c.fix) : null)));
-    envPop = h('div', { class: 'popover glass', hidden: true, role: 'group', 'aria-label': 'What this machine can do', style: { minWidth: '280px' } },
-      h('span', { class: 'small muted' }, 'This machine'), h('ul', { class: 'env-list' }, rows));
-    envBtn = h('button', { class: 'chip', type: 'button', 'aria-expanded': 'false', onClick: () => togglePop(envPop, envBtn) },
-      dot(env.ready ? 'var(--ok)' : 'var(--warn)'), ...label(text));
-    return h('div', { class: 'rel' }, envBtn, envPop);
+    const kind = gpu?.ok ? 'GPU' : 'CPU';
+    const text = !env.ready ? 'Setup needed' : backend.remote ? `Live · ${kind}` : kind;
+    const machine = gpu?.ok ? gpu.detail : 'CPU only (no GPU found)';
+    const broken = Object.values(env.checks || {}).filter((c) => !c.ok && !/optional/i.test(c.detail));
+    memLine = h('span', { class: 'small' }, 'Checking memory…');
+    runLine = h('span', { class: 'small muted', hidden: true });
+    envPop = h('div', { class: 'popover glass', hidden: true, role: 'group', 'aria-label': 'This computer', style: { minWidth: '260px' } },
+      h('b', { class: 'env-machine' }, machine),
+      h('div', { class: 'env-memory' }, h('span', { class: 'small muted' }, 'Memory'), memLine, runLine),
+      broken.length
+        ? h('ul', { class: 'env-list' }, broken.map((c) => h('li', { class: 'env-row' }, h('i', { class: 'dot', style: { background: 'var(--warn)' } }), h('span', {}, h('b', {}, `${c.detail} is missing`), c.fix ? h('small', { class: 'tech' }, c.fix) : null))))
+        : h('span', { class: 'small muted' }, 'Everything the app needs is ready.'));
+    new MutationObserver(() => meter.setPopOpen(!envPop.hidden)).observe(envPop, { attributes: true, attributeFilter: ['hidden'] }); // the warning bubble steps aside while the details are open
+    envBtn = h('button', { class: 'chip status-chip', type: 'button', 'aria-expanded': 'false', title: machine, onClick: () => togglePop(envPop, envBtn) },
+      meter.el, ...label(text));
+    if (!env.ready) envBtn.dataset.setup = 'needed';
+    return h('div', { class: 'rel' }, envBtn, envPop, meter.bubble);
   })();
   const allPops = () => [[menuPop, avatar], ...(envPop ? [[envPop, envBtn]] : [])];
   const closePops = () => { for (const [p, b] of allPops()) { p.hidden = true; b.setAttribute('aria-expanded', 'false'); } };
@@ -126,7 +136,35 @@ export function mountTopbar(ctx) {
     avatar.replaceChildren(s.userName ? initials(s.userName) : icon('user', 16));
     if (document.activeElement !== nameInput) nameInput.value = s.userName;
     runPill.hidden = s.run.status !== 'running';
+    const nowRunning = s.run.status === 'running';
+    meter.setRunning(nowRunning);
+    if (nowRunning !== wasRunning) { wasRunning = nowRunning; poll(); pollSoon(); } // a run started or ended: look now and change the pace
   }
+  // ---- the memory meter's numbers: every 1.5 s while a run goes, every 8 s otherwise, and not at all while the tab is hidden ----
+  let pollTimer = null, polling = false, wasRunning = false;
+  async function poll() {
+    if (polling || adapter.kind !== 'live' || !adapter.env || document.hidden) return;
+    polling = true;
+    try {
+      const m = await adapter.memory();
+      const lvl = meter.apply(m);
+      if (envBtn) envBtn.setAttribute('aria-label', `${envBtn.title}. ${meter.describe() ? `Memory ${meter.describe()}.` : ''}${lvl.id === 'low' || lvl.id === 'full' ? ' Memory is low.' : ''}`.trim());
+      if (memLine) {
+        memLine.textContent = meter.describe() || 'Not available on this computer';
+        const g = meter.runGb();
+        runLine.hidden = g == null; runLine.textContent = g == null ? '' : `This prediction is using about ${g < 10 ? g.toFixed(1) : Math.round(g)} GB.`;
+      }
+    } catch { meter.apply(null); }
+    polling = false;
+  }
+  function pollSoon() {
+    clearTimeout(pollTimer);
+    const running = store.get().run.status === 'running';
+    pollTimer = setTimeout(async () => { await poll(); pollSoon(); }, running ? 1500 : 8000);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   store.subscribe(update);
   update();
+  poll();
+  pollSoon();
 }

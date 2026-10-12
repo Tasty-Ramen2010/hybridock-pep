@@ -80,13 +80,17 @@
   .topbar .bar-only { display: none; }
   .topbar .badge-demo { font-size: 0; } /* "Demo mode" is shortened to "Demo" on a phone; the full words stay for screen readers */
   .topbar .badge-demo::before { content: 'Demo'; font-size: 12px; }
-  .topbar .chip-text { display: none; }
+  .topbar .chip-text, .topbar .ram-pct { display: none; }
   .topbar .chip { padding: 4px; }
+  .topbar .ram[data-on='true'] { width: 32px; height: 22px; }
+  .topbar .btn.primary .label { display: none; } /* the run pill is just its play icon on a phone; its name stays for screen readers */
+  .topbar .ram-bubble { position: fixed; top: calc(var(--nav-h) + 4px); left: 12px; right: 12px; width: auto; max-width: none; }
+  .topbar .ram-bubble::before { display: none; }
   .topbar button.chip { min-width: 44px; min-height: 44px; justify-content: center; }
   .topbar .seg { margin-right: 0; }
   .menu-links { display: flex; gap: 8px; }
   .menu-links .btn { flex: 1; }
 }
-@media (max-width: 520px) { .brand { font-size: 0; gap: 0; } .brand svg { width: 28px; height: 28px; } }
+@media (max-width: 520px) { .brand { font-size: 0; gap: 0; } .brand svg { width: 28px; height: 28px; } .topbar { gap: 4px; } .topbar .seg button { padding: 0 10px; } .topbar-actions { gap: 0; } .topbar button.chip { padding: 4px; } }
 
 @media (pointer: coarse) { :root { --nav-h: 56px; } .brand { min-height: 44px; min-width: 44px; justify-content: center; } .nav-links a { min-height: 44px; } }
