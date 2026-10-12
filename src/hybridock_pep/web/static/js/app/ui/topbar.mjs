@@ -126,6 +126,7 @@ export function mountTopbar(ctx) {
     avatar.replaceChildren(s.userName ? initials(s.userName) : icon('user', 16));
     if (document.activeElement !== nameInput) nameInput.value = s.userName;
     runPill.hidden = s.run.status !== 'running';
+    root.classList.toggle('busy', s.run.status === 'running');
   }
   store.subscribe(update);
   update();
