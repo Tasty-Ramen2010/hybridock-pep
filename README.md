@@ -20,8 +20,6 @@ geometry features outputting kcal/mol with accuracy in the range of ABFE. From t
 terminal UI, it runs efficiently on consumer hardware, and tested against >1,000 real complexes. 
 [Get started](#get-started) and run it yourself.
 
-**New here?** Read the **[step-by-step guide](docs/GUIDE.md)** (also built into the app), try the **[demo site](https://tasty-ramen2010.github.io/hybridock-pep/)** with simulated results, or run it for real with no install in **[Google Colab](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)**.
-
 Creator: **[Choppa Purandhar Ram](https://www.linkedin.com/in/purandhar-ram-choppa-293916413/)**, 15 Years Old
 
 ## Table of contents
