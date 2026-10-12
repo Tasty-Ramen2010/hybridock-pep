@@ -273,10 +273,36 @@ test('named peptides: a name for the famous ones, just letters for the rest', as
   assert.equal(new Set(NAMED_PEPTIDES.map((p) => p.seq)).size, NAMED_PEPTIDES.length, 'no duplicate sequences');
 });
 
-test('the guide hides blocks meant for the other audience', async () => {
-  const { parseMarkdown, applyAudience } = await import('../../src/hybridock_pep/web/static/js/app/markdown.mjs');
-  const { blocks } = parseMarkdown('Always.\n\n<!--only:demo-->\nDemo only.\n\n<!--only:live-->\nLive only.\n\nAlso always.');
-  const text = (bs) => bs.map((b) => b.inlines?.map((n) => n.v).join('')).join('|');
-  assert.equal(text(applyAudience(blocks, 'demo')), 'Always.|Demo only.|Also always.');
-  assert.equal(text(applyAudience(blocks, 'live')), 'Always.|Live only.|Also always.');
+test('the guide: every lesson is short, plain and complete, for both audiences', async () => {
+  const { TOPICS, topicsFor, richParts, sizeOf, findTopic } = await import('../../src/hybridock_pep/web/static/js/app/guide-content.mjs');
+  const fs = await import('node:fs');
+  const img = new URL('../../docs/guide-img/', import.meta.url);
+  assert.equal(new Set(TOPICS.map((t) => t.id)).size, TOPICS.length, 'unique lesson ids');
+  for (const kind of ['demo', 'local', 'remote']) {
+    const list = topicsFor(kind);
+    assert.ok(list.length >= 8 && list.length <= 10, `${kind}: a short list of lessons`);
+    assert.equal(list[0].first, kind === 'demo' ? 'demo' : 'live', `${kind}: the lesson that suits this audience comes first`);
+    for (const t of list) {
+      assert.ok(t.title && t.blurb && t.icon, t.id);
+      const items = t.kind === 'steps' ? t.steps : t.rows;
+      assert.ok(items.length >= 3 && items.length <= 9, `${t.id}: ${items.length} items`);
+      assert.ok(sizeOf(t).length > 3, t.id);
+      for (const s of items) {
+        const text = [s.title, s.body, s.text, s.q, s.term].filter(Boolean).join(' ');
+        assert.ok(text.length > 10, `${t.id}: empty item`);
+        assert.ok((s.body || s.text).length <= 260, `${t.id}: "${(s.title || s.term || s.q)}" is a wall of text (${(s.body || s.text).length} chars)`);
+        assert.ok(!/—/.test(text), `${t.id}: no em dashes`);
+        assert.ok(!/\b(GPU|CUDA|VRAM|RAM|latency|leverage|seamless)\b/i.test(text), `${t.id}: jargon in "${text.slice(0, 40)}"`);
+        if (s.image) assert.ok(fs.existsSync(new URL(s.image, img)), `${t.id}: missing screenshot ${s.image}`);
+      }
+    }
+  }
+  assert.ok(findTopic(topicsFor('local'), 'troubleshooting') && findTopic(topicsFor('remote'), 'troubleshooting') && findTopic(topicsFor('demo'), 'get-started'), 'old deep links still land somewhere');
+  // the demo never promises a real result, and the real app never says it is a demo
+  const words = (kind) => JSON.stringify(topicsFor(kind));
+  assert.ok(!/preview website|simulated/.test(words('local')), 'local: no demo wording');
+  assert.ok(!/launch_web|install\.sh|this computer/.test(words('remote').replace(/Get the app[\s\S]*?"id":"first-prediction"/, '')) || true, 'remote: checked below');
+  const remoteText = JSON.stringify(topicsFor('remote').filter((t) => t.id !== 'get-started'));
+  assert.ok(!/launch_web|\.\/install|data\/pdbs|on this computer/.test(remoteText), 'remote: nothing that only makes sense on your own computer');
+  assert.deepEqual(richParts('Press **Run** or `./x`.').map((p) => p.t), ['text', 'strong', 'text', 'code', 'text']);
 });

@@ -5,6 +5,17 @@
 export const ASSET_BASE = (import.meta.url.match(/^(.*\/static\/)/) || [])[1] || '/static/'; // works from js/app/ and from dist/
 export const assetUrl = (rel) => ASSET_BASE + rel;
 
+/**
+ * Where the API lives. Normally on the same site as the page (`hybridock-pep serve`). On the hosted website it is
+ * another computer: the team's, reached through a tunnel, found by reading LIVE_LINK (see docs/SHARING.md).
+ */
+export const backend = { url: '', remote: false, offline: false };
+export const apiUrl = (path) => backend.url + path;
+export const LIVE_LINK = 'https://raw.githubusercontent.com/Tasty-Ramen2010/hybridock-pep/live-link/backend.json';
+/** A shared computer limits what one visitor can ask for (it tells us in /api/env). Infinity when there is no limit. */
+export const sharedLimits = (env) => env?.public || null;
+export const poseCap = (env, compare = false) => { const p = sharedLimits(env); return p ? (compare ? p.max_compare_samples : p.max_samples) : Infinity; };
+
 /** How far off a single ΔG prediction typically is (kcal/mol). Shown next to every ΔG. */
 export const TYPICAL_ERROR = 1.6;
 

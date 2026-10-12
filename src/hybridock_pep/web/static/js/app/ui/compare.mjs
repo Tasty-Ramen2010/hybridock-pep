@@ -10,7 +10,7 @@ import { validatePeptide } from '../peptide.mjs';
 import { compareJob, findProtein } from '../jobs.mjs';
 import { fmt, fmtSigned, selectivityVerdict } from '../interpret.mjs';
 import { adapter } from '../adapter.mjs';
-import { BOX_DEFAULT, EXAMPLE, THOROUGHNESS } from '../config.mjs';
+import { BOX_DEFAULT, EXAMPLE, THOROUGHNESS, poseCap } from '../config.mjs';
 import { commandBlock } from './results.mjs';
 import { toast } from './toast.mjs';
 
@@ -27,6 +27,7 @@ export function mountCompare(ctx) {
   const structs = { target: null, offTarget: null };
   const C = () => store.get().compare;
   const setC = (patch) => store.merge('compare', patch);
+  { const cap = poseCap(adapter.env, true); const cur = THOROUGHNESS.find((t) => t.id === C().thorough); if (cur && cur.poses > cap) setC({ thorough: (THOROUGHNESS.filter((t) => t.poses <= cap).pop() || THOROUGHNESS[0]).id }); } // a shared computer limits how many poses
   const setSide = (side, patch) => setC({ [side]: { ...C()[side], ...patch } });
   const pep = () => validatePeptide(C().peptide);
 
@@ -163,7 +164,7 @@ export function mountCompare(ctx) {
       h('div', { class: 'panel compare-pep', style: { margin: '0 auto 24px' } },
         h('span', { class: 'field-label', style: { margin: 0 } }, 'How thorough? ', h('span', { class: 'tech' }, 'Number of poses per protein; a comparison runs both')),
         h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How thorough?' },
-          THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(C().thorough === t.id),
+          THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(C().thorough === t.id), disabled: t.poses > poseCap(adapter.env, true),
             onClick: (e) => { setC({ thorough: t.id }); e.currentTarget.parentElement.querySelectorAll('.choice').forEach((b, i) => b.setAttribute('aria-checked', String(THOROUGHNESS[i].id === t.id))); } },
           t.label, h('small', {}, `${t.poses} poses`))))),
       h('div', { class: 'row', style: { justifyContent: 'center', flexDirection: 'column', gap: '8px' } }, runBtn, runMsg));

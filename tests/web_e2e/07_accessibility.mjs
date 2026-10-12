@@ -17,7 +17,9 @@ for (const scheme of ['light', 'dark']) {
   const p = await newPage(b, { colorScheme: scheme });
   await p.goto(BASE + '/'); await p.waitForSelector('.recent-card, .hero-card'); await audit(p, `${scheme} home`);
   await p.getByRole('button', { name: 'Expert' }).click(); await audit(p, `${scheme} home (Expert)`); await p.getByRole('button', { name: 'Guided' }).click();
-  await p.goto(BASE + '/#/guide'); await p.waitForSelector('.guide-body h2'); await audit(p, `${scheme} guide`);
+  await p.goto(BASE + '/#/guide'); await p.waitForSelector('.lesson'); await audit(p, `${scheme} guide`);
+  await p.goto(BASE + '/#/guide/first-prediction/2'); await p.waitForSelector('.step-card'); await audit(p, `${scheme} guide step`);
+  await p.goto(BASE + '/#/guide/troubleshooting'); await p.waitForSelector('.qa'); await audit(p, `${scheme} guide list`);
   await p.getByRole('button', { name: 'Appearance and name' }).click(); await audit(p, `${scheme} avatar menu`); await p.keyboard.press('Escape');
   await p.goto(BASE + '/#/predict'); await p.waitForSelector('.pick'); await audit(p, `${scheme} setup 1 protein`);
   await p.locator('.pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('#pep-input'); await audit(p, `${scheme} setup 2 peptide`);

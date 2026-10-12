@@ -11,7 +11,7 @@ import { namedPeptide } from '../peptides.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
 import { adapter, estimateTrusted, noGpu } from '../adapter.mjs';
-import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, ad4Available, longModelAvailable, settingProblems } from '../config.mjs';
+import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, ad4Available, longModelAvailable, backend, poseCap, settingProblems, sharedLimits } from '../config.mjs';
 import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
 
@@ -218,14 +218,16 @@ export function mountSetup(ctx) {
   }
 
   function stepSite() {
+    if (sharedLimits(adapter.env) && S().siteMode === 'find') setS({ siteMode: 'known' }); // not offered on a shared computer
     const mode = S().siteMode;
-    const choice = (id, label, sub) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(mode === id), onClick: () => { setS({ siteMode: id }); renderPanel(); applyStage(); } }, label, h('small', {}, sub));
+    const shared = sharedLimits(adapter.env);
+    const choice = (id, label, sub) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(mode === id), disabled: !!(shared && id === 'find'), onClick: () => { setS({ siteMode: id }); renderPanel(); applyStage(); } }, label, h('small', {}, sub));
     return [
       title('Choose where it binds', 'Search box (grid box)'),
       note('The box tells the program where to look. A small box around the real binding spot is faster and more accurate.'),
       h('div', { class: 'choice-grid two', role: 'radiogroup', 'aria-label': 'How to pick the binding site' },
         choice('known', 'I know where it binds', 'Place a box on the protein'),
-        choice('find', 'Find the pocket for me', 'Search the whole protein')),
+        choice('find', 'Find the pocket for me', sharedLimits(adapter.env) ? 'Not on the shared computer' : 'Search the whole protein')),
       mode === 'known' ? picker.el : h('div', { class: 'stack', style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
         h('p', {}, 'HybriDock-Pep will look across the whole protein, group the best spots, and dock your peptide into each one.'),
         h('p', { class: 'small muted' }, 'This takes longer than a known site and is a good first step when you aren’t sure where to aim. ',
@@ -236,7 +238,9 @@ export function mountSetup(ctx) {
   function stepReview() {
     const s = S();
     const v = pepCheck();
-    const poses = poseCount(s.thorough);
+    const cap = poseCap(adapter.env);
+    if (poseCount(s.thorough) > cap) { const ok = THOROUGHNESS.filter((t) => t.poses <= cap).pop(); setS({ thorough: ok ? ok.id : 'quick' }); }
+    const poses = poseCount(S().thorough);
     const cmd = h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Command preview' });
     const eta = h('p', { class: 'small muted' });
     const problemsEl = h('div', { class: 'msg error', role: 'alert', hidden: true });
@@ -270,12 +274,12 @@ export function mountSetup(ctx) {
           ? `Demo runs are short on purpose (about ${estimateSeconds} seconds). Real runs can take minutes.`
           : noGpu(env) ? 'This machine has no GPU, so a run usually takes tens of minutes. You can leave this tab open.'
             : !estimateTrusted(env) || estimateSeconds == null ? 'A real run can take several minutes. You can leave this tab open.'
-              : `Roughly ${fmtDuration(estimateSeconds)} (an estimate for this computer). You can leave this tab open.`;
+              : `Roughly ${fmtDuration(estimateSeconds)} (an estimate for ${backend.remote ? 'the team’s computer' : 'this computer'}). You can leave this tab open.`;
       }).catch(() => { if (token === previewToken) eta.textContent = 'A real run can take several minutes. You can leave this tab open.'; });
     }
 
     const thorough = h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How thorough?' },
-      THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(s.thorough === t.id),
+      THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(S().thorough === t.id), disabled: t.poses > cap,
         onClick: () => { setS({ thorough: t.id }); thorough.querySelectorAll('.choice').forEach((b, i) => b.setAttribute('aria-checked', String(THOROUGHNESS[i].id === t.id))); poseLine.textContent = `${t.poses} poses`; refreshCmd(); } },
       t.label, h('small', {}, `${t.poses} poses`))));
     const poseLine = h('span', { class: 'small muted' }, `${poses} poses`);
@@ -306,9 +310,10 @@ export function mountSetup(ctx) {
         h('dt', {}, 'Binding site'), h('dd', {}, site)),
       h('div', {}, h('div', { class: 'row', style: { justifyContent: 'space-between', marginBottom: '6px' } },
         h('span', { class: 'field-label', style: { margin: 0 } }, 'How thorough? ', h('span', { class: 'tech' }, 'Number of poses')), poseLine), thorough),
+      cap < Infinity ? h('p', { class: 'small muted' }, `This is the team’s shared computer, so runs are limited to ${cap} poses. Install the app for Full runs.`) : null,
       eta,
       problemsEl,
-      h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Advanced settings ', h('span', { class: 'tech' }, 'Expert options for the docking run'))),
+      sharedLimits(adapter.env) ? null : h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Advanced settings ', h('span', { class: 'tech' }, 'Expert options for the docking run'))),
         h('div', { class: 'stack' },
           num('longCheckpointThreshold', 'Long-peptide model starts at', longModelAvailable(adapter.env) ? '--long-checkpoint-threshold (residues)' : '--long-checkpoint-threshold. The long-peptide model isn’t installed here, so this has no effect.', { min: LIMITS.longCheckpointThreshold[0], max: LIMITS.longCheckpointThreshold[1] }),
           h('div', {}, h('label', { class: 'field-label' }, 'Scoring mode', h('span', { class: 'tech' }, '--scoring')),

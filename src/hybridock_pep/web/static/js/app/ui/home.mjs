@@ -4,7 +4,7 @@ import { h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { fmt, fmtSigned } from '../interpret.mjs';
-import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR } from '../config.mjs';
+import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR, backend, sharedLimits } from '../config.mjs';
 import { dockJob, findProtein } from '../jobs.mjs';
 import { namedPeptide } from '../peptides.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
@@ -78,7 +78,7 @@ export function mountHome(ctx) {
     adapter.preview(exJob()).then(({ estimateSeconds }) => {
       exEstimate = estimateSeconds;
       if (noGpu(adapter.env)) timeNote.textContent = `A real quick run (25 poses). This machine has no GPU, so allow tens of minutes.${firstRun()}`;
-      else if (estimateSeconds && estimateTrusted(adapter.env)) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (an estimate for this computer).${firstRun()}`;
+      else if (estimateSeconds && estimateTrusted(adapter.env)) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (an estimate for ${backend.remote ? 'the team’s computer' : 'this computer'}).${firstRun()}`;
     }).catch(() => {});
   }
 
@@ -110,8 +110,14 @@ export function mountHome(ctx) {
   const copyInstall = h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Copy the install commands', onClick: async () => {
     try { await navigator.clipboard.writeText(INSTALL); toast('Copied. Paste it into a terminal.'); } catch { toast('Couldn’t copy. Select the text and copy it by hand.'); }
   } }, icon('copy', 15), 'Copy');
+  // The hosted page, running real predictions on the team's own computer: say who is doing the work, and the limits.
+  const limits = sharedLimits(adapter.env);
+  const sharedNotice = live && backend.remote && limits ? h('div', { class: 'notice', role: 'note' },
+    h('b', {}, 'Live. '), `These are real predictions, running on the team’s own computer. It does one at a time, so if it is busy, wait a few minutes. Runs here are limited to ${limits.max_samples} poses and a known binding site.`) : null;
   const demoNotice = live ? null : h('div', { class: 'notice get-app', role: 'note' },
-    h('b', {}, 'This is the preview. '), 'Results here are simulated and marked Demo. For real predictions, install the app on your computer (about 30 minutes, once):',
+    h('b', {}, backend.offline ? 'The live computer is offline right now. ' : 'This is the preview. '),
+    backend.offline ? 'Until it is back, results here are simulated and marked Demo. Reload in a few minutes, or install the app on your own computer (about 30 minutes, once):'
+      : 'Results here are simulated and marked Demo. For real predictions, install the app on your computer (about 30 minutes, once):',
     h('div', { class: 'cmd-wrap' }, h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Install commands' }, INSTALL), copyInstall),
     h('p', { class: 'small' }, 'Then start it any time with ', h('code', { class: 'mono' }, './launch_web.sh'), '. Nothing to install? ',
       h('a', { class: 'tap', href: 'https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb', target: '_blank', rel: 'noopener noreferrer' }, 'Open it in Google Colab'),
@@ -130,6 +136,7 @@ export function mountHome(ctx) {
         timeNote,
         offlineNotice,
         setupNotice,
+        sharedNotice,
         demoNotice),
       h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),
 
