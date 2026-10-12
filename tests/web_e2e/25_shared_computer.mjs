@@ -21,7 +21,7 @@ const chip = (await p.locator('.chip-text').first().textContent()).trim();
 check('the top bar says Live and names the computer', /^Live · /.test(chip), chip);
 check('no "Demo mode" badge anywhere on the page', (await p.locator('.badge-demo').count()) === 0, '');
 const home = await p.locator('.hero-card').innerText();
-check('Home says who is doing the work, and the limits', /team’s own computer/.test(home) && /50 poses/.test(home), home.replace(/\s+/g, ' ').slice(0, 120));
+check('Home carries no banner about the live computer', !/team’s own computer|Live\. /.test(home) && (await p.locator('.hero-card .notice').count()) === 0, home.replace(/\s+/g, ' ').slice(0, 120));
 check('Home no longer shows the install-the-preview notice', !/This is the preview/.test(home), '');
 const apiOrigins = new Set(); p.on('request', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/api/')) apiOrigins.add(u.origin); });
 

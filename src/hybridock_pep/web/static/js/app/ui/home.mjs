@@ -4,7 +4,7 @@ import { h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { fmt, fmtSigned } from '../interpret.mjs';
-import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR, backend, sharedLimits } from '../config.mjs';
+import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR, backend } from '../config.mjs';
 import { dockJob, findProtein } from '../jobs.mjs';
 import { namedPeptide } from '../peptides.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
@@ -110,10 +110,6 @@ export function mountHome(ctx) {
   const copyInstall = h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Copy the install commands', onClick: async () => {
     try { await navigator.clipboard.writeText(INSTALL); toast('Copied. Paste it into a terminal.'); } catch { toast('Couldn’t copy. Select the text and copy it by hand.'); }
   } }, icon('copy', 15), 'Copy');
-  // The hosted page, running real predictions on the team's own computer: say who is doing the work, and the limits.
-  const limits = sharedLimits(adapter.env);
-  const sharedNotice = live && backend.remote && limits ? h('div', { class: 'notice', role: 'note' },
-    h('b', {}, 'Live. '), `These are real predictions, running on the team’s own computer. It does one at a time, so if it is busy, wait a few minutes. Runs here are limited to ${limits.max_samples} poses and a known binding site.`) : null;
   const demoNotice = live ? null : h('div', { class: 'notice get-app', role: 'note' },
     h('b', {}, backend.offline ? 'The live computer is offline right now. ' : 'This is the preview. '),
     backend.offline ? 'Until it is back, results here are simulated and marked Demo. Reload in a few minutes, or install the app on your own computer (about 30 minutes, once):'
@@ -136,7 +132,6 @@ export function mountHome(ctx) {
         timeNote,
         offlineNotice,
         setupNotice,
-        sharedNotice,
         demoNotice),
       h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),
 
@@ -150,15 +145,15 @@ export function mountHome(ctx) {
 
     h('div', { class: 'section-head' }, h('h2', {}, 'Start something new')),
     h('div', { class: 'start-row' },
-      startCard('Predict binding', 'Dock a peptide to a protein and get a binding strength.', 'Docking + ΔG', 'Start predicting', startNew(() => ({ setup: freshSetup() }), '/predict')),
+      startCard('Predict binding', 'Dock a peptide to a protein and get a binding strength.', 'Docking + ΔG', 'Start predicting', startNew(() => ({ setup: freshSetup() }), '/predict'), true),
       startCard('Compare two proteins', 'See which of two proteins a peptide prefers.', 'Selectivity, ΔΔG', 'Compare proteins', startNew(() => ({ compare: freshCompare() }), '/compare')),
       startCard('Score a structure', 'Already have a bound pose? Score it directly.', 'Score an existing pose', 'Score a structure', startNew(() => ({ score: freshScore() }), '/score'))),
   );
 
   // Each card carries a real button (that is what people look for); a click anywhere else on the card presses it too.
-  function startCard(title, text, tech, buttonLabel, onClick) {
+  function startCard(title, text, tech, buttonLabel, onClick, primary = false) {
     const btn = h('button', { class: 'btn', type: 'button', onClick }, buttonLabel, icon('chevron', 16));
-    return h('article', { class: 'start-card', onClick: (e) => { if (!e.target.closest('button')) btn.click(); } },
+    return h('article', { class: `start-card${primary ? ' dark' : ''}`, onClick: (e) => { if (!e.target.closest('button')) btn.click(); } },
       h('h3', {}, title), h('p', {}, text), h('span', { class: 'tech' }, tech), btn);
   }
 
