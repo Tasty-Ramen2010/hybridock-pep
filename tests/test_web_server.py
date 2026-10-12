@@ -789,3 +789,24 @@ class TestModelFiles:
         assert rr.select_checkpoint(15, 13, model_dir) == rr.LONGER_CKPT_NAME           # dropped in: used for long peptides
         assert (model_dir / rr.LONGER_CKPT_NAME).exists()                                # ...and copied next to the others
         assert rr.select_checkpoint(8, 13, model_dir) == "rapidock_local.pt"            # short peptides never use it
+
+
+class TestVinaCheck:
+    """The pipeline uses Vina's Python module, so a pip install (no `vina` program on PATH) is a working install."""
+
+    def test_the_python_module_alone_counts(self, monkeypatch):
+        import importlib.util
+        monkeypatch.setattr(server.tui, "_resolve_exe", lambda name: None)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        real = importlib.util.find_spec
+        monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a, **k: object() if name == "vina" else real(name, *a, **k))
+        assert server.check_environment()["checks"]["vina"]["ok"] is True
+
+    def test_neither_module_nor_program_is_reported_missing(self, monkeypatch):
+        import importlib.util
+        monkeypatch.setattr(server.tui, "_resolve_exe", lambda name: None)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        real = importlib.util.find_spec
+        monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a, **k: None if name == "vina" else real(name, *a, **k))
+        c = server.check_environment()["checks"]["vina"]
+        assert c["ok"] is False and "conda install" in c["fix"]

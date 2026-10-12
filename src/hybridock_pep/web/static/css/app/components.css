@@ -224,3 +224,14 @@ table.poses td.num, table.poses th.num { text-align: right; }
 
 /* Touch: a text link that is the only thing to press still gets a 44 pt target */
 @media (pointer: coarse) { a.tap { display: inline-flex; align-items: center; min-height: 44px; } }
+
+/* a named example peptide: what it is in words first, the letters last */
+.pep-list { display: flex; flex-direction: column; background: var(--group); border-radius: var(--r-md); overflow: hidden; }
+.pep-pick { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 12px 16px; text-align: left; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; position: relative; }
+.pep-pick + .pep-pick::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--line); }
+.pep-pick:hover, .pep-pick:focus-visible { background: var(--group-hover); }
+.pep-pick-name { font-weight: 500; font-size: 16px; }
+.pep-pick-about { font-size: 14px; color: var(--ink-2); line-height: 1.35; }
+.pep-pick-seq { font-size: 13px; color: var(--ink-2); word-break: break-all; }
+.pep-name b { color: var(--ink); font-weight: 600; }
+@media (pointer: coarse) { .pep-pick { min-height: 44px; } }

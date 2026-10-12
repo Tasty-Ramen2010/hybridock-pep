@@ -18,7 +18,11 @@ Everything runs on **your own computer** (or a Colab session you control). Your 
 
 ## Choose how to run it {#get-started}
 
-The page you may be looking at right now, on GitHub Pages, is a **demo**: every number in it is simulated and labelled *Demo*. To get real predictions you run the app yourself. There are three ways, from easiest to most flexible.
+<!--only:demo-->
+The free website preview (the GitHub Pages copy) is a **demo**: every number in it is simulated and labelled *Demo*. To get real predictions you run the app yourself. There are three ways, from easiest to most flexible.
+
+<!--only:live-->
+You are running the real app, so every number here is computed on this computer. If you want to run it somewhere else, there are three ways, from easiest to most flexible.
 
 | Way to run it | Nothing to install | Speed | Best for |
 | --- | --- | --- | --- |
@@ -120,9 +124,9 @@ Use the demo to learn the screens. The real app looks the same.
 
 This walk-through uses a famous pair: **MDM2**, a cancer-related protein, and a peptide from **p53**, the protein that holds it in check. They bind well in real life (a measured Kd of about 0.6 µM), so you know roughly what to expect: a ΔG near **−9 kcal/mol**.
 
-![The Home screen: a greeting, the floating protein, and the buttons to start.](guide-img/home.png)
+![The Home screen: the floating protein, the example, and the buttons to start.](guide-img/home.png)
 
-**The one-click way.** On Home, press **Run example**. It runs a Quick prediction of exactly this pair with a known good binding site. Watch the four stages complete, then read the result.
+**The one-click way.** On Home, press **Run example**. It runs a Quick prediction of exactly this pair (the p53 peptide `ETFSDLWKLLPE` on MDM2) with a known good binding site. Watch the four stages complete, then read the result.
 
 **The step-by-step way**, which is how you will run your own:
 
@@ -303,7 +307,7 @@ The switch at the top right changes how much you see, not what the program does.
 - **Guided** (the default) hides technical settings and captions and adds short explanations.
 - **Expert** shows coordinates, the full ranked table, the dissociation constant, the exact command, and an **Advanced settings** panel on the review step.
 
-The menu behind your **avatar** holds **Appearance** (light or dark, which follows your system at first), an **Accent colour**, and **Your name**, used in the greeting.
+The menu behind your **avatar** holds **Appearance** (light or dark, which follows your system at first), an **Accent colour**, and **Your name**, which sets the initials on your avatar.
 
 ![The avatar menu: appearance, accent colour and name.](guide-img/menu.png)
 

@@ -51,6 +51,11 @@ export function parseMarkdown(src) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
 
+    // <!--only:demo--> or <!--only:live--> shows the NEXT block on the demo site only (or the real app only).
+    // GitHub hides the comment and shows everything; the in-app guide uses applyAudience() below.
+    const only = /^<!--\s*only:(demo|live)\s*-->\s*$/.exec(line);
+    if (only) { blocks.push({ type: 'only', mode: only[1] }); i++; continue; }
+
     // fenced code
     const fence = /^```(\S*)\s*$/.exec(line);
     if (fence) {
@@ -126,3 +131,14 @@ export function parseMarkdown(src) {
 
 /** The headings to list in a table of contents: {level 2 and 3, id, text}. */
 export const outline = (blocks) => blocks.filter((b) => b.type === 'heading' && (b.level === 2 || b.level === 3)).map(({ level, id, text }) => ({ level, id, text: text.replace(/[`*]/g, '') }));
+
+/** Drop the blocks meant for the other audience. `kind` is 'demo' (the website preview) or 'live' (a real app). */
+export function applyAudience(blocks, kind) {
+  const out = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.type === 'only') { const next = blocks[++i]; if (next && b.mode === kind) out.push(next); continue; }
+    out.push(b.type === 'quote' ? { ...b, blocks: applyAudience(b.blocks, kind) } : b);
+  }
+  return out;
+}

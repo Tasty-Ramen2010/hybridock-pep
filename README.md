@@ -462,7 +462,7 @@ error (±1.6 kcal/mol), and has a step-by-step **Guide** built in. Nothing is up
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/web_home.png" alt="The HybriDock-Pep website's home screen: a greeting, a floating 3D MDM2 protein with the p53 peptide, buttons to start a prediction or run the example, and four counters"></td>
+<td width="50%"><img src="docs/images/web_home.png" alt="The HybriDock-Pep website's home screen: a plain headline, a floating 3D MDM2 protein with the p53 peptide, buttons to start a prediction or run the example, and four counters"></td>
 <td width="50%"><img src="docs/images/web_result.png" alt="A finished prediction on the website: the binding strength of -9.04 kcal/mol in large type, what it means, the ranked poses, and the peptide shown in 3D inside its search box"></td>
 </tr>
 </table>

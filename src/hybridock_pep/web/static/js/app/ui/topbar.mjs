@@ -26,6 +26,9 @@ export function mountTopbar(ctx) {
   const expert = modeBtn('expert', 'Expert');
   const modeSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Detail level' }, guided, expert);
 
+  // night mode: one tap in the bar (it used to live only inside the avatar menu, where nobody looked)
+  const themeBtn = h('button', { class: 'btn icon', type: 'button', onClick: () => store.set({ theme: store.get().theme === 'dark' ? 'light' : 'dark' }) });
+
   const runPill = h('button', { class: 'btn sm primary', type: 'button', hidden: true, 'aria-label': 'Run in progress', onClick: () => go('/running') }, icon('play', 14), h('span', { class: 'label' }, 'Run in progress'));
 
   // ---- the three destinations: links in the bar on a desktop, a tab bar on a phone ----
@@ -47,7 +50,7 @@ export function mountTopbar(ctx) {
   const darkBtn = h('button', { type: 'button', 'aria-label': 'Dark appearance', onClick: () => store.set({ theme: 'dark' }) }, 'Dark');
   const themeSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Appearance' }, lightBtn, darkBtn);
   const swatchBtns = ACCENTS.map((a) => h('button', { class: 'swatch', type: 'button', 'aria-label': a.name, title: a.name, onClick: () => store.set({ accent: a.id }) }));
-  const nameInput = h('input', { class: 'field', id: 'user-name', type: 'text', 'aria-label': 'Your name', placeholder: 'Used in the greeting', maxlength: '40', onInput: (e) => store.set({ userName: e.target.value.trim() }) });
+  const nameInput = h('input', { class: 'field', id: 'user-name', type: 'text', 'aria-label': 'Your name', placeholder: 'Shown on your avatar', maxlength: '40', onInput: (e) => store.set({ userName: e.target.value.trim() }) });
   const menuPop = h('div', { class: 'popover glass', hidden: true, role: 'group', 'aria-label': 'Appearance and name' },
     h('div', { class: 'menu-row' }, h('span', { class: 'small' }, 'Appearance'), themeSeg),
     h('div', { class: 'menu-row' }, h('span', { class: 'small' }, 'Accent colour'), h('div', { class: 'swatches', role: 'group', 'aria-label': 'Accent colour' }, swatchBtns)),
@@ -97,6 +100,7 @@ export function mountTopbar(ctx) {
       runPill,
       modeSeg,
       statusEl,
+      themeBtn,
       h('button', { class: 'btn icon bar-only', type: 'button', 'aria-label': 'History', title: 'History', onClick: () => openHistory(ctx) }, icon('history', 18)),
       h('button', { class: 'btn icon bar-only', type: 'button', 'aria-label': 'Help', title: 'Help', onClick: () => openHelp() }, icon('help', 18)),
       h('div', { class: 'rel' }, avatar, menuPop)),
@@ -115,6 +119,10 @@ export function mountTopbar(ctx) {
       b.style.background = a[s.theme];
       b.setAttribute('aria-pressed', String(s.accent === a.id));
     });
+    const dark = s.theme === 'dark';
+    themeBtn.replaceChildren(icon(dark ? 'sun' : 'moon', 18));
+    themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to night mode');
+    themeBtn.title = dark ? 'Light mode' : 'Night mode';
     avatar.replaceChildren(s.userName ? initials(s.userName) : icon('user', 16));
     if (document.activeElement !== nameInput) nameInput.value = s.userName;
     runPill.hidden = s.run.status !== 'running';

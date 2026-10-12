@@ -41,6 +41,13 @@ USE_TUI=0
 LITE=0
 PASSTHROUGH_ARGS=()
 for arg in "$@"; do
+    # macOS and phone keyboards turn "--" into an em dash ("—no-ui"), which then fails with a
+    # confusing "unrecognized arguments". Treat any dash-like lead character as "--".
+    case "$arg" in
+        —*) arg="--${arg#—}" ;;
+        –*) arg="--${arg#–}" ;;
+        −*) arg="--${arg#−}" ;;
+    esac
     case "$arg" in
         --no-ui) NO_UI=1 ;;
         --tui) USE_TUI=1 ;;
@@ -282,7 +289,8 @@ else
     step "Setup complete"
     echo "  Start the web app:  ./launch_web.sh   (macOS: double-click HybriDock-Pep.command)"
     echo "  Or the terminal UI: ./launch_ui.sh"
-    echo "  Or the command line:"
+    echo "  Or the command line (the hybridock-pep command only exists inside the conda"
+    echo "  environment, so run this first or you will see 'command not found'):"
     echo "    conda activate score-env"
     echo "    hybridock-pep dock --peptide ETFSDLWKLLPE \\"
     echo "        --receptor data/pdbs/1YCR_mdm2.pdb --site 25.20 -25.61 -7.97 --box 30 \\"

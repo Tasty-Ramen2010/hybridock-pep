@@ -14,7 +14,7 @@ check(`${mb} MB / 400k-atom upload: loads or is refused politely`, loaded || msg
 check('big upload: main thread blocked < 8 s total', long < 8000, `${long} ms`);
 if (loaded) {
   await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('#pep-input');
-  await p.locator('.chip.mono').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice');
+  await p.locator('.pep-pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice');
   await p.waitForTimeout(2000);
   // measure frames per second of the 3D stage on this big structure
   const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t = performance.now(); (function f() { n++; if (performance.now() - t < 2000) requestAnimationFrame(f); else res(n / 2); })(); }));

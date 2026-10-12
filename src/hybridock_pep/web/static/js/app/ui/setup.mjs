@@ -7,6 +7,7 @@ import { icon } from './icons.mjs';
 import { createSitePicker, defaultSiteFor } from './sitepicker.mjs';
 import { loadProtein, registerUpload, fetchFromRCSB } from '../structures.mjs';
 import { cleanSequence, peptideStats, validatePeptide } from '../peptide.mjs';
+import { namedPeptide } from '../peptides.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
 import { adapter, estimateTrusted, noGpu } from '../adapter.mjs';
@@ -15,7 +16,8 @@ import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
 
 const STEP_NAMES = ['Protein', 'Peptide', 'Binding site', 'Review'];
-const EXAMPLE_PEPTIDES = ['LIYKWVNK', 'LISAAALAAIFAAALAC', 'SQETFSDLWKLLP'];
+// offered after the chosen protein's own example; each has a name and a one-line description (see peptides.mjs)
+const EXAMPLE_PEPTIDES = ['ETFSDLWKLLPE', 'LSECLKRIGDELDS', 'LVVVGACGV'];
 
 const note = (...kids) => h('div', { class: 'note guided-only' }, icon('info', 18), h('div', {}, ...kids));
 
@@ -178,6 +180,7 @@ export function mountSetup(ctx) {
     ta.value = S().peptide;
     const msg = h('div', { class: 'msg empty', id: 'pep-msg', role: 'status' });
     const stats = h('p', { class: 'coords-note' });
+    const nameLine = h('p', { class: 'small pep-name' });
     function check() {
       setS({ peptide: ta.value });
       const v = pepCheck();
@@ -191,18 +194,26 @@ export function mountSetup(ctx) {
         stats.replaceChildren(`${st.length} amino acids, about ${Math.round(st.mass).toLocaleString()} Da, net charge ${st.charge > 0 ? '+' : st.charge < 0 ? '−' : ''}${Math.abs(st.charge)}`,
           h('span', { class: 'expert-only' }, long ? (longModelAvailable(adapter.env) ? '. Uses the long-peptide model.' : '. The long-peptide model isn’t installed here, so the standard model is used.') : ''));
         stage.setPeptide(v.seq.length);
-      } else stats.textContent = '';
+        const known = namedPeptide(v.seq);
+        nameLine.replaceChildren(...(known ? [h('b', {}, known.name), ` — ${known.about}`] : []));
+      } else { stats.textContent = ''; nameLine.replaceChildren(); }
       updateNav();
     }
-    const examples = [...new Set([S().proteinRef?.examplePeptide, ...EXAMPLE_PEPTIDES].filter(Boolean))];
+    const examples = [...new Set([S().proteinRef?.examplePeptide, ...EXAMPLE_PEPTIDES].filter(Boolean))].slice(0, 4);
     queueMicrotask(check);
     return [
       title('Enter a peptide', 'Peptide sequence'),
       note('A peptide is a short chain of amino acids, one letter each (3 to 30). Longer ones take longer and are harder to predict.'),
       h('div', {}, h('label', { class: 'field-label', for: 'pep-input' }, 'Amino acid sequence'), ta),
-      msg, stats,
-      h('div', {}, h('p', { class: 'small muted', style: { marginBottom: '6px' } }, 'Try an example'),
-        h('div', { class: 'row' }, examples.map((s) => h('button', { class: 'chip mono', type: 'button', onClick: () => { ta.value = s; check(); } }, s)))),
+      msg, stats, nameLine,
+      h('div', {}, h('p', { class: 'small muted', style: { marginBottom: '6px' } }, 'Or start from a real example'),
+        h('div', { class: 'pep-list' }, examples.map((seq) => {
+          const known = namedPeptide(seq);
+          return h('button', { class: 'pep-pick', type: 'button', onClick: () => { ta.value = seq; check(); } },
+            h('span', { class: 'pep-pick-name' }, known?.name || 'Example peptide'),
+            known && h('span', { class: 'pep-pick-about' }, known.about),
+            h('span', { class: 'pep-pick-seq mono' }, seq));
+        }))),
     ];
   }
 

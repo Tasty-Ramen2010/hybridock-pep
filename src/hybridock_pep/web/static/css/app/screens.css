@@ -51,13 +51,26 @@
 
 /* start something new: three columns separated by hairlines, text only */
 .start-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); }
-.start-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 28px 28px 8px 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-radius: 0; cursor: pointer; }
+.start-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 28px 28px 24px 0; text-align: left; color: inherit; cursor: pointer; }
 .start-card + .start-card { padding-left: 28px; border-left: 1px solid var(--line); }
 .start-card h3 { font-size: 24px; line-height: 1.17; font-weight: 600; letter-spacing: -0.024em; }
 .start-card p { color: var(--ink-3); font-size: 17px; max-width: 26ch; }
 .start-card .tech { display: none; }
-.start-card .go { display: inline-flex; gap: 4px; align-items: center; margin-top: 8px; font-size: 17px; color: var(--link); }
-.start-card:hover .go { text-decoration: underline; }
+.start-card .btn { margin-top: 12px; }
+
+/* the home headline is a plain sentence, so it runs a little smaller than the biggest display size */
+.home-title { font-size: clamp(36px, 5vw, 64px); }
+.hero-copy .lede { max-width: 36ch; }
+
+/* the example, in words: its name, its letters, the protein */
+.example-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 4px 0 0; font-size: 17px; }
+.example-line .eyebrow { margin-right: 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+.example-line .pep { font-size: 15px; }
+.get-app { max-width: 60ch; display: flex; flex-direction: column; gap: 10px; }
+.get-app p { margin: 0; }
+.get-app .cmd { font-size: 12.5px; white-space: pre-wrap; word-break: break-all; padding-right: 16px; align-self: stretch; }
+.get-app .cmd-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.get-app .cmd-wrap .btn { position: static; }
 @media (max-width: 860px) {
   .start-row { grid-template-columns: minmax(0, 1fr); }
   .start-card, .start-card + .start-card { padding: 20px 0; border-left: 0; }

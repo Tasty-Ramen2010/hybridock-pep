@@ -13,7 +13,7 @@ import { selectivityVerdict, fmt, roughGuide, kdFromDG } from '../../src/hybrido
 import { demoDeltaG } from '../../src/hybridock_pep/web/static/js/app/adapter.mjs';
 import { placeHelixAt } from '../../src/hybridock_pep/web/static/js/app/placement.mjs';
 import { mulberry32 } from '../../src/hybridock_pep/web/static/js/app/stage/math.mjs';
-import { greeting, initials, poseCount } from '../../src/hybridock_pep/web/static/js/app/jobs.mjs';
+import { initials, poseCount } from '../../src/hybridock_pep/web/static/js/app/jobs.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'hybridock_pep', 'web', 'static');
 const proteins = JSON.parse(readFileSync(join(root, 'data/proteins.json'), 'utf8'));
@@ -158,8 +158,6 @@ test('placeHelixAt keeps the peptide out of the protein', () => {
 test('small helpers', () => {
   assert.equal(initials('Ada Lovelace'), 'AL');
   assert.equal(initials('Ram'), 'R');
-  assert.equal(greeting(new Date(2026, 0, 1, 14)), 'Good afternoon');
-  assert.equal(greeting(new Date(2026, 0, 1, 9)), 'Good morning');
   assert.equal(poseCount('full'), 100);
 });
 
@@ -259,4 +257,26 @@ test('whole-protein search scales with How thorough: Full is the CLI default, Qu
   const quick = blindSearchSize({ blind: true, poses: 25 }), half = blindSearchSize({ blind: true, poses: 50 });
   assert.ok(Number(quick.n_pocket_search) < Number(half.n_pocket_search) && Number(half.n_pocket_search) < 300);
   assert.ok(Number(quick.n_per_pocket) >= 10, 'never below what the CLI accepts');
+});
+
+test('named peptides: a name for the famous ones, just letters for the rest', async () => {
+  const { namedPeptide, peptideTitle, peptideWithLetters, NAMED_PEPTIDES } = await import('../../src/hybridock_pep/web/static/js/app/peptides.mjs');
+  assert.equal(namedPeptide('ETFSDLWKLLPE').name, 'p53 peptide');
+  assert.equal(namedPeptide('etfsdlwkllpe').name, 'p53 peptide');
+  assert.equal(peptideTitle('ACDEFGH'), 'ACDEFGH');
+  assert.equal(peptideWithLetters('ETFSDLWKLLPE'), 'p53 peptide (ETFSDLWKLLPE)');
+  assert.equal(peptideWithLetters('ACDEFGH'), 'ACDEFGH');
+  for (const p of NAMED_PEPTIDES) { // every entry is a valid peptide with a real description
+    assert.equal(validatePeptide(p.seq).ok, true, p.seq);
+    assert.ok(p.name.length > 3 && p.about.length > 20, p.seq);
+  }
+  assert.equal(new Set(NAMED_PEPTIDES.map((p) => p.seq)).size, NAMED_PEPTIDES.length, 'no duplicate sequences');
+});
+
+test('the guide hides blocks meant for the other audience', async () => {
+  const { parseMarkdown, applyAudience } = await import('../../src/hybridock_pep/web/static/js/app/markdown.mjs');
+  const { blocks } = parseMarkdown('Always.\n\n<!--only:demo-->\nDemo only.\n\n<!--only:live-->\nLive only.\n\nAlso always.');
+  const text = (bs) => bs.map((b) => b.inlines?.map((n) => n.v).join('')).join('|');
+  assert.equal(text(applyAudience(blocks, 'demo')), 'Always.|Demo only.|Also always.');
+  assert.equal(text(applyAudience(blocks, 'live')), 'Always.|Live only.|Also always.');
 });
