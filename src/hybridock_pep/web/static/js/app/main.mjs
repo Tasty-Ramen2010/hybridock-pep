@@ -8,9 +8,10 @@ import { Stage } from './stage/stage.mjs';
 import { adapter, initAdapter } from './adapter.mjs';
 import { createStore } from './state.mjs';
 import { createRunner } from './runner.mjs';
-import { ACCENTS, assetUrl } from './config.mjs';
+import { ACCENTS, TYPICAL_ERROR, assetUrl } from './config.mjs';
 import { mountTopbar } from './ui/topbar.mjs';
 import { toast } from './ui/toast.mjs';
+import { h } from './ui/dom.mjs';
 import { fetchRetry } from './structures.mjs';
 import { seedHistory } from './seed.mjs';
 import { mountHome } from './ui/home.mjs';
@@ -110,6 +111,9 @@ async function boot() {
   if (!store.get().historySeeded) store.set({ history: adapter.kind === 'demo' ? seedHistory(store.get().proteins) : [], historySeeded: true });
   applyAppearance();
   mountTopbar(ctx);
+  main.after(h('footer', { class: 'site-foot' },
+    h('p', {}, `A predicted binding strength is an estimate. One ΔG is typically off by about ±${TYPICAL_ERROR} kcal/mol, so use it to compare and rank, not as a measurement.`),
+    h('nav', { 'aria-label': 'More' }, h('a', { href: '#/guide' }, 'Guide'), h('a', { href: 'https://github.com/Tasty-Ramen2010/hybridock-pep', target: '_blank', rel: 'noopener noreferrer' }, 'Project on GitHub'))));
   addEventListener('hashchange', render);
   render();
   resumeActiveRun();
