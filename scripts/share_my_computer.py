@@ -37,7 +37,8 @@ PIDFILE = STATE / "share.pid"
 STATUS = STATE / "share.json"
 LOG = STATE / "share.log"
 BRANCH = "live-link"
-URL_RE = re.compile(r"https://[a-z0-9-]+(?:\.[a-z0-9-]+)*\.trycloudflare\.com")
+# cloudflared also prints api.trycloudflare.com (its own service) when the network is down: that is not our address
+URL_RE = re.compile(r"https://(?!api\.)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.trycloudflare\.com")
 
 
 def log(msg: str) -> None:
@@ -159,38 +160,64 @@ class Sharing:
             setattr(self, name, None)
 
     # ---- the loop ----
+    def pause(self, seconds: int) -> None:
+        for _ in range(seconds):
+            if self.stopping:
+                return
+            time.sleep(1)
+
+    def open_tunnel(self) -> bool:
+        """Open a tunnel and publish its address, trying again every 20 seconds until it works (a dropped network is normal)."""
+        while not self.stopping:
+            self.stop_children(tunnel_only=True)
+            try:
+                self.start_tunnel()
+                if not self.args.no_publish and not publish(self.url):
+                    log("the address is up but could not be published yet; will retry")
+                    self.publish_pending = True
+                else:
+                    self.publish_pending = False
+                self.write_status("sharing")
+                return True
+            except RuntimeError as exc:
+                log(f"tunnel not ready ({exc}); trying again in 20 seconds")
+                self.write_status("reconnecting")
+                self.pause(20)
+        return False
+
     def run(self) -> int:
         STATE.mkdir(parents=True, exist_ok=True)
         PIDFILE.write_text(str(os.getpid()))
+        self.publish_pending = False
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, lambda *_: setattr(self, "stopping", True))
         if sys.platform == "darwin" and shutil.which("caffeinate"):
             self.awake = subprocess.Popen(["caffeinate", "-i", "-s", "-w", str(os.getpid())])  # no idle sleep while this runs
         try:
             self.start_server()
-            self.start_tunnel()
-            if not self.args.no_publish:
-                publish(self.url)
-            self.write_status("sharing")
+            if not self.open_tunnel():
+                return 0
             log(f"SHARING. Visitors of {', '.join(self.args.origin) or 'the tunnel address'} now run on this computer. Ctrl-C to stop.")
             misses = 0
             while not self.stopping:
-                time.sleep(30)
+                self.pause(30)
                 if self.stopping:
                     break
                 if self.server is None or self.server.poll() is not None:
                     log("the server died; restarting it")
-                    self.start_server()
+                    try:
+                        self.start_server()
+                    except RuntimeError as exc:
+                        log(f"could not restart the server ({exc}); trying again")
+                        continue
                 ok = get(f"{self.url}/api/env", origin=self.args.origin[0] if self.args.origin else None)
                 misses = 0 if ok and ok.get("public") else misses + 1
                 if misses >= 2 or (self.tunnel and self.tunnel.poll() is not None):
                     log("the tunnel stopped answering; opening a new one")
-                    self.stop_children(tunnel_only=True)
-                    self.start_tunnel()
-                    if not self.args.no_publish:
-                        publish(self.url)
-                    self.write_status("sharing")
+                    self.open_tunnel()
                     misses = 0
+                elif self.publish_pending and not self.args.no_publish:
+                    self.publish_pending = not publish(self.url)
         except RuntimeError as exc:
             log(f"ERROR: {exc}")
             return 1
