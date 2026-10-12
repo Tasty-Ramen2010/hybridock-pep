@@ -62,8 +62,7 @@
   --t-med: 260ms;
   --gutter: clamp(20px, 5vw, 48px);
   --maxw: 1180px;
-  --island-h: 52px;                           /* the floating top bar (a pill) */
-  --nav-h: 72px;                              /* the pill plus the space around it: how far down the page content may sit */
+  --nav-h: 48px;
 }
 
 /* ---- dark appearance: true black with elevated gray groups (what Apple does), not inverted colours ---- */
