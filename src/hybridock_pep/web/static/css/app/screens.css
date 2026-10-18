@@ -50,6 +50,16 @@
 .recent-open .val small { display: block; margin-top: 4px; font: 400 12px var(--font-sans); letter-spacing: 0; color: var(--ink-3); }
 .recent-dl { flex: none; }
 
+/* why it matters: three plain steps under the stats */
+.why { margin: 0 0 clamp(48px, 7vw, 88px); }
+.why h2 { font-size: clamp(24px, 2.6vw, 32px); font-weight: 600; letter-spacing: -0.03em; margin-bottom: 16px; }
+.why-steps { list-style: none; counter-reset: why; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 0; margin: 0; }
+.why-steps li { counter-increment: why; padding: 24px 28px; border-radius: 28px; background: var(--group); color: var(--ink-3); font-size: 17px; line-height: 1.4; }
+.why-steps li::before { content: counter(why); display: block; margin-bottom: 8px; font-size: 28px; font-weight: 600; color: var(--ink); }
+.why-steps li b { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 600; }
+.why-note { margin: 14px 4px 0; font-size: 14px; color: var(--ink-3); }
+@media (max-width: 760px) { .why-steps { grid-template-columns: minmax(0, 1fr); } }
+
 /* start something new: three big rounded tiles, like apple.com's "Get started". The first one is the loud one. */
 .start-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .start-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 300px; padding: 32px 32px 28px; border-radius: 28px; background: var(--group); text-align: left; color: inherit; cursor: pointer; transition: transform var(--t-med) var(--ease); }
