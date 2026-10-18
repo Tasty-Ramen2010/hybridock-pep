@@ -141,6 +141,15 @@ export function mountHome(ctx) {
         h('div', { class: 'value nums' }, s.ref))),
       statsNote),
 
+    // Why this matters, in three beats, for someone who has never heard of a peptide.
+    h('section', { class: 'why', 'aria-labelledby': 'why-title' },
+      h('h2', { id: 'why-title' }, 'How could this help cure disease?'),
+      h('ol', { class: 'why-steps' },
+        h('li', {}, h('b', {}, 'Diseases run on proteins.'), ' A harmful protein can clump up, stay switched on, or let a germ survive.'),
+        h('li', {}, h('b', {}, 'A peptide can block one.'), ' Like a key jammed in a lock, a short chain that sticks tightly can stop the harmful protein.'),
+        h('li', {}, h('b', {}, 'We find the best keys fast.'), ' Testing thousands in a lab takes years. This app predicts the strongest sticker in minutes, so scientists test only the best.')),
+      h('p', { class: 'why-note' }, 'It does not cure anything by itself. It helps researchers pick better drug candidates sooner.')),
+
     recentSection,
 
     h('div', { class: 'section-head' }, h('h2', {}, 'Start something new')),

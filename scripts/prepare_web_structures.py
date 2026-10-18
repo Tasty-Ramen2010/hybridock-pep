@@ -29,7 +29,7 @@ ROOT = REPO / "src" / "hybridock_pep" / "web" / "static"  # data/pdb and data/pr
 #      = ("fixed", x, y, z)                       -> a site validated elsewhere (the backend's /api/examples)
 PROTEINS = [
     dict(id="5O3L", key="tau", name="Tau K18", keep="ABCDE",
-         about="Tangle-forming protein in Alzheimer's disease",
+         about="Clumps into tangles in Alzheimer's disease",
          siteNote="the VQIVYK stretch (residues 306–311)", site=("chain", "C", 306, 311),
          example="LIYKWVNK"),
     dict(id="1YCR", key="mdm2", name="MDM2", keep="A",
