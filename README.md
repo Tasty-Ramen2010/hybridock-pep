@@ -806,3 +806,9 @@ Invited by the **School of Chemistry and Biochemistry at Georgia Tech** to prese
 
 [MIT](LICENSE). Third-party dependencies retain their own licenses — see [INSTALL.md](INSTALL.md) for
 ADFRsuite, AutoDock4, and PULCHRA caveats (none redistributed here).
+
+- [NOTICE.md](NOTICE.md) — third-party code, weights and dependency licences
+- [DATA_LICENSES.md](DATA_LICENSES.md) — where every dataset comes from and what we have verified
+- [CITATION.cff](CITATION.cff) — how to cite this software · [CHANGELOG.md](CHANGELOG.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
+- `python scripts/verify_artifacts.py` — check the shipped models and data against [ARTIFACTS.sha256](ARTIFACTS.sha256)

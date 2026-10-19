@@ -1,0 +1,44 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "HybriDock-Pep",
+  "description": "Protein-peptide docking and scoring. A diffusion model (RAPiDock) samples peptide poses against a receptor structure; a physics-informed rescoring stage ranks them and reports a calibrated binding free energy in kcal/mol, with an optional selectivity score between two receptors. Designed to run on consumer hardware. Developed for iGEM 2026.",
+  "version": "0.2.0",
+  "dateModified": "2026-08-02",
+  "license": "https://spdx.org/licenses/MIT",
+  "codeRepository": "https://github.com/Tasty-Ramen2010/hybridock-pep",
+  "issueTracker": "https://github.com/Tasty-Ramen2010/hybridock-pep/issues",
+  "url": "https://tasty-ramen2010.github.io/hybridock-pep/",
+  "identifier": "https://doi.org/10.5281/zenodo.21764712",
+  "sameAs": [
+    "https://doi.org/10.5281/zenodo.21764713",
+    "https://doi.org/10.5281/zenodo.21680573"
+  ],
+  "author": {
+    "@type": "Organization",
+    "name": "HybriDock-Pep contributors"
+  },
+  "programmingLanguage": {
+    "@type": "ComputerLanguage",
+    "name": "Python",
+    "version": "3.11"
+  },
+  "operatingSystem": ["Linux", "macOS", "Windows"],
+  "applicationCategory": "Bioinformatics",
+  "keywords": [
+    "peptide docking",
+    "protein-peptide interaction",
+    "binding free energy",
+    "selectivity",
+    "diffusion model",
+    "iGEM"
+  ],
+  "softwareRequirements": [
+    "pydantic", "numpy", "meeko", "rdkit", "vina", "scipy", "biopython", "scikit-learn",
+    "openmm", "pdbfixer", "matplotlib", "gemmi", "prompt_toolkit", "psutil"
+  ],
+  "relatedLink": [
+    "https://github.com/Tasty-Ramen2010/hybridock-pep/blob/master/RESULTS.md",
+    "https://github.com/Tasty-Ramen2010/hybridock-pep/blob/master/MODEL_CARD.md"
+  ]
+}

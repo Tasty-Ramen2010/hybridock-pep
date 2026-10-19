@@ -1,8 +1,12 @@
 ================================================================================
 HybriDock-Pep — Dependency License Audit
 ================================================================================
-Generated: [PENDING — run pip-licenses commands below on RTX machine with both
-            conda envs installed. Replace this header with actual output.]
+Status:    The score-env (pip) dependency licences are now recorded and checked in
+           NOTICE.md (2026-10-19, from the installed package metadata). This file
+           keeps the license RULINGS and reasoning (LGPL, GPL, non-redistributable
+           tools) that NOTICE.md refers to. The rapidock-env table below is still
+           marked [ASSUMED] and has not been re-checked. The pip-licenses commands
+           below are optional if you want to regenerate the lists from a real env.
 iGEM requirement: OSI-approved open source license for all direct dependencies
                   in HybriDock-Pep source. (CLAUDE.md §2.6)
 ================================================================================
