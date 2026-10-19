@@ -192,6 +192,40 @@ if [ -n "$CACHE_DIR" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 3b. Prefetch ESM-2 in the background
+# ---------------------------------------------------------------------------
+# The 2.5 GB download otherwise happens at the start of the FIRST dock, after
+# everything else is built. It needs nothing from either env, so start it now
+# and let it overlap the env builds (which are mostly solver/CPU time, not
+# bandwidth). Same URLs and cache path as fair-esm's torch.hub loader, so the
+# dock finds the file and skips its own download. Written to .part then renamed,
+# so an interrupted copy is never mistaken for a finished one. Best-effort:
+# if it fails the first dock simply downloads it as before.
+ESM_PID=""
+ESM_DIR="$HOME/.cache/torch/hub/checkpoints"
+mkdir -p "$ESM_DIR"
+prefetch_esm() {
+    for _f in "models/esm2_t33_650M_UR50D.pt" \
+              "regression/esm2_t33_650M_UR50D-contact-regression.pt"; do
+        _dest="$ESM_DIR/$(basename "$_f")"
+        [ -s "$_dest" ] && continue
+        curl -fsSL --retry 5 --retry-delay 3 -C - \
+            -o "$_dest.part" "https://dl.fbaipublicfiles.com/fair-esm/$_f" \
+            && mv "$_dest.part" "$_dest" || return 1
+    done
+}
+if [ "$SKIP_RAPIDOCK" -eq 0 ]; then
+    step "Prefetching the ESM-2 language model in the background"
+    if [ -s "$ESM_DIR/esm2_t33_650M_UR50D.pt" ] && [ -s "$ESM_DIR/esm2_t33_650M_UR50D-contact-regression.pt" ]; then
+        ok "ESM-2 already cached"
+    else
+        prefetch_esm >"$(mktemp -t esm_prefetch.XXXXXX)" 2>&1 &
+        ESM_PID=$!
+        ok "downloading (pid $ESM_PID) while the environments build"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # 4. score-env
 # ---------------------------------------------------------------------------
 # micromamba does not honour a yml's `pip:` block unless pip is itself a conda
@@ -328,6 +362,36 @@ import torch_scatter, torch_sparse, torch_cluster, torch_geometric  # noqa: F401
 PY
     }
 
+    # RAPiDock builds its SO(3)/torus lookup tables in module-level numpy code on
+    # first import (~10 min, single-threaded). They need numpy/scipy only, so run
+    # the two modules as separate processes NOW, in parallel with the torch/PyG
+    # download below, instead of making the first dock sit through it silently.
+    # With --cache-dir the finished tables are kept next to the ESM-2 weights and
+    # restored on later sessions.
+    RAPIDOCK_SRC="$REPO_ROOT/third_party/RAPiDock"
+    TABLE_FILES=".so3_omegas_array2.npy .so3_cdf_vals2.npy .so3_score_norms2.npy .so3_exp_score_norms2.npy .p.npy .score.npy"
+    tables_present() {
+        for _t in $TABLE_FILES; do [ -s "$RAPIDOCK_SRC/$_t" ] || return 1; done
+    }
+    TABLE_PIDS=""
+    step "Pre-computing RAPiDock lookup tables (in the background)"
+    if [ -n "$CACHE_DIR" ] && ! tables_present; then
+        for _t in $TABLE_FILES; do
+            [ -s "$CACHE_DIR/rapidock_tables/$_t" ] && cp "$CACHE_DIR/rapidock_tables/$_t" "$RAPIDOCK_SRC/$_t"
+        done
+    fi
+    if tables_present; then
+        ok "lookup tables already built"
+    else
+        for _m in so3 torus; do
+            ( cd "$RAPIDOCK_SRC" && "$RAPIDOCK_PREFIX/bin/python3" \
+                "$REPO_ROOT/scripts/prewarm_rapidock_tables.py" "$RAPIDOCK_SRC" "$_m" \
+                >"/tmp/prewarm_$_m.log" 2>&1 ) &
+            TABLE_PIDS="$TABLE_PIDS $!"
+        done
+        ok "building so3 + torus tables while PyTorch installs"
+    fi
+
     step "Installing PyTorch + PyG into rapidock"
     install_torch_stack "$TORCH_SPEC" "$TORCH_INDEX" "$PYG_FIND"
 
@@ -355,6 +419,32 @@ print(f"  torch {torch.__version__} | cuda={torch.version.cuda} "
       f"| available={torch.cuda.is_available()}"
       + (f" | {torch.cuda.get_device_name(0)}" if torch.cuda.is_available() else ""))
 PY
+fi
+
+# ---------------------------------------------------------------------------
+# 5b. Join the background jobs
+# ---------------------------------------------------------------------------
+if [ "$SKIP_RAPIDOCK" -eq 0 ]; then
+    step "Waiting for the background jobs (lookup tables, ESM-2)"
+    for _pid in ${TABLE_PIDS:-}; do wait "$_pid" || true; done
+    if tables_present; then
+        ok "RAPiDock lookup tables built — first dock starts sampling immediately"
+        if [ -n "$CACHE_DIR" ]; then
+            mkdir -p "$CACHE_DIR/rapidock_tables"
+            for _t in $TABLE_FILES; do cp -u "$RAPIDOCK_SRC/$_t" "$CACHE_DIR/rapidock_tables/$_t"; done
+            ok "tables cached in $CACHE_DIR/rapidock_tables for later sessions"
+        fi
+    else
+        warn "lookup tables incomplete (see /tmp/prewarm_*.log) — the first dock will build them"
+    fi
+    if [ -n "$ESM_PID" ]; then
+        if wait "$ESM_PID"; then
+            ok "ESM-2 weights downloaded"
+        else
+            warn "ESM-2 prefetch failed — the first dock will download it instead"
+            rm -f "$ESM_DIR"/*.part
+        fi
+    fi
 fi
 
 # ---------------------------------------------------------------------------
