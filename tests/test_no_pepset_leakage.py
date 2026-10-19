@@ -13,6 +13,7 @@ Run:
 """
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
@@ -43,14 +44,8 @@ def _csv_pdb_ids(csv_path: Path) -> set[str]:
     """Extract pdb_id column from a CSV file (case-insensitive)."""
     if not csv_path.exists():
         return set()
-    try:
-        import pandas as pd
-        df = pd.read_csv(csv_path)
-        if "pdb_id" not in df.columns:
-            return set()
-        return set(df["pdb_id"].dropna().str.upper().tolist())
-    except Exception:
-        return set()
+    with csv_path.open(newline="") as fh:
+        return {row["pdb_id"].strip().upper() for row in csv.DictReader(fh) if row.get("pdb_id")}
 
 
 # ---------------------------------------------------------------------------- #
