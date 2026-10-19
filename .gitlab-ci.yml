@@ -1,0 +1,48 @@
+# GitLab CI for the iGEM GitLab (gitlab.igem.org), where judges look.
+#
+# This mirrors the `test` job of .github/workflows/ci.yml (Linux x86-64, pip only) and adds the
+# artifact-checksum check. It only runs if this repository is pushed or mirrored to a GitLab
+# project with runners; GitHub Actions remains the primary CI.
+#
+# What it cannot verify, same as the GitHub job: RAPiDock GPU sampling (needs a CUDA environment)
+# and the full physics pipeline (ADFRsuite, AutoDock4 and PULCHRA are not redistributable, so no
+# public CI can install them). Tests that need them skip themselves.
+#
+# Status: written to match the GitHub job and parsed as valid YAML; it has not yet run on a GitLab
+# runner. Check the first pipeline.
+
+image: python:3.11-bookworm
+
+stages: [verify]
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  OMP_NUM_THREADS: "1"
+
+verify:
+  stage: verify
+  script:
+    # Needs nothing installed (standard library only), so a damaged artifact fails fast.
+    - python scripts/verify_artifacts.py
+    - python -m pip install --upgrade pip
+    - python -m pip install -e ".[dev]"
+    # Same deselections as the `test` job in .github/workflows/ci.yml.
+    - >
+      python -m pytest -q --junitxml=report.xml
+      --deselect tests/test_sampling.py::TestRapidockRunner::test_command_construction
+      --deselect tests/test_sampling.py::TestRapidockRunner::test_nonzero_exit_raises
+      --deselect tests/test_sampling.py::TestRapidockRunner::test_shortfall_warns
+      --deselect tests/test_sampling.py::TestRapidockRunner::test_file_rename
+      --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_all_10_pepset_ids
+      --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_exactly_pepset_count
+      --deselect tests/test_install_script.py::TestExistingCondaIsFound::test_still_installs_miniforge_when_there_is_genuinely_no_conda
+    - hybridock-pep --help
+    - hybridock-tui --help
+    - python -m pip install --quiet build
+    - python -m build --wheel --outdir dist
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    paths: [dist/]
+    expire_in: 1 week

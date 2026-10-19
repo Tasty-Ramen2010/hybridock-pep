@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use HybriDock-Pep, please cite it using these metadata, and name the release or commit you ran."
+title: "HybriDock-Pep"
+type: software
+abstract: >-
+  Protein-peptide docking and scoring. A diffusion model (RAPiDock) samples peptide poses against a
+  receptor structure; a physics-informed rescoring stage ranks them and reports a calibrated binding
+  free energy in kcal/mol, with an optional selectivity score (the difference in binding between two
+  receptors). It is designed to run on consumer hardware. Developed for iGEM 2026.
+authors:
+  - name: "HybriDock-Pep contributors"
+version: "0.2.0"
+date-released: "2026-08-02"
+license: MIT
+repository-code: "https://github.com/Tasty-Ramen2010/hybridock-pep"
+url: "https://tasty-ramen2010.github.io/hybridock-pep/"
+doi: "10.5281/zenodo.21764712"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21764712"
+    description: "All versions (always resolves to the latest archived release)"
+  - type: doi
+    value: "10.5281/zenodo.21764713"
+    description: "Archived source snapshot of release v0.1.0"
+  - type: doi
+    value: "10.5281/zenodo.21680573"
+    description: "Auxiliary tests dataset and information (CC BY 4.0)"
+keywords:
+  - peptide docking
+  - protein-peptide interaction
+  - binding free energy
+  - selectivity
+  - diffusion model
+  - iGEM
