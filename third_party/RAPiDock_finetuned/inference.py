@@ -107,14 +107,48 @@ def load_model(score_model_args, ckpt_path, device):
               f"gate_hi={getattr(score_model_args, 'tr_adapter_gate_hi', 'unset (no gate)')}, "
               f"physical_cap={getattr(score_model_args, 'tr_adapter_physical_cap', 4.0)}, "
               f"zero_below_sigma={getattr(score_model_args, 'tr_adapter_zero_below_sigma', 0.0)})")
+    # Same detect-and-enable pattern as tr_adapter above, for the Aug 2026 length-gated
+    # cross-interaction adapter (see project_v6_phase3_broken_aug12 memory / models/diffusion.py
+    # __init__ comment). No hidden_mult to infer — cross_adapter_conv's hidden_features is fixed
+    # at 3*ns, matching the base cross_convs exactly (no separate capacity knob for this one).
+    if any("cross_adapter" in k for k in _sd):
+        score_model_args.use_cross_adapter = True
+        if isinstance(state_dict, dict) and "cross_adapter_length_threshold" in state_dict:
+            score_model_args.cross_adapter_length_threshold = float(
+                state_dict["cross_adapter_length_threshold"])
+        elif not hasattr(score_model_args, "cross_adapter_length_threshold"):
+            score_model_args.cross_adapter_length_threshold = 13.0
+        if os.environ.get("CROSS_ADAPTER_LENGTH_THRESHOLD") is not None:
+            score_model_args.cross_adapter_length_threshold = float(
+                os.environ["CROSS_ADAPTER_LENGTH_THRESHOLD"])
+        print(f"[load_model] cross-adapter checkpoint detected -> use_cross_adapter=True "
+              f"(length_threshold={getattr(score_model_args, 'cross_adapter_length_threshold', 13.0)})")
+    # Same detect-and-enable pattern, for the Aug 2026 length-gated BACKBONE TORSION adapter
+    # (see project_placement_conformation_split_aug21 memory / models/diffusion.py __init__
+    # comment). No hidden_mult to infer — tor_bb_adapter_conv is structurally identical to the
+    # base tor_bb_bond_conv, fixed capacity.
+    if any("tor_bb_adapter" in k for k in _sd):
+        score_model_args.use_tor_bb_adapter = True
+        if isinstance(state_dict, dict) and "tor_bb_adapter_length_threshold" in state_dict:
+            score_model_args.tor_bb_adapter_length_threshold = float(
+                state_dict["tor_bb_adapter_length_threshold"])
+        elif not hasattr(score_model_args, "tor_bb_adapter_length_threshold"):
+            score_model_args.tor_bb_adapter_length_threshold = 13.0
+        if os.environ.get("TOR_BB_ADAPTER_LENGTH_THRESHOLD") is not None:
+            score_model_args.tor_bb_adapter_length_threshold = float(
+                os.environ["TOR_BB_ADAPTER_LENGTH_THRESHOLD"])
+        print(f"[load_model] tor_bb-adapter checkpoint detected -> use_tor_bb_adapter=True "
+              f"(length_threshold={getattr(score_model_args, 'tor_bb_adapter_length_threshold', 13.0)})")
     model = get_model(score_model_args, no_parallel=True)
     # strict=False: tolerates new params added to the architecture (e.g. cross_type_embedding)
     # that are absent in older checkpoints — they keep their zero-init from __init__.
     missing, unexpected = model.load_state_dict(state_dict["model"], strict=False)
-    _adapter_dropped = [k for k in unexpected if "tr_adapter" in k]
+    _adapter_dropped = [k for k in unexpected
+                         if "tr_adapter" in k or "cross_adapter" in k or "tor_bb_adapter" in k]
     if _adapter_dropped:
         raise RuntimeError(f"adapter weights STILL dropped at inference ({len(_adapter_dropped)}) "
-                           f"— use_tr_adapter not wired; refusing to run a silent no-op adapter.")
+                           f"— use_tr_adapter/use_cross_adapter/use_tor_bb_adapter not wired; refusing to run a "
+                           f"silent no-op adapter.")
     if unexpected:
         print(f"[load_model] unexpected keys ignored: {len(unexpected)}")
     model = model.to(device)
@@ -250,7 +284,18 @@ def process_complex(model, confidence_model, score_model_args, args, original_co
     # data_list_prepare
     N = args.N
     data_list = prepare_data_list(original_complex_graph, N)
-    randomize_position(data_list, False, score_model_args.tr_sigma_max)
+    # RAPIDOCK_INIT_SIGMA overrides ONLY the initial translation draw, not the denoising
+    # schedule. randomize_position places the peptide at the receptor centroid plus
+    # N(0, tr_sigma_max); tr_sigma_max is 30 A, and on the designed binders the receptor's own
+    # radius is a median 29.6 A -- so one draw spans the entire protein and the starting point
+    # carries essentially no information about where the groove is, even though the true site
+    # sits only 6.8 A from the centroid. Shrinking the draw is therefore a free test of whether
+    # placement is being thrown away at initialisation. It deliberately introduces a mismatch
+    # with the schedule the model was trained under, which is exactly why it is measured rather
+    # than assumed.
+    _init_sigma = os.environ.get("RAPIDOCK_INIT_SIGMA")
+    _sigma = float(_init_sigma) if _init_sigma else score_model_args.tr_sigma_max
+    randomize_position(data_list, False, _sigma)
 
     visualization_list = None
     if args.save_visualisation:

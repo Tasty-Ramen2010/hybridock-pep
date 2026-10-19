@@ -50,6 +50,22 @@ import torch.nn.functional as F
 import yaml
 import pandas as pd
 
+if os.environ.get("RAPIDOCK_DISABLE_JIT_FUSER") == "1":
+    # The DGX Spark's GB10 is compute capability 12.1, but torch 2.7+cu128 only ships
+    # sm_90/100/120 and its nvrtc rejects -arch=sm_121. Every TorchScript fusion group the
+    # TensorExpr fuser emits then fails to compile ("nvrtc: invalid value for
+    # --gpu-architecture"), which killed every training batch. Running the same graph
+    # unfused is numerically identical, just slower. e3nn still needs torch.jit.script,
+    # so PYTORCH_JIT=0 is NOT an option (it breaks e3nn's codegen registration).
+    torch._C._jit_set_texpr_fuser_enabled(False)
+    torch._C._jit_override_can_fuse_on_gpu(False)
+    torch._C._jit_override_can_fuse_on_cpu(False)
+    try:
+        torch._C._jit_set_nvfuser_enabled(False)
+    except Exception:  # noqa: BLE001 -- absent in some builds; texpr is the one that matters
+        pass
+    print("[jit] GPU/CPU fusion disabled (RAPIDOCK_DISABLE_JIT_FUSER=1)", flush=True)
+
 # Add this directory to sys.path so RAPiDock modules resolve
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
@@ -643,9 +659,12 @@ def load_model_for_finetuning(model_args, ckpt_path, device, unfreeze_phase,
     def _safe_load(sd):
         missing, unexpected = model.load_state_dict(sd, strict=False)
         allowed = {"encoder.cross_type_embedding.weight"}
-        # tr_adapter_conv.* are the zero-init position-adapter params (added capacity, absent
-        # from the pretrained checkpoint) — expected to be missing and kept at zero-init.
-        bad_missing = [k for k in missing if k not in allowed and "tr_adapter" not in k]
+        # tr_adapter_conv.*/cross_adapter_conv.*/tor_bb_adapter_*.* are zero-init added-capacity
+        # params, absent from the pretrained checkpoint — expected to be missing and kept at
+        # zero-init.
+        bad_missing = [k for k in missing
+                       if k not in allowed and "tr_adapter" not in k and "cross_adapter" not in k
+                       and "tor_bb_adapter" not in k]
         if bad_missing or unexpected:
             raise RuntimeError(f"Unexpected state_dict mismatch: missing={bad_missing} "
                                f"unexpected={list(unexpected)}")
@@ -1025,6 +1044,53 @@ def _inject_batch_for_single_sample(data, device):
 # Loss computation
 # ---------------------------------------------------------------------------
 
+def _clash_penalty(batch, tr_pred, tr_sig, device, cutoff=3.5, max_neighbors=32):
+    """Penalise the predicted clean pose for burying peptide atoms in the receptor.
+
+    WHY THIS TERM EXISTS. Our generated poses clash badly -- median 0.84 A peptide-receptor
+    contact on our own benchmark with 91% of poses under 2.0 A. DockQ is blind to it, Vina
+    rejects those poses outright, and Stage 1.5 minimises the peptide alone so it cannot repair
+    an interpenetration with the receptor. Nothing in the score-matching objective forbids it:
+    the four heads are trained purely on how well they predict the noise, and a pose that puts
+    the peptide inside the protein can score well on all four.
+
+    WHAT IS ACTUALLY COMPUTED, and the approximation in it. Reconstructing the full clean pose
+    would need the predicted translation, rotation and both torsion sets composed onto the noisy
+    peptide. Here only the TRANSLATION is applied: tr_sigma^2 * tr_pred is the model's implied
+    centre-of-mass displacement, the same quantity the existing x0 term uses. So this catches
+    the peptide being driven bodily into the receptor, which is the dominant clash mode when
+    placement is 10 A wrong, and it does NOT catch fine side-chain overlap in an otherwise
+    correct pose. Stated plainly because a later reader will otherwise assume it covers both.
+
+    Receptor nodes are per-residue, not per-atom, so the cutoff is a CA-to-peptide-atom distance
+    and 3.5 A is already an overlap at that resolution -- not the ~2.0 A one would use all-atom.
+
+    max_neighbors is a hard cap per CLAUDE.md 2.2a: one dense interface must not be allowed to
+    produce a pathological edge count inside a batch and trip the WSL2 dxgkrnl timeout.
+    """
+    try:
+        from torch_cluster import radius
+    except ImportError:
+        return torch.zeros((), device=device)
+    if ("pep_a" not in batch.node_types) or ("receptor" not in batch.node_types):
+        return torch.zeros((), device=device)
+
+    pep, pb = batch["pep_a"].pos.float(), batch["pep_a"].batch
+    rec, rb = batch["receptor"].pos.float(), batch["receptor"].batch
+    move = (tr_sig ** 2).unsqueeze(1) * tr_pred            # (B, 3) implied COM displacement
+    pep_x0 = pep + move[pb]
+
+    # radius(x=source, y=query) returns row 0 indexing y and row 1 indexing x
+    idx = radius(rec, pep_x0, r=cutoff, batch_x=rb, batch_y=pb,
+                 max_num_neighbors=max_neighbors)
+    if idx.numel() == 0:
+        return torch.zeros((), device=device)
+    d = (pep_x0[idx[0]] - rec[idx[1]]).norm(dim=-1)
+    # normalise by peptide atom count, not pair count: otherwise a pose that clashes in MORE
+    # places dilutes its own penalty, which is exactly backwards
+    return (torch.relu(cutoff - d) ** 2).sum() / max(pep_x0.shape[0], 1)
+
+
 def compute_loss(model, data, transform, device, _norm_out=None):
     # type: (torch.nn.Module, object, NoiseTransform, torch.device, Optional[dict]) -> torch.Tensor
     """Apply noise to a crystal complex, run forward, return score-matching loss.
@@ -1152,6 +1218,19 @@ def compute_loss(model, data, transform, device, _norm_out=None):
             x0_sq = torch.clamp(x0_sq, max=x0_cap)
             loss = loss + x0_lambda * x0_sq
 
+    # The clash term MUST exist on this path too, not only in compute_loss_batched. The trainer
+    # takes the batched path when >=2 samples are pending and this one for the tail of an epoch
+    # (and whenever batch size is 1), so omitting it here would silently change the objective
+    # between batches -- a different loss for the last step of every epoch.
+    clash_lambda = float(getattr(model, "_clash_lambda", 0.0))
+    if clash_lambda > 0.0:
+        pen = _clash_penalty(noisy, tr_pred.reshape(1, 3),
+                             torch.as_tensor([float(tr_sig)], device=device, dtype=torch.float),
+                             device, cutoff=float(getattr(model, "_clash_cutoff", 3.5)))
+        if _norm_out is not None:
+            _norm_out.setdefault("clash", []).append(float(pen))
+        loss = loss + clash_lambda * pen
+
     return loss
 
 
@@ -1199,7 +1278,7 @@ def build_dataset(csv_path, model_args, output_dir, esm_device="cpu"):
     if want_lm and os.path.exists(cache_file):
         print(f"[ESM cache] Loading from {cache_file}")
         try:
-            cache_dict = torch.load(cache_file, map_location="cpu")
+            cache_dict = torch.load(cache_file, map_location="cpu", mmap=True)  # mmap: 16GB cache must not be pinned in RAM; warm graphs never read it
             # cache_dict maps complex_name → list[tensor per chain]
             # Reconstruct in CSV row order
             precomputed = [cache_dict.get(n) for n in complex_names]
@@ -1246,12 +1325,229 @@ def build_dataset(csv_path, model_args, output_dir, esm_device="cpu"):
     # On cache MISS: InferenceDataset saves the raw dict and builds the list.
     # ─────────────────────────────────────────────────────────────────────────
 
+    # TRAINING GROUND TRUTH: make the clean pose the CRYSTAL, not the idealized
+    # sequence-built strand the inference path produces (see the Sep-12 target-bug
+    # analysis: the old target sat a median ~50A from the real pose). Env-driven so no
+    # call signature changes; set by --crystal-target in main().
+    dataset.crystal_target = os.environ.get("RAPIDOCK_CRYSTAL_TARGET", "0") == "1"
+    if dataset.crystal_target:
+        print("[crystal-target] clean pose = CRYSTAL (graph cache tag 'xtal1')")
+
     return dataset
 
 
 # ---------------------------------------------------------------------------
 # Training loop
 # ---------------------------------------------------------------------------
+
+
+_PREFETCH_DEPTH = 0   # set from --prefetch-depth in main(); 0 = original serial path
+_TRAIN_BATCH = 1      # set from --batch-size in main(); 1 = original single-sample path
+_PREFETCH_WORKERS = 1 # set from --prefetch-workers; 1 = single producer thread
+
+
+
+def compute_loss_batched(model, data_list, transform, device, _norm_out=None):
+    """TRUE batched loss: one forward over B graphs instead of B sequential forwards.
+
+    Why this exists
+    ---------------
+    The original path runs ONE graph per forward (`_inject_batch_for_single_sample`,
+    num_graphs=1) and uses --grad-accum to sum gradients over B sequential passes.
+    Measured consequence (nvidia-smi dmon, 1s): dgx drew 23-28W with mem-bandwidth 0%,
+    rtx6000 drew 175-313W of a ~600W TDP with SM oscillating 19<->88 and only 17.4GB of
+    97.9GB VRAM in use. A 7.5M-param model fed one small graph at a time cannot saturate
+    anything -- Python and kernel-launch overhead dominate.
+
+    It is also a FIDELITY issue, not just speed: RAPiDock's own config is
+    `batch_size: 16` with `no_batch_norm: false`. BatchNorm at batch=1 normalises over a
+    single graph's nodes; at batch=16 it pools across 16. Accumulating 16 single-sample
+    gradients is therefore NOT the same computation as their batch of 16.
+
+    Equivalence
+    -----------
+    Mathematically this returns mean_i[ per-sample-loss_i ], identical to what grad-accum
+    produced, so at B=1 it reduces exactly to compute_loss(). Only the BN statistics (and
+    the speed) differ -- which is the intended correction.
+    """
+    from torch_geometric.data import Batch
+
+    noisy_list = []
+    for d in data_list:
+        n = transform(copy.deepcopy(d))
+        # Attach per-ELEMENT sigma vectors so PyG concatenates them in the same order as
+        # the score tensors. Relying on PyG to collate bare python floats is fragile;
+        # explicit tensors keep torsion sigmas aligned with variable per-graph counts.
+        n.tr_sigma_vec = torch.tensor([float(getattr(n, "tr_sigma_val", 1.0))])
+        n.rot_sigma_vec = torch.tensor([float(getattr(n, "rot_sigma_val", 1.0))])
+        n_bb = int(n.tor_backbone_score.numel()) if hasattr(n, "tor_backbone_score") else 0
+        n_sc = int(n.tor_sidechain_score.numel()) if hasattr(n, "tor_sidechain_score") else 0
+        n.tor_bb_sigma_vec = torch.full((n_bb,), float(getattr(n, "tor_bb_sigma_val", 1.0)))
+        n.tor_sc_sigma_vec = torch.full((n_sc,), float(getattr(n, "tor_sc_sigma_val", 1.0)))
+        noisy_list.append(n)
+
+    batch = Batch.from_data_list(noisy_list).to(device)
+    preds = model(batch)
+    tr_pred = preds["tr_pred"].float()
+    rot_pred = preds["rot_pred"].float()
+    tor_bb_pred = preds["tor_pred_backbone"].float()
+    tor_sc_pred = preds["tor_pred_sidechain"].float()
+
+    if _norm_out is not None:
+        with torch.no_grad():
+            _norm_out["tr"].append(tr_pred.norm().item())
+            _norm_out["rot"].append(rot_pred.norm().item())
+            if tor_bb_pred.numel() > 0:
+                _norm_out["tor_bb"].append(tor_bb_pred.norm().item())
+            if tor_sc_pred.numel() > 0:
+                _norm_out["tor_sc"].append(tor_sc_pred.norm().item())
+
+    tr_sig = batch.tr_sigma_vec.to(device).float().reshape(-1)
+    tr_target = batch.tr_score.to(device).float().reshape(tr_pred.shape)
+    loss = _TR_W * (((tr_pred - tr_target) ** 2).mean(dim=1) * tr_sig ** 2).mean()
+
+    rot_sig = batch.rot_sigma_vec.to(device).float().reshape(-1)
+    rot_target = batch.rot_score.to(device).float().reshape(rot_pred.shape)
+    rot_sn = _so3_score_norm(rot_sig.detach().cpu()).reshape(-1).to(device).float()
+    rot_w = 1.0 / torch.clamp(rot_sn, min=0.1) ** 2
+    loss = loss + _ROT_W * (((rot_pred - rot_target) ** 2).mean(dim=1) * rot_w).mean()
+
+    if tor_bb_pred.numel() > 0 and batch.tor_backbone_score.numel() > 0:
+        t = batch.tor_backbone_score.to(device).float()
+        if tor_bb_pred.shape == t.shape:
+            sig = batch.tor_bb_sigma_vec.to(device).float().reshape(-1)
+            sn = torch.from_numpy(_torus_score_norm(sig.detach().cpu().numpy())).to(device).float()
+            loss = loss + _TOR_BB_W * (((tor_bb_pred - t) ** 2) / torch.clamp(sn, min=0.5) ** 2).mean()
+
+    if tor_sc_pred.numel() > 0 and batch.tor_sidechain_score.numel() > 0:
+        t = batch.tor_sidechain_score.to(device).float()
+        if tor_sc_pred.shape == t.shape:
+            sig = batch.tor_sc_sigma_vec.to(device).float().reshape(-1)
+            sn = torch.from_numpy(_torus_score_norm(sig.detach().cpu().numpy())).to(device).float()
+            loss = loss + _TOR_SC_W * (((tor_sc_pred - t) ** 2) / torch.clamp(sn, min=0.5) ** 2).mean()
+
+    x0_lambda = float(getattr(model, "_x0_lambda", 0.0))
+    if x0_lambda > 0.0:
+        hi = float(getattr(model, "_x0_sigma_hi", 12.0))
+        lo = float(getattr(model, "_x0_sigma_lo", 0.0))
+        cap = float(getattr(model, "_x0_cap", 100.0))
+        gate = ((tr_sig >= lo) & (tr_sig <= hi)).float()
+        move_err = (tr_sig ** 2).unsqueeze(1) * (tr_pred - tr_target)
+        x0_sq = torch.clamp((move_err ** 2).sum(dim=1), max=cap)
+        loss = loss + x0_lambda * (x0_sq * gate).mean()
+
+    clash_lambda = float(getattr(model, "_clash_lambda", 0.0))
+    if clash_lambda > 0.0:
+        pen = _clash_penalty(batch, tr_pred, tr_sig, device,
+                             cutoff=float(getattr(model, "_clash_cutoff", 3.5)))
+        # setdefault, NOT `if "clash" in _norm_out`. The caller builds
+        # {"tr","rot","tor_bb","tor_sc"} with no clash key, so the membership test was always
+        # False and this logging never ran once -- a silent no-op of exactly the kind that has
+        # cost this project whole training runs.
+        if _norm_out is not None:
+            _norm_out.setdefault("clash", []).append(float(pen))
+        loss = loss + clash_lambda * pen
+
+    return loss
+
+
+
+def _silence_library_spam():
+    """Suppress per-sample RDKit/MDAnalysis/torch deprecation chatter.
+
+    These fire once PER SAMPLE, so at 38,407 samples x 850 epochs they dominate the
+    log entirely (measured: 1.2 GB in a single day, almost all of it this noise).
+    Only known-benign categories are filtered -- tracebacks, CUDA errors, load/loss
+    failure counts and the Epoch lines are deliberately left alone.
+    """
+    import warnings as _w
+    _w.filterwarnings("ignore", message=".*torch.cross without specifying the dim.*")
+    _w.filterwarnings("ignore", message=".*CRYST1 record.*")
+    _w.filterwarnings("ignore", category=DeprecationWarning)
+    try:
+        from rdkit import RDLogger
+        RDLogger.DisableLog("rdApp.*")
+    except Exception:
+        pass
+
+
+def _prefetch_iter(dataset, indices, depth, workers=1):
+    """Yield (idx, data, load_exc) in EXACTLY the order of `indices`.
+
+    Why: the training loop is `for idx in indices: dataset.get(idx)` -- fully
+    serial. Graph loading is single-threaded disk-read + deserialize, so on a
+    20-core box only ~1.2 cores are busy and the GPU idles ~46% of the time
+    waiting between samples (measured: GPU oscillating 32-75%, mean ~54%).
+
+    A single producer thread runs `dataset.get()` ahead of the consumer through a
+    bounded queue, overlapping that I/O with GPU compute. Order is preserved
+    (one producer + FIFO), exceptions are forwarded rather than raised so load
+    failures are still counted identically, and the queue is bounded so at most
+    `depth` graphs are resident -- this box has already been driven to a
+    swap-exhausted OOM once by holding too many graphs at once.
+
+    depth <= 0 falls back to the original serial path, bit-identical.
+    """
+    if depth <= 0:
+        for idx in indices:
+            try:
+                yield idx, dataset.get(idx), None
+            except Exception as exc:                      # noqa: BLE001
+                yield idx, None, exc
+        return
+
+    if workers > 1:
+        # Multi-worker loading. With --batch-size B a SINGLE producer must fetch B
+        # graphs serially per optimizer step, so throughput is capped at one core's
+        # rate no matter how deep the queue is -- measured on dgx as 111% CPU (1 core
+        # of 20) with the GPU dipping to 36% SM. A pool loads several graphs at once.
+        # Order is still exact: futures are submitted in index order and consumed in
+        # index order, so the consumer sees the same sequence as the serial path.
+        from concurrent.futures import ThreadPoolExecutor
+        from collections import deque
+
+        def _fetch(_idx):
+            try:
+                return _idx, dataset.get(_idx), None
+            except Exception as exc:                      # noqa: BLE001
+                return _idx, None, exc
+
+        inflight = deque()
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            it = iter(indices)
+            for _idx in it:
+                inflight.append(pool.submit(_fetch, _idx))
+                if len(inflight) >= depth:
+                    break
+            for _idx in it:
+                yield inflight.popleft().result()          # strict FIFO => order kept
+                inflight.append(pool.submit(_fetch, _idx))
+            while inflight:
+                yield inflight.popleft().result()
+        return
+
+    import queue as _queue
+    import threading as _threading
+
+    q = _queue.Queue(maxsize=depth)
+    _DONE = object()
+
+    def _producer():
+        for _idx in indices:
+            try:
+                q.put((_idx, dataset.get(_idx), None))
+            except Exception as exc:                      # noqa: BLE001
+                q.put((_idx, None, exc))
+        q.put(_DONE)
+
+    t = _threading.Thread(target=_producer, daemon=True)
+    t.start()
+    while True:
+        item = q.get()
+        if item is _DONE:
+            break
+        yield item
+
 
 def train_epoch(model, dataset, indices, transform, optimizer, device,
                 grad_accum, ema=None, grad_clip_norm=1.0,
@@ -1286,56 +1582,124 @@ def train_epoch(model, dataset, indices, transform, optimizer, device,
     n_ok = 0
     n_load_fail = 0
     n_loss_fail = 0
+    n_step_skipped = 0
     _first_load_exc = None   # type: Optional[Exception]
     _first_loss_exc = None   # type: Optional[Exception]
+    _first_step_exc = None   # type: Optional[Exception]
     optimizer.zero_grad()
+
+    def _safe_clip_and_step():
+        """Guard the grad-clip/optimizer-step/EMA-update sequence -- unlike the
+        per-sample loss computation above, this ran completely unguarded and was
+        the actual site of a CUDA 'device-side assert triggered' crash (confirmed
+        via CUDA_LAUNCH_BLOCKING=1 -- the fault still surfaced here, not inside the
+        per-sample try/except, ruling out a backward-pass origin). Root cause:
+        NaN/Inf gradients (this codebase's own cliffv2 postmortem already documents
+        the x0-lambda COM term producing exactly this kind of numerical blowup) fed
+        into clip_grad_norm_/optimizer.step() untested. Skip the update instead of
+        crashing the whole process on one bad accumulation cycle.
+        Returns True if the step was applied, False if skipped.
+        """
+        nonlocal n_step_skipped, _first_step_exc
+        trainable = [p for p in model.parameters() if p.requires_grad]
+        if any(p.grad is not None and not torch.isfinite(p.grad).all() for p in trainable):
+            n_step_skipped += 1
+            if _first_step_exc is None:
+                _first_step_exc = RuntimeError("non-finite gradient (NaN/Inf) before clip/step")
+            optimizer.zero_grad()
+            return False
+        try:
+            torch.nn.utils.clip_grad_norm_(trainable, grad_clip_norm)
+            optimizer.step()
+            optimizer.zero_grad()
+            if ema is not None:
+                ema.update(model.parameters())
+            return True
+        except Exception as exc:
+            n_step_skipped += 1
+            if _first_step_exc is None:
+                _first_step_exc = exc
+            optimizer.zero_grad()
+            return False
+
+    # Batching buffers (used only when _TRAIN_BATCH > 1). Reset every epoch so a
+    # partial batch never leaks across epoch boundaries.
+    _pending, _pending_idx = [], []
 
     # Score-norm accumulator — populated by compute_loss via _norm_out
     _norms = {"tr": [], "rot": [], "tor_bb": [], "tor_sc": []}
 
-    for step, idx in enumerate(indices):
-        try:
-            data = dataset.get(idx)
-        except Exception as exc:
+    for step, (idx, data, _load_exc) in enumerate(
+            _prefetch_iter(dataset, indices, _PREFETCH_DEPTH, _PREFETCH_WORKERS)):
+        if _load_exc is not None:
             n_load_fail += 1
             if _first_load_exc is None:
-                _first_load_exc = exc
+                _first_load_exc = _load_exc
             continue
 
+        # TRUE batching: hold samples until we have _TRAIN_BATCH of them, then run ONE
+        # forward over the batch. _TRAIN_BATCH=1 reproduces the original single-sample
+        # path exactly. >1 matches RAPiDock's own `batch_size: 16`, which also makes
+        # BatchNorm see 16 graphs instead of 1 (a fidelity fix, not just speed).
+        if _TRAIN_BATCH > 1:
+            _pending.append(data)
+            _pending_idx.append(idx)
+            _is_last = (step == len(indices) - 1)
+            if len(_pending) < _TRAIN_BATCH and not _is_last:
+                continue
+            _batch_items, _batch_idxs = _pending, _pending_idx
+            _pending, _pending_idx = [], []
+        else:
+            _batch_items, _batch_idxs = [data], [idx]
+
         try:
-            loss = compute_loss(model, data, transform, device, _norm_out=_norms)
+            if len(_batch_items) > 1:
+                loss = compute_loss_batched(model, _batch_items, transform, device,
+                                            _norm_out=_norms)
+            else:
+                loss = compute_loss(model, _batch_items[0], transform, device,
+                                    _norm_out=_norms)
             # Add weak pretrained-weight L2 regularization if configured
             if pretrained_ref and reg_lambda > 0.0:
                 reg = compute_pretrained_reg_loss(model, pretrained_ref, reg_lambda)
                 loss = loss + reg
             scaled = loss / grad_accum
             scaled.backward()
-            total_loss += loss.item()
-            n_ok += 1
+            # loss.item() only syncs the FORWARD value -- it does not wait for the
+            # backward pass's kernels (queued on the same stream) to finish. A CUDA
+            # device-side assert triggered during backward stays queued/unchecked past
+            # this point and only surfaces later at the next unrelated sync (e.g.
+            # optimizer.step()'s internal stream-capture check), crashing the whole
+            # process instead of being caught here like every other per-sample failure.
+            # Force the sync now so backward-pass CUDA errors land inside this guarded
+            # try/except and get skipped-and-counted instead of killing the run.
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+            total_loss += loss.item() * len(_batch_items)
+            n_ok += len(_batch_items)
         except Exception as exc:
-            n_loss_fail += 1
+            n_loss_fail += len(_batch_items)
             if _first_loss_exc is None:
                 _first_loss_exc = exc
+                # Identify the offending complex -- a bare exception message alone
+                # (e.g. generic async-reported "device-side assert triggered") gives
+                # no way to trace a poisoned-CUDA-context crash back to the specific
+                # sample that caused it.
+                try:
+                    _cname = ",".join(str(dataset.complex_names[_i]) for _i in _batch_idxs)
+                except Exception:
+                    _cname = f"<idx={_batch_idxs}>"
+                idx = _batch_idxs[0]
+                print(f"  [train] FIRST loss failure at complex={_cname} idx={idx}: "
+                      f"{type(exc).__name__}: {exc}", flush=True)
             optimizer.zero_grad()
             continue
 
         if (step + 1) % grad_accum == 0:
-            torch.nn.utils.clip_grad_norm_(
-                [p for p in model.parameters() if p.requires_grad], grad_clip_norm
-            )
-            optimizer.step()
-            optimizer.zero_grad()
-            if ema is not None:
-                ema.update(model.parameters())
+            _safe_clip_and_step()
 
     # Flush remaining gradients
-    torch.nn.utils.clip_grad_norm_(
-        [p for p in model.parameters() if p.requires_grad], grad_clip_norm
-    )
-    optimizer.step()
-    optimizer.zero_grad()
-    if ema is not None:
-        ema.update(model.parameters())
+    _safe_clip_and_step()
 
     # Always report diagnostics — failures must be visible
     n_total = len(indices)
@@ -1345,6 +1709,9 @@ def train_epoch(model, dataset, indices, transform, optimizer, device,
     if n_loss_fail > 0:
         print(f"  [train] loss failures: {n_loss_fail}/{n_total} "
               f"(first: {type(_first_loss_exc).__name__}: {_first_loss_exc})")
+    if n_step_skipped > 0:
+        print(f"  [train] optimizer steps skipped (non-finite grad or clip/step error): "
+              f"{n_step_skipped} (first: {type(_first_step_exc).__name__}: {_first_step_exc})")
     if n_ok == 0:
         print(f"  [train] *** CRITICAL: 0/{n_total} samples produced a gradient — "
               f"check load/loss failures above ***")
@@ -1372,6 +1739,12 @@ def train_epoch(model, dataset, indices, transform, optimizer, device,
           f"rot={norm_summary['rot_mean']:.3f}(var={norm_summary['rot_var']:.3f})  "
           f"tor_bb={norm_summary['tor_bb_mean']:.3f}(max {norm_summary['tor_bb_max']:.1f})  "
           f"tor_sc={norm_summary['tor_sc_mean']:.3f}")
+    # Surface the clash term per epoch when it is on. Without this it contributes to the loss
+    # invisibly, and a term that silently does nothing looks identical to a term that works.
+    if _norms.get("clash"):
+        _c = _norms["clash"]
+        print(f"  [clash]       mean={sum(_c) / len(_c):.4f}  max={max(_c):.4f}  "
+              f"nonzero={sum(1 for x in _c if x > 0)}/{len(_c)} batches")
 
     return total_loss / max(n_ok, 1), n_ok, n_total, norm_summary
 
@@ -2602,6 +2975,14 @@ def save_checkpoint(model, optimizer, epoch, loss, path, ema=None, patterns=None
             getattr(_encoder, "tr_adapter_cap_length_scale", 0.0))
         payload["tr_adapter_zero_below_sigma"] = float(
             getattr(_encoder, "tr_adapter_zero_below_sigma", 0.0))
+    if getattr(_encoder, "use_cross_adapter", False):
+        payload["use_cross_adapter"] = True
+        payload["cross_adapter_length_threshold"] = float(
+            getattr(_encoder, "cross_adapter_length_threshold", 13.0))
+    if getattr(_encoder, "use_tor_bb_adapter", False):
+        payload["use_tor_bb_adapter"] = True
+        payload["tor_bb_adapter_length_threshold"] = float(
+            getattr(_encoder, "tor_bb_adapter_length_threshold", 13.0))
     if patterns:
         payload["finetuned_heads"] = {
             k: v for k, v in model.state_dict().items()
@@ -2621,8 +3002,52 @@ def main():
     parser = argparse.ArgumentParser(description="Phase-aware fine-tuning for RAPiDock")
     parser.add_argument("--train-csv", required=True)
     parser.add_argument("--val-csv", default=None)
-    parser.add_argument("--checkpoint", required=True,
-                        help="Pre-trained .pt checkpoint to start from")
+    parser.add_argument("--checkpoint", default=None,
+                        help="Pre-trained .pt checkpoint to start from "
+                             "(not required with --from-scratch)")
+    parser.add_argument("--crystal-target", action="store_true",
+                        help="REQUIRED for meaningful training. Use the CRYSTAL pose as the "
+                             "diffusion clean pose (upstream's get_ori_peptide_feature_mda "
+                             "match=True path). Without it, training reuses the INFERENCE dataset, "
+                             "whose peptide is an idealized strand built from the sequence and "
+                             "sitting a median ~50A from the real pose -- every run before Sep 12 "
+                             "2026 optimised that wrong target. Uses a separate graph cache tag, "
+                             "so ~20k graphs rebuild on first use.")
+    parser.add_argument("--prefetch-workers", type=int, default=1,
+                        help="Threads loading graphs concurrently. 1 (default) = single "
+                             "producer. With --batch-size B one producer must fetch B graphs "
+                             "serially per step, capping throughput at one core; raise this "
+                             "when the box has idle cores and the GPU is starved. Order is "
+                             "preserved exactly regardless of worker count.")
+    parser.add_argument("--batch-size", type=int, default=1,
+                        help="Graphs per forward pass. 1 (default) = the original "
+                             "one-graph-per-forward path. RAPiDock trains with "
+                             "batch_size 16; --grad-accum 16 is NOT equivalent because it "
+                             "runs 16 sequential single-graph passes, which both wastes the "
+                             "GPU and gives BatchNorm single-graph statistics instead of "
+                             "pooling over 16. Effective batch = --batch-size x --grad-accum.")
+    parser.add_argument("--prefetch-depth", type=int, default=0,
+                        help="Overlap graph loading with GPU compute using a background "
+                             "thread and a bounded queue of this depth. 0 (default) keeps "
+                             "the original serial path bit-identical. ~6 is a good value: "
+                             "the loop is single-threaded disk-read+deserialize, leaving the "
+                             "GPU idle ~46%% of the time. Keep it small -- graphs are large "
+                             "and this box has OOMed from holding too many at once.")
+    parser.add_argument("--plateau-patience", type=int, default=8,
+                        help="ReduceLROnPlateau patience. Default 8 suits short finetunes. "
+                             "RAPiDock's own from-scratch config uses scheduler_patience=50 "
+                             "-- with noisy val loss a small patience collapses the LR to the "
+                             "1e-6 floor within ~80 epochs and the rest of the run learns "
+                             "nothing. Use 50 for --from-scratch.")
+    parser.add_argument("--no-source-weights", action="store_true",
+                        help="Disable per-source oversampling. Required when the training CSV is "
+                             "already balanced (build_balanced_pool.py), otherwise source weights "
+                             "re-skew the pool along an axis orthogonal to the intended balance.")
+    parser.add_argument("--from-scratch", action="store_true",
+                        help="Train from RANDOM INIT with no pretrained weights. Use "
+                             "RAPiDock's own config: --lr 1e-3 --lr-schedule plateau "
+                             "--weight-decay 0 --ema-decay 0.999 --n-epochs 850. Select "
+                             "the final model by real docking RMSD, NOT val loss.")
     parser.add_argument(
         "--model-params",
         default=str(_HERE / "train_models" / "CGTensorProductEquivariantModel" / "model_parameters.yml"),
@@ -2815,6 +3240,12 @@ def main():
                         help="M2 fix: floor tr_sigma before 1/sigma score scaling to cap "
                              "low-sigma amplification of the translation head. 0.0 = off. "
                              "(Weak lever: tr_sigma_min is already 0.1 in the schedule.)")
+    parser.add_argument("--freeze-gate-layers", action="store_true",
+                        help="Freeze tr_final_layer/rot_final_layer (the sigma-conditioned "
+                             "magnitude-gating subnetworks in diffusion.py) at pretrained values. "
+                             "Evidence-backed fix for the translation-placement collapse under "
+                             "full-param unfreeze -- see CLAUDE.md-adjacent Sep 2026 CPU "
+                             "weight-space diagnostics: x0-lambda never touches this layer.")
     # --- ROOT-CAUSE FIX: freeze ALL BatchNorm running stats (see freeze_all_bn_stats) ---
     parser.add_argument("--freeze-bn-stats", action="store_true",
                         help="PRIMARY collapse fix. Freeze the running_mean/running_var of ALL "
@@ -2825,6 +3256,17 @@ def main():
                              "protects BN whose params are frozen), this works under full-param "
                              "unfreeze. Affine gamma/beta still train. STRONGLY RECOMMENDED.")
     # --- x0 COM PLACEMENT term (M1 lever; DiffPepDock-style, adapted to RAPiDock) --------
+    parser.add_argument("--clash-lambda", type=float, default=0.0,
+                        help="Weight on an intermolecular steric penalty applied to the "
+                             "TRANSLATION-reconstructed clean pose. Targets a measured defect: "
+                             "median 0.84 A peptide-receptor contact with 91%% of poses under "
+                             "2.0 A on our own benchmark. Nothing in the score-matching loss "
+                             "forbids burying the peptide in the receptor. 0.0 = off.")
+    parser.add_argument("--clash-cutoff", type=float, default=3.5,
+                        help="Distance (A) below which a peptide-atom/receptor-RESIDUE pair is "
+                             "penalised. Receptor nodes are per-residue, so this is a CA-to-atom "
+                             "distance and 3.5 is already overlap at that resolution -- do not "
+                             "set it to the ~2.0 A you would use for an all-atom check.")
     parser.add_argument("--x0-lambda", type=float, default=0.0,
                         help="Weight of the direct x0 COM-placement term (Angstrom^2 space). "
                              "0.0 = off. Rewards native COM placement directly, which "
@@ -2923,6 +3365,46 @@ def main():
                              "flag instead removes the correction's ability to contribute at all "
                              "below the threshold (hard cutoff, no taper) so it can't compound "
                              "during late refinement. 0.0 (default) = disabled.")
+    parser.add_argument("--use-cross-adapter", action="store_true",
+                        help="Aug 2026 (post V6-collapse forensics): zero-init CGTPEL adapter at "
+                             "the FINAL cross-interaction layer, gated by peptide length (hard 0/1, "
+                             "not learned). Unlike directly fine-tuning cross_convs (V6 -- shared "
+                             "weights, no length isolation, collapsed short/medium from ~1.5A to "
+                             "~25A while ALSO making very_long worse), this module's contribution "
+                             "and gradient are exactly zero below --cross-adapter-length-threshold, "
+                             "so short/medium are architecturally unreachable. Unlike tr_adapter_conv "
+                             "(translation-only, reads only the already-baked pep_node_attr), this "
+                             "sees the raw cross-interaction edges and feeds pep_node_attr itself, "
+                             "so its correction reaches every downstream score head. Combine with "
+                             "--adapter-only (freezes everything except this + tr_adapter_conv if "
+                             "also enabled).")
+    parser.add_argument("--cross-adapter-length-threshold", type=float, default=13.0,
+                        help="Peptide length (residues) at/above which --use-cross-adapter "
+                             "activates (default 13, the long/very_long bucket boundary).")
+    parser.add_argument("--use-tor-bb-adapter", action="store_true",
+                        help="Aug 2026 (post placement-vs-conformation forensics, see "
+                             "project_placement_conformation_split_aug21 memory): zero-init CGTPEL "
+                             "adapter on the BACKBONE TORSION head (tor_pred_backbone), gated by "
+                             "peptide length (hard 0/1, not learned), same pattern as "
+                             "--use-cross-adapter. Direct-vs-Kabsch RMSD decomposition on real "
+                             "long/very_long complexes found ~75%% of total error is CONFORMATION "
+                             "(wrong internal fold), not placement (~25%%), with per-residue error "
+                             "concentrated at the chain termini -- the signature of backbone-torsion "
+                             "error compounding along the kinematic chain. cross_adapter (placement- "
+                             "focused) left fold quality unchanged and ACTIVELY REGRESSED placement, "
+                             "so this targets the confirmed-dominant error source instead of another "
+                             "placement-adjacent one. Combine with --adapter-only.")
+    parser.add_argument("--tor-bb-adapter-length-threshold", type=float, default=13.0,
+                        help="Peptide length (residues) at/above which --use-tor-bb-adapter "
+                             "activates (default 13, the long/very_long bucket boundary).")
+    parser.add_argument("--isolate-new-adapter", action="store_true",
+                        help="With --adapter-only, refreeze tr_adapter_conv (which "
+                             "--adapter-only otherwise trains unconditionally) so ONLY the "
+                             "adapter(s) requested via --use-tor-bb-adapter/--use-cross-adapter "
+                             "this run stay trainable. Use this for a clean single-variable "
+                             "test; without it, tr_adapter trains simultaneously and any effect "
+                             "can't be cleanly attributed (see the cross_adapter_v1 confound "
+                             "this flag was added to avoid repeating).")
     parser.add_argument("--save-every", type=int, default=5)
     parser.add_argument("--ppii-weight", type=int, default=4,
                         help="Oversample factor for ppii_enriched entries")
@@ -2996,6 +3478,19 @@ def main():
             getattr(args, "tr_adapter_cap_length_scale", 0.0))
         model_args.tr_adapter_zero_below_sigma = float(
             getattr(args, "tr_adapter_zero_below_sigma", 0.0))
+    # use_cross_adapter is independent of --adapter-only (it's an architecture flag, not a
+    # training-freeze mode) so it can be combined with --adapter-only WITHOUT also building
+    # tr_adapter_conv, to cleanly isolate this mechanism from the earlier one.
+    model_args.use_cross_adapter = bool(getattr(args, "use_cross_adapter", False))
+    if model_args.use_cross_adapter:
+        model_args.cross_adapter_length_threshold = float(
+            getattr(args, "cross_adapter_length_threshold", 13.0))
+    # Same independence rationale as use_cross_adapter above -- separate architecture flag,
+    # combinable with --adapter-only and/or --use-cross-adapter without entangling mechanisms.
+    model_args.use_tor_bb_adapter = bool(getattr(args, "use_tor_bb_adapter", False))
+    if model_args.use_tor_bb_adapter:
+        model_args.tor_bb_adapter_length_threshold = float(
+            getattr(args, "tor_bb_adapter_length_threshold", 13.0))
 
     # Validate: at most one experiment mode flag
     active_modes = [m for m in [args.v3_mode, args.v4_mode, args.v5_mode,
@@ -3026,11 +3521,59 @@ def main():
                 else "V3C" if args.v3c_mode else "V4C" if args.v4c_mode
                 else "V5C" if args.v5c_mode else "V6" if args.v6_mode
                 else "INJECT" if args.inject_mode else "standard")
-    print(f"\nLoading checkpoint: {args.checkpoint}")
+    _silence_library_spam()
+    if getattr(args, "crystal_target", False):
+        os.environ["RAPIDOCK_CRYSTAL_TARGET"] = "1"
+    global _PREFETCH_DEPTH, _TRAIN_BATCH
+    _PREFETCH_DEPTH = int(getattr(args, "prefetch_depth", 0) or 0)
+    _TRAIN_BATCH = max(1, int(getattr(args, "batch_size", 1) or 1))
+    global _PREFETCH_WORKERS
+    _PREFETCH_WORKERS = max(1, int(getattr(args, "prefetch_workers", 1) or 1))
+    if _PREFETCH_WORKERS > 1:
+        print(f"[prefetch] {_PREFETCH_WORKERS} loader threads")
+    if _TRAIN_BATCH > 1:
+        print(f"[batch] TRUE batching ENABLED: {_TRAIN_BATCH} graphs/forward "
+              f"(effective batch = {_TRAIN_BATCH} x grad_accum {args.grad_accum})")
+    if _PREFETCH_DEPTH > 0:
+        print(f"[prefetch] graph prefetch ENABLED (depth={_PREFETCH_DEPTH})")
+    if getattr(args, "from_scratch", False):
+        print("\nFROM SCRATCH: random init (no checkpoint)")
+    else:
+        if not args.checkpoint:
+            parser.error("--checkpoint is required unless --from-scratch is given")
+        print(f"\nLoading checkpoint: {args.checkpoint}")
     print(f"Experiment mode: {mode_tag}")
 
+    # FROM-SCRATCH: random init, no pretrained weights at all.
+    #
+    # This is categorically NOT another finetune. Every prior collapse in this project
+    # (v6, ArmA, 15%-heads, fullparam x2) was a FINETUNE, where the failure modes are
+    # catastrophic forgetting and magnitude-gate collapse away from an already-calibrated
+    # pretrained state. Neither exists here: there is no pretrained representation to
+    # forget and no calibrated gate to collapse from.
+    #
+    # Hyperparameters come from RAPiDock's own shipped training config
+    # (train_models/.../model_parameters.yml): lr=1e-3, plateau scheduler (patience 50),
+    # weight_decay=0, ema=0.999, 850 epochs, equal 0.25 loss weights. NOTE their
+    # checkpoint reports epoch=199, i.e. they ran 850 but SHIPPED the epoch that won on
+    # `valinf_rmsds_backbone_lt2` (real docking success), not the last one and not the
+    # best val loss. Select the same way -- val loss is anti-correlated with docking
+    # quality here (measured Sep-09).
+    if getattr(args, "from_scratch", False):
+        _frozen_bn_snapshot = {}
+        model = get_model(model_args, no_parallel=True).to(device)
+        for param in model.parameters():
+            param.requires_grad = True
+        n_par = sum(p.numel() for p in model.parameters())
+        print(f"[from-scratch] RANDOM INIT — no checkpoint loaded. "
+              f"All {n_par:,} params trainable.")
+        if args.freeze_bn_stats:
+            # Pinning BN to "pretrained" stats is meaningless with random init and would
+            # freeze garbage statistics for the whole run.
+            print("[from-scratch] IGNORING --freeze-bn-stats (no pretrained stats exist)")
+            args.freeze_bn_stats = False
     # INJECT mode uses its own loader (strict=False + scale-down + zero-init)
-    if args.inject_mode:
+    elif args.inject_mode:
         model = load_model_for_inject(model_args, args.checkpoint, device)
         # Freeze all params, then selectively unfreeze based on inject patterns
         for param in model.parameters():
@@ -3082,14 +3625,43 @@ def main():
         for _p in model.parameters():
             _p.requires_grad = False
         _n_ad = 0
+        _adapter_names_hit = set()
         for _name, _p in model.named_parameters():
-            if "tr_adapter" in _name:
+            if "tr_adapter" in _name or "cross_adapter" in _name or "tor_bb_adapter" in _name:
                 _p.requires_grad = True
                 _n_ad += _p.numel()
+                _hit = ("tr_adapter" if "tr_adapter" in _name
+                        else "cross_adapter" if "cross_adapter" in _name else "tor_bb_adapter")
+                _adapter_names_hit.add(_hit)
+        # Isolation fix (Aug 2026): --adapter-only unconditionally builds+unfreezes
+        # tr_adapter_conv (line ~3029) regardless of which OTHER adapter flags are set. This
+        # silently confounded the cross_adapter_v1 run (--adapter-only --use-cross-adapter):
+        # tr_adapter_conv was training simultaneously, and tr_adapter is separately documented
+        # (project_tr_adapter_jul30) as able to learn a real placement correction that overshoots
+        # at higher LR — so that run's placement regression cannot be cleanly attributed to
+        # cross_adapter alone. --isolate-new-adapter refreezes tr_adapter_conv (and, if present,
+        # cross_adapter_conv) right after the auto-unfreeze so ONLY the adapter(s) explicitly
+        # requested via --use-tor-bb-adapter/--use-cross-adapter this run stay trainable —
+        # a clean single-variable test, not a repeat of that confound.
+        if getattr(args, "isolate_new_adapter", False):
+            _refrozen = 0
+            _new_adapter_flags = []
+            if getattr(args, "use_tor_bb_adapter", False):
+                _new_adapter_flags.append("tor_bb_adapter")
+            if getattr(args, "use_cross_adapter", False):
+                _new_adapter_flags.append("cross_adapter")
+            for _name, _p in model.named_parameters():
+                if "tr_adapter" in _name and not any(f in _name for f in _new_adapter_flags):
+                    _p.requires_grad = False
+                    _refrozen += _p.numel()
+            _n_ad -= _refrozen
+            _adapter_names_hit.discard("tr_adapter")
+            print(f"[adapter-only isolate] refroze tr_adapter_conv ({_refrozen:,} params) — "
+                  f"only {'+'.join(sorted(_adapter_names_hit))} stays trainable this run", flush=True)
         _n_tot = sum(p.numel() for p in model.parameters())
-        print(f"[adapter-only] trainable = {_n_ad:,} params (tr_adapter_conv only) "
+        print(f"[adapter-only] trainable = {_n_ad:,} params ({'+'.join(sorted(_adapter_names_hit)) or 'none'}) "
               f"of {_n_tot:,} total; ALL pretrained base frozen", flush=True)
-        assert _n_ad > 0, "adapter-only requested but no tr_adapter params found — flag not wired?"
+        assert _n_ad > 0, "adapter-only requested but no adapter params found — flag not wired?"
 
     # --- --unfreeze-extra: unfreeze additional params by name substring (composes with any mode) ---
     # Targeted capacity boost (~10% recipe): adapter-only gives translation-DIRECTION only; adding
@@ -3111,6 +3683,11 @@ def main():
 
     # --- Wire ROOT-CAUSE-FIX + x0 flags onto the model (read by train_epoch/compute_loss) ---
     model._freeze_all_bn = bool(getattr(args, "freeze_bn_stats", False))
+    model._clash_lambda = float(getattr(args, "clash_lambda", 0.0))
+    model._clash_cutoff = float(getattr(args, "clash_cutoff", 3.5))
+    if model._clash_lambda > 0.0:
+        print(f"[clash-penalty] lambda={model._clash_lambda} cutoff={model._clash_cutoff} A "
+              f"on the translation-reconstructed clean pose (peptide atoms vs receptor residues)")
     model._x0_lambda   = float(getattr(args, "x0_lambda", 0.0))
     model._x0_sigma_hi = float(getattr(args, "x0_sigma_hi", 12.0))
     model._x0_sigma_lo = float(getattr(args, "x0_sigma_lo", 0.0))
@@ -3124,6 +3701,22 @@ def main():
         print(f"[x0-term] COM placement term ON: lambda={model._x0_lambda} "
               f"sigma-gate=[{model._x0_sigma_lo},{model._x0_sigma_hi}] cap={model._x0_cap} A^2",
               flush=True)
+
+    # --freeze-gate-layers: freeze tr_final_layer/rot_final_layer (the small magnitude-gating
+    # subnetworks in diffusion.py that scale tr_pred/rot_pred by sigma-conditioned output).
+    # CPU weight-space diagnostics (Sep 2026) showed these are the actual layers whose collapse
+    # drives the translation-placement failure under full-param unfreeze -- and that x0-lambda
+    # regularization (0.025, 0.05) never touches their weight trajectory. This freezes them at
+    # their pretrained values instead of trying to regularize their training dynamics.
+    if bool(getattr(args, "freeze_gate_layers", False)):
+        _gate_patterns = ("tr_final_layer", "rot_final_layer")
+        _n_gate = 0
+        for _name, _p in model.named_parameters():
+            if any(pat in _name for pat in _gate_patterns) and _p.requires_grad:
+                _p.requires_grad = False
+                _n_gate += _p.numel()
+        print(f"[freeze-gate-layers] {_n_gate:,} params frozen in {_gate_patterns} "
+              f"(pretrained magnitude-gating preserved).", flush=True)
 
     if args.v3_mode:
         if args.unfreeze_phase == 1:
@@ -3337,7 +3930,8 @@ def main():
             optimizer,
             base_lr=args.lr,
             warmup_epochs=args.warmup_epochs,
-            plateau_kwargs={"mode": "min", "patience": 8, "factor": 0.5, "min_lr": 1e-6},
+            plateau_kwargs={"mode": "min", "patience": args.plateau_patience,
+                            "factor": 0.5, "min_lr": 1e-6},
         )
         print(f"LR schedule: plateau  base={args.lr}  warmup={args.warmup_epochs}")
     transform = NoiseTransform(model_args)
@@ -3361,12 +3955,28 @@ def main():
     print(f"Training complexes loaded: {n_train}")
 
     # ── Source / Tier-weighted sampling ────────────────────────────────────
+    # Aug 2026 (full-param 350-epoch retrain, data/fullparam_train_pool.csv, 20,564 rows):
+    # measured per-source long+very_long share directly rather than guessing from name —
+    # propedia_long is 93.6% long/very_long, peppc 44.6%, vs peppcf (the dominant 13,424-row
+    # bulk) at only 6.5%. Raw pool is 56.7/26.8/10.9/5.6% short/medium/long/very_long —
+    # reproduces the SAME imbalance already diagnosed as the base model's root-cause length
+    # bias (RAPiDock's own pretraining was ~77% short/medium, see
+    # reference_rapidock_methodology_jul29 memory), so training on it unweighted would just
+    # reinforce the bias, not fix it. These weights lift effective long+very_long share from
+    # 16.5% to 27.3% (measured, not estimated) — a real, deliberate shift, but nowhere near
+    # V6's tier-oversampling (which made long/very_long the MAJORITY class and triggered
+    # catastrophic shared-weight forgetting, project_v6_phase3_broken_aug12 memory). Keeping
+    # short's raw dominance intact (still 47% effective, not eliminated) is the deliberate
+    # anti-forgetting margin V6 lacked.
     _SOURCE_WEIGHTS = {
-        "ppii_enriched":    args.ppii_weight,
-        "recent_2024_2026": 2,
-        "peppc":            1,
-        "peppcf":           1,
-        "refpepdb":         1,
+        "ppii_enriched":       args.ppii_weight,
+        "recent_2024_2026":    2,
+        "peppc":               2,
+        "peppcf":              1,
+        "refpepdb":            2,
+        "refpepdb_recentset":  2,
+        "propedia":            1,
+        "propedia_long":       4,
     }
     df_train = pd.read_csv(args.train_csv)
 
@@ -3387,13 +3997,21 @@ def main():
         sources = (df_train["source"].tolist()
                    if "source" in df_train.columns
                    else ["refpepdb"] * n_train)
+        # A pre-balanced pool (build_balanced_pool.py) already encodes its intended
+        # distribution via per-cell repetition. Applying source weights on top re-skews
+        # it along an ORTHOGONAL axis (source), silently undoing the SS x length balance
+        # -- e.g. propedia_long x4 quietly re-inflates one source after the cells were
+        # deliberately equalised. So allow turning it off.
+        _sw = ({} if getattr(args, "no_source_weights", False) else _SOURCE_WEIGHTS)
+        if getattr(args, "no_source_weights", False):
+            print("[balance] source weighting DISABLED — pool is pre-balanced")
         weighted_train_indices = []
         for i, src in enumerate(sources):
-            w = _SOURCE_WEIGHTS.get(str(src).strip(), 1)
+            w = _sw.get(str(src).strip(), 1)
             weighted_train_indices.extend([i] * w)
         src_counts = {}  # type: dict
         for src in sources:
-            src_counts[src] = src_counts.get(src, 0) + _SOURCE_WEIGHTS.get(str(src).strip(), 1)
+            src_counts[src] = src_counts.get(src, 0) + _sw.get(str(src).strip(), 1)
         print(f"Weighted epoch size: {len(weighted_train_indices)}  breakdown: {src_counts}")
 
     # ── Validation dataset ──────────────────────────────────────────────────
@@ -3636,12 +4254,23 @@ def main():
         val_stats  = {}   # type: dict
         if val_ds is not None:
             val_indices = list(range(len(val_ds)))
-            ema.store(model.parameters())
-            ema.copy_to(model.parameters())
-            val_loss = val_epoch(model, val_ds, val_indices, transform, device,
-                                 _stats_out=val_stats,
-                                 prev_tr_norm_max=prev_val_tr_norm_max)
-            ema.restore(model.parameters())
+            # try/finally: ema.restore() MUST run even if store/copy_to/val_epoch raises --
+            # skipping it leaves the model holding EMA weights instead of the real
+            # training weights, silently corrupting every epoch after a crash here.
+            # (Found Sep 2026: dgx hit an unguarded "illegal memory access" at
+            # ema.store() after 25+ clean epochs -- proves this crash class isn't
+            # rtx6000-specific, just data/GPU-numerics dependent.)
+            try:
+                ema.store(model.parameters())
+                ema.copy_to(model.parameters())
+                val_loss = val_epoch(model, val_ds, val_indices, transform, device,
+                                     _stats_out=val_stats,
+                                     prev_tr_norm_max=prev_val_tr_norm_max)
+            except Exception as exc:
+                print(f"  [val] EMA-swap/validation FAILED this epoch: "
+                      f"{type(exc).__name__}: {exc}", flush=True)
+            finally:
+                ema.restore(model.parameters())
             _cur_val_tr_norm_max = val_stats.get("tr_norm_max", None)
 
             # ── Adaptive spike LR detection (v3b/v4n/v5n/v3c mode) ──────────
@@ -3776,13 +4405,18 @@ def main():
         # ── V6 stratified validation + guard rail ────────────────────────────
         _v6_bucket_losses = {}   # type: dict  # bucket → trimmed-mean loss
         if args.v6_mode and val_ds is not None and _val_bucket_indices:
-            ema.store(model.parameters())
-            ema.copy_to(model.parameters())
-            for bucket, bidxs in _val_bucket_indices.items():
-                if bidxs:
-                    bl = val_epoch(model, val_ds, bidxs, transform, device)
-                    _v6_bucket_losses[bucket] = bl
-            ema.restore(model.parameters())
+            # Same try/finally rationale as the main validation block above.
+            try:
+                ema.store(model.parameters())
+                ema.copy_to(model.parameters())
+                for bucket, bidxs in _val_bucket_indices.items():
+                    if bidxs:
+                        bl = val_epoch(model, val_ds, bidxs, transform, device)
+                        _v6_bucket_losses[bucket] = bl
+            except Exception as exc:
+                print(f"  [V6 val-buckets] FAILED: {type(exc).__name__}: {exc}", flush=True)
+            finally:
+                ema.restore(model.parameters())
             _bstr = "  ".join("%s=%.3f" % (b, _v6_bucket_losses.get(b, float("nan")))
                               for b in ["short", "medium", "long", "very_long"])
             print(f"  [V6 val-buckets] {_bstr}")
