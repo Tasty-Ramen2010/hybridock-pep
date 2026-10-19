@@ -308,13 +308,15 @@ for the full flag list. An eighth, **`serve`**, opens all of it as a [website](#
 ```bash
 hybridock-pep dock \
     --peptide ETFSDLWKLLPE \
-    --receptor receptors/mdm2.pdb \
-    --site 25.20 -25.61 -7.97 \   # binding-site center (x y z, Å)
-    --box 30 \                    # search box edge (Å)
-    --n-samples 100 \             # RAPiDock passes (default 100)
-    --refine-topk 10 \            # MM-GBSA on the top-10 cluster reps
+    --receptor data/pdbs/1YCR_mdm2.pdb \
+    --site 25.20 -25.61 -7.97 \
+    --box 30 \
+    --n-samples 100 \
+    --refine-topk 10 \
     --output-dir runs/mdm2_p53
 ```
+
+`--site` is the binding-site center (x y z) and `--box` is the search box edge, both in Å. `--n-samples` defaults to 100.
 
 The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-relief only, AD4 is off.
 
@@ -338,13 +340,15 @@ requiring you to name one:
 ```bash
 hybridock-pep dock \
     --peptide ETFSDLWKLLPE \
-    --receptor receptors/mdm2.pdb \
+    --receptor data/pdbs/1YCR_mdm2.pdb \
     --blind \
-    --n-pocket-search 300 \   # exploratory poses across the whole receptor (default 300)
-    --n-pockets 3 \           # candidate binding sites to refine (default 3)
-    --n-per-pocket 150 \      # poses generated at each candidate site (default 150)
+    --n-pocket-search 300 \
+    --n-pockets 3 \
+    --n-per-pocket 150 \
     --output-dir runs/blind_run
 ```
+
+The three values shown are the defaults.
 
 Three stages, all automatic: (1) an exploratory pass at `--n-pocket-search` poses across the whole
 receptor using `rapidock_global.pt` (the checkpoint trained for whole-receptor, no-pocket-hint
@@ -395,7 +399,7 @@ ceiling because the same systematic bias applies to both receptors and cancels i
 
 ```bash
 hybridock-pep reproducibility \
-    --peptide ETFSDLWKLLPE --receptor receptors/mdm2.pdb \
+    --peptide ETFSDLWKLLPE --receptor data/pdbs/1YCR_mdm2.pdb \
     --site 25.20 -25.61 -7.97 --box 30 \
     --seeds 1 2 3 --n-samples 100 --output-dir runs/repro
 ```
@@ -412,7 +416,7 @@ call the crystal scorer directly:
 
 ```bash
 hybridock-pep crystal-score \
-    --receptor receptors/mdm2.pdb \
+    --receptor data/pdbs/1YCR_mdm2.pdb \
     --peptide-pdb poses/native_peptide.pdb \
     --peptide ETFSDLWKLLPE
 # → Crystal ΔG = -9.28 kcal/mol  (geometry + interaction map, crystal-tuned model)
@@ -424,7 +428,7 @@ No RAPiDock, no Vina, no MM-GBSA — it runs the geometry + interaction-map crys
 ### `prep` — pre-build a receptor PDBQT
 
 ```bash
-hybridock-pep prep --receptor receptors/mdm2.pdb --output-dir prepped/
+hybridock-pep prep --receptor data/pdbs/1YCR_mdm2.pdb --output-dir prepped/
 ```
 
 Wraps receptor preparation (meeko `mk_prepare_receptor.py`, or ADFRsuite `prepare_receptor` when present) so you can cache the receptor once and reuse it across many `dock` runs.
