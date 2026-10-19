@@ -195,10 +195,32 @@ def _warn_if_unconverged(ctx) -> float:
         import numpy as np  # noqa: PLC0415
         import openmm.unit as unit  # noqa: PLC0415
 
-        forces = ctx.getState(getForces=True).getForces().value_in_unit(
-            unit.kilojoule_per_mole / unit.nanometer
-        )
-        max_f = float(np.linalg.norm(np.asarray(forces), axis=1).max())
+        state = ctx.getState(getForces=True, getPositions=True)
+        forces = np.array(state.getForces().value_in_unit(unit.kilojoule_per_mole / unit.nanometer))
+        # With constraints=HBonds, getForces() still reports the stiff X-H bond force that the constraint cancels,
+        # so a perfectly minimised system reads ~1000+ kJ/mol/nm on every hydroxyl/amine H pair. Project it out
+        # (mass-weighted, one pass) so the guard measures real residual force. Measured on a V1/PfLDH pose: 1337
+        # reported vs 78 for the same system minimised unconstrained. Best effort: a context that cannot expose its
+        # system/positions falls back to the raw force (the conservative, possibly over-reporting, reading).
+        try:
+            system = ctx.getSystem()
+            if system.getNumConstraints():
+                pos = np.array(state.getPositions().value_in_unit(unit.nanometer))
+                inv_m = np.array([1.0 / max(system.getParticleMass(i).value_in_unit(unit.dalton), 1e-3)
+                                  for i in range(system.getNumParticles())])
+                for k in range(system.getNumConstraints()):
+                    i, j, _ = system.getConstraintParameters(k)
+                    u = pos[j] - pos[i]
+                    nu = np.linalg.norm(u)
+                    if nu < 1e-9:
+                        continue
+                    u /= nu
+                    lam = -float(u @ (forces[i] * inv_m[i] - forces[j] * inv_m[j])) / (inv_m[i] + inv_m[j])
+                    forces[i] += lam * u
+                    forces[j] -= lam * u
+        except Exception as exc:  # noqa: BLE001 - projection is optional
+            logger.debug("MM-GBSA: constraint-force projection skipped (%s)", exc)
+        max_f = float(np.linalg.norm(forces, axis=1).max())
     except Exception as exc:  # noqa: BLE001 - diagnostic only
         logger.debug("MM-GBSA: residual-force check failed (%s)", exc)
         return float("nan")

@@ -119,3 +119,70 @@ def test_guard_never_raises_on_bad_context():
 
     import math
     assert math.isnan(mmgbsa._warn_if_unconverged(Broken()))
+
+
+class _Mass:
+    def value_in_unit(self, _unit):
+        return 12.0
+
+
+class _Arr:
+    def __init__(self, a):
+        self._a = a
+
+    def value_in_unit(self, _unit):
+        return self._a
+
+
+class _ConstrainedSystem:
+    """Two particles joined by one constraint along x (0.1 nm)."""
+
+    def getNumConstraints(self):
+        return 1
+
+    def getConstraintParameters(self, _k):
+        return 0, 1, 0.1
+
+    def getNumParticles(self):
+        return 2
+
+    def getParticleMass(self, _i):
+        return _Mass()
+
+
+class _ConstrainedState:
+    def __init__(self, forces):
+        self._f = forces
+
+    def getForces(self):
+        return _Arr(self._f)
+
+    def getPositions(self):
+        return _Arr([(0.0, 0.0, 0.0), (0.1, 0.0, 0.0)])
+
+
+class _ConstrainedCtx:
+    def __init__(self, forces):
+        self._f = forces
+
+    def getState(self, **_kw):
+        return _ConstrainedState(self._f)
+
+    def getSystem(self):
+        return _ConstrainedSystem()
+
+
+def test_constraint_force_is_projected_out(caplog):
+    """The stiff X-H bond force that HBonds constraints cancel must not read as non-convergence."""
+    ctx = _ConstrainedCtx([(1000.0, 0.0, 0.0), (-1000.0, 0.0, 0.0)])     # equal and opposite along the constrained bond
+    with caplog.at_level("WARNING"):
+        max_f = mmgbsa._warn_if_unconverged(ctx)
+    assert max_f == pytest.approx(0.0, abs=1e-6)
+    assert not [r for r in caplog.records if "did not converge" in r.getMessage()]
+
+
+def test_perpendicular_force_survives_projection():
+    """A real residual force perpendicular to the constraint is untouched."""
+    ctx = _ConstrainedCtx([(1000.0, 300.0, 0.0), (-1000.0, 0.0, 0.0)])
+    assert mmgbsa._warn_if_unconverged(ctx) == pytest.approx(300.0, rel=1e-6)
+
