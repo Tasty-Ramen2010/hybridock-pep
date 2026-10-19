@@ -296,7 +296,54 @@ class CGTensorProductEquivariantModel(nn.Module):
             
         self.intra_convs = nn.ModuleList(intra_convs)
         self.cross_convs = nn.ModuleList(cross_convs)
-        
+
+        # Aug 2026 length-gated cross-interaction adapter (post V6-collapse forensics —
+        # see project_v6_phase3_broken_aug12 memory). V6 directly fine-tuned cross_convs
+        # (shared weights, used at EVERY peptide length with no isolation mechanism) on a
+        # tier-oversampled long/very_long-heavy set; the result was catastrophic, uniform
+        # collapse (12/12 worse incl. short peptides going from ~1.5A to ~25A) because
+        # retraining a shared module on a skewed distribution overwrites the
+        # representation the underrepresented population (short/medium) depended on —
+        # there was no way for the update to specialize without forgetting.
+        #
+        # This adapter fixes that by construction: a SEPARATE zero-init CGTPEL, applied
+        # ONLY at the final (richest) cross-interaction layer, whose contribution is
+        # multiplied by a per-PEPTIDE length gate (hard 0/1, not learned) before being
+        # added to pep_inter_update. For peptides below the threshold the gate is
+        # exactly 0 — not "small", not "regularized toward zero" — so short/medium
+        # gradients through this term are identically zero and the pretrained base is
+        # mathematically unreachable by this module for those samples. That is the same
+        # zero-regression guarantee tr_adapter_conv already has, but this module sees the
+        # RAW cross-interaction edges (rec_to_pep_edge_attr_, real receptor contacts) at
+        # the last layer and its output feeds pep_node_attr — which flows into every
+        # downstream score head (tr/rot/tor_bb/tor_sc) via the existing frozen final
+        # layers — not just a translation-only nudge the way tr_adapter_conv is limited
+        # to. That was the other half of the diagnosis (project_cliffv4_capfix_dead_aug11):
+        # a translation-only correction lacks the capacity to fix a systematically wrong
+        # RECEPTOR-INTERACTION read, because it only ever sees pep_node_attr after the
+        # (frozen, potentially wrong) cross_convs have already baked their conclusions in.
+        self.use_cross_adapter = getattr(args, 'use_cross_adapter', False)
+        if self.use_cross_adapter:
+            _last_irreps = irrep_seq[-1]
+            self.cross_adapter_conv = CGTPEL(
+                in_irreps=_last_irreps,
+                sh_irreps=self.sh_irreps,
+                out_irreps=_last_irreps,
+                n_edge_features=3 * ns,
+                hidden_features=3 * ns,
+                residual=False,
+                dropout=self.dropout,
+                batch_norm=self.batch_norm,
+                is_last_layer=True,
+            )
+            nn.init.zeros_(self.cross_adapter_conv.fc[-1].weight)
+            nn.init.zeros_(self.cross_adapter_conv.fc[-1].bias)
+            # Peptide length (residues) at/above which the adapter activates. Matches the
+            # long/very_long bucket boundary used throughout the benchmark (see
+            # data/benchmark_expanded.csv, scripts/build_benchmark_expanded.py).
+            self.cross_adapter_length_threshold = float(
+                getattr(args, 'cross_adapter_length_threshold', 13.0))
+
         # compute confidence score
         if self.confidence_mode:
             self.confidence_predictor = nn.Sequential(
@@ -371,16 +418,65 @@ class CGTensorProductEquivariantModel(nn.Module):
                 )
             self.tor_bb_final_layer = nn.Sequential(
                     nn.Linear(2 * ns, ns, bias=False),
-                    nn.SiLU(),
+                    # Tanh, NOT SiLU. The authors' code has used Tanh here since their
+                    # first commit, and rapidock_local.pt's torsion weights were trained
+                    # under it. Our fork carried SiLU (arrived untracked, committed in
+                    # 5610ae7 Aug-11, no rationale), so every checkpoint loaded through
+                    # this tree computed torsions with the wrong nonlinearity -- the
+                    # measured cost was long-peptide <=5A dropping 27/77 -> 9/77 for the
+                    # UNCHANGED pretrained weights (Sep-13 ftpath control).
+                    nn.Tanh(),
                     nn.Dropout(self.dropout),
                     nn.Linear(ns, 1, bias=False)
                 )
             self.tor_sc_final_layer = nn.Sequential(
                     nn.Linear(2 * ns, ns, bias=False),
-                    nn.SiLU(),
+                    # Tanh, NOT SiLU -- see tor_bb_final_layer above.
+                    nn.Tanh(),
                     nn.Dropout(self.dropout),
                     nn.Linear(ns, 1, bias=False)
                 )
+
+            # Aug 2026 length-gated BACKBONE TORSION adapter (post-placement-vs-conformation
+            # forensics — see project_placement_conformation_split_aug21 memory). Direct-vs-Kabsch
+            # RMSD decomposition on real long/very_long complexes showed ~75% of total error is
+            # CONFORMATION (wrong internal fold), not placement (~25%), with per-residue error
+            # concentrated at the chain termini — the classic signature of small backbone-torsion
+            # errors compounding along the kinematic chain. Every prior finetune attempt in this
+            # arc (tr_adapter, x0, cross_adapter, V6, BN-fix) targeted translation/cross-interaction
+            # components — none touched backbone torsion generation, the confirmed-dominant error
+            # source. cross_adapter in particular ACTIVELY REGRESSED placement while leaving fold
+            # quality unchanged, so another placement-focused adapter is not evidence-justified;
+            # this one targets tor_pred_backbone directly instead.
+            #
+            # Mirrors the cross_adapter zero-init + hard length-gate pattern exactly (same module
+            # that trained cleanly with zero oscillation/guard-rail warnings) but wired to the
+            # backbone-torsion head: a separate CGTPEL + linear stack, structurally identical to
+            # tor_bb_bond_conv + tor_bb_final_layer, added on top of the base prediction and
+            # multiplied by a per-BOND length gate (hard 0/1, keyed off the owning peptide's
+            # residue count) BEFORE sigma-scaling — so short/medium peptides are mathematically
+            # unreachable by this module, exactly like cross_adapter's placement gate.
+            self.use_tor_bb_adapter = getattr(args, 'use_tor_bb_adapter', False)
+            if self.use_tor_bb_adapter:
+                self.tor_bb_adapter_conv = CGTPEL(
+                    in_irreps=self.intra_convs[-1].out_irreps,
+                    sh_irreps=self.final_tp_tor_bb.irreps_out,
+                    out_irreps=f'{ns}x0o + {ns}x0e',
+                    n_edge_features=3 * ns,
+                    residual=False,
+                    dropout=self.dropout,
+                    batch_norm=self.batch_norm,
+                )
+                self.tor_bb_adapter_final_layer = nn.Sequential(
+                    nn.Linear(2 * ns, ns, bias=False),
+                    nn.SiLU(),
+                    nn.Dropout(self.dropout),
+                    nn.Linear(ns, 1, bias=False),
+                )
+                nn.init.zeros_(self.tor_bb_adapter_final_layer[-1].weight)
+                self.tor_bb_adapter_length_threshold = float(
+                    getattr(args, 'tor_bb_adapter_length_threshold', 13.0))
+
             # INJECT FIX: cross-edge contact type embedding (additive, zero-init → neutral start)
             # Encodes which of 4 contact types (CA-CA, tip-CA, CA-tip, tip-tip) gives
             # the minimum distance per cross edge.  Zero-init means existing checkpoints
@@ -535,7 +631,22 @@ class CGTensorProductEquivariantModel(nn.Module):
             # message passing between two graphs (inter)
             rec_to_pep_edge_attr_ = torch.cat([cross_edge_attr, pep_node_attr[cross_pep, :self.ns], rec_node_attr[cross_rec, :self.ns]], -1)
             pep_inter_update = self.cross_convs[idx](rec_node_attr, cross_edge_index, rec_to_pep_edge_attr_, cross_edge_sh, out_nodes=pep_node_attr.shape[0])
-            
+
+            # Length-gated cross-interaction adapter (see __init__ comment): only at the
+            # final (richest) layer, only for peptides >= threshold. Gate is a hard
+            # boolean mask, not a learned/soft weight -- zero contribution AND zero
+            # gradient for gated-out samples, by construction.
+            if getattr(self, 'use_cross_adapter', False) and idx == len(self.intra_convs) - 1:
+                adapter_update = self.cross_adapter_conv(
+                    rec_node_attr, cross_edge_index, rec_to_pep_edge_attr_, cross_edge_sh,
+                    out_nodes=pep_node_attr.shape[0])
+                _pep_len = torch.bincount(
+                    data['pep'].batch, minlength=data.num_graphs
+                ).float().to(pep_node_attr.device)
+                _gate = (_pep_len >= self.cross_adapter_length_threshold).float()
+                _gate_per_node = _gate[data['pep'].batch].unsqueeze(1)
+                pep_inter_update = pep_inter_update + _gate_per_node * adapter_update
+
             # message passing within receptor graph (intra)
             if idx != len(self.intra_convs) - 1:
                 rec_edge_attr_ = torch.cat([rec_edge_attr, rec_node_attr[rec_src, :self.ns], rec_node_attr[rec_dst, :self.ns]], -1)
@@ -709,6 +820,28 @@ class CGTensorProductEquivariantModel(nn.Module):
                 reduction="mean",
             )
             tor_pred_backbone = self.tor_bb_final_layer(tor_pred_backbone).squeeze(1)
+            if getattr(self, 'use_tor_bb_adapter', False):
+                adapter_pred_backbone = self.tor_bb_adapter_conv(
+                    pep_a_node_attr,
+                    tor_edge_index_backbone,
+                    tor_edge_attr_backbone,
+                    tor_edge_sh_backbone,
+                    out_nodes=data['pep_a'].mask_edges_backbone.sum(),
+                    reduction="mean",
+                )
+                adapter_pred_backbone = self.tor_bb_adapter_final_layer(adapter_pred_backbone).squeeze(1)
+                # Per-BOND length gate: each backbone bond belongs to exactly one peptide
+                # (tor_bonds_backbone[0] indexes pep_a atoms; data['pep_a'].batch maps atom ->
+                # graph index). Residue count per graph comes from data['pep'].batch (one node
+                # per residue), NOT data['pep_a'].batch (one node per ATOM) — using the atom-level
+                # batch for bincount would count atoms, not residues, and silently mis-threshold.
+                _pep_len = torch.bincount(
+                    data['pep'].batch, minlength=data.num_graphs
+                ).float().to(pep_a_node_attr.device)
+                _gate_per_graph = (_pep_len >= self.tor_bb_adapter_length_threshold).float()
+                _bond_graph = data['pep_a'].batch[tor_bonds_backbone[0]]
+                _gate_per_bond = _gate_per_graph[_bond_graph]
+                tor_pred_backbone = tor_pred_backbone + _gate_per_bond * adapter_pred_backbone
             edge_sigma_backbone = tor_backbone_sigma[data["pep_a"].batch][
                 data["pep_a", "pep_a"].edge_index[0]
             ][data['pep_a'].mask_edges_backbone.squeeze()]
