@@ -28,11 +28,9 @@ name: CI
 # non-redistributable per CLAUDE.md SS2.6 — no public CI can install them).
 # Tests that need those already skip gracefully (tests/conftest.py's
 # slow-marker skip, meeko/ADFRsuite not-installed skips) rather than fail.
-# Two more pre-existing failures, unrelated to packaging, deselected in both
-# jobs below so CI reflects packaging health, not those separate issues:
-# `test_no_pepset_leakage` (a test_complexes.csv replacement dropped PepSet
-# IDs a leakage guard hardcodes) and one `test_install_script`
-# CI-environment assumption.
+# One more pre-existing failure, unrelated to packaging, deselected in both
+# jobs below so CI reflects packaging health, not that separate issue:
+# one `test_install_script` CI-environment assumption.
 #
 # Windows note: native Windows Python + pip was never the *only* documented
 # install path — INSTALL.md/install.bat also describe WSL2 — but the conda
@@ -100,8 +98,6 @@ jobs:
           --deselect tests/test_sampling.py::TestRapidockRunner::test_nonzero_exit_raises
           --deselect tests/test_sampling.py::TestRapidockRunner::test_shortfall_warns
           --deselect tests/test_sampling.py::TestRapidockRunner::test_file_rename
-          --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_all_10_pepset_ids
-          --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_exactly_pepset_count
           --deselect tests/test_install_script.py::TestExistingCondaIsFound::test_still_installs_miniforge_when_there_is_genuinely_no_conda
 
       - name: CLI entry points resolve
@@ -273,8 +269,6 @@ jobs:
           --deselect tests/test_sampling.py::TestRapidockRunner::test_nonzero_exit_raises
           --deselect tests/test_sampling.py::TestRapidockRunner::test_shortfall_warns
           --deselect tests/test_sampling.py::TestRapidockRunner::test_file_rename
-          --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_all_10_pepset_ids
-          --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_exactly_pepset_count
           --deselect tests/test_install_script.py::TestExistingCondaIsFound::test_still_installs_miniforge_when_there_is_genuinely_no_conda
           --deselect tests/test_sampling.py::TestComputeBatchSize::test_small_n_uses_single_batch
 
@@ -312,8 +306,6 @@ jobs:
             --deselect tests/test_sampling.py::TestRapidockRunner::test_nonzero_exit_raises \
             --deselect tests/test_sampling.py::TestRapidockRunner::test_shortfall_warns \
             --deselect tests/test_sampling.py::TestRapidockRunner::test_file_rename \
-            --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_all_10_pepset_ids \
-            --deselect tests/test_no_pepset_leakage.py::TestTestComplexesIntegrity::test_test_complexes_has_exactly_pepset_count \
             --deselect tests/test_install_script.py::TestExistingCondaIsFound::test_still_installs_miniforge_when_there_is_genuinely_no_conda \
             --deselect tests/test_sampling.py::TestComputeBatchSize::test_small_n_uses_single_batch \
             > pytest_output.log 2>&1
