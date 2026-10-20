@@ -24,7 +24,7 @@ __all__ = [
     "PoseRecord",
     "ScoredPose",
     "PoseFailure",
-    # Axis 2 — same-receptor calibration (FEP-grade relative accuracy at docking cost)
+    # Axis 2 — same-receptor calibration (anchoring to measured references; double-difference is arithmetic on measured ΔGs)
     "Reference",
     "AnchorResult",
     "anchored_affinity",

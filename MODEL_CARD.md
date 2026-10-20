@@ -27,8 +27,11 @@ Rank/compare short peptides (3–19 aa) against one or two receptors at iGEM wor
 (dozens of candidates, minutes each, commodity hardware). Strongest outputs are **relative**:
 
 - **`selectivity`** — ΔΔG(target − off-target) with bootstrap CI. *Recommended primary output.*
-- **double-difference ΔΔG** (same-receptor cycle) — FEP-grade relative accuracy.
-- **reference-anchored ΔG** — 2–3 measured anchors lift within-receptor r from ≈0.25 to ≈0.55.
+- **reference-anchored ΔG** — 2–3 measured anchors on the same receptor lift within-receptor r from ≈0.47 to ≈0.71
+  (RESULTS.md). This is the same-receptor result we stand behind.
+- The earlier "double-difference ΔΔG, r ≈ 0.96" claim is **retracted** (E312, see RESULTS.md): it used three measured ΔGs
+  and no scorer, and a nearest-measured-value baseline beats it. `double_difference_dg` is arithmetic on measured
+  values, not a prediction, and makes no FEP-grade claim.
 
 ## Performance (leakage-free, kcal/mol primary)
 

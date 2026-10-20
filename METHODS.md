@@ -67,11 +67,17 @@ default. MM-GBSA (Stage 3.5) is an independent, physically-grounded absolute
 estimate available with `--refine-topk`; it does not override the learned
 scorer.
 
-Peptides of ≤ 8 residues are routed to a lean 3-feature hydrophobic ridge
-sub-model (`scoring/length_router.py`). Short peptides make too few interface
-contacts for the full feature block — 13 of the 16 geometry features have
-near-zero dynamic range there — and the standard path collapses to r ≈ 0 on
-them; the sub-model recovers r ≈ 0.51.
+Short peptides (≤ 8 residues) make too few interface contacts for the full
+feature block — 13 of the 16 geometry features have near-zero dynamic range
+there — and the standard path collapses to r ≈ 0 on them. A lean 3-feature
+hydrophobic ridge sub-model (`scoring/length_router.py`) recovered r ≈ 0.51 in
+a leave-one-out analysis on the crystal panel (n = 22), but **it is not part
+of the shipped scorer**: it only applies to the opt-in `--ensemble` blend, and
+its calibration file (`calibration_length_router.json`) is not shipped, so the
+router never runs. Refitting it on our AI-generated short-peptide poses
+(`data/e176_short_n250.jsonl`, n = 254) gives leave-one-out r ≈ 0.02, no gain
+over the mean, so we have not shipped a replacement. Short peptides are scored
+by the standard model, and their ΔG should be treated as unreliable.
 
 > **Two different models appear in this document, and they are not the same
 > one.** The deployment scorer above is what `hybridock-pep dock` runs. The
@@ -167,11 +173,14 @@ reason this table is in the README rather than omitted.
 
 ## 5. Uncertainty, anchoring, and selectivity
 
-- **Uncertainty.** ΔG is reported with a conformal prediction interval,
-  calibrated at 65% coverage (±1.64 kcal/mol). The interval is a fixed
-  calibrated width — an attempt at adaptive per-peptide error bars was
-  evaluated and rejected: nothing available at prediction time predicted the
-  error.
+- **Uncertainty.** ΔG is shown with a fixed typical error of ±1.6 kcal/mol
+  (`TYPICAL_ERROR` in `web/static/js/app/config.mjs`), in line with the
+  leakage-free MAE/RMSE of 1.35–1.69 kcal/mol. It is a constant, not a
+  conformal or per-prediction interval, and the program does not compute a
+  coverage-calibrated interval at prediction time. A split-conformal analysis
+  (`experiments/e368_conformal_intervals.py`) and an adaptive per-peptide
+  width (`e369`) were run offline; nothing available at prediction time
+  predicted the error, so no per-peptide error bar is shipped.
 - **Anchoring (the same-receptor mode).** With 2–3 measured affinities on the
   actual target, subtracting the per-receptor offset lifts within-receptor
   r from ≈ 0.25–0.47 (cold) to ≈ 0.55–0.71, depending on the dataset. This is
