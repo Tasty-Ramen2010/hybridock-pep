@@ -10,6 +10,10 @@ Routing short peptides to a lean 3-feature hydrophobic sub-model recovers them:
   held-out test  pooled r 0.603 -> 0.682 , RMSE 1.77 -> 1.61   (rest of the set unchanged)
 See e19_pocket_baseline_breakthrough.md (Zenodo archive, E85-E87) for the full length-stratified analysis.
 
+STATUS: not active in the shipped package. The calibration (``data/calibration_length_router.json``) is not
+shipped, so ``driver`` never routes. The numbers above come from a crystal-structure panel; refitting on our
+AI-generated short-peptide poses (``data/e176_short_n250.jsonl``, n=254) gave leave-one-out r~0.02, no gain.
+
 The sub-model uses only features already in ``ensemble.GEOMETRY_FEATURES`` (no new extraction). Long and
 very-long peptides did NOT benefit from their own sub-models (too few samples; signal is conformational,
 needs MD) and are left on the standard ensemble path.

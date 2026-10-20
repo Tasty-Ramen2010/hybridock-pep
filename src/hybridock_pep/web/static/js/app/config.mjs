@@ -35,7 +35,10 @@ export function memoryLevel(percent, availableGb = null) {
 export const sharedLimits = (env) => env?.public || null;
 export const poseCap = (env, compare = false) => { const p = sharedLimits(env); return p ? (compare ? p.max_compare_samples : p.max_samples) : Infinity; };
 
-/** How far off a single ΔG prediction typically is (kcal/mol). Shown next to every ΔG. */
+/**
+ * How far off a single ΔG prediction typically is (kcal/mol). Shown next to every ΔG.
+ * A fixed constant near the leakage-free MAE/RMSE (1.35-1.69), not a calibrated or per-prediction interval.
+ */
 export const TYPICAL_ERROR = 1.6;
 
 /**

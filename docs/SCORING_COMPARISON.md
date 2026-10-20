@@ -21,8 +21,10 @@ README scorecard.
 | **ref2015 / FlexPepDock energy — UNRELAXED (measured here)** | **0.07** | 65 | no → fails | seconds |
 | ref2015 / FlexPepDock — relaxed (literature) | 0.55–0.59 *within-target* | — | **yes, 5–30 min** | minutes |
 | PPI-Affinity (best published ML peptide scorer) | 0.55 | — | n/a | server |
-| **HybriDock-Pep (geometry + length router)** | **0.585 LOO · 0.68 held-out** | **156** | **no** | **~10 s** |
+| **HybriDock-Pep (geometry + length router)**¹ | **0.585 LOO · 0.68 held-out** | **156** | **no** | **~10 s** |
 | FEP / TI (ceiling) | 0.8–0.9 *congeneric only* | — | full MD | 5–50 GPU-hr/mut |
+
+¹ The length-router component of this row is not shipped (its calibration file is absent), so the released package does not reproduce the router part of this number.
 
 **Takeaways:** (1) we beat every single-pose physics baseline on the full 156 (0.585 vs best 0.39);
 (2) measured ref2015 *without* relaxation = 0.07 — FlexPepDock's 0.59 is bought entirely with expensive

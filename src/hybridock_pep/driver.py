@@ -205,6 +205,9 @@ def _apply_affinity(scored_poses: list[ScoredPose], config: DockConfig) -> None:
             # Length router: short peptides (<= router.short_max_len) score via a lean hydrophobic
             # sub-model instead of the full ensemble (docs E85-E87, scoring/length_router.py).
             router_path = data_file("calibration_length_router.json")
+            if not router_path.exists() and pep_len <= 8:
+                logger.warning("Length router: %s is not shipped, so a %d-residue peptide uses the "
+                               "standard ensemble; short-peptide ΔG is unreliable.", router_path.name, pep_len)
             if router_path.exists():
                 from hybridock_pep.scoring.length_router import (  # noqa: PLC0415
                     LengthRouterCalibration,
