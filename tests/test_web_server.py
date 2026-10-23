@@ -9,6 +9,7 @@ passed is the failure mode this file exists to catch.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
 import threading
@@ -243,6 +244,149 @@ def test_estimate_scales_with_work() -> None:
     refined = server.estimate_seconds({"n_samples": "100", "refine_topk": "5"}, "dock")
     assert quick < standard < refined
     assert server.estimate_seconds({}, "crystal") < quick
+
+
+GRID = {"8": {"5": 58, "10": 65, "25": 98}, "12": {"5": 68, "10": 82, "25": 134}, "13": {"5": 95, "10": 130, "25": 250},
+        "16": {"5": 90, "10": 128, "25": 249}, "25": {"5": 150, "10": 255, "25": 560}}
+
+
+def _timing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    path = tmp_path / "timing.json"
+    path.write_text(json.dumps({"machine": "Test board", "refLength": 12, "grid": GRID}), encoding="utf-8")
+    monkeypatch.setenv("HYBRIDOCK_TIMING_FILE", str(path))
+    server.timing_profile.cache_clear()
+    return path
+
+
+def test_a_measured_timing_grid_replaces_the_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _timing_file(tmp_path, monkeypatch)
+    try:
+        at = lambda n, pep="A" * 12: server.estimate_seconds({"n_samples": str(n), "peptide": pep}, "dock")  # noqa: E731
+        assert (at(5), at(10), at(25)) == (68, 82, 134)  # the measured points come back exactly
+        assert at(25, "A" * 16) == 249 and at(25, "A" * 13) == 250  # at every length, at every size
+        assert at(25, "A" * 16) > 1.7 * at(25), "from 13 residues the longer-peptide model costs more per pose, so length matters more at 25 poses"
+        assert server.estimate_seconds({"n_samples": "10", "peptide": "A" * 12}, "selectivity") == 164  # two dockings
+        assert server.check_environment()["timing"]["machine"] == "Test board"  # the page shows these numbers
+        assert "grid" in server.check_environment()["timing"]
+    finally:
+        monkeypatch.delenv("HYBRIDOCK_TIMING_FILE")
+        server.timing_profile.cache_clear()
+
+
+def test_a_peptide_that_has_run_before_is_quoted_by_what_it_really_took(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _timing_file(tmp_path, monkeypatch)
+    monkeypatch.setenv("HYBRIDOCK_TIMING_HISTORY", str(tmp_path / "history.jsonl"))
+    try:
+        pep = "ETFSDLWKLLPE"
+        est = lambda n, p=pep, mode="dock": server.estimate_seconds({"n_samples": str(n), "peptide": p}, mode)  # noqa: E731
+        assert est(25) == 134  # nothing recorded yet: the measured grid
+        for took in (100.0, 300.0, 140.0, 150.0):
+            server.record_run_time(pep, 25, took)
+        assert est(25) == 150  # the median of the last three (300, 140, 150), not an average that one slow run could drag
+        assert est(10) == 82 and est(25, "ETFSDLWKLLPA") == 134  # another size or another peptide still reads the grid
+        assert est(25, mode="selectivity") == 300  # a comparison is two runs
+        server.record_run_time("", 25, 10.0); server.record_run_time(pep, 0, 10.0); server.record_run_time(pep, 25, -1.0)
+        assert len((tmp_path / "history.jsonl").read_text().splitlines()) == 4  # junk is never recorded
+    finally:
+        monkeypatch.delenv("HYBRIDOCK_TIMING_FILE")
+        server.timing_profile.cache_clear()
+
+
+def test_a_finished_dock_records_how_long_it_took(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    history = tmp_path / "history.jsonl"
+    monkeypatch.setenv("HYBRIDOCK_TIMING_HISTORY", str(history))
+    manager = server.JobManager()
+    job = manager.start([sys.executable, "-c", "import time; time.sleep(0.3)"], "dock", {"peptide": "etfsdlwkllpe", "n_samples": "10"}, tmp_path)
+    for _ in range(100):
+        if job.state == "done" and history.exists():
+            break
+        threading.Event().wait(0.05)
+    row = json.loads(history.read_text().splitlines()[0])
+    assert row["peptide"] == "ETFSDLWKLLPE" and row["poses"] == 10 and 0.2 < row["seconds"] < 5
+    failing = manager.start([sys.executable, "-c", "raise SystemExit(2)"], "dock", {"peptide": "AAAAAA", "n_samples": "5"}, tmp_path) if not manager.busy else None
+    if failing:
+        for _ in range(100):
+            if failing.state == "failed":
+                break
+            threading.Event().wait(0.05)
+        assert len(history.read_text().splitlines()) == 1  # a failed run says nothing about how long a good one takes
+
+
+def test_the_python_and_javascript_estimators_agree_on_a_shared_table() -> None:
+    from hybridock_pep.web.timing import estimate
+
+    fixture = json.loads((Path(__file__).parent / "fixtures" / "timing_cases.json").read_text(encoding="utf-8"))
+    grid = {int(L): {int(n): float(t) for n, t in row.items()} for L, row in fixture["grid"].items()}
+    for case in fixture["cases"]:
+        assert max(10, int(estimate(grid, case["length"], case["poses"]) + 0.5)) == case["seconds"], case
+
+
+def test_a_new_measurement_is_picked_up_without_restarting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _timing_file(tmp_path, monkeypatch)
+    try:
+        assert server.estimate_seconds({"n_samples": "5", "peptide": "A" * 12}, "dock") == 68
+        later = {"machine": "Test board", "refLength": 12, "grid": {"12": {"5": 200, "10": 300, "25": 700}}}
+        path.write_text(json.dumps(later), encoding="utf-8")
+        os.utime(path, (time.time() + 5, time.time() + 5))  # a different modification time, as a real re-measurement has
+        assert server.estimate_seconds({"n_samples": "5", "peptide": "A" * 12}, "dock") == 200
+    finally:
+        monkeypatch.delenv("HYBRIDOCK_TIMING_FILE")
+        server.timing_profile.cache_clear()
+
+
+def test_a_computer_that_makes_room_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HYBRIDOCK_JOB_HOOK", raising=False)
+    assert server.check_environment()["makes_room"] is False
+    monkeypatch.setenv("HYBRIDOCK_JOB_HOOK", "/some/hook")
+    assert server.check_environment()["makes_room"] is True  # the page then does not call an idle, full-looking memory a problem
+
+
+def test_without_a_timing_file_nothing_is_claimed_as_measured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HYBRIDOCK_TIMING_FILE", raising=False)
+    server.timing_profile.cache_clear()
+    assert server.timing_profile() is None
+    assert "timing" not in server.check_environment()
+
+
+def test_a_board_can_name_its_own_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HYBRIDOCK_ACCELERATOR", "cuda:NVIDIA Jetson AGX Orin")
+    assert server._detect_accelerator(lambda _n: None) == ("cuda", "NVIDIA Jetson AGX Orin")
+
+
+def test_the_job_hook_is_told_when_a_run_starts_and_when_the_computer_goes_idle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    log = tmp_path / "hook.log"
+    hook = tmp_path / "hook.sh"
+    hook.write_text(f'#!/bin/sh\necho "$1" >> {log}\n', encoding="utf-8")
+    hook.chmod(0o755)
+    monkeypatch.setenv("HYBRIDOCK_JOB_HOOK", str(hook))
+    monkeypatch.setenv("HYBRIDOCK_IDLE_SECONDS", "0.4")
+    manager = server.JobManager()
+    job = manager.start([sys.executable, "-c", "print('ok')"], "dock", {}, tmp_path)
+    for _ in range(100):
+        if job.state == "done" and log.exists() and "idle" in log.read_text():
+            break
+        threading.Event().wait(0.1)
+    assert log.read_text().split() == ["start", "idle"]  # room made first, given back afterwards
+    assert job.state == "done"
+
+
+def test_a_new_run_cancels_the_pending_idle_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    log = tmp_path / "hook.log"
+    hook = tmp_path / "hook.sh"
+    hook.write_text(f'#!/bin/sh\necho "$1" >> {log}\n', encoding="utf-8")
+    hook.chmod(0o755)
+    monkeypatch.setenv("HYBRIDOCK_JOB_HOOK", str(hook))
+    monkeypatch.setenv("HYBRIDOCK_IDLE_SECONDS", "1.5")
+    manager = server.JobManager()
+    first = manager.start([sys.executable, "-c", "print(1)"], "dock", {}, tmp_path)
+    for _ in range(100):
+        if first.state == "done":
+            break
+        threading.Event().wait(0.05)
+    second = manager.start([sys.executable, "-c", "import time; time.sleep(2.5)"], "dock", {}, tmp_path)
+    threading.Event().wait(1.8)  # the first run's idle timer would have fired by now if it had not been cancelled
+    assert "idle" not in log.read_text(), "the model must not come back while a run is going"
+    manager.cancel(second.id)
 
 
 def test_serialized_fields_match_the_terminal_ui() -> None:

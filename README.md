@@ -6,19 +6,24 @@
 [![Tutorial video](https://img.shields.io/badge/▶%20Tutorial-YouTube-red.svg)](https://youtu.be/ro9CukQCW44)
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/images/tui_peptide.gif" alt="An earlier iteration of the parent project's peptide, LISDAELEAIFEADC (since superseded by the current default, LISAAALAAIFAAALAC), drawn as one continuous helical chain with class-correct side chains — a hexagon for the aromatic F, forks for branched and charged residues — actually rotating, not a mockup"></td>
-<td width="50%"><img src="docs/images/tui_form.png" alt="The terminal UI's input form from an earlier run, pre-filled with the LISDAELEAIFEADC / PfLDH example (the current default is LISAAALAAIFAAALAC) and ready to run"></td>
-</tr>
-</table>
+## Helping doctors find new cures and vaccines, faster
 
-HybriDock-Pep is a brand new protein-peptide docking and scoring pipeline, with many features like selectivity 
-and high accuracy. Given a receptor PDB and a peptide sequence, it folds and docks the peptide through a modified
-diffusion generative built for effeciency and accuracy. Then it runs a physics-based ML scorer working 
-geometry features outputting kcal/mol with accuracy in the range of ABFE. From the either the CLI or the 
-terminal UI, it runs efficiently on consumer hardware, and tested against >1,000 real complexes. 
-[Get started](#get-started) and run it yourself.
+Every medicine starts by finding the one small molecule that can grab onto what is making people sick. Finding it in a lab
+takes months. **HybriDock-Pep does it on a computer in minutes**, so scientists start from the strongest candidates.
+
+<p align="center"><a href="https://agx-orin.tail705d7c.ts.net/"><b>▶&nbsp;&nbsp;Open the live demo</b></a></p>
+
+<p align="center"><img src="docs/images/home.png" alt="The HybriDock-Pep home page: a headline for doctors on the left, and on the right a carousel of diseases with a 3D protein and the best peptide matches for each" width="900"></p>
+
+### See it working: three steps
+
+1. **Open the [live demo](https://agx-orin.tail705d7c.ts.net/).** It runs on our own NVIDIA AGX Orin computer. Nothing to install.
+2. **Swipe through the diseases** and tap a result. Each one is a real prediction, with the peptide shown in 3D on its protein. Press **Compare** on any two to line them up.
+3. **Press "Run it live"** on any card. Choose **5, 10 or 25 poses**. The time beside the button is how long it takes, and the result appears when it finishes.
+
+The numbered, illustrated [guide](docs/GUIDE.md) is also built into the page (**Guide** in the top bar).
+
+---
 
 Creator: **[Choppa Purandhar Ram](https://www.linkedin.com/in/purandhar-ram-choppa-293916413/)**, 15 Years Old
 

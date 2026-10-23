@@ -6,9 +6,7 @@ import { icon } from './icons.mjs';
 import { compareResultView } from './compare.mjs';
 import { loadProtein } from '../structures.mjs';
 import { demoAdapter, adapterFor } from '../adapter.mjs';
-import { TYPICAL_ERROR } from '../config.mjs';
-import { peptideStats } from '../peptide.mjs';
-import { errorFoldChange, fmt, fmtKd, kdFromDG, meaningOf, roughGuide } from '../interpret.mjs';
+import { fmt, fmtKd, kdFromDG, meaningOf, roughGuide } from '../interpret.mjs';
 import { toast } from './toast.mjs';
 import { freshSetup, freshScore } from '../state.mjs';
 
@@ -21,12 +19,8 @@ export function bigNumber(result, { label = 'Binding strength' } = {}) {
       h('span', { class: 'eyebrow' }, label, h('span', { class: 'tech' }, 'ΔG')),
       result.demo && h('span', { class: 'badge-demo', title: 'This result is simulated' }, 'Demo')),
     h('div', { class: 'big-number', 'aria-label': `${fmt(dg)} kilocalories per mole` }, h('span', { class: 'n nums' }, fmt(dg)), h('span', { class: 'unit' }, 'kcal/mol')),
-    h('p', { class: 'err-line' }, 'Typical error ', h('b', {}, `±${TYPICAL_ERROR} kcal/mol`)),
-    h('p', {}, meaningOf(dg)),
-    h('p', { class: 'guide-line' }, h('span', { class: 'chip' }, guide.label), 'Our own rough guide, not a result from the program.'),
-    Math.abs(peptideStats(result.peptide).charge) >= 2 && h('p', { class: 'small muted' }, `This peptide is charged (net ${peptideStats(result.peptide).charge > 0 ? '+' : '−'}${Math.abs(peptideStats(result.peptide).charge)}), which the fast scorer handles poorly. Read the number as a direction, not an exact value.`,
-      h('span', { class: 'expert-only' }, ' Ultra mode adds a correction for charged residues.')),
-    h('p', { class: 'small muted expert-only' }, `≈ ${fmtKd(kdFromDG(dg))} dissociation constant (converted from ΔG at 25 °C). One typical error is about a ×${Math.round(errorFoldChange())} change in binding.`),
+    h('p', { class: 'guide-line' }, h('span', { class: `chip grip-${guide.id}` }, guide.label), meaningOf(dg)),
+    h('p', { class: 'small muted expert-only' }, `≈ ${fmtKd(kdFromDG(dg))} dissociation constant (converted from ΔG at 25 °C).`),
     result.demo && h('p', { class: 'small muted' }, 'Simulated: this number and pose are made up from your inputs, not predicted.'));
 }
 
@@ -92,12 +86,13 @@ export function mountResults(ctx) {
         h('div', { class: 'pose-picker-title', style: { marginBottom: '8px' } }, h('span', { class: 'field-label', style: { margin: 0 } }, 'Ranked poses', h('span', { class: 'tech' }, 'Select one to see it in 3D')),
           h('span', { class: 'small muted' }, result.nPoses > result.poses.length ? `Top ${result.poses.length} of ${result.nPoses}` : `${result.poses.length} poses`)),
         result.poses.length ? h('div', { class: 'table-wrap' }, table) : h('p', { class: 'pose-note' }, 'Pose files aren’t available for this run, so there is nothing to show in 3D.'),
-        result.poses.length > 1 && h('p', { class: 'small muted guided-only', style: { marginTop: '6px' } }, 'The poses are ordered by the program’s own ranking, so their ΔG values are not always in step. The big number above is the best-ranked pose.'),
         h('p', { class: 'small muted expert-only', style: { marginTop: '6px' } }, '*Ranking score only compares poses for this protein (lower = stronger). It is not a ΔG and shouldn’t be compared across proteins.')));
 
       const dl = (what, name, sub) => h('button', { class: 'btn sm', type: 'button', onClick: () => download(result, what) }, icon('download', 15), h('span', {}, name, h('span', { class: 'mono small muted' }, ` ${sub}`)));
       kids.push(h('div', {}, h('p', { class: 'field-label' }, 'Downloads'), h('div', { class: 'downloads' },
-        dl('best_pose', 'Best pose', 'best_pose.pdb'), dl('ranked_csv', 'Ranked list', 'ranked_poses.csv'), dl('run_folder', 'Run folder', 'everything'))));
+        result.preloaded
+          ? dl('ranked_csv', 'Ranked list', 'ranked_poses.csv') // a preloaded result has no run folder on a server: the list is made here
+          : [dl('best_pose', 'Best pose', 'best_pose.pdb'), dl('ranked_csv', 'Ranked list', 'ranked_poses.csv'), dl('run_folder', 'Run folder', 'everything')])));
 
       table.addEventListener('click', (e) => { const tr = e.target.closest('tr[data-rank]'); if (tr) selectPose(Number(tr.dataset.rank)); });
       table.addEventListener('keydown', (e) => { const tr = e.target.closest('tr[data-rank]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectPose(Number(tr.dataset.rank)); } });
@@ -141,6 +136,11 @@ export function mountResults(ctx) {
 
   async function download(result, what) {
     try {
+      if (result.preloaded) {
+        const rows = ['rank,delta_g', ...result.poses.map((p) => `${p.rank},${p.deltaG}`)];
+        saveBlob(new Blob([rows.join('\n') + '\n'], { type: 'text/csv' }), `${result.protein.key}_${result.peptide}_ranked_poses.csv`);
+        return;
+      }
       const file = await adapterFor(result).download(result, what);
       if (file.copyText) {
         try { await navigator.clipboard.writeText(file.copyText); toast(`Run folder path copied: ${file.copyText}`, 6000); }

@@ -6,7 +6,7 @@ const POSES = process.env.E2E_INPUT_POSES;
 if (!POSES) { console.log('SKIP 12_real_dock: set E2E_INPUT_POSES to a folder of saved ETFSDLWKLLPE poses on the server'); process.exit(0); }
 const b = await browser(); const p = await newPage(b);
 await p.goto(BASE + '/'); await p.waitForSelector('.hero-card');
-await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick');
+await p.locator('.start-card', { hasText: 'Test a peptide' }).getByRole('button').click(); await p.waitForSelector('.pick');
 await p.locator('.pick', { hasText: 'MDM2' }).first().click(); await p.getByRole('button', { name: 'Continue' }).click();
 await p.waitForSelector('#pep-input'); await p.locator('#pep-input').fill('ETFSDLWKLLPE'); await p.getByRole('button', { name: 'Continue' }).click();
 await p.waitForSelector('.choice');

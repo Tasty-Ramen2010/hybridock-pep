@@ -1,4 +1,5 @@
-// setup.js — "Predict binding": four steps (Protein, Peptide, Binding site, Review).
+// setup.js — "Predict binding": three steps (Protein, Peptide, Run). The binding site is already known for every protein in
+// the catalog, so it is set quietly; only a protein with no known site (an uploaded file) gets a fourth step to mark one.
 // The 3D model sits on the left (the stage), a frosted-glass panel on the right.
 // On a narrow screen the panel drops below the model.
 
@@ -11,11 +12,11 @@ import { namedPeptide } from '../peptides.mjs';
 import { buildDockCommand } from '../command.mjs';
 import { dockJob, findProtein, poseCount } from '../jobs.mjs';
 import { adapter, estimateTrusted, noGpu } from '../adapter.mjs';
-import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, ad4Available, longModelAvailable, backend, poseCap, settingProblems, sharedLimits } from '../config.mjs';
+import { BOX_DEFAULT, EXPERT_DEFAULTS, LIMITS, THOROUGHNESS, ad4Available, longModelAvailable, poseCap, settingProblems, sharedLimits, timingFor } from '../config.mjs';
 import { toast } from './toast.mjs';
 import { fmtDuration } from './dom.mjs';
 
-const STEP_NAMES = ['Protein', 'Peptide', 'Binding site', 'Review'];
+const STEP_LABELS = { protein: 'Protein', peptide: 'Peptide', site: 'Binding site', review: 'Run' };
 // offered after the chosen protein's own example; each has a name and a one-line description (see peptides.mjs)
 const EXAMPLE_PEPTIDES = ['ETFSDLWKLLPE', 'LSECLKRIGDELDS', 'LVVVGACGV'];
 
@@ -29,6 +30,9 @@ export function mountSetup(ctx) {
   const setS = (patch) => store.merge('setup', patch);
   const pepCheck = () => validatePeptide(S().peptide);
   const pepLen = () => (pepCheck().ok ? pepCheck().seq.length : 8);
+  /** The steps for this protein: a protein with a known site skips "Binding site" unless Expert asked to adjust it. */
+  const stepIds = () => (S().proteinRef?.site && !S().adjustSite ? ['protein', 'peptide', 'review'] : ['protein', 'peptide', 'site', 'review']);
+  const stepId = () => stepIds()[Math.min(S().step, stepIds().length) - 1];
 
   // ---- the site picker (step 3) -----------------------------------------------------------------
   const picker = createSitePicker({
@@ -56,8 +60,8 @@ export function mountSetup(ctx) {
 
   function renderSteps() {
     const cur = S().step;
-    stepsEl.replaceChildren(...STEP_NAMES.map((name, i) => h('li', { class: i + 1 < cur ? 'done' : '', 'aria-current': i + 1 === cur ? 'step' : null },
-      h('span', { class: 'num' }, i + 1 < cur ? icon('check', 14) : String(i + 1)), h('span', { class: 'name' }, name))));
+    stepsEl.replaceChildren(...stepIds().map((id, i) => h('li', { class: i + 1 < cur ? 'done' : '', 'aria-current': i + 1 === cur ? 'step' : null },
+      h('span', { class: 'num' }, i + 1 < cur ? icon('check', 14) : String(i + 1)), h('span', { class: 'name' }, STEP_LABELS[id]))));
   }
 
   function goStep(n) {
@@ -71,21 +75,23 @@ export function mountSetup(ctx) {
 
   // ---- what the 3D stage shows at each step -----------------------------------------------------
   function applyStage() {
-    const { step, siteMode } = S();
+    const { siteMode } = S();
+    const id = stepId();
+    const marking = stepIds().includes('site'); // a protein with no known site: the box is marked by hand
     stage.setPeptide(pepLen());
     const legend = slot.querySelector('.site-legend');
-    legend.hidden = !(step >= 3 && siteMode === 'known');
-    if (step === 3 && siteMode === 'known') {
+    legend.hidden = !(marking && (id === 'site' || id === 'review') && siteMode === 'known');
+    if (marking && id === 'site' && siteMode === 'known') {
       hint.textContent = 'Drag the box over the spot where the peptide should bind.';
       picker.activate();
-    } else if (step === 4 && siteMode === 'known') {
+    } else if (marking && id === 'review' && siteMode === 'known') {
       hint.textContent = 'The peptide is settled inside your box. Drag to look around.';
       picker.show();
     } else {
       picker.deactivate();
       stage.setBox(null);
       stage.setPeptideMode('float');
-      hint.textContent = step === 3 ? 'HybriDock-Pep will search the whole protein.' : 'Drag to rotate. The floating peptide is just for show and not to scale.';
+      hint.textContent = id === 'site' ? 'HybriDock-Pep will search the whole protein.' : 'Drag to turn the protein.';
     }
   }
 
@@ -94,9 +100,10 @@ export function mountSetup(ctx) {
   async function selectProtein(ref, { keep = false } = {}) {
     const token = ++loadToken;
     // `keep` = coming back to a half-finished setup: leave the user's site and box alone.
-    setS(keep ? { proteinRef: ref } : { proteinRef: ref, site: ref.site ? { ...ref.site } : null, box: ref.box || BOX_DEFAULT });
+    setS(keep ? { proteinRef: ref } : { proteinRef: ref, adjustSite: false, site: ref.site ? { ...ref.site } : null, box: ref.box || BOX_DEFAULT });
     status.className = 'msg empty';
     status.replaceChildren('Loading the structure…');
+    renderSteps(); // a protein with no known site (an upload) has a fourth step, so the progress list changes with the choice
     updateNav();
     try {
       const { structure: st } = await loadProtein(ref);
@@ -107,7 +114,7 @@ export function mountSetup(ctx) {
       status.className = 'msg ok';
       status.replaceChildren(icon('check', 18), `${st.ca.length.toLocaleString()} residues loaded.`);
       picker.refresh();
-      if (S().step >= 3) applyStage();
+      if (S().step >= 2) applyStage();
     } catch (err) {
       if (!alive || token !== loadToken) return;
       structure = null;
@@ -259,7 +266,8 @@ export function mountSetup(ctx) {
       const local = settingProblems({ box: job.box, expert: job.expert });
       showProblems(local);
       const token = ++previewToken;
-      eta.textContent = 'Working out how long this will take…';
+      const early = timingFor(job.poses, job.peptide.length);
+      eta.textContent = early == null ? 'Working out how long this will take…' : `About ${fmtDuration(early)}.`;
       clearTimeout(previewTimer); // typing in a field fires this on every key: ask the server once typing pauses
       previewTimer = setTimeout(() => askServer(job, local, token), 220);
     }
@@ -268,25 +276,31 @@ export function mountSetup(ctx) {
         if (token !== previewToken) return; // a newer change superseded this one
         showProblems(local.length ? local : problems); // our wording first; the server's own messages when the local check found nothing
         if (command) cmd.textContent = command.replace(/ --/g, ' \\\n  --');
-        lastEstimate = estimateSeconds;
-        const env = adapter.env;
+        // The measured table is the source of truth for the demo computer; the server's own figure is used on any other machine.
+        // On the measured computer the server's figure is the best one: it is the table, corrected by how long this very peptide
+        // really took last time. Anywhere else the table in the page, or the server's own model where that can be trusted.
+        const measured = timingFor(job.poses, job.peptide.length);
+        const serverKnows = adapter.kind === 'live' && !!adapter.env?.timing && estimateSeconds != null;
+        lastEstimate = serverKnows ? estimateSeconds : measured ?? (estimateTrusted(adapter.env) ? estimateSeconds : null);
         eta.textContent = adapter.kind === 'demo'
-          ? `Demo runs are short on purpose (about ${estimateSeconds} seconds). Real runs can take minutes.`
-          : noGpu(env) ? 'This machine has no GPU, so a run usually takes tens of minutes. You can leave this tab open.'
-            : !estimateTrusted(env) || estimateSeconds == null ? 'A real run can take several minutes. You can leave this tab open.'
-              : `Roughly ${fmtDuration(estimateSeconds)} (an estimate for ${backend.remote ? 'the team’s computer' : 'this computer'}). You can leave this tab open.`;
-      }).catch(() => { if (token === previewToken) eta.textContent = 'A real run can take several minutes. You can leave this tab open.'; });
+          ? `Demo run: about ${estimateSeconds} seconds.`
+          : lastEstimate == null ? (noGpu(adapter.env) ? 'This computer has no GPU, so a run usually takes tens of minutes. You can leave this tab open.' : 'This takes a few minutes. You can leave this tab open.')
+            : `About ${fmtDuration(lastEstimate)}. You can leave this tab open.`;
+      }).catch(() => { if (token === previewToken) { const m = timingFor(job.poses, job.peptide.length); lastEstimate = m; eta.textContent = m == null ? 'This takes a few minutes.' : `About ${fmtDuration(m)}.`; } });
     }
 
-    const thorough = h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How thorough?' },
+    const thorough = h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How many poses?' },
       THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(S().thorough === t.id), disabled: t.poses > cap,
-        onClick: () => { setS({ thorough: t.id }); thorough.querySelectorAll('.choice').forEach((b, i) => b.setAttribute('aria-checked', String(THOROUGHNESS[i].id === t.id))); poseLine.textContent = `${t.poses} poses`; refreshCmd(); } },
-      t.label, h('small', {}, `${t.poses} poses`))));
-    const poseLine = h('span', { class: 'small muted' }, `${poses} poses`);
+        onClick: () => { setS({ thorough: t.id }); thorough.querySelectorAll('.choice').forEach((b, i) => b.setAttribute('aria-checked', String(THOROUGHNESS[i].id === t.id))); poseLine.textContent = t.hint; refreshCmd(); } },
+      t.label, h('small', {}, (() => { const m = timingFor(t.poses, v.seq.length); return m == null ? t.hint : `≈ ${fmtDuration(m)}`; })()))));
+    const poseLine = h('span', { class: 'small muted' }, THOROUGHNESS.find((t) => t.id === S().thorough)?.hint || '');
 
+    const preset = !!(s.proteinRef?.site && !s.adjustSite);
     const site = s.siteMode === 'find'
       ? 'Find the pocket for me (searches the whole protein)'
-      : [`Box ${s.box} Å`, h('span', { class: 'expert-only' }, h('span', { class: 'mono' }, ` at (${s.site.x}, ${s.site.y}, ${s.site.z})`))];
+      : preset
+        ? [s.proteinRef.siteNote ? `Ready: ${s.proteinRef.siteNote}` : 'Ready', h('span', { class: 'expert-only' }, ' ', h('button', { class: 'btn sm ghost', type: 'button', onClick: () => { setS({ adjustSite: true }); goStep(3); } }, 'Adjust'))]
+        : [`Box ${s.box} Å`, h('span', { class: 'expert-only' }, h('span', { class: 'mono' }, ` at (${s.site.x}, ${s.site.y}, ${s.site.z})`))];
 
     const copyBtn = h('button', { class: 'btn sm', type: 'button', onClick: async () => {
       try { await navigator.clipboard.writeText(cmd.textContent); toast('Command copied.'); } catch { toast('Couldn’t copy. Select the text and copy it by hand.'); }
@@ -303,14 +317,13 @@ export function mountSetup(ctx) {
     refreshCmd();
     return [
       title('Review and run', 'Run settings'),
-      note('More poses means a more thorough search and a longer wait.'),
+      note('More poses is a more thorough search and a longer wait. All three finish in minutes.'),
       h('dl', { class: 'summary' },
         h('dt', {}, 'Protein'), h('dd', {}, s.proteinRef.name, s.proteinRef.pdb ? h('span', { class: 'mono muted' }, `  ${s.proteinRef.pdb}`) : ''),
         h('dt', {}, 'Peptide'), h('dd', {}, h('span', { class: 'mono' }, v.seq), h('span', { class: 'muted' }, `  ${v.seq.length} amino acids`)),
         h('dt', {}, 'Binding site'), h('dd', {}, site)),
       h('div', {}, h('div', { class: 'row', style: { justifyContent: 'space-between', marginBottom: '6px' } },
-        h('span', { class: 'field-label', style: { margin: 0 } }, 'How thorough? ', h('span', { class: 'tech' }, 'Number of poses')), poseLine), thorough),
-      cap < Infinity ? h('p', { class: 'small muted' }, `This is the team’s shared computer, so runs are limited to ${cap} poses. Install the app for Full runs.`) : null,
+        h('span', { class: 'field-label', style: { margin: 0 } }, 'How many poses? ', h('span', { class: 'tech' }, 'Ways the peptide is tried on the protein')), poseLine), thorough),
       eta,
       problemsEl,
       sharedLimits(adapter.env) ? null : h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Advanced settings ', h('span', { class: 'tech' }, 'Expert options for the docking run'))),
@@ -336,10 +349,11 @@ export function mountSetup(ctx) {
   // ---- panel frame: step content + Back / Continue ----------------------------------------------
   function renderPanel() {
     const step = S().step;
-    const body = [stepProtein, stepPeptide, stepSite, stepReview][step - 1]();
+    const id = stepId();
+    const body = { protein: stepProtein, peptide: stepPeptide, site: stepSite, review: stepReview }[id]();
     const back = step > 1 ? h('button', { class: 'btn ghost', type: 'button', onClick: () => goStep(step - 1) }, icon('chevronL', 16), 'Back') : h('span');
-    nextBtn = h('button', { class: 'btn primary', type: 'button', onClick: () => (step === 4 ? run() : goStep(step + 1)) }, step === 4 ? 'Run prediction' : 'Continue');
-    panel.replaceChildren(...body, h('div', { class: 'panel-foot' }, back, nextBtn));
+    nextBtn = h('button', { class: 'btn primary', type: 'button', onClick: () => (id === 'review' ? run() : goStep(step + 1)) }, id === 'review' ? 'Run prediction' : 'Continue');
+    panel.replaceChildren(...body.filter(Boolean), h('div', { class: 'panel-foot' }, back, nextBtn)); // (replaceChildren would print an empty slot as the word "null")
     updateNav();
     picker.setExpertOpen(store.get().mode === 'expert');
   }
@@ -349,12 +363,13 @@ export function mountSetup(ctx) {
     if (!nextBtn) return;
     const s = S();
     let ok = true;
-    if (s.step === 1) ok = !!(s.proteinRef && structure);
-    if (s.step === 2) ok = pepCheck().ok;
-    if (s.step === 3 && s.siteMode === 'known') ok = !!structure && !(lastAssess?.level === 'bad' && store.get().mode === 'guided');
-    if (s.step === 4) ok = reviewProblems.length === 0;
+    const id = stepId();
+    if (id === 'protein') ok = !!(s.proteinRef && structure);
+    if (id === 'peptide') ok = pepCheck().ok;
+    if (id === 'site' && s.siteMode === 'known') ok = !!structure && !(lastAssess?.level === 'bad' && store.get().mode === 'guided');
+    if (id === 'review') ok = reviewProblems.length === 0;
     nextBtn.disabled = !ok;
-    nextBtn.title = ok ? '' : s.step === 4 ? 'Fix the setting above first' : s.step === 3 ? 'Move the box onto the protein first' : 'Finish this step to continue';
+    nextBtn.title = ok ? '' : id === 'review' ? 'Fix the setting above first' : id === 'site' ? 'Move the box onto the protein first' : 'Finish this step to continue';
   }
 
   function run() {
@@ -369,7 +384,7 @@ export function mountSetup(ctx) {
 
   // ---- start ---------------------------------------------------------------------------------------
   // Pre-filled default: the first protein is already chosen (selectProtein sets it synchronously).
-  const startRef = S().proteinRef || findProtein(store.get().proteins, 'tau');
+  const startRef = S().proteinRef || findProtein(store.get().proteins, 'mdm2') || store.get().proteins[0];
   if (startRef) selectProtein(startRef, { keep: !!S().proteinRef });
   renderSteps();
   renderPanel();

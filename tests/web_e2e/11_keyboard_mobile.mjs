@@ -10,8 +10,8 @@ const b = await browser();
   const inMain = await p.evaluate(() => document.activeElement?.id === 'main' || !!document.activeElement?.closest('#main'));
   check('Skip link moves focus into the main content', inMain, '');
   // reach "New prediction" by Tab and press it
-  let hit = false; for (let i = 0; i < 40 && !hit; i++) { await p.keyboard.press('Tab'); hit = /New prediction/.test(await focusLabel()); }
-  check('"New prediction" is reachable by Tab', hit, '');
+  let hit = false; for (let i = 0; i < 40 && !hit; i++) { await p.keyboard.press('Tab'); hit = /^Start/.test(await focusLabel()); }
+  check('the "Test a peptide" button is reachable by Tab (the carousel is a few stops, not eighty)', hit, '');
   await p.keyboard.press('Enter'); await p.waitForSelector('.pick');
   // step 1: pick a protein with the keyboard
   let onPick = false; for (let i = 0; i < 30 && !onPick; i++) { await p.keyboard.press('Tab'); onPick = await p.evaluate(() => document.activeElement?.classList.contains('pick')); }
@@ -33,7 +33,7 @@ const b = await browser();
   check('Escape closes the dialog', (await p.locator('dialog[open]').count()) === 0, '');
   check('focus returns to the page after the dialog closes', await p.evaluate(() => document.activeElement && document.activeElement !== document.body), await focusLabel());
   // box keyboard control on the binding site
-  await p.goto(BASE + '/'); await p.waitForSelector('.hero-card'); await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick'); await p.locator('.pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click();
+  await p.goto(BASE + '/'); await p.waitForSelector('.hero-card'); await p.locator('.start-card', { hasText: 'Test a peptide' }).getByRole('button').click(); await p.waitForSelector('.pick'); await p.locator('.pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click();
   await p.locator('.pep-pick').first().click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice');
   const before = (await p.locator('.coords').first().textContent().catch(() => '')) || '';
   await p.locator('#stage').focus(); for (let i = 0; i < 6; i++) await p.keyboard.press('ArrowRight');

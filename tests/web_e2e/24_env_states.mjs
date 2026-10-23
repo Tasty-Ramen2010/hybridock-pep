@@ -46,7 +46,7 @@ await p.close();
 // ---- first prediction: tell people about the download before it happens ----
 p = await asMachine((e) => { e.checks.first_run = { ok: false, detail: 'Model files still to download (first prediction)', fix: 'about 2.5 GB' }; });
 check('before the first prediction, Home mentions the 2.5 GB download', /2\.5 GB/.test(await p.locator('.hero-copy').innerText()), '');
-await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track', { timeout: 20000 });
+await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await p.waitForSelector('.track', { timeout: 20000 });
 const running = (await p.locator('.notice').allTextContents()).join(' ');
 check('...and so does the running screen, in a notice', /First prediction on this computer/.test(running) && /10 minutes/.test(running), running.slice(0, 120));
 await p.close();   // (the example run is refused or started on the real server; either way this page does not wait for it)

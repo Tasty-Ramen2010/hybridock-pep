@@ -42,7 +42,8 @@ class PublicPolicy:
     """The rules for a public server. The defaults suit a laptop that several people may use in turn."""
 
     allowed_origins: tuple[str, ...] = ()
-    max_samples: int = 50            # Quick (25) and Half (50); Full is 100
+    max_samples: int = 25            # the most a visitor may ask for; visitors pick one of allowed_samples
+    allowed_samples: tuple[int, ...] = (5, 10, 25)   # the three sizes the page offers: every run finishes in minutes
     max_compare_samples: int = 25    # a comparison is two dockings
     max_peptide: int = 25
     max_upload_bytes: int = 6 * 1024 * 1024
@@ -133,8 +134,9 @@ class PublicPolicy:
         cap = self.max_compare_samples if mode == "selectivity" else self.max_samples
         samples = values.get("n_samples", "").strip()
         if mode != "crystal":
-            if not samples.isdigit() or not 1 <= int(samples) <= cap:
-                raise ValueError(f"The shared computer runs up to {cap} poses here (Quick or Half). Install the app to run more.")
+            allowed = [n for n in self.allowed_samples if n <= cap]
+            if not samples.isdigit() or int(samples) not in allowed:
+                raise ValueError(f"Choose {', '.join(str(n) for n in allowed[:-1])} or {allowed[-1]} poses.")
         for key in ("site", "offtarget_site"):
             if values.get(key, "").strip():
                 parts = values[key].split()
@@ -181,7 +183,7 @@ class PublicPolicy:
     def describe(self) -> dict[str, Any]:
         """Sent to the page inside /api/env so it can explain the limits instead of letting a run fail."""
         return {
-            "max_samples": self.max_samples, "max_compare_samples": self.max_compare_samples,
+            "max_samples": self.max_samples, "max_compare_samples": self.max_compare_samples, "allowed_samples": list(self.allowed_samples),
             "max_peptide": self.max_peptide, "blind": False, "custom_paths": False,
             "max_upload_mb": self.max_upload_bytes // (1024 * 1024),
         }

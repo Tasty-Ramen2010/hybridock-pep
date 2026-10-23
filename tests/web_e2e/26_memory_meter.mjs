@@ -27,7 +27,7 @@ check('no warning when memory is fine', await p.locator('.ram-bubble').isHidden(
 const idleColour = a.liq;
 
 // ---- running: the dot widens into a tank ----
-await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track'); await settle(p);
+await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await p.waitForSelector('.track'); await settle(p);
 a = await lvl(p);
 check('while a run goes the dot widens into a tank', a.on === 'true' && a.w >= 30, JSON.stringify(a));
 check('the percentage appears beside it', (await p.locator('.ram-pct').textContent()).trim() === '44%', '');
@@ -93,7 +93,7 @@ check('the real server reports memory', real && real.ok && real.percent > 0 && r
 // ---- phone: it fits, and the bubble goes across the top ----
 stats = { ok: true, total_gb: 16, available_gb: 1, percent: 93, run_gb: 3 };
 const m = await open({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
-await m.getByRole('button', { name: 'Run example' }).tap(); await m.waitForSelector('.track'); await sleep(3000);
+await m.getByRole('button', { name: /Watch a (live|demo) run/ }).tap(); await m.waitForSelector('.track'); await sleep(3000);
 const fit = await m.evaluate(() => { const r = document.querySelector('.avatar').getBoundingClientRect(); return { right: Math.round(r.right), iw: innerWidth, sw: document.documentElement.scrollWidth }; });
 check('phone: the top bar fits while a run is going (avatar inside the screen)', fit.right <= fit.iw && fit.sw <= fit.iw + 1, JSON.stringify(fit));
 const bb = await m.locator('.ram-bubble').boundingBox();

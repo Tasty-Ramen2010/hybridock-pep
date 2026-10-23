@@ -20,15 +20,15 @@ const words = (await p.locator('.screen.guide').innerText()).split(/\s+/).length
 check('the guide home is short (under 220 words)', words < 220, `${words} words`);
 check('no long paragraphs, no tables, no contents list on the home', (await p.locator('.screen.guide table, .guide-toc, .guide-body').count()) === 0, '');
 const firstTitle = (await p.locator('.lesson .lesson-title').first().textContent()).trim();
-check(live ? 'the real app opens with the first prediction' : 'the preview opens with how to get the app', live ? firstTitle === 'Your first prediction' : firstTitle === 'Get the app', firstTitle);
+check('the guide opens with the live demo lesson', firstTitle === 'Try the live demo', firstTitle);
 const text = await p.locator('.screen.guide').innerText();
 check('nothing about GPUs, memory sizes or the internet is on the guide home', !/GPU|VRAM|gigabyte|internet|requirement/i.test(text), '');
 check('no greeting and no "iGEM" or "AI" wording', !/good (morning|evening)|iGEM|\bAI\b/i.test(text), '');
 await shot(p, '23-guide-home');
 
 // ---- a lesson: step through with the buttons ----
-await p.locator('.lesson', { hasText: 'Your first prediction' }).click(); await p.waitForSelector('.step-card');
-check('a lesson opens at step 1 and the address says so', /#\/guide\/first-prediction\/1$/.test(p.url()) && /Step 1 of \d/.test(await p.locator('.step-count').textContent()), p.url());
+await p.locator('.lesson', { hasText: 'Try the live demo' }).click(); await p.waitForSelector('.step-card');
+check('a lesson opens at step 1 and the address says so', /#\/guide\/live-demo\/1$/.test(p.url()) && /Step 1 of \d/.test(await p.locator('.step-count').textContent()), p.url());
 check('step 1 has no Back button', await p.getByRole('button', { name: 'Back' }).isHidden(), '');
 const total = await p.locator('.step-bar').count();
 check('the progress bars match the steps', total >= 5 && total <= 8, `${total} steps`);
@@ -41,7 +41,7 @@ check('a step is one short idea (under 45 words)', bodyWords < 45, `${bodyWords}
 const first = (await p.locator('.step-text h2').textContent()).trim();
 await p.getByRole('button', { name: /^Next/ }).click(); await sleep(400);
 check('Next goes to step 2 with a new headline', /Step 2 of/.test(await p.locator('.step-count').textContent()) && (await p.locator('.step-text h2').textContent()).trim() !== first, '');
-check('the address follows the step (and Back in the browser is not trapped)', /#\/guide\/first-prediction\/2$/.test(p.url()), p.url());
+check('the address follows the step (and Back in the browser is not trapped)', /#\/guide\/live-demo\/2$/.test(p.url()), p.url());
 check('the bars fill up to the current step', (await p.locator('.step-bar.on').count()) === 2, '');
 await p.keyboard.press('ArrowRight'); await sleep(300);
 check('the right arrow key goes forward', /Step 3 of/.test(await p.locator('.step-count').textContent()), '');
@@ -65,7 +65,7 @@ await p.goto(BASE + '/#/guide/no-such-lesson'); await p.waitForSelector('.lesson
 check('an unknown lesson shows the lessons', (await p.locator('.lesson').count()) >= 8, '');
 
 // ---- the install lesson: the commands can be copied ----
-await p.goto(BASE + '/#/guide/get-started'); await p.waitForSelector('.step-card .cmd-wrap');
+await p.goto(BASE + '/#/guide/own-computer'); await p.waitForSelector('.step-card .cmd-wrap');
 const sample = (await p.locator('.cmd-wrap pre').textContent()).trim();
 check('the install step shows the real commands', /git clone --recurse-submodules .*hybridock-pep/.test(sample) && /cd hybridock-pep/.test(sample), sample.slice(0, 50));
 await p.locator('.cmd-wrap').getByRole('button', { name: /Copy/ }).click(); await sleep(300);
@@ -116,7 +116,7 @@ await m.goto(BASE + '/#/guide'); await m.waitForSelector('.lesson');
 check('phone: one lesson per row and no sideways scrolling', (await m.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)) && (await m.evaluate(() => new Set([...document.querySelectorAll('.lesson')].map((e) => Math.round(e.getBoundingClientRect().left))).size)) === 1, '');
 const tabs = await m.locator('.tabbar a').allTextContents();
 check('phone: the tab bar has four tabs and Guide is current', tabs.length === 4 && (await m.locator('.tabbar a[aria-current="page"]').textContent()).includes('Guide'), tabs.join(','));
-await m.locator('.lesson', { hasText: 'Your first prediction' }).tap(); await m.waitForSelector('.step-card');
+await m.locator('.lesson', { hasText: 'Try the live demo' }).tap(); await m.waitForSelector('.step-card');
 check('phone: a step card fits the screen width', await m.evaluate(() => { const r = document.querySelector('.step-card').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }), '');
 const nav = await m.locator('.step-nav .btn.primary').boundingBox();
 check('phone: the Next button is a big tap target', nav && nav.height >= 44, JSON.stringify(nav));

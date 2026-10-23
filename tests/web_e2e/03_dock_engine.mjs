@@ -1,7 +1,7 @@
 import { browser, newPage, check, finish, shot, BASE, sleep } from './lib.mjs';
 const b = await browser(); const p = await newPage(b);
 await p.goto(BASE + '/'); await p.waitForSelector('.hero-card');
-await p.getByRole('button', { name: 'Run example' }).click();
+await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click();
 await p.waitForSelector('.track', { timeout: 20000 });
 check('Running screen appears after Run example', true);
 const t0 = Date.now();

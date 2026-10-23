@@ -57,6 +57,7 @@ export function mountGuide(ctx) {
           : h('span', { class: 'lesson-cover shot', 'aria-hidden': 'true' }, h('img', { src: assetUrl(`guide/guide-img/${t.cover}`), alt: '', decoding: 'async' }))
         : null;
       return h('a', { class: `lesson${hero ? ' hero' : ''}${dark ? ' dark' : ''}`, href: `#/guide/${t.id}`, 'data-topic': t.id },
+        h('span', { class: 'lesson-num', 'aria-label': `Lesson ${i + 1}` }, String(i + 1)),
         h('span', { class: 'lesson-icon', 'aria-hidden': 'true' }, icon(t.icon, hero ? 28 : 24)),
         h('span', { class: 'lesson-title' }, t.title),
         h('span', { class: 'lesson-blurb' }, t.blurb),
@@ -70,11 +71,11 @@ export function mountGuide(ctx) {
     const seen = topics.filter((t) => done.has(t.id)).length;
     return h('div', { class: 'guide-home' },
       h('header', { class: 'guide-head' },
-        h('h1', { id: 'guide-heading', tabindex: '-1' }, 'Guide.', ' ', h('span', { class: 'dim' }, 'Short lessons for using the app.')),
+        h('h1', { id: 'guide-heading', tabindex: '-1' }, 'How to use it.', ' ', h('span', { class: 'dim' }, 'Follow the steps, in order.')),
         seen ? h('p', { class: 'guide-progress' }, `${seen} of ${topics.length} done`) : null),
       h('div', { class: 'lessons' }, tiles),
-      kind === 'demo' ? h('p', { class: 'small muted guide-foot' }, 'No terminal? ',
-        h('a', { href: COLAB_URL, target: '_blank', rel: 'noopener noreferrer' }, 'Run it in Google Colab'), ' instead.') : null);
+      h('p', { class: 'small muted guide-foot' }, 'No terminal? ',
+        h('a', { href: COLAB_URL, target: '_blank', rel: 'noopener noreferrer' }, 'Run it in Google Colab'), ' instead.'));
   }
 
   // ---------------------------------------------------------------- a lesson made of steps
@@ -119,7 +120,7 @@ export function mountGuide(ctx) {
     addEventListener('keydown', onKey);
     show(i, { animate: false });
     return h('div', { class: 'guide-lesson' },
-      h('div', { class: 'guide-bar' }, h('a', { class: 'btn ghost back-link', href: '#/guide' }, icon('back', 16), 'Guide'), count),
+      h('div', { class: 'guide-bar' }, h('a', { class: 'btn ghost back-link', href: '#/guide' }, icon('back', 16), 'All lessons'), count),
       bars, card,
       h('div', { class: 'step-nav' }, back, next));
   }

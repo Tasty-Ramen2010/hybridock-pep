@@ -170,8 +170,112 @@ def _length_band(n: int) -> str:
     return "very long"
 
 
+_TIMING_CACHE: dict[tuple[str, float], dict[str, Any] | None] = {}
+
+
+def timing_profile() -> dict[str, Any] | None:
+    """The measured run times for THIS computer, or None when nobody has measured it.
+
+    ``HYBRIDOCK_TIMING_FILE`` names a JSON file written by ``scripts/benchmark_timing.py``::
+
+        {"machine": "NVIDIA Jetson AGX Orin", "refLength": 12,
+         "grid": {"8": {"5": 58, "10": 65, "25": 98}, "12": {"5": 68, "10": 82, "25": 134}, ...}}
+
+    ``grid`` is whole-run seconds by peptide length and pose count (see :mod:`hybridock_pep.web.timing`). The file is opt-in
+    because the numbers mean nothing on any other machine. It is re-read whenever it changes, so a new measurement is picked
+    up without restarting the server.
+    """
+    path = os.environ.get("HYBRIDOCK_TIMING_FILE", "").strip()
+    if not path:
+        return None
+    try:
+        key = (path, Path(path).stat().st_mtime)
+    except OSError:
+        return None
+    if key not in _TIMING_CACHE:
+        _TIMING_CACHE.clear()
+        _TIMING_CACHE[key] = _read_timing(path)
+    return _TIMING_CACHE[key]
+
+
+timing_profile.cache_clear = _TIMING_CACHE.clear  # type: ignore[attr-defined]
+
+
+def _read_timing(path: str) -> dict[str, Any] | None:
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        prof = raw.get("timing", raw) if isinstance(raw, dict) else None  # the file may be the catalog (timing nested)
+        grid = {int(L): {int(n): float(t) for n, t in row.items() if float(t) > 0} for L, row in (prof or {}).get("grid", {}).items()}
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    grid = {L: row for L, row in grid.items() if row}
+    if not grid:
+        return None
+    ref = int(prof.get("refLength", 12))
+    return {"machine": str(raw.get("machine") or prof.get("machine") or ""), "refLength": ref,
+            "grid": {str(L): {str(n): t for n, t in sorted(row.items())} for L, row in sorted(grid.items())}}
+
+
+def _history_path() -> Path | None:
+    """Where the real run times are kept, or None on a computer that has no timing table (nothing is recorded there)."""
+    explicit = os.environ.get("HYBRIDOCK_TIMING_HISTORY", "").strip()
+    if explicit:
+        return Path(explicit)
+    return (SESSION_ROOT / "timing_history.jsonl") if timing_profile() is not None else None
+
+
+def record_run_time(peptide: str, poses: int, seconds: float) -> None:
+    """Remember how long a finished prediction really took, so the next one with the same peptide and pose count is quoted exactly."""
+    path = _history_path()
+    if path is None or not peptide or poses <= 0 or seconds <= 0:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"peptide": peptide.strip().upper(), "poses": int(poses), "seconds": round(float(seconds), 1)}) + "\n")
+    except OSError as exc:
+        logger.warning("could not record a run time: %s", exc)
+
+
+def _history_seconds(peptide: str, poses: int) -> float | None:
+    """The median of the last three real runs of this peptide at this pose count, or None if there is none."""
+    path = _history_path()
+    pep = (peptide or "").strip().upper()
+    if path is None or not pep or not path.is_file():
+        return None
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()[-2000:]
+    except OSError:
+        return None
+    runs: list[float] = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if row.get("peptide") == pep and row.get("poses") == poses and isinstance(row.get("seconds"), (int, float)):
+            runs.append(float(row["seconds"]))
+    if not runs:
+        return None
+    last = sorted(runs[-3:])
+    return last[len(last) // 2]
+
+
+def _measured_seconds(n: int, peptide_len: int) -> int | None:
+    """Seconds for ``n`` poses of a peptide ``peptide_len`` letters long, from the measured grid."""
+    prof = timing_profile()
+    if prof is None:
+        return None
+    from hybridock_pep.web.timing import estimate as _grid_estimate
+    seconds = _grid_estimate({int(L): {int(k): v for k, v in row.items()} for L, row in prof["grid"].items()}, peptide_len, n)
+    return max(10, int(seconds + 0.5))
+
+
 def estimate_seconds(values: dict[str, str], mode: str) -> int:
     """Rough wall-clock estimate shown on the run button.
+
+    On a computer with a measured timing table (``HYBRIDOCK_TIMING_FILE``) the answer is that table, scaled to the
+    peptide's length: the demo computer's times were measured, not modelled. Everywhere else it is the model below.
 
     Measured anchors: RAPiDock is about 0.6 s/pose on the 5070 (about 1 on Apple's Metal backend), Stage 2 scoring is
     2.8 s/pose end-to-end. MM-GBSA and ultra are per-pose on top of that. It is an
@@ -180,6 +284,13 @@ def estimate_seconds(values: dict[str, str], mode: str) -> int:
     if mode == "crystal":
         return 10
     n = _int_or(values.get("n_samples"), 100)
+    pep = (values.get("peptide") or "").strip()
+    measured = None if (values.get("input_poses") or "").strip() or _truthy(values.get("blind")) else _measured_seconds(n, len(pep) or 12)
+    if measured is not None:
+        seen = _history_seconds(pep, n)  # the same peptide at the same size has been run here before: quote what it really took
+        if seen is not None:
+            measured = max(10, int(seen + 0.5))
+        return measured * 2 if mode == "selectivity" else measured
     sampling: float
     score_s, fixed = _scoring_cost()
     if (values.get("input_poses") or "").strip():
@@ -290,6 +401,11 @@ def _detect_accelerator(which: Any, os_name: str | None = None, machine: str | N
     NVIDIA (also under WSL2) is found by ``nvidia-smi``; an Apple Silicon Mac always has a Metal GPU (the sampler
     runs on it through PyTorch's MPS backend); AMD and Intel are found by their vendor tools being installed.
     """
+    # A board whose GPU nvidia-smi cannot see (a Jetson / DRIVE Orin) says what it is: HYBRIDOCK_ACCELERATOR="cuda:NVIDIA Jetson AGX Orin".
+    forced = os.environ.get("HYBRIDOCK_ACCELERATOR", "").strip()
+    if ":" in forced and forced.split(":", 1)[0] in ("cuda", "metal", "rocm", "xpu"):
+        kind_, name_ = forced.split(":", 1)
+        return kind_, name_.strip() or kind_
     smi = which("nvidia-smi") or "/usr/lib/wsl/lib/nvidia-smi"
     if Path(smi).exists():
         out = _run_text([smi, "--query-gpu=name", "--format=csv,noheader"])
@@ -448,7 +564,14 @@ def check_environment() -> dict[str, Any]:
 
     essential = ("cli", "scorer")
     checks_ok = all(checks[k]["ok"] for k in essential)
-    return {"ready": checks_ok, "checks": checks, "examples": len(available_examples())}
+    out: dict[str, Any] = {"ready": checks_ok, "checks": checks, "examples": len(available_examples()),
+                           # a computer that shares its memory with something else and stops it when a run starts (HYBRIDOCK_JOB_HOOK):
+                           # its memory is allowed to look full while idle, so the page must not warn about that
+                           "makes_room": bool(os.environ.get("HYBRIDOCK_JOB_HOOK", "").strip())}
+    prof = timing_profile()
+    if prof is not None:
+        out["timing"] = prof  # the page shows "about N minutes" from this, so it is only sent where it was measured
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -524,12 +647,54 @@ class Job:
 
 
 class JobManager:
-    """Runs one job at a time; the GPU cannot sensibly share a dock run anyway."""
+    """Runs one job at a time; the GPU cannot sensibly share a dock run anyway.
+
+    On a computer that does other work too (the demo board also hosts a language model) two optional settings make
+    a prediction win:
+
+    * ``HYBRIDOCK_JOB_HOOK`` is a program called as ``hook start`` before a run begins (it frees the memory and the GPU)
+      and as ``hook idle`` once nothing has run for ``HYBRIDOCK_IDLE_SECONDS`` (default 600; it gives them back).
+    * ``HYBRIDOCK_NICE`` (for example ``-10``) is the scheduling priority the run is started with.
+    """
 
     def __init__(self) -> None:
         self.jobs: dict[str, Job] = {}
         self._current: str | None = None
         self._lock = threading.Lock()
+        self._idle_timer: threading.Timer | None = None
+
+    # -- the optional hook -------------------------------------------------------------------------------------
+    @staticmethod
+    def _hook(event: str) -> None:
+        program = os.environ.get("HYBRIDOCK_JOB_HOOK", "").strip()
+        if not program:
+            return
+        try:
+            subprocess.run([program, event], timeout=180, check=False, capture_output=True)
+        except (OSError, subprocess.SubprocessError) as exc:
+            logger.warning("job hook %r %s failed: %s", program, event, exc)
+
+    def _arm_idle(self) -> None:
+        if not os.environ.get("HYBRIDOCK_JOB_HOOK", "").strip():
+            return
+        try:
+            wait = float(os.environ.get("HYBRIDOCK_IDLE_SECONDS", "600"))
+        except ValueError:
+            wait = 600.0
+        self._disarm_idle()
+        timer = threading.Timer(wait, self._idle_fire)
+        timer.daemon = True
+        self._idle_timer = timer
+        timer.start()
+
+    def _disarm_idle(self) -> None:
+        timer, self._idle_timer = self._idle_timer, None
+        if timer is not None:
+            timer.cancel()
+
+    def _idle_fire(self) -> None:
+        if not self.busy:
+            self._hook("idle")
 
     @property
     def busy(self) -> bool:
@@ -551,6 +716,7 @@ class JobManager:
                 "conda environment (conda activate score-env)."
             )
         job = Job(uuid.uuid4().hex[:12], cmd, mode, values, output_dir)
+        self._disarm_idle()
         # Check "is a run going?" and claim the slot in ONE critical section. They used to be two steps, so two requests
         # arriving together (two tabs) both saw "idle", both started, and one clobbered the other's files.
         with self._lock:
@@ -564,11 +730,22 @@ class JobManager:
         return job
 
     def _run(self, job: Job, exe: str) -> None:
+        if os.environ.get("HYBRIDOCK_JOB_HOOK", "").strip():
+            job.append("Making room on the computer for this run...")
+            self._hook("start")  # frees memory and the GPU for the run (it can take a few seconds)
         job.state = "running"
+        job.started = time.time()  # the clock the page shows starts when the work does, not while room was being made
         job.append(f"$ {' '.join(job.cmd)}")
+        argv = [exe, *job.cmd[1:]]
+        nice = os.environ.get("HYBRIDOCK_NICE", "").strip()
+        if nice.lstrip("-").isdigit() and os.name == "posix":
+            import shutil as _shutil
+            nice_bin = _shutil.which("nice")
+            if nice_bin:
+                argv = [nice_bin, "-n", nice, *argv]  # execs in place, so the process group the Stop button signals is unchanged
         try:
             job.proc = subprocess.Popen(
-                [exe, *job.cmd[1:]],
+                argv,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -579,6 +756,7 @@ class JobManager:
             job.state = "failed"
             job.error = f"Could not start the pipeline: {exc}"
             job.finished_at = time.time()
+            self._arm_idle()
             return
 
         assert job.proc.stdout is not None
@@ -587,13 +765,17 @@ class JobManager:
         job.returncode = job.proc.wait()
         job.finished_at = time.time()
         if job.state == "cancelled":
+            self._arm_idle()
             return
         if job.returncode == 0:
             job.state = "done"
             job.progress.finished = True
+            if job.mode == "dock" and isinstance(job.values, dict) and not (job.values.get("input_poses") or "").strip():
+                record_run_time(job.values.get("peptide", ""), _int_or(job.values.get("n_samples"), 0), job.finished_at - job.started)
         else:
             job.state = "failed"
             job.error = _explain_failure(job)
+        self._arm_idle()
 
     def cancel(self, job_id: str) -> bool:
         job = self.jobs.get(job_id)
@@ -819,8 +1001,6 @@ def _selectivity_summary(job: Job) -> dict[str, Any] | None:
     return {
         "ddg": ddg,
         "verdict": "on-target selective" if ddg < 0 else "off-target favoured",
-        "caveat": ("Below about 1 kcal/mol this is a direction, not a measurement — "
-                   "the charged floor is the same size."),
     }
 
 
@@ -1308,7 +1488,7 @@ def _open_in_browser(url: str) -> None:
 
 
 def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True,
-          public: bool = False, allow_origins: tuple[str, ...] = (), max_samples: int = 50) -> int:
+          public: bool = False, allow_origins: tuple[str, ...] = (), max_samples: int = 25) -> int:
     """Run the studio until interrupted.
 
     Args:
@@ -1345,7 +1525,7 @@ def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True,
         policy.runs_dir.mkdir(parents=True, exist_ok=True)
         policy.prune()
         print("  PUBLIC MODE: visitors are limited to "
-              f"{policy.max_samples} poses, no whole-protein search, no file paths; "
+              f"{', '.join(str(n) for n in policy.allowed_samples if n <= policy.max_samples)} poses, no whole-protein search, no file paths; "
               f"pages allowed: {', '.join(policy.allowed_origins) or 'this server only'}", flush=True)
     # flush: the URL is the only thing this command exists to tell you, and a
     # piped/redirected stdout would otherwise buffer it until the server exits.

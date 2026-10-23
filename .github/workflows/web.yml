@@ -83,7 +83,7 @@ jobs:
           python "$GITHUB_WORKSPACE/scripts/build_pages.py" --out "$RUNNER_TEMP/site"
           (cd "$RUNNER_TEMP/site" && nohup python -m http.server 8010 > "$RUNNER_TEMP/site.log" 2>&1 &)
           mkdir -p "$RUNNER_TEMP/shared" && cd "$RUNNER_TEMP/shared"
-          HYBRIDOCK_VINA_WORKERS=1 nohup hybridock-pep serve --public --no-browser --port 8765 --allow-origin http://127.0.0.1:8010 > "$RUNNER_TEMP/shared.log" 2>&1 &
+          HYBRIDOCK_TIMING_FILE="$GITHUB_WORKSPACE/tests/fixtures/timing_cases.json" HYBRIDOCK_VINA_WORKERS=1 nohup hybridock-pep serve --public --no-browser --port 8765 --allow-origin http://127.0.0.1:8010 > "$RUNNER_TEMP/shared.log" 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8765/api/env > /dev/null && curl -sf http://127.0.0.1:8010/ > /dev/null && break; sleep 1; done
           cd "$GITHUB_WORKSPACE/tests/web_e2e"
           BASE=http://127.0.0.1:8010 SHARED=http://127.0.0.1:8765 UNSHARED=http://127.0.0.1:8000 node run_all.mjs 25

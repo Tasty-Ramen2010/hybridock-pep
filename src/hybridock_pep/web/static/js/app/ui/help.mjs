@@ -2,20 +2,19 @@
 
 import { h } from './dom.mjs';
 import { icon } from './icons.mjs';
-import { TYPICAL_ERROR, backend } from '../config.mjs';
+import { backend } from '../config.mjs';
 import { adapter } from '../adapter.mjs';
 
 const TERMS = [
   ['Protein', 'The big molecule your peptide tries to stick to. HybriDock-Pep uses its 3D shape from the Protein Data Bank.'],
   ['Peptide', 'A short chain of amino acids, typed as letters, such as LIYKWVNK.'],
-  ['Binding strength (ΔG)', `How tightly the peptide sticks, in kcal/mol. More negative means stronger. A single prediction is typically off by about ±${TYPICAL_ERROR} kcal/mol.`],
+  ['Binding strength (ΔG)', `How tightly the peptide sticks, in kcal/mol. More negative means stronger.`],
   ['Pose', 'One way the peptide could sit on the protein. HybriDock-Pep makes many poses and ranks them.'],
   ['Binding site and box', 'Where on the protein to look. The box is the search area, with its size in ångströms (Å); 1 Å is a ten-billionth of a metre.'],
   ['Find the pocket for me', 'Searches the whole protein for likely binding pockets instead of using a box you place. Slower, but handy when you don’t know where to aim.'],
-  ['Selectivity (ΔΔG)', 'The difference between two binding strengths: target minus off-target. Negative means the peptide prefers the target. The 95% interval shows how sure we are; if it crosses zero, there is no clear preference.'],
+  ['Selectivity (ΔΔG)', 'The difference between two binding strengths: target minus off-target. Negative means the peptide prefers the target. If the band crosses zero, there is no clear preference.'],
   ['Ranking score', 'A number used only to order the poses of one protein (lower is stronger). It is not a ΔG, so don’t compare it with one or across proteins.'],
-  ['“Strong / moderate / weak”', 'Our own rough wording for a ΔG, to help you read it. The program doesn’t produce it.'],
-  ['Demo', 'Anything marked Demo is simulated so the app works without the server. It is not a real prediction.'],
+  ['Demo', 'Anything marked Demo is simulated, so the page still works when the lab computer is offline.'],
   ['Guided and Expert', 'Guided hides technical settings and adds short explanations. Expert shows coordinates, advanced options and the exact command. Same screens, same results.'],
 ];
 

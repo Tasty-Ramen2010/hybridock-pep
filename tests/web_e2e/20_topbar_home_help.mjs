@@ -91,11 +91,12 @@ await p.locator('input[aria-label="Your name"]').fill(''); await p.keyboard.pres
 
 // ---------------------------------------------------------------- Home
 await p.goto(BASE + '/#/'); await p.waitForSelector('.hero-card');
-check('four stat cards', (await p.locator('.stat').count()) === 4, '');
-const labels = await p.locator('.stat .label').allTextContents();
-check('stat labels are the honest ones (no "confidence" card)', labels.length === 4 && !labels.some((l) => /confidence/i.test(l)), labels.map((l) => l.trim()).join(' | '));
-check('typical error stat says ±1.6', /1\.6/.test(await p.locator('.stat').nth(3).textContent()), '');
-for (const [name, route, sel] of [['Predict binding', '#/predict', '.steps'], ['Compare two proteins', '#/compare', '.pcard'], ['Score a structure', '#/score', '.drop']]) {
+const heroText = await p.locator('.hero-card').innerText();
+check('the headline speaks to doctors, in plain words', /doctors/i.test(await p.locator('h1').first().textContent()) && !/peptide|protein/i.test(await p.locator('.hero-copy h1').textContent()), '');
+check('GitHub is the main button', /GitHub/.test(await p.locator('.hero-copy .btn.primary').textContent()) && (await p.locator('.hero-copy a.btn.primary').getAttribute('href')).includes('github.com/Tasty-Ramen2010/hybridock-pep'), '');
+check('the carousel shows one card per protein and says how many', (await p.locator('.slide').count()) === 8 && /1 of 8/.test(await p.locator('.catalog-count').textContent()), '');
+check('no error figures on the home page', !/±|typical error|off by/i.test(await p.locator('.screen.home').innerText()), heroText.slice(0, 80));
+for (const [name, route, sel] of [['Test a peptide', '#/predict', '.steps'], ['Compare two proteins', '#/compare', '.pcard'], ['Score a structure', '#/score', '.drop']]) {
   await p.goto(BASE + '/#/'); await p.waitForSelector('.start-card');
   await p.locator('.start-card', { hasText: name }).click(); await p.waitForSelector(sel);
   check(`start card "${name}" opens its page`, p.url().includes(route), p.url());
@@ -103,21 +104,20 @@ for (const [name, route, sel] of [['Predict binding', '#/predict', '.steps'], ['
 await p.goto(BASE + '/#/'); await p.waitForSelector('.start-card');
 check('each start card has a real button on it', (await p.locator('.start-card button.btn').count()) === 3 && (await p.locator('.start-card button.btn').allTextContents()).every((t) => t.trim().length > 4), (await p.locator('.start-card button.btn').allTextContents()).join(' | '));
 check('the buttons say what they do, not just "Open"', !(await p.locator('.start-card button.btn').allTextContents()).some((t) => /^\s*open\s*$/i.test(t)), '');
-await p.getByRole('button', { name: 'Compare proteins' }).click(); await p.waitForSelector('.pcard');
+await p.locator('.start-card', { hasText: 'Compare two proteins' }).getByRole('button').click(); await p.waitForSelector('.pcard');
 check('pressing the Compare button itself opens Compare', p.url().includes('#/compare'), p.url());
-await p.goto(BASE + '/#/'); await p.waitForSelector('.example-line');
-const exTxt = (await p.locator('.example-line').textContent()).replace(/\s+/g, ' ');
-check('the example names its peptide, shows the letters and names the protein', /p53 peptide|Peptide/.test(exTxt) && /[A-Z]{6,}/.test(exTxt) && /MDM2|PfLDH|Tau|protein/.test(exTxt), exTxt);
-check('Home explains what a peptide is in one plain sentence', /short chain of amino acids/i.test(await p.locator('.hero-card .lede').textContent()), '');
+await p.goto(BASE + '/#/'); await p.waitForSelector('.slide');
+check('each card names its disease, its protein and says how long a live run takes', /Alzheimer|Cancer|Malaria|Parkinson/.test(await p.locator('.slide').first().innerText()) && /about \d|a few minutes/.test(await p.locator('.run-eta').first().textContent()), await p.locator('.run-eta').first().textContent());
+check('Home explains in plain words what the software is for, and what a peptide is, without a word of jargon up front', /medicine and vaccine/i.test(await p.locator('.hero-card .lede').textContent()) && /short chain called a peptide/i.test(await p.locator('.why').textContent()), '');
 const demoSite = (await p.evaluate(() => window.hybridock?.adapter?.kind)) !== 'live';
-check(demoSite ? 'the demo site shows how to get the real app (install commands)' : 'a real server shows no install box', (await p.locator('.get-app .cmd').count()) === (demoSite ? 1 : 0), '');
+check('no install box crowds the home page; the GitHub button and the guide lead to the install steps', (await p.locator('.get-app .cmd').count()) === 0 && (await p.locator('.hero-copy a[href*="github.com"]').count()) === 1, '');
 // night mode is one tap in the bar, no menu
 const darkBefore = await p.evaluate(() => document.documentElement.dataset.theme);
 await p.locator('.topbar button[aria-label^="Switch to"]').click();
 check('the bar has a night-mode button that flips the theme', (await p.evaluate(() => document.documentElement.dataset.theme)) !== darkBefore, '');
 await p.locator('.topbar button[aria-label^="Switch to"]').click();
 check('and it flips back', (await p.evaluate(() => document.documentElement.dataset.theme)) === darkBefore, '');
-await p.goto(BASE + '/#/'); await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.steps');
+await p.goto(BASE + '/#/'); await p.locator('.start-card', { hasText: 'Test a peptide' }).getByRole('button').click(); await p.waitForSelector('.steps');
 check('"New prediction" opens step 1', p.url().includes('#/predict') && (await p.locator('.steps li[aria-current=step] .name').textContent()).trim() === 'Protein', '');
 
 // ---------------------------------------------------------------- Help dialog

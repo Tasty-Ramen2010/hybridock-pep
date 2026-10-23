@@ -6,6 +6,7 @@ import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { RUN_STAGES } from '../config.mjs';
 import { adapter, firstRunPending, noGpu } from '../adapter.mjs';
+import { TIMING } from '../config.mjs';
 
 const COPY = {
   dock: { title: 'Finding how your peptide binds', sub: (j) => `${j.peptide} on ${j.protein.name}, ${j.poses} poses${j.blind ? ', searching the whole protein' : ''}` },
@@ -28,7 +29,7 @@ export function mountRunning(ctx) {
   const steps = RUN_STAGES.map((s) => h('li', {}, s.label, h('span', { class: 'tech' }, s.tech)));
   const etaEl = h('b', { class: 'nums' }), elapsedEl = h('b', { class: 'nums' });
   const counterEl = h('span', { class: 'small muted nums' });
-  const lateEl = h('p', { class: 'small muted', hidden: true }, 'This is taking longer than the estimate. That is normal on a machine without a GPU, and the run is still going. You can stop it at any time.');
+  const lateEl = h('p', { class: 'small muted', hidden: true }, 'Taking a little longer than usual. It is still working.');
   const logEl = h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Live log', style: { maxHeight: '220px', overflow: 'auto', margin: 0, paddingRight: '16px' } });
   let logLines = [], lastProgress = null;
   const stopBtn = h('button', { class: 'btn', type: 'button', onClick: () => runner.stop() }, icon('stop', 16), 'Stop');
@@ -85,8 +86,9 @@ export function mountRunning(ctx) {
       h('details', { class: 'adv expert-only' }, h('summary', {}, h('span', {}, 'Live log ', h('span', { class: 'tech' }, 'What the program is printing'))), h('div', { class: 'stack' }, logEl)),
       firstRunPending(adapter.env) && h('p', { class: 'notice', role: 'status' }, h('b', {}, 'First prediction on this computer. '), 'It also downloads about 2.5 GB of model files and prepares some lookup tables, which adds roughly 10 minutes. This happens once.'),
       h('p', { class: 'small muted' },
-        adapter.kind === 'demo' ? 'Demo run: the progress and the result are simulated, and short on purpose. ' : noGpu(adapter.env) ? 'This machine has no GPU, so a real run can take tens of minutes or longer, and there is no countdown. You can leave this tab open. ' : 'A real run can take several minutes. You can leave this tab open. ',
-        'The floating molecule is just decoration; the stages above show where the run really is.'));
+        adapter.kind === 'demo' ? 'Demo run: the progress and the result are simulated.'
+          : noGpu(adapter.env) && TIMING.seconds[5] == null ? 'This computer has no GPU, so a run can take tens of minutes and there is no countdown. You can leave this tab open.'
+            : 'You can leave this tab open. The run keeps going.'));
   }
 
   function paintError(r) {

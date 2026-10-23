@@ -36,6 +36,7 @@ export const freshSetup = () => ({
   proteinRef: null, //        { key?, name, file?, … } chosen protein
   peptide: '',
   siteMode: 'known', //       'known' | 'find'
+  adjustSite: false, //       Expert asked to mark the site by hand even though the protein has a known one
   site: null, //              { x, y, z }
   box: BOX_DEFAULT,
   thorough: DEFAULT_THOROUGHNESS,

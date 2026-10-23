@@ -1,38 +1,29 @@
-// home.js — the dashboard. The "Try an example" card is the hero: the floating protein sits right on it.
+// home.mjs — the front door. Plain words on the left for someone who has never heard of a peptide, the project's GitHub
+// link as the main button, and on the right a carousel of diseases the team has already worked on, with finished results
+// ready to open and a button to run any of them again live.
 
 import { h } from './dom.mjs';
 import { icon } from './icons.mjs';
-import { loadProtein } from '../structures.mjs';
 import { fmt, fmtSigned } from '../interpret.mjs';
-import { EXAMPLE, EXPERT_DEFAULTS, TYPICAL_ERROR, backend } from '../config.mjs';
+import { EXAMPLE, EXPERT_DEFAULTS, GITHUB_URL, TIMING, backend, timingFor } from '../config.mjs';
 import { dockJob, findProtein } from '../jobs.mjs';
-import { namedPeptide } from '../peptides.mjs';
 import { freshCompare, freshScore, freshSetup } from '../state.mjs';
-import { adapter, adapterFor, demoAdapter, estimateTrusted, firstRunPending, noGpu } from '../adapter.mjs';
+import { adapter, adapterFor, demoAdapter, firstRunPending, noGpu } from '../adapter.mjs';
 import { fmtDate, fmtDuration, saveBlob } from './dom.mjs';
 import { openHistory } from './history.mjs';
 import { toast } from './toast.mjs';
+import { createCatalog, etaLabel } from './catalog.mjs';
 
 export function mountHome(ctx) {
-  const { store, stage, go, runner } = ctx;
+  const { store, stage, go, runner, catalog } = ctx;
   let alive = true;
-
-  const stats = [
-    { label: 'Predictions run', tech: null, ref: h('span') },
-    { label: 'Proteins targeted', tech: null, ref: h('span') },
-    { label: 'Best binding strength', tech: 'ΔG, kcal/mol', ref: h('span') },
-    { label: 'Typical error', tech: 'of a single ΔG', ref: h('span') },
-  ];
-  const statsNote = h('p', { class: 'stats-note' });
-
   const startNew = (reset, path) => () => { store.set(reset()); go(path); };
 
-  // Recent predictions: the last four runs, each reopenable and (for a dock run) downloadable.
-  // Runs are saved automatically in this browser; "See all" opens the full History drawer.
+  // Recent predictions: the last four runs, each reopenable. Runs are saved automatically in this browser.
   const recentList = h('ul', { class: 'recent-list' });
   const recentSection = h('section', { class: 'recent', 'aria-labelledby': 'recent-title', hidden: true },
     h('div', { class: 'section-head' },
-      h('h2', { id: 'recent-title' }, 'Recent predictions'),
+      h('h2', { id: 'recent-title' }, 'Your recent runs'),
       h('button', { class: 'btn sm ghost', type: 'button', onClick: () => openHistory(ctx) }, 'See all')),
     recentList);
 
@@ -53,44 +44,30 @@ export function mountHome(ctx) {
         h('span', { class: 'name' }, e.name),
         h('span', { class: 'when' }, fmtDate(e.createdAt), e.demo && ' ', e.demo && h('span', { class: 'badge-demo' }, 'Demo')),
         h('span', { class: 'val nums' }, e.headline.label === 'ΔΔG' ? fmtSigned(e.headline.value) : fmt(e.headline.value), h('small', {}, `${e.headline.label} kcal/mol`))),
-      e.kind === 'dock' && h('button', { class: 'btn sm ghost recent-dl', type: 'button', 'aria-label': `Download the ranked list for ${e.name}`, onClick: () => downloadRanked(e) }, 'Download'))));
+      e.kind === 'dock' && !e.result?.preloaded && h('button', { class: 'btn sm ghost recent-dl', type: 'button', 'aria-label': `Download the ranked list for ${e.name}`, onClick: () => downloadRanked(e) }, 'Download'))));
   }
 
-  // The example: the p53 peptide on MDM2 in demo mode; with the live server, its own validated example (a known binder).
+  // ---- the one-click live run: the p53 peptide on MDM2 at 5 poses, the fastest real thing the page can show ----------
   const live = adapter.kind === 'live';
   const proteins = store.get().proteins;
-  const backendEx = live ? adapter.examples?.[0] : null;
-  const exProtein = (backendEx && proteins.find((p) => p.backendExample === backendEx.id)) || findProtein(proteins, EXAMPLE.proteinKey);
-  const exPeptide = backendEx && exProtein?.backendExample ? backendEx.peptide : EXAMPLE.peptide;
+  const exProtein = findProtein(proteins, EXAMPLE.proteinKey);
+  const exSeq = EXAMPLE.peptide;
   const exJob = () => dockJob({
-    proteinRef: exProtein, peptide: exPeptide, siteMode: 'known', site: exProtein.site, box: exProtein.box,
+    proteinRef: exProtein, peptide: exSeq, siteMode: 'known', site: exProtein.site, box: exProtein.box,
     thorough: 'quick', expert: { ...EXPERT_DEFAULTS },
   });
-  const firstRun = () => (firstRunPending(adapter.env) ? ' The first prediction on this computer also downloads about 2.5 GB of model files, once.' : '');
-  const timeNote = h('p', { class: 'small muted' }, live ? `A real quick run (25 poses).${firstRun()}` : 'Takes about 7 seconds in demo mode.');
-
-  let exEstimate = null;
+  const exTime = h('span', { class: 'btn-sub' }, etaLabel(5, exSeq.length));
+  let exExact = null; // the server's figure for this very run, which includes how long it really took last time
   function runExample() {
     if (!exProtein) return;
-    runner.start('dock', { ...exJob(), estimateSeconds: exEstimate }, { backTo: '/' });
+    runner.start('dock', { ...exJob(), estimateSeconds: exExact ?? timingFor(5, exSeq.length) }, { backTo: '/' });
   }
-  if (live && exProtein) {
+  if (live && adapter.env?.timing && exProtein) {
     adapter.preview(exJob()).then(({ estimateSeconds }) => {
-      exEstimate = estimateSeconds;
-      if (noGpu(adapter.env)) timeNote.textContent = `A real quick run (25 poses). This machine has no GPU, so allow tens of minutes.${firstRun()}`;
-      else if (estimateSeconds && estimateTrusted(adapter.env)) timeNote.textContent = `A real quick run (25 poses): roughly ${fmtDuration(estimateSeconds)} (an estimate for ${backend.remote ? 'the team’s computer' : 'this computer'}).${firstRun()}`;
+      if (!alive || estimateSeconds == null) return;
+      exExact = estimateSeconds; exTime.textContent = `about ${fmtDuration(estimateSeconds)}`;
     }).catch(() => {});
   }
-
-  // The example, said in words first (a row of letters means nothing to someone new): its name, its letters, the protein.
-  const named = namedPeptide(exPeptide);
-  const exLine = h('p', { class: 'example-line' },
-    h('span', { class: 'eyebrow' }, 'Example'),
-    h('b', {}, named?.name || 'Peptide'), h('span', { class: 'mono pep' }, exPeptide), h('span', { class: 'muted' }, 'on'), h('b', {}, exProtein?.name || 'a protein'),
-    !live && h('span', { class: 'badge-demo' }, 'Demo'));
-  const exNote = live && backendEx
-    ? h('p', { class: 'small muted' }, h('span', { class: 'chip' }, 'Known binder'), ' ', backendEx.blurb, backendEx.expect ? ` Expect around ${backendEx.expect.replace(/^around\s+/i, '')}.` : '')
-    : h('p', { class: 'small muted' }, `${named ? `${named.about} ` : ''}Each letter is one amino acid. Pressing Run example shows a simulated result.`);
 
   // A live server that is missing something: say exactly what and how to fix it, instead of letting the first run fail.
   const MISSING = ['cli', 'vina', 'receptor_prep', 'scorer', 'models'];
@@ -99,91 +76,68 @@ export function mountHome(ctx) {
     h('b', {}, 'Setup isn’t finished on this computer.'),
     h('ul', {}, broken.map(([, c]) => h('li', {}, c.detail, ' is missing. Fix: ', h('code', { class: 'mono' }, c.fix)))),
     h('a', { class: 'tap', href: '#/guide/troubleshooting' }, 'Open the install guide')) : null;
-
-  // The page came from a HybriDock-Pep server that is not answering (still starting, busy, or stopped): say so, never fall back to pretend results.
   const offlineNotice = live && !adapter.env ? h('div', { class: 'notice', role: 'alert' },
-    h('b', {}, 'HybriDock-Pep isn’t answering. '), 'It may still be starting, or the window that runs it was closed. Wait a few seconds, then ',
-    h('button', { class: 'btn sm', type: 'button', onClick: () => location.reload() }, 'Try again'), '.') : null;
+    h('b', {}, 'The lab computer isn’t answering. '), 'It may still be starting. Wait a few seconds, then ',
+    h('button', { class: 'btn sm', type: 'button', onClick: () => location.reload() }, 'try again'), '.') : null;
 
-  // On the public demo site (no app behind it): say so once, plainly, with the two commands that give the real thing.
-  const INSTALL = 'git clone --recurse-submodules https://github.com/Tasty-Ramen2010/hybridock-pep.git\ncd hybridock-pep\n./install.sh';
-  const copyInstall = h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Copy the install commands', onClick: async () => {
-    try { await navigator.clipboard.writeText(INSTALL); toast('Copied. Paste it into a terminal.'); } catch { toast('Couldn’t copy. Select the text and copy it by hand.'); }
-  } }, icon('copy', 15), 'Copy');
-  const demoNotice = live ? null : h('div', { class: 'notice get-app', role: 'note' },
-    h('b', {}, backend.offline ? 'The live computer is offline right now. ' : 'This is the preview. '),
-    backend.offline ? 'Until it is back, results here are simulated and marked Demo. Reload in a few minutes, or install the app on your own computer (about 30 minutes, once):'
-      : 'Results here are simulated and marked Demo. For real predictions, install the app on your computer (about 30 minutes, once):',
-    h('div', { class: 'cmd-wrap' }, h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Install commands' }, INSTALL), copyInstall),
-    h('p', { class: 'small' }, 'Then start it any time with ', h('code', { class: 'mono' }, './launch_web.sh'), '. Nothing to install? ',
-      h('a', { class: 'tap', href: 'https://colab.research.google.com/github/Tasty-Ramen2010/hybridock-pep/blob/master/notebooks/HybriDock_Pep_Colab.ipynb', target: '_blank', rel: 'noopener noreferrer' }, 'Open it in Google Colab'),
-      ', or see ', h('a', { class: 'tap', href: '#/guide/get-started' }, 'every way to run it'), '.'));
+  const where = live
+    ? (TIMING.machine ? `Runs live on our ${TIMING.machine}. Every result below is a real prediction.` : 'Runs live on our own computer. Every result below is a real prediction.')
+    : (backend.offline ? 'Our lab computer is offline for a moment, so new runs here are simulated and marked Demo. The results in the carousel are real.' : 'New runs in this preview are simulated and marked Demo. The results in the carousel are real.');
+
+  // Only a computer nobody has measured, or one that has not run a prediction yet, has anything to add: the demo computer has neither.
+  const measured = TIMING.seconds[5] != null;
+  const extra = [
+    live && noGpu(adapter.env) && !measured ? 'This computer has no GPU, so a run usually takes tens of minutes.' : null,
+    live && firstRunPending(adapter.env) ? 'The first prediction on this computer also downloads about 2.5 GB of model files, once.' : null,
+  ].filter(Boolean);
+
+  const slotEl = h('div', { class: 'stage-slot catalog-slot', 'data-stage-slot': '' });
+  const carousel = catalog && proteins.length ? createCatalog({ ctx, proteins, catalog, slotEl }) : null;
 
   const el = h('section', { class: 'screen home', 'aria-labelledby': 'home-title' },
     h('article', { class: 'hero-card' },
       h('div', { class: 'hero-copy' },
-        h('h1', { class: 'display home-title', id: 'home-title' }, 'Predict how a peptide binds a protein.'),
-        h('p', { class: 'lede' }, 'A peptide is a short chain of amino acids, written as letters. Choose a protein, type a peptide, and see how strongly they stick.'),
-        h('div', { class: 'row' },
-          h('button', { class: 'btn primary lg', type: 'button', onClick: startNew(() => ({ setup: freshSetup() }), '/predict') }, 'New prediction'),
-          h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, 'Run example', icon('chevron', 16))),
-        exLine,
-        exNote,
-        timeNote,
+        h('h1', { class: 'display home-title', id: 'home-title' }, 'Helping doctors find new cures, faster.'),
+        h('p', { class: 'lede' }, 'Every medicine and vaccine starts by finding the one small molecule that can grab onto what is making people sick. Finding it used to take scientists years. We find the strongest matches on a computer, in minutes.'),
+        h('div', { class: 'row cta-row' },
+          h('a', { class: 'btn primary lg', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' }, icon('github', 20), 'View the project on GitHub'),
+          h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, icon('play', 16),
+            live ? 'Watch a live run' : 'Watch a demo run', exTime)),
+        h('p', { class: 'small muted where' }, where, extra.length ? ` ${extra.join(' ')}` : ''),
         offlineNotice,
-        setupNotice,
-        demoNotice),
-      h('div', { class: 'hero-slot stage-slot', 'data-stage-slot': '' })),
+        setupNotice),
+      carousel ? carousel.el : slotEl),
 
-    h('div', { class: 'stats', role: 'list' },
-      stats.map((s) => h('div', { class: 'stat', role: 'listitem' },
-        h('div', { class: 'label' }, s.label, s.tech && h('span', { class: 'tech' }, s.tech)),
-        h('div', { class: 'value nums' }, s.ref))),
-      statsNote),
-
-    // Why this matters, in three beats, for someone who has never heard of a peptide.
     h('section', { class: 'why', 'aria-labelledby': 'why-title' },
-      h('h2', { id: 'why-title' }, 'How could this help cure disease?'),
+      h('h2', { id: 'why-title' }, 'How this helps doctors'),
       h('ol', { class: 'why-steps' },
-        h('li', {}, h('b', {}, 'Diseases run on proteins.'), ' A harmful protein can clump up, stay switched on, or let a germ survive.'),
-        h('li', {}, h('b', {}, 'A peptide can block one.'), ' Like a key jammed in a lock, a short chain that sticks tightly can stop the harmful protein.'),
-        h('li', {}, h('b', {}, 'We find the best keys fast.'), ' Testing thousands in a lab takes years. This app predicts the strongest sticker in minutes, so scientists test only the best.')),
-      h('p', { class: 'why-note' }, 'It does not cure anything by itself. It helps researchers pick better drug candidates sooner.')),
+        h('li', {}, h('b', {}, 'Every illness has a culprit.'), ' Most diseases trace back to one protein in the body that misbehaves.'),
+        h('li', {}, h('b', {}, 'A medicine has to grab it.'), ' A short chain called a peptide can latch onto the culprit and switch it off, like a key in a lock.'),
+        h('li', {}, h('b', {}, 'We find the best key fast.'), ' Testing candidates in a lab takes months. We rank them on a computer first, so scientists start from the strongest.'))),
 
     recentSection,
 
-    h('div', { class: 'section-head' }, h('h2', {}, 'Start something new')),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Try it yourself')),
     h('div', { class: 'start-row' },
-      startCard('Predict binding', 'Dock a peptide to a protein and get a binding strength.', 'Docking + ΔG', 'Start predicting', startNew(() => ({ setup: freshSetup() }), '/predict'), true),
-      startCard('Compare two proteins', 'See which of two proteins a peptide prefers.', 'Selectivity, ΔΔG', 'Compare proteins', startNew(() => ({ compare: freshCompare() }), '/compare')),
-      startCard('Score a structure', 'Already have a bound pose? Score it directly.', 'Score an existing pose', 'Score a structure', startNew(() => ({ score: freshScore() }), '/score'))),
+      startCard('Test a peptide', 'Pick a protein, type a peptide, and see how hard it grips.', 'Start', startNew(() => ({ setup: freshSetup() }), '/predict'), true),
+      startCard('Compare two proteins', 'See which of two proteins a peptide prefers.', 'Compare', startNew(() => ({ compare: freshCompare() }), '/compare')),
+      startCard('Score a structure', 'Already have a bound pose? Rate it directly.', 'Score', startNew(() => ({ score: freshScore() }), '/score'))),
   );
 
   // Each card carries a real button (that is what people look for); a click anywhere else on the card presses it too.
-  function startCard(title, text, tech, buttonLabel, onClick, primary = false) {
+  function startCard(title, text, buttonLabel, onClick, primary = false) {
     const btn = h('button', { class: 'btn', type: 'button', onClick }, buttonLabel, icon('chevron', 16));
     return h('article', { class: `start-card${primary ? ' dark' : ''}`, onClick: (e) => { if (!e.target.closest('button')) btn.click(); } },
-      h('h3', {}, title), h('p', {}, text), h('span', { class: 'tech' }, tech), btn);
+      h('h3', {}, title), h('p', {}, text), btn);
   }
 
-  function update() {
-    const s = store.get(), hist = s.history || [];
-    const dgs = hist.filter((e) => e.kind !== 'compare').map((e) => e.headline.value);
-    stats[0].ref.textContent = String(Math.max(s.runsTotal || 0, hist.length));
-    stats[1].ref.textContent = String(new Set(hist.flatMap((e) => e.proteinNames)).size);
-    stats[2].ref.textContent = dgs.length ? fmt(Math.min(...dgs)) : '—';
-    stats[3].ref.replaceChildren(`±${TYPICAL_ERROR}`, h('small', {}, 'kcal/mol'));
-    statsNote.textContent = hist.some((e) => e.demo) ? 'These numbers include simulated Demo runs.' : '';
-    renderRecent(hist);
-  }
-  const unsub = store.subscribe(update);
-  update();
+  const unsub = store.subscribe((s) => renderRecent(s.history || []));
+  renderRecent(store.get().history || []);
 
-  // the floating model: the example protein with its peptide drifting beside it
-  stage.setPeptide(exPeptide.length);
+  // the floating model: the carousel sets the protein; until it does, a peptide drifts beside the example
   stage.setDockPose(null);
   stage.setPeptideMode('float');
-  if (exProtein) loadProtein(exProtein).then(({ structure }) => { if (alive) stage.setProtein(structure); }).catch(() => {});
+  if (!carousel) stage.setPeptide(exSeq.length);
 
-  return { el, destroy() { alive = false; unsub(); } };
+  return { el, destroy() { alive = false; unsub(); carousel?.destroy(); } };
 }

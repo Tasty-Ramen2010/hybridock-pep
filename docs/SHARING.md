@@ -1,5 +1,8 @@
 # Letting the hosted website use your computer
 
+> The team's live demo runs on a dedicated board with a permanent address (a Tailscale Funnel), not through this script. See
+> [AGX.md](AGX.md). The rest of this page is for sharing a laptop for a few hours.
+
 The website at `https://tasty-ramen2010.github.io/hybridock-pep/` is a demo: its numbers are simulated. While you run
 `scripts/share_my_computer.py`, the same page becomes the real app: every prediction it starts runs on **your** computer, and
 the page shows the real result. When you stop the script, the page goes back to its demo by itself.

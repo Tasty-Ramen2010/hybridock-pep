@@ -6,11 +6,11 @@ import fs from 'node:fs';
 const cont = (p) => p.getByRole('button', { name: 'Continue' });
 export const fmtMin = (ms) => `${(ms / 60000).toFixed(1)} min`;
 
-/** Home -> New prediction -> protein -> peptide -> site -> review, with the options given. Stops on the Review step. */
+/** Home -> Test a peptide -> protein -> peptide -> (site, only when the protein has none) -> run screen, with the options given. Stops there. */
 export async function setupDock(p, o) {
   const { protein, peptide, site = 'suggested', box, blind = false, thorough = 'Quick', expert = {}, upload, pdbId } = o;
   await p.goto(BASE + '/'); await p.waitForSelector('.hero-card');
-  await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick');
+  await p.locator('.start-card', { hasText: 'Test a peptide' }).getByRole('button').click(); await p.waitForSelector('.pick');
   // ---- 1 protein
   if (upload) { await p.locator('input[type=file]').first().setInputFiles(upload); await p.waitForSelector('text=residues loaded'); }
   else if (pdbId) {
@@ -25,22 +25,33 @@ export async function setupDock(p, o) {
   await cont(p).click(); await p.waitForSelector('#pep-input');
   // ---- 2 peptide
   await p.locator('#pep-input').fill(peptide); await p.locator('#pep-input').blur(); await sleep(150);
-  await cont(p).click(); await p.waitForSelector('.choice');
-  // ---- 3 binding site
-  if (blind) await p.getByRole('radio', { name: /Find the pocket for me/ }).click();
+  await cont(p).click();
+  // ---- 3 binding site: a protein from the catalog already has one, so the page goes straight to the run screen; marking a site by hand
+  //      (a box, coordinates, a whole-protein search) means asking for it with Adjust (Expert), and an uploaded or fetched protein has no site
+  const preset = !upload && !pdbId;
+  const wantsSite = blind || box || (site && typeof site === 'object');
+  if (preset && !wantsSite) await p.waitForSelector('.summary');
   else {
-    await sleep(400);
-    if (site === 'suggested') { const b = p.getByRole('button', { name: /Use the suggested site/ }); if (await b.isVisible()) await b.click(); }
-    if (box) await p.locator('input[type=range]').first().fill(String(box));
-    if (site && typeof site === 'object') { // explicit coordinates typed by hand (Coordinates drawer)
-      await p.locator('details.adv summary', { hasText: 'Coordinates' }).click();
-      for (const [axis, v] of Object.entries(site)) await p.locator(`[aria-label="Box centre ${axis.toUpperCase()}"]`).fill(String(v));
+    if (preset) {
+      await p.waitForSelector('.summary'); await p.getByRole('button', { name: 'Expert' }).click();
+      await p.getByRole('button', { name: 'Adjust' }).click();
     }
+    await p.waitForSelector('.choice');
+    if (blind) await p.getByRole('radio', { name: /Find the pocket for me/ }).click();
+    else {
+      await sleep(400);
+      if (site === 'suggested') { const b = p.getByRole('button', { name: /Use the suggested site/ }); if (await b.isVisible()) await b.click(); }
+      if (box) await p.locator('input[type=range]').first().fill(String(box));
+      if (site && typeof site === 'object') { // explicit coordinates typed by hand (Coordinates drawer)
+        await p.locator('details.adv summary', { hasText: 'Coordinates' }).click();
+        for (const [axis, v] of Object.entries(site)) await p.locator(`[aria-label="Box centre ${axis.toUpperCase()}"]`).fill(String(v));
+      }
+    }
+    await sleep(300);
+    await cont(p).click(); await p.waitForSelector('.summary');
   }
-  await sleep(300);
-  await cont(p).click(); await p.waitForSelector('.summary');
   // ---- 4 review
-  await p.getByRole('radio', { name: new RegExp(thorough) }).click();
+  await p.getByRole('radio', { name: new RegExp({ Quick: '^5 poses', Half: '^10 poses', Full: '^25 poses' }[thorough] || thorough) }).click();
   if (Object.keys(expert).length) {
     await p.getByRole('button', { name: 'Expert' }).click();
     await p.locator('details.adv summary', { hasText: 'Advanced settings' }).click();
@@ -97,8 +108,8 @@ export async function verifyDockResults(p, label, { expectCommandHas = [], expec
   const v = parseFloat(dg);
   check(`${label}: a real ΔG number, physically sensible`, Number.isFinite(v) && v < 0 && v > -25, `${dg} kcal/mol`);
   check(`${label}: not labelled Demo`, (await p.locator('.badge-demo').count()) === 0, '');
-  check(`${label}: the typical error is stated (±1.6)`, /1\.6/.test(await p.locator('.err-line').textContent()), '');
-  check(`${label}: a plain-language meaning and our-own-guide label`, (await p.locator('.glass.panel p').filter({ hasText: /tighter|stick|grip|binding/i }).count()) >= 1 && /Our own rough guide/.test(await p.locator('.guide-line').textContent()), '');
+  check(`${label}: no error figure beside the number`, (await p.locator('.err-line').count()) === 0, '');
+  check(`${label}: a plain-language meaning beside the number`, (await p.locator('.glass.panel p').filter({ hasText: /tighter|stick|grip|binding/i }).count()) >= 1 && (await p.locator('.guide-line .chip').count()) === 1, '');
   const rows = await p.locator('table.poses tbody tr').count();
   check(`${label}: ranked pose table is filled`, rows >= 3, `${rows} rows`);
   // pose rows: select several, the 3D label follows and the ΔG column is numeric and ordered

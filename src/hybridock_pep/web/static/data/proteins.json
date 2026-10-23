@@ -12,7 +12,12 @@
     },
     "box": 30,
     "siteNote": "the VQIVYK stretch (residues 306–311)",
-    "examplePeptide": "LIYKWVNK"
+    "examplePeptide": "LIYKWVNK",
+    "disease": "Alzheimer's disease",
+    "plain": "Tangles up inside brain cells and slowly damages memory.",
+    "panel": [
+      "LIYKWVNK"
+    ]
   },
   {
     "key": "mdm2",
@@ -28,7 +33,13 @@
     "box": 30,
     "siteNote": "the groove where p53's peptide sits in the crystal",
     "examplePeptide": "ETFSDLWKLLPE",
-    "backendExample": "mdm2"
+    "backendExample": "mdm2",
+    "disease": "Cancer",
+    "plain": "Switches off p53, the body's natural cancer guard.",
+    "panel": [
+      "ETFSDLWKLLPE",
+      "SQETFSDLWKLLP"
+    ]
   },
   {
     "key": "asyn",
@@ -43,7 +54,12 @@
     },
     "box": 30,
     "siteNote": "the NAC core stretch (residues 61–72) on one fibril layer",
-    "examplePeptide": "KTKEGVL"
+    "examplePeptide": "KTKEGVL",
+    "disease": "Parkinson's disease",
+    "plain": "Clumps together in the brain cells that control movement.",
+    "panel": [
+      "KTKEGVL"
+    ]
   },
   {
     "key": "kras",
@@ -58,7 +74,12 @@
     },
     "box": 30,
     "siteNote": "the pocket where the drug sotorasib sits in the crystal",
-    "examplePeptide": "LVVVGACGV"
+    "examplePeptide": "LVVVGACGV",
+    "disease": "Pancreatic and lung cancer",
+    "plain": "A growth switch stuck in the on position.",
+    "panel": [
+      "LVVVGACGV"
+    ]
   },
   {
     "key": "egfr",
@@ -73,7 +94,12 @@
     },
     "box": 30,
     "siteNote": "the ATP pocket where erlotinib sits in the crystal",
-    "examplePeptide": "EEEEYFELV"
+    "examplePeptide": "EEEEYFELV",
+    "disease": "Lung cancer",
+    "plain": "Tells tumour cells to keep growing.",
+    "panel": [
+      "EEEEYFELV"
+    ]
   },
   {
     "key": "bcl2",
@@ -88,7 +114,12 @@
     },
     "box": 30,
     "siteNote": "the groove where a BAX peptide sits in the crystal",
-    "examplePeptide": "LSECLKRIGDELDS"
+    "examplePeptide": "LSECLKRIGDELDS",
+    "disease": "Leukemia and lymphoma",
+    "plain": "Lets cancer cells refuse to die.",
+    "panel": [
+      "LSECLKRIGDELDS"
+    ]
   },
   {
     "key": "pfldh",
@@ -104,7 +135,12 @@
     "box": 30,
     "siteNote": "the enzyme's active site, where the team docks",
     "examplePeptide": "LISDAELEAIFEADC",
-    "backendExample": "pfldh"
+    "backendExample": "pfldh",
+    "disease": "Malaria",
+    "plain": "The energy engine of the malaria parasite.",
+    "panel": [
+      "LISDAELEAIFEADC"
+    ]
   },
   {
     "key": "hldh",
@@ -120,6 +156,11 @@
     "box": 30,
     "siteNote": "the enzyme's active site, where the team docks",
     "examplePeptide": "LISDAELEAIFEADC",
-    "backendExample": "hldh"
+    "backendExample": "hldh",
+    "disease": "Malaria drug safety",
+    "plain": "The human version of the parasite's enzyme. A safe drug should ignore it.",
+    "panel": [
+      "LISDAELEAIFEADC"
+    ]
   }
 ]

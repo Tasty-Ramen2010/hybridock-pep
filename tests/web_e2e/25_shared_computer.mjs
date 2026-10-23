@@ -21,37 +21,36 @@ const chip = (await p.locator('.chip-text').first().textContent()).trim();
 check('the top bar says Live and GPU or CPU', /^Live · (GPU|CPU)$/.test(chip), chip);
 check('no "Demo mode" badge anywhere on the page', (await p.locator('.badge-demo').count()) === 0, '');
 const home = await p.locator('.hero-card').innerText();
-check('Home carries no banner about the live computer', !/team’s own computer|Live\. /.test(home) && (await p.locator('.hero-card .notice').count()) === 0, home.replace(/\s+/g, ' ').slice(0, 120));
-check('Home no longer shows the install-the-preview notice', !/This is the preview/.test(home), '');
+check('Home says where it runs and shows no preview or install notice', /Runs live on our/.test(home) && !/This is the preview|simulated/.test(home) && (await p.locator('.hero-card .notice').count()) === 0, home.replace(/\s+/g, ' ').slice(0, 160));
 const apiOrigins = new Set(); p.on('request', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/api/')) apiOrigins.add(u.origin); });
 
 // the Predict screen follows the limits
-await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick');
+await p.locator('.start-card', { hasText: 'Test a peptide' }).click(); await p.waitForSelector('.pick');
+check('a protein with a known site gets three steps: the binding site is set quietly', (await p.locator('.steps li').count()) === 3, `${await p.locator('.steps li').count()}`);
 await p.locator('.pick').first().click(); await p.waitForSelector('text=residues loaded', { timeout: 20000 });
 await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('#pep-input');
 await p.locator('#pep-input').fill('ETFSDLWKLLPE'); await p.locator('#pep-input').blur();
-await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.choice');
-const find = p.getByRole('radio', { name: /Find the pocket/ });
-check('"Find the pocket for me" is off on a shared computer, and says why', (await find.isDisabled()) && /shared computer/.test(await find.innerText()), '');
-await p.getByRole('button', { name: 'Continue' }).click().catch(() => {}); await p.waitForSelector('.summary', { timeout: 20000 });
-check('Full is not offered', await p.getByRole('radio', { name: /Full/ }).isDisabled(), '');
-check('Quick and Half are', !(await p.getByRole('radio', { name: /Quick/ }).isDisabled()) && !(await p.getByRole('radio', { name: /Half/ }).isDisabled()), '');
-check('the page explains the limit', /limited to 50 poses/.test(await p.locator('.screen').innerText()), '');
+await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.summary', { timeout: 20000 });
+check('the next screen is the run screen, not a site picker', /Run prediction/.test(await p.locator('.panel-foot').innerText()) && (await p.locator('text=Choose where it binds').count()) === 0, '');
+const sizes = await p.locator('[role=radiogroup][aria-label="How many poses?"] [role=radio]').allTextContents();
+check('exactly 5, 10 and 25 poses are offered, each with a time', sizes.length === 3 && /^5 poses/.test(sizes[0].trim()) && /^10 poses/.test(sizes[1].trim()) && /^25 poses/.test(sizes[2].trim()), sizes.map((s) => s.replace(/\s+/g, ' ').trim()).join(' | '));
+check('every size is enabled', (await p.locator('[role=radiogroup][aria-label="How many poses?"] [role=radio][disabled]').count()) === 0, '');
+check('the run screen shows a time, in words', /About \d+ (seconds|minutes)/.test(await p.locator('.screen').innerText()), '');
 await p.getByRole('button', { name: 'Expert' }).click(); await sleep(300);
 check('Expert mode has no advanced settings that could name files on the computer', (await p.locator('details.adv').count()) === 0, '');
 await p.getByRole('button', { name: 'Guided' }).click();
 
 // the guide speaks to a person using the shared computer
 await p.goto(`${BASE}/${QS}#/guide`); await p.waitForSelector('.lesson');
-check('the guide opens with the first prediction and has no install steps in the way', (await p.locator('.lesson-title').first().textContent()) === 'Your first prediction', '');
+check('the guide opens with the live demo lesson, numbered', (await p.locator('.lesson-title').first().textContent()) === 'Try the live demo' && (await p.locator('.lesson-num').first().textContent()) === '1', '');
 await p.goto(`${BASE}/${QS}#/guide/troubleshooting`); await p.waitForSelector('.qa');
 const qa = await p.locator('.qa-list').innerText();
-check('troubleshooting is about the shared computer, not about ./launch_web.sh', /shared computer is busy/.test(qa) && !/launch_web|install\.sh/.test(qa), '');
+check('troubleshooting is about the shared computer, not about ./launch_web.sh', /lab computer is busy/.test(qa) && !/launch_web|install\.sh/.test(qa), '');
 
 // ---- 2. a real prediction ----
 if (REAL) {
   await p.goto(`${BASE}/${QS}`); await p.waitForSelector('.hero-card');
-  await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track', { timeout: 30000 });
+  await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await p.waitForSelector('.track', { timeout: 30000 });
   const t0 = Date.now();
   while (!(await p.locator('.big-number, .error-card').count())) {
     if (Date.now() - t0 > 20 * 60000) break;
@@ -81,8 +80,8 @@ check('no uncaught page errors', p.diag.pageErrors.length === 0, p.diag.pageErro
 const off = await newPage(b);
 await off.goto(`${BASE}/?backend=${encodeURIComponent('http://127.0.0.1:9')}`); await off.waitForSelector('.hero-card');
 const offHome = await off.locator('.hero-card').innerText();
-check('with the computer off, the page says so and shows the demo', /live computer is offline/i.test(offHome) && (await off.locator('.badge-demo').count()) >= 1, offHome.replace(/\s+/g, ' ').slice(0, 100));
-await off.getByRole('button', { name: 'Run example' }).click(); await off.waitForSelector('.big-number', { timeout: 60000 });
+check('with the computer off, the page says so and shows the demo', /lab computer is offline/i.test(offHome) && (await off.locator('.badge-demo').count()) >= 1, offHome.replace(/\s+/g, ' ').slice(0, 100));
+await off.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await off.waitForSelector('.big-number', { timeout: 60000 });
 check('a demo result is still labelled Demo', (await off.locator('.badge-demo').count()) >= 1, '');
 
 // ---- 4. a page can only be pointed at a trusted computer ----
