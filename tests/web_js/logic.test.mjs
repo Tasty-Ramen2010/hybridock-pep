@@ -158,7 +158,7 @@ test('placeHelixAt keeps the peptide out of the protein', () => {
 test('small helpers', () => {
   assert.equal(initials('Ada Lovelace'), 'AL');
   assert.equal(initials('Ram'), 'R');
-  assert.equal(poseCount('full'), 100);
+  assert.deepEqual(['quick', 'half', 'full'].map(poseCount), [5, 10, 25]); // the three sizes the live demo offers
 });
 
 import { build as buildRequests } from './regen_fixtures.mjs';
@@ -281,7 +281,7 @@ test('the guide: every lesson is short, plain and complete, for both audiences',
   for (const kind of ['demo', 'local', 'remote']) {
     const list = topicsFor(kind);
     assert.ok(list.length >= 8 && list.length <= 10, `${kind}: a short list of lessons`);
-    assert.equal(list[0].first, kind === 'demo' ? 'demo' : 'live', `${kind}: the lesson that suits this audience comes first`);
+    assert.equal(list[0].id, 'live-demo', `${kind}: the live demo lesson comes first`);
     for (const t of list) {
       assert.ok(t.title && t.blurb && t.icon, t.id);
       const items = t.kind === 'steps' ? t.steps : t.rows;
@@ -297,12 +297,11 @@ test('the guide: every lesson is short, plain and complete, for both audiences',
       }
     }
   }
-  assert.ok(findTopic(topicsFor('local'), 'troubleshooting') && findTopic(topicsFor('remote'), 'troubleshooting') && findTopic(topicsFor('demo'), 'get-started'), 'old deep links still land somewhere');
+  assert.ok(findTopic(topicsFor('local'), 'troubleshooting') && findTopic(topicsFor('remote'), 'troubleshooting') && findTopic(topicsFor('demo'), 'live-demo'), 'the lessons the README links to exist');
   // the demo never promises a real result, and the real app never says it is a demo
   const words = (kind) => JSON.stringify(topicsFor(kind));
   assert.ok(!/preview website|simulated/.test(words('local')), 'local: no demo wording');
-  assert.ok(!/launch_web|install\.sh|this computer/.test(words('remote').replace(/Get the app[\s\S]*?"id":"first-prediction"/, '')) || true, 'remote: checked below');
-  const remoteText = JSON.stringify(topicsFor('remote').filter((t) => t.id !== 'get-started'));
+  const remoteText = JSON.stringify(topicsFor('remote').filter((t) => t.id !== 'own-computer'));
   assert.ok(!/launch_web|\.\/install|data\/pdbs|on this computer/.test(remoteText), 'remote: nothing that only makes sense on your own computer');
   assert.deepEqual(richParts('Press **Run** or `./x`.').map((p) => p.t), ['text', 'strong', 'text', 'code', 'text']);
 });
@@ -320,4 +319,46 @@ test('memory meter: levels and colours follow how full memory is', async () => {
   const hues = [10, 50, 70, 80, 90, 100].map((p) => memoryLevel(p).hue);
   for (let i = 1; i < hues.length; i++) assert.ok(hues[i] < hues[i - 1], `the colour keeps moving from green to red: ${hues}`);
   assert.ok(memoryLevel(10).hue > 120 && memoryLevel(100).hue < 10, 'green when empty, red when full');
+});
+
+test('catalog: preloaded binders become results the results screen can open, ordered strongest first', async () => {
+  const { bindersFor, binderResult, binderKey, strength, useTiming } = await import('../../src/hybridock_pep/web/static/js/app/catalog.mjs');
+  const mdm2 = proteins.find((p) => p.key === 'mdm2');
+  const catalog = { generated: '2026-10-23', poses: 25, binders: { mdm2: [
+    { seq: 'SQETFSDLWKLLP', deltaG: -8.1, known: true, poses: [{ rank: 1, deltaG: -8.1, ca: new Array(39).fill(1) }] },
+    { seq: 'ETFSDLWKLLPE', deltaG: -9.3, known: true, poses: [{ rank: 1, deltaG: -9.3, ca: new Array(36).fill(2) }, { rank: 2, deltaG: -9.0, ca: new Array(36).fill(3) }] },
+  ] } };
+  assert.deepEqual(bindersFor(catalog, 'mdm2').map((b) => b.deltaG), [-9.3, -8.1]);
+  assert.deepEqual(bindersFor(catalog, 'nothing'), []);
+  const r = binderResult(mdm2, catalog.binders.mdm2[1], catalog);
+  assert.equal(r.kind, 'dock'); assert.equal(r.preloaded, true); assert.equal(r.demo, false, 'a preloaded run is a real run');
+  assert.equal(r.deltaG, -9.3); assert.equal(r.poses.length, 2); assert.equal(r.poses[0].ca.length, r.peptide.length * 3);
+  assert.match(r.command, /--n-samples 25/); assert.match(r.command, /--peptide ETFSDLWKLLPE/);
+  assert.equal(binderKey('mdm2', 'AAA'), 'mdm2:AAA');
+  assert.ok(strength(-12) === 1 && strength(-1) > 0 && strength(-9) > strength(-6), 'the bar grows with binding strength');
+  useTiming(null);
+});
+
+test('timing: "about N minutes" comes only from a measured grid, and the JS and Python estimators agree', async () => {
+  const { useTiming } = await import('../../src/hybridock_pep/web/static/js/app/catalog.mjs');
+  const { timingFor, TIMING } = await import('../../src/hybridock_pep/web/static/js/app/config.mjs');
+  const fixture = JSON.parse(readFileSync(new URL('../fixtures/timing_cases.json', import.meta.url), 'utf8'));
+  useTiming(null);
+  assert.equal(timingFor(5), null, 'no table, no claim');
+  useTiming({ machine: 'Test board', refLength: fixture.refLength, grid: fixture.grid });
+  assert.equal(TIMING.machine, 'Test board');
+  assert.deepEqual([5, 10, 25].map((n) => TIMING.seconds[n]), [68, 82, 134], 'the three sizes at the reference length are the measured ones');
+  for (const c of fixture.cases) assert.equal(timingFor(c.poses, c.length), c.seconds, `${c.length} letters, ${c.poses} poses`);
+  assert.ok(timingFor(25, 16) > 1.7 * timingFor(25, 12), 'from 13 residues length matters more at 25 poses than a single multiplier would say');
+  useTiming(null);
+  assert.equal(timingFor(10), null, 'clearing the table clears the claim');
+});
+
+test('the home page carries no error figures and the catalog data names a disease for every protein', () => {
+  for (const p of proteins) {
+    assert.ok(p.disease && p.plain && Array.isArray(p.panel) && p.panel.length >= 1, `${p.key} has a disease, a plain line and a panel`);
+    assert.ok(!/±|typical error|off by/i.test(`${p.disease} ${p.plain}`), p.key);
+  }
+  const home = readFileSync(join(root, 'js/app/ui/home.mjs'), 'utf8');
+  assert.ok(!/TYPICAL_ERROR|±/.test(home), 'no error figure on the home page');
 });

@@ -35,20 +35,47 @@ export function memoryLevel(percent, availableGb = null) {
 export const sharedLimits = (env) => env?.public || null;
 export const poseCap = (env, compare = false) => { const p = sharedLimits(env); return p ? (compare ? p.max_compare_samples : p.max_samples) : Infinity; };
 
-/** How far off a single ΔG prediction typically is (kcal/mol). Shown next to every ΔG. */
-export const TYPICAL_ERROR = 1.6;
+/** Where the project lives. The home page leads with this link. */
+export const GITHUB_URL = 'https://github.com/Tasty-Ramen2010/hybridock-pep';
 
 /**
- * The "How thorough?" choice. The backend setting behind it is the number of poses
- * (`--n-samples`, default 100). The Quick/Half/Full pose counts are OUR choice for the
- * UI, not something the backend defines — change them here if the team decides otherwise.
+ * The "How many poses?" choice. The backend setting behind it is the number of poses (`--n-samples`). Every run on the
+ * live demo uses one of these three, so a prediction finishes in minutes. Times come from the catalog's measured table
+ * (see TIMING below), not from a guess.
  */
 export const THOROUGHNESS = [
-  { id: 'quick', label: 'Quick', poses: 25, hint: 'A fast first look' },
-  { id: 'half', label: 'Half', poses: 50, hint: 'A good balance' },
-  { id: 'full', label: 'Full', poses: 100, hint: 'The default: most reliable' },
+  { id: 'quick', label: '5 poses', poses: 5, hint: 'Fastest' },
+  { id: 'half', label: '10 poses', poses: 10, hint: 'Balanced' },
+  { id: 'full', label: '25 poses', poses: 25, hint: 'Most thorough' },
 ];
-export const DEFAULT_THOROUGHNESS = 'full';
+export const DEFAULT_THOROUGHNESS = 'half';
+
+/**
+ * Measured seconds for a whole run on the demo computer, by peptide length and pose count (filled in by `useTiming` from the
+ * server's /api/env, or from data/catalog.json). Run time is not a straight line in length (from 13 residues the longer-peptide
+ * model is used), so `timingFor` joins the measured points with straight lines. The same rule is in hybridock_pep/web/timing.py.
+ */
+export const TIMING = { grid: null, seconds: { 5: null, 10: null, 25: null }, refLength: 12, machine: '' };
+
+const interp = (pts, x) => {
+  if (pts.length === 1) return pts[0][1];
+  let i = pts.findIndex((p, k) => k < pts.length - 1 && x <= pts[k + 1][0]);
+  if (x <= pts[0][0]) i = 0; else if (i < 0) i = pts.length - 2;
+  const [[x0, y0], [x1, y1]] = [pts[i], pts[i + 1]];
+  return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+};
+
+/** Seconds for a whole prediction, from the measured grid; null when this computer has not been measured. */
+export function timingFor(poses, peptideLength = TIMING.refLength) {
+  if (!TIMING.grid) return null;
+  const rows = Object.entries(TIMING.grid)
+    .map(([L, row]) => [Number(L), Object.entries(row).map(([n, t]) => [Number(n), Number(t)]).sort((a, b) => a[0] - b[0])])
+    .filter(([, row]) => row.length).sort((a, b) => a[0] - b[0]);
+  if (!rows.length) return null;
+  const atLength = rows.map(([L, row]) => [L, interp(row, poses)]);
+  const floor = 0.5 * Math.min(...rows.flatMap(([, row]) => row.map((p) => p[1])));
+  return Math.max(10, Math.floor(Math.max(floor, interp(atLength, peptideLength)) + 0.5));
+}
 
 /** Search box (grid box) edge length in Å. */
 export const BOX_DEFAULT = 30;

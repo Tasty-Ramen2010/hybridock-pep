@@ -1,0 +1,44 @@
+#!/bin/sh
+# HybriDock-Pep <-> the board's language model. Called by `hybridock-pep serve` (HYBRIDOCK_JOB_HOOK):
+#
+#   hdp-job-hook start   a prediction is about to run: stop the language model and free its memory, GPU first
+#   hdp-job-hook idle    nothing has run for a while: let the language model come back
+#
+# Runs INSIDE the Ubuntu chroot, where the board's persistent data disk is /mnt/data and the process table is the board's own.
+# The model is stopped by the same two switches the board's own tools use (watch.paused + serve.disabled), so its watcher does
+# not fight us; "idle" only restarts a model that THIS hook stopped, never one somebody paused on purpose.
+D=/mnt/data/agx-setup
+STATE=/mnt/data/hdp-model-state
+LOG=/mnt/data/hdp-hook.log
+say() { echo "$(date '+%F %T') $*" >> "$LOG"; }
+avail_mb() { awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo; }
+
+case "$1" in
+  start)
+    if pgrep -x llama-server >/dev/null || pgrep -f "[s]erve-inner.sh" >/dev/null; then
+      echo stopped-by-hdp > "$STATE"
+      say "start: stopping the language model (MemAvailable $(avail_mb) MB)"
+    fi
+    touch "$D/watch.paused" "$D/serve.disabled"
+    for p in $(pgrep -f "agx-setup/[s]erve.sh") $(pgrep -f "[s]erve-inner.sh"); do kill "$p" 2>/dev/null; done
+    for p in $(pgrep -x llama-server); do kill -TERM "$p" 2>/dev/null; done
+    # up to 90 s for the model to let go of ~25 GB; docking wants about 8 GB free
+    i=0
+    while [ "$(avail_mb)" -lt 10000 ] && [ "$i" -lt 45 ]; do
+      [ "$i" -eq 20 ] && for p in $(pgrep -x llama-server); do kill -KILL "$p" 2>/dev/null; done
+      sleep 2; i=$((i + 1))
+    done
+    sync; echo 1 > /proc/sys/vm/drop_caches 2>/dev/null
+    say "start: ready, MemAvailable $(avail_mb) MB"
+    ;;
+  idle)
+    if [ "$(cat "$STATE" 2>/dev/null)" = stopped-by-hdp ] && [ ! -e "$D/hdp-keep-llm-off" ]; then
+      rm -f "$D/watch.paused" "$D/serve.disabled" "$STATE"
+      say "idle: language model allowed back (the board's watcher restarts it within about a minute)"
+    else
+      say "idle: nothing to give back"
+    fi
+    ;;
+  *) echo "usage: hdp-job-hook start|idle" >&2; exit 2 ;;
+esac
+exit 0

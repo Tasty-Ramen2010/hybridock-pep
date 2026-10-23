@@ -3,10 +3,9 @@
 // Data rules this file follows:
 //   • delta_g is the binding strength (kcal/mol, more negative = stronger).
 //   • rank_score is NOT a ΔG. It only compares poses for the SAME protein (lower = stronger).
-//   • "Strong / moderate / weak" is OUR rough wording, not backend output. The UI labels it so.
-//   • A single run has no high/low confidence badge.
+//   • "Strong / moderate / weak" is a plain-words reading of ΔG, not backend output.
 
-import { ROUGH_GUIDE, TYPICAL_ERROR } from './config.mjs';
+import { ROUGH_GUIDE } from './config.mjs';
 
 const MINUS = '−';
 
@@ -26,11 +25,10 @@ export function roughGuide(dg) {
 
 /** One plain sentence about what a ΔG means. */
 export function meaningOf(dg) {
-  const lead = 'More negative means a tighter grip. ';
   switch (roughGuide(dg).id) {
-    case 'strong': return lead + 'This peptide is predicted to stick very tightly.';
-    case 'moderate': return lead + 'This peptide is predicted to stick fairly well.';
-    default: return lead + 'This peptide is predicted to stick only weakly here.';
+    case 'strong': return 'A very tight grip. More negative means tighter.';
+    case 'moderate': return 'A good grip. More negative means tighter.';
+    default: return 'A light grip. More negative means tighter.';
   }
 }
 
@@ -46,9 +44,6 @@ export function fmtKd(kd) {
   return `${(kd * 1e12).toFixed(1)} pM`;
 }
 
-/** How many times weaker/stronger the binding could be at ± one typical error. */
-export const errorFoldChange = () => Math.exp(TYPICAL_ERROR / RT);
-
 /**
  * Three-way verdict for a selectivity result from its 95% interval.
  * Same rule as the backend's own interpretation: interval entirely below zero → target.
@@ -56,14 +51,14 @@ export const errorFoldChange = () => Math.exp(TYPICAL_ERROR / RT);
 export function selectivityVerdict(ciLow, ciHigh) {
   if (ciHigh < 0) return {
     id: 'target', title: 'Selective for the target',
-    text: 'The peptide binds the target more tightly than the off-target, and the whole 95% interval is below zero.',
+    text: 'It grabs the disease target harder than the look-alike protein, so it should leave healthy tissue alone.',
   };
   if (ciLow > 0) return {
     id: 'offtarget', title: 'Prefers the off-target',
-    text: 'The peptide binds the off-target more tightly than the target, and the whole 95% interval is above zero.',
+    text: 'It grabs the look-alike protein harder than the disease target.',
   };
   return {
     id: 'none', title: 'No clear preference',
-    text: 'The 95% interval crosses zero, so we cannot say which protein the peptide prefers.',
+    text: 'It holds both proteins about equally well.',
   };
 }

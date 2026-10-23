@@ -384,7 +384,8 @@ export const noGpu = (env) => env?.checks?.gpu?.ok === false;
 export const estimateTrusted = (env) => ['cuda', 'metal'].includes(env?.checks?.gpu?.kind) || (env?.checks?.gpu?.ok && env.checks.gpu.kind == null);
 /** True until the first real prediction has downloaded the model files (about 2.5 GB) on this computer. */
 export const firstRunPending = (env) => env?.checks?.first_run?.ok === false;
-const liveEstimate = (job) => (estimateTrusted(liveAdapter.env) ? job.estimateSeconds ?? null : null);
+/** The estimate the caller measured (the catalog's timing table) or the server's own figure where that is trustworthy: callers decide, this just passes it on. */
+const liveEstimate = (job) => job.estimateSeconds ?? null;
 
 export function progressFrom(snap, estimateSeconds) {
   const fraction = Math.min(1, Math.max(0, snap.fraction || 0));

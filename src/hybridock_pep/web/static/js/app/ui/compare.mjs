@@ -10,7 +10,8 @@ import { validatePeptide } from '../peptide.mjs';
 import { compareJob, findProtein } from '../jobs.mjs';
 import { fmt, fmtSigned, selectivityVerdict } from '../interpret.mjs';
 import { adapter } from '../adapter.mjs';
-import { BOX_DEFAULT, EXAMPLE, THOROUGHNESS, poseCap } from '../config.mjs';
+import { BOX_DEFAULT, EXAMPLE, THOROUGHNESS, poseCap, timingFor } from '../config.mjs';
+import { fmtDuration } from './dom.mjs';
 import { commandBlock } from './results.mjs';
 import { toast } from './toast.mjs';
 
@@ -145,7 +146,9 @@ export function mountCompare(ctx) {
   }
 
   function run() {
-    runner.start('compare', compareJob({ ...C(), peptide: pep().seq }), { backTo: '/compare' });
+    const job = compareJob({ ...C(), peptide: pep().seq });
+    const one = timingFor(job.poses, job.peptide.length);
+    runner.start('compare', { ...job, estimateSeconds: one == null ? null : one * 2 }, { backTo: '/compare' }); // a comparison is two dockings
   }
 
   function renderMain() {
@@ -157,16 +160,15 @@ export function mountCompare(ctx) {
       h('div', { class: 'page-head' },
         h('h1', {}, 'Compare two proteins'),
         h('p', { class: 'lede' }, 'Does your peptide prefer one protein over another? Give it a target and a look-alike, and we’ll tell you.')),
-      h('div', { class: 'note guided-only' }, 'Comparing two proteins is more trustworthy than one number, because error they share cancels out.'),
       h('div', { class: 'panel compare-pep' },
         h('label', { class: 'field-label', for: 'cmp-pep' }, 'Peptide', h('span', { class: 'tech' }, 'Amino acid sequence')), pepInput(), pepMsg),
       h('div', { class: 'vs-grid' }, cards.target.el, slot, cards.offTarget.el),
       h('div', { class: 'panel compare-pep', style: { margin: '0 auto 24px' } },
-        h('span', { class: 'field-label', style: { margin: 0 } }, 'How thorough? ', h('span', { class: 'tech' }, 'Number of poses per protein; a comparison runs both')),
-        h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How thorough?' },
+        h('span', { class: 'field-label', style: { margin: 0 } }, 'How many poses? ', h('span', { class: 'tech' }, 'Per protein. A comparison runs both.')),
+        h('div', { class: 'choice-grid three', role: 'radiogroup', 'aria-label': 'How many poses?' },
           THOROUGHNESS.map((t) => h('button', { class: 'choice', type: 'button', role: 'radio', 'aria-checked': String(C().thorough === t.id), disabled: t.poses > poseCap(adapter.env, true),
             onClick: (e) => { setC({ thorough: t.id }); e.currentTarget.parentElement.querySelectorAll('.choice').forEach((b, i) => b.setAttribute('aria-checked', String(THOROUGHNESS[i].id === t.id))); } },
-          t.label, h('small', {}, `${t.poses} poses`))))),
+          t.label, h('small', {}, (() => { const m = timingFor(t.poses, pep().ok ? pep().seq.length : 12); return m == null ? t.hint : `≈ ${fmtDuration(m * 2)}`; })()))))),
       h('div', { class: 'row', style: { justifyContent: 'center', flexDirection: 'column', gap: '8px' } }, runBtn, runMsg));
     stage.setSlot(slot);
     stage.setPeptideMode('float');
@@ -255,14 +257,10 @@ export function compareResultView(ctx, result, host, isAlive) {
       h('span', { class: 'eyebrow' }, 'Selectivity', h('span', { class: 'tech' }, 'ΔΔG = ΔG(target) − ΔG(off-target)')),
       result.demo && h('span', { class: 'badge-demo', title: 'This result is simulated' }, 'Demo')),
     h('div', { class: 'big-number' }, h('span', { class: 'n nums' }, fmtSigned(result.ddg)), h('span', { class: 'unit' }, 'kcal/mol')),
-    h('p', { class: 'err-line' }, '95% interval: ', h('b', { class: 'nums' }, `${fmt(result.ci[0])} to ${fmt(result.ci[1])}`)),
     h('div', { class: 'ddg-card' }, ddgBar(result.ddg, result.ci)),
     h('div', { class: `verdict ${v.id}`, role: 'status' }, icon(v.id === 'none' ? 'info' : 'check', 22), h('div', {}, h('h3', {}, v.title), h('p', { class: 'small' }, v.text))),
-    h('p', { class: 'guide-line' }, 'The verdict follows from where the interval sits relative to zero.'),
     h('div', { class: 'two-dg' }, dgCard('Target ΔG', result.target, 'target-card'), dgCard('Off-target ΔG', result.offTarget, '')),
-    h('p', { class: 'small muted' }, 'Comparing two proteins is more trustworthy than a single number, because error they share cancels out.'),
-    result.scoreField && result.scoreField !== 'demo' && h('p', { class: 'small muted' }, `Both ΔG values here are the mean of the top ${result.topK ?? 'few'} poses, using the ${SCORE_NAMES[result.scoreField] || result.scoreField}. Comparisons use this physics-based score because the entropy correction in the full ΔG model adds noise to a difference.`),
-    Math.abs(result.ddg) < 1 && !result.demo && h('p', { class: 'small muted' }, 'Below about 1 kcal/mol this is a direction, not a measurement: the “charged floor” is the same size.'),
+    result.scoreField && result.scoreField !== 'demo' && h('p', { class: 'small muted expert-only' }, `Both ΔG values here are the mean of the top ${result.topK ?? 'few'} poses, using the ${SCORE_NAMES[result.scoreField] || result.scoreField}. Comparisons use this physics-based score because the entropy correction in the full ΔG model adds noise to a difference.`),
     result.demo && h('p', { class: 'small muted' }, 'Demo: these numbers are simulated from your inputs, not predicted by the docking program.'),
     commandBlock(result),
     h('div', { class: 'panel-foot' },

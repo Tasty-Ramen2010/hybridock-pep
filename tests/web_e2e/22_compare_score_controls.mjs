@@ -42,9 +42,9 @@ for (const [seq, okExpected, label] of [['', false, 'empty'], ['AB', false, 'too
 await p.locator('#cmp-pep').fill('LIYKWVNK');
 
 // thoroughness radios
-for (const [name, poses] of [['Quick', 25], ['Half', 50], ['Full', 100]]) {
-  await p.getByRole('radio', { name: new RegExp(name) }).click(); await sleep(120);
-  check(`Compare "${name}" (${poses} poses per protein) is selected`, (await p.getByRole('radio', { name: new RegExp(name) }).getAttribute('aria-checked')) === 'true' && (await p.getByRole('radio', { name: new RegExp(name) }).textContent()).includes(String(poses)), '');
+for (const [name, poses] of [['5 poses', 5], ['10 poses', 10], ['25 poses', 25]]) {
+  await p.getByRole('radio', { name: new RegExp('^' + name) }).click(); await sleep(120);
+  check(`Compare "${name}" (${poses} poses per protein) is selected`, (await p.getByRole('radio', { name: new RegExp('^' + name) }).getAttribute('aria-checked')) === 'true' && (await p.getByRole('radio', { name: new RegExp('^' + name) }).textContent()).includes(String(poses)), '');
 }
 // upload through the select
 const chooserP = p.waitForEvent('filechooser', { timeout: 8000 });

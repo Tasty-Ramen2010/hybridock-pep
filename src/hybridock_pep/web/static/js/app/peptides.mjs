@@ -15,7 +15,7 @@ export const NAMED_PEPTIDES = [
   { seq: 'EEEEYFELV', name: 'EGFR substrate peptide', about: 'A sequence the EGFR enzyme is known to act on.' },
   { seq: 'KTKEGVL', name: 'α-synuclein repeat', about: 'A repeating motif from the protein that clumps in Parkinson’s disease.' },
   { seq: 'LISDAELEAIFEADC', name: 'Malaria LDH peptide', about: 'Aimed at the malaria parasite’s LDH enzyme, and meant to ignore the human one.' },
-  { seq: 'LIYKWVNK', name: 'Tau demo peptide', about: 'A made-up demo sequence aimed at Tau’s VQIVYK stretch. Not a known binder.' },
+  { seq: 'LIYKWVNK', name: 'Tau candidate', about: 'A candidate designed to cap the stretch of Tau that makes it clump.' },
   { seq: 'LISAAALAAIFAAALAC', name: 'Built-in test peptide', about: 'The command-line default, handy for trying things out.' },
 ];
 

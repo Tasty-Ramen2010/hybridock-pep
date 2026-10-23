@@ -20,8 +20,6 @@ check('40 real Score runs through the UI all succeed', ok === 40, `${ok}/40 in $
 await p.goto(BASE + '/#/'); await p.waitForSelector('.recent-card');
 const strip = await p.locator('.recent-card').count();
 check('Home "Recent predictions" strip shows exactly 4', strip === 4, String(strip));
-const stats = await p.locator('.stat .value').allTextContents();
-check('"Predictions run" counts every run (40), not just the 30 kept in History', /^\d+$/.test(stats[0].trim()) && Number(stats[0]) === 40, stats.join(' | '));
 const ls = await p.evaluate(() => { const raw = localStorage.getItem('hybridock-web:v1') || ''; const j = JSON.parse(raw || '{}'); return { kb: Math.round(raw.length / 1024), n: (j.history || []).length }; });
 check('history is capped and fits in browser storage', ls.n > 0 && ls.n <= 100 && ls.kb < 4000, `${ls.n} entries, ${ls.kb} KB`);
 await p.getByRole('button', { name: 'History' }).click(); await p.waitForSelector('dialog[open] .hist-item');

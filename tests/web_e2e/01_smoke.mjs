@@ -12,7 +12,7 @@ const pop = (await p.locator('.topbar .popover:visible').innerText()).replace(/\
 check('status popover names the machine and shows its memory', /Memory/.test(pop) && (await p.locator('.env-machine').count()) === 1, pop.slice(0, 200));
 check('no stale ADFRsuite "licensed download" warning', !rows.join(' ').match(/licensed/i), '');
 await p.keyboard.press('Escape');
-check('hero is a real backend example (Known binder chip)', await p.locator('.hero-card .chip', { hasText: 'Known binder' }).count() === 1, '');
+check('home shows the carousel of diseases, with known binders marked', (await p.locator('.hero-card .slide').count()) === 8 && (await p.locator('.hero-card .chip.known').count()) >= 1, '');
 await shot(p, 's1-home-live');
 // every route loads and shows its heading
 for (const [route, sel] of [['#/predict', '.steps'], ['#/compare', '.pcard'], ['#/score', '.drop'], ['#/', '.hero-card']]) {

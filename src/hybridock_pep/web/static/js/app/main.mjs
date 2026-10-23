@@ -8,12 +8,11 @@ import { Stage } from './stage/stage.mjs';
 import { adapter, initAdapter } from './adapter.mjs';
 import { createStore } from './state.mjs';
 import { createRunner } from './runner.mjs';
-import { ACCENTS, TYPICAL_ERROR, assetUrl } from './config.mjs';
+import { ACCENTS, GITHUB_URL, assetUrl } from './config.mjs';
 import { mountTopbar } from './ui/topbar.mjs';
 import { toast } from './ui/toast.mjs';
 import { h } from './ui/dom.mjs';
 import { fetchRetry } from './structures.mjs';
-import { seedHistory } from './seed.mjs';
 import { mountHome } from './ui/home.mjs';
 import { mountSetup } from './ui/setup.mjs';
 import { mountRunning } from './ui/running.mjs';
@@ -21,6 +20,7 @@ import { mountResults } from './ui/results.mjs';
 import { mountCompare } from './ui/compare.mjs';
 import { mountScore } from './ui/score.mjs';
 import { mountGuide } from './ui/guide.mjs';
+import { loadCatalog, useTiming } from './catalog.mjs';
 
 const store = createStore();
 const stage = new Stage(document.getElementById('stage'));
@@ -108,12 +108,14 @@ async function boot() {
   } catch {
     toast('Couldn’t load the protein list. Run HybriDock-Pep from a web server (see README).', 8000);
   }
-  if (!store.get().historySeeded) store.set({ history: adapter.kind === 'demo' ? seedHistory(store.get().proteins) : [], historySeeded: true });
+  ctx.catalog = await loadCatalog();
+  if (adapter.kind === 'live') useTiming(adapter.env?.timing || null);
+  if (!store.get().historySeeded) store.set({ history: [], historySeeded: true }); // nothing pretend: History only ever holds real runs
   applyAppearance();
   mountTopbar(ctx);
   main.after(h('footer', { class: 'site-foot' },
-    h('p', {}, `A predicted binding strength is an estimate. One ΔG is typically off by about ±${TYPICAL_ERROR} kcal/mol, so use it to compare and rank, not as a measurement.`),
-    h('nav', { 'aria-label': 'More' }, h('a', { href: '#/guide' }, 'Guide'), h('a', { href: 'https://github.com/Tasty-Ramen2010/hybridock-pep', target: '_blank', rel: 'noopener noreferrer' }, 'Project on GitHub'))));
+    h('p', {}, 'HybriDock-Pep: helping researchers find new medicines faster.'),
+    h('nav', { 'aria-label': 'More' }, h('a', { href: '#/guide' }, 'How to use it'), h('a', { href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' }, 'GitHub'))));
   addEventListener('hashchange', render);
   render();
   resumeActiveRun();

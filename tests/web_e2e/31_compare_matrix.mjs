@@ -21,20 +21,17 @@ async function verifyCompare(p, label, expect) {
   const ddgTxt = (await p.locator('.big-number .n').textContent()).replace('−', '-').trim();
   const ddg = parseFloat(ddgTxt);
   check(`${label}: ΔΔG is a real number`, Number.isFinite(ddg) && Math.abs(ddg) < 30, `${ddgTxt} kcal/mol`);
-  const ci = (await p.locator('.err-line b').textContent()).replace(/−/g, '-').match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
-  check(`${label}: the 95% interval is shown and contains the estimate`, ci.length === 2 && ci[0] <= ddg + 0.011 && ddg - 0.011 <= ci[1], `[${ci.join(', ')}]`);
+  check(`${label}: no interval figures are printed`, (await p.locator('.err-line').count()) === 0, '');
   check(`${label}: the ΔΔG bar draws a band, an estimate mark and the zero line`, (await p.locator('.ddg-bar .ci').count()) === 1 && (await p.locator('.ddg-bar .est').count()) === 1 && (await p.locator('.ddg-bar .zero').count()) === 1, '');
   const verdict = (await p.locator('.verdict h3').textContent()).trim();
   check(`${label}: one of the three plain verdicts`, /selective|no clear|prefers/i.test(verdict), verdict);
-  const loSide = ci[1] < 0 ? 'target' : ci[0] > 0 ? 'off' : 'none';
-  check(`${label}: the verdict agrees with where the interval sits relative to zero`, (loSide === 'target' && /target/i.test(verdict) && !/off/i.test(verdict.replace(/off-target/i, 'X'))) || (loSide === 'off' && /off-target/i.test(verdict)) || (loSide === 'none' && /no clear/i.test(verdict)), `${verdict} for [${ci}]`);
+  const side = /off-target/i.test(verdict) ? 'off' : /selective for the target/i.test(verdict) ? 'target' : 'none';
+  check(`${label}: the verdict agrees with the sign of ΔΔG`, (side === 'target' && ddg < 0) || (side === 'off' && ddg > 0) || side === 'none', `${side} vs ΔΔG ${ddg}`);
   const cards = await p.locator('.two-dg .card .v').allTextContents();
   const [dt, doff] = cards.map((t) => parseFloat(t.replace('−', '-')));
   check(`${label}: both ΔG cards are shown`, cards.length === 2 && Number.isFinite(dt) && Number.isFinite(doff), cards.join(' / '));
   check(`${label}: ΔΔG = ΔG(target) − ΔG(off-target) as displayed`, Math.abs((dt - doff) - ddg) < 0.06, `${dt} - ${doff} = ${(dt - doff).toFixed(2)} vs ${ddg}`);
-  check(`${label}: the page explains why comparing is more trustworthy`, /more trustworthy than a single number/.test(await p.locator('.glass.panel').innerText()), '');
   check(`${label}: it says which score both ΔG values come from`, /using the .* (score|ΔG)|mean of the top/.test(await p.locator('.glass.panel').innerText()), '');
-  if (Math.abs(ddg) < 1) check(`${label}: |ΔΔG| below 1 carries the "direction, not a measurement" note`, /direction, not a measurement/.test(await p.locator('.glass.panel').innerText()), '');
   check(`${label}: not labelled Demo`, (await p.locator('.badge-demo').count()) === 0, '');
   // 3D tabs
   const tabs = p.locator('[aria-label="Which protein to show in 3D"] button');

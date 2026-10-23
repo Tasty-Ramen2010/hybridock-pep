@@ -11,7 +11,7 @@ const demoUrl = (hash) => `${BASE}/?demo${hash}`;
 let p = await newPage(b);
 await p.goto(demoUrl('#/')); await p.waitForSelector('.hero-card');
 check('demo: the page is labelled Demo', (await p.locator('.topbar .badge-demo').count()) >= 1, '');
-await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.big-number, .error-card', { timeout: 60000 });
+await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await p.waitForSelector('.big-number, .error-card', { timeout: 60000 });
 check('demo: Run example finishes with a result (no error card)', (await p.locator('.big-number').count()) === 1 && (await p.locator('.error-card').count()) === 0, (await p.locator('.error-card').allTextContents()).join(' ').slice(0, 200));
 check('demo: the result says Demo', (await p.locator('.badge-demo').count()) >= 1, '');
 check('demo: the ranked list is filled and rows can be chosen', (await p.locator('table.poses tbody tr').count()) >= 3, '');
@@ -22,14 +22,14 @@ check('demo: downloads are named *_DEMO so they cannot pass for real output', /D
 check('demo: no page errors on the Dock example', p.diag.pageErrors.length === 0, p.diag.pageErrors.join('|'));
 await p.context().close();
 
-// ---- the four setup steps, with Expert options
+// ---- the three setup steps
 p = await newPage(b);
 await p.goto(demoUrl('#/')); await p.waitForSelector('.hero-card');
-await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick');
+await p.locator('.start-card', { hasText: 'Test a peptide' }).getByRole('button').click(); await p.waitForSelector('.pick');
 await p.locator('.pick', { has: p.locator('.mono', { hasText: 'PDB 1YCR' }) }).last().click(); await p.getByRole('button', { name: 'Continue' }).click();
 await p.waitForSelector('#pep-input'); await p.locator('#pep-input').fill('ETFSDLWKLLPE'); await p.getByRole('button', { name: 'Continue' }).click();
-await p.waitForSelector('.choice'); await sleep(500); await p.getByRole('button', { name: /Use the suggested site/ }).click(); await p.getByRole('button', { name: 'Continue' }).click(); await p.waitForSelector('.summary');
-await p.getByRole('radio', { name: /Quick/ }).click();
+await p.waitForSelector('.summary'); // the binding site of a built-in protein is already set
+await p.getByRole('radio', { name: /^5 poses/ }).click();
 await p.getByRole('button', { name: /Run prediction/ }).click(); await p.waitForSelector('.big-number, .error-card', { timeout: 60000 });
 check('demo: a Dock from the four steps finishes', (await p.locator('.big-number').count()) === 1, (await p.locator('.error-card').allTextContents()).join(' ').slice(0, 200));
 check('demo: no page errors on the four-step Dock', p.diag.pageErrors.length === 0, p.diag.pageErrors.join('|'));
@@ -38,7 +38,7 @@ await p.context().close();
 // ---- Compare
 p = await newPage(b);
 await p.goto(demoUrl('#/compare')); await p.waitForSelector('.pcard'); await sleep(1200);
-await p.getByRole('radio', { name: /Quick/ }).click();
+await p.getByRole('radio', { name: /^5 poses/ }).click();
 await p.getByRole('button', { name: /^Compare/ }).last().click(); await p.waitForSelector('.big-number, .error-card', { timeout: 60000 });
 check('demo: a Compare finishes with ΔΔG, an interval and a verdict', (await p.locator('.big-number').count()) === 1 && (await p.locator('.verdict').count()) === 1 && (await p.locator('.ddg-bar').count()) === 1, (await p.locator('.error-card').allTextContents()).join(' ').slice(0, 200));
 check('demo: no page errors on Compare', p.diag.pageErrors.length === 0, p.diag.pageErrors.join('|'));
@@ -57,7 +57,7 @@ await p.context().close();
 // ---- the runner's own guards in demo too: a run in progress cannot be doubled
 p = await newPage(b);
 await p.goto(demoUrl('#/')); await p.waitForSelector('.hero-card');
-await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track');
+await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await p.waitForSelector('.track');
 await p.evaluate(() => window.hybridock.runner.start('dock', window.hybridock.store.get().run.job));
 await sleep(300);
 check('demo: starting a second run during a run is refused with a message', /already going/.test((await p.locator('.toast').allTextContents()).join(' ')), '');

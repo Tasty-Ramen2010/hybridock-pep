@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const b = await browser(); const p = await newPage(b);
 await p.goto(BASE + '/'); await p.waitForSelector('.hero-card');
 check('Home offers the validated MDM2 example as a known binder', await p.locator('.hero-card .chip', { hasText: 'Known binder' }).count() === 1, '');
-await p.getByRole('button', { name: 'Run example' }).click(); await p.waitForSelector('.track');
+await p.getByRole('button', { name: /Watch a (live|demo) run/ }).click(); await p.waitForSelector('.track');
 const t0 = Date.now(); const stages = new Set(); let last = '', maxFrac = 0, monotonic = true;
 while (true) {
   if (await p.locator('.big-number, .error-card').count()) break;

@@ -1,5 +1,5 @@
 // Regenerates the screenshots in docs/guide-img/ from a LIVE server, by driving the real UI (it starts one real Quick
-// dock and one real Compare, so allow 15 to 30 minutes on a CPU-only machine).
+// dock and one real Compare; the carousel shots need data/catalog.json).
 //
 //   BASE=http://127.0.0.1:8000 node guide_shots.mjs            # writes ../../docs/guide-img/*.png
 //   OUT=/tmp/shots BASE=... node guide_shots.mjs               # write somewhere else
@@ -24,34 +24,45 @@ const shot = async (name, opts = {}) => { if (!want(name)) return; await sleep(1
 const cont = () => p.getByRole('button', { name: 'Continue' });
 const waitResult = async (ms = 3 * 3600 * 1000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await p.locator('.big-number').count()) return true; if (await p.locator('.error-card').count()) throw new Error('the run failed: ' + (await p.locator('.error-card').innerText()).slice(0, 300)); await sleep(5000); } throw new Error('timed out'); };
 
-// ---- Predict: the four steps (no run yet) ----
+// ---- Home: the headline, the carousel, a result opened from it, and the compare tray ----
+await p.goto(BASE + '/#/'); await p.waitForSelector('.slide'); await sleep(2500);
+await shot('home');
+await p.locator('.catalog').screenshot({ path: path.join(OUT, 'carousel.png') }).then(() => console.log('  shot carousel'));
+await p.getByRole('button', { name: 'Next protein' }).click(); await sleep(1500);
+const pins = p.locator('.slide').nth(1).locator('.pin'); await pins.nth(0).click(); if (await pins.count() > 1) await pins.nth(1).click(); await sleep(500);
+await p.locator('.tray').scrollIntoViewIfNeeded(); await sleep(600);
+await p.locator('.tray').screenshot({ path: path.join(OUT, 'tray.png') }).then(() => console.log('  shot tray'));
+await p.locator('.slide').nth(1).locator('.run-row').screenshot({ path: path.join(OUT, 'run-row.png') }).then(() => console.log('  shot run-row'));
+await p.locator('.slide').nth(1).locator('.binder-open').first().click(); await p.waitForSelector('.big-number'); await sleep(2500);
+await shot('result');
+await p.locator('.panel').evaluate((el) => el.querySelector('.table-wrap')?.scrollIntoView({ block: 'center' }));
+await shot('poses');
+
+// ---- Predict: the three steps (the binding site is already set) ----
 await p.goto(BASE + '/#/predict'); await p.waitForSelector('.pick');
 await p.locator('.pick', { has: p.locator('.mono', { hasText: 'PDB 1YCR' }) }).click(); await p.waitForSelector('text=residues loaded');
 await shot('protein');
 await cont().click(); await p.waitForSelector('#pep-input');
 await p.locator('#pep-input').fill('ETFSDLWKLLPE'); await p.locator('#pep-input').blur();
 await shot('peptide');
-await cont().click(); await p.waitForSelector('.choice'); await sleep(600);
-const suggested = p.getByRole('button', { name: /Use the suggested site/ }); if (await suggested.isVisible()) await suggested.click();
-await shot('site');
 await cont().click(); await p.waitForSelector('.summary');
-await p.getByRole('radio', { name: /Quick/ }).click();
+await p.getByRole('radio', { name: /^5 poses/ }).click(); await sleep(800);
 await shot('review');
-await p.getByRole('button', { name: 'Expert' }).click(); await p.locator('details.adv summary', { hasText: 'Advanced settings' }).click(); await sleep(400);
-if (want('expert')) { await p.evaluate(() => document.querySelector('details.adv').scrollIntoView({ block: 'start' })); await shot('expert'); }
+await p.getByRole('button', { name: 'Expert' }).click();
+if (await p.locator('details.adv').count()) { // a shared computer offers no advanced settings, so there is nothing to show there
+  await p.locator('details.adv summary', { hasText: 'Advanced settings' }).click(); await sleep(400);
+  if (want('expert')) { await p.evaluate(() => document.querySelector('details.adv').scrollIntoView({ block: 'start' })); await shot('expert'); }
+}
 await p.getByRole('button', { name: 'Guided' }).click();
 await p.evaluate(() => scrollTo(0, 0));
 
 // ---- the real dock ----
-if (want('running') || want('result') || want('poses') || want('history') || want('home')) {
+if (want('running') || want('history')) {
   await p.getByRole('button', { name: /Run prediction/ }).click(); await p.waitForSelector('.track', { timeout: 30000 });
-  await sleep(20000);
+  await sleep(12000);
   await shot('running');
   await waitResult();
   await sleep(2500);
-  await shot('result');
-  await p.locator('.panel').evaluate((el) => el.querySelector('.table-wrap')?.scrollIntoView({ block: 'center' }));
-  await shot('poses');
 }
 
 // ---- Compare: the form, then a real comparison ----
@@ -61,7 +72,7 @@ await p.locator('select[aria-label="Off-target protein"]').selectOption({ label:
 await p.locator('#cmp-pep').fill('LISDAELEAIFEADC'); await sleep(800);
 await shot('compare');
 if (want('compare-result')) {
-  await p.getByRole('radio', { name: /Quick/ }).click();
+  await p.getByRole('radio', { name: /^5 poses/ }).click();
   await p.getByRole('button', { name: /^Compare/ }).last().click(); await p.waitForSelector('.track', { timeout: 30000 });
   await waitResult(); await sleep(2500);
   await shot('compare-result');
@@ -76,7 +87,6 @@ await shot('score');
 
 // ---- Home, History and the menu, with real runs behind them ----
 await p.goto(BASE + '/#/'); await p.waitForSelector('.hero-card'); await sleep(800);
-await shot('home');
 await p.getByRole('button', { name: 'Appearance and name' }).click(); await shot('menu'); await p.keyboard.press('Escape');
 await p.getByRole('button', { name: 'History' }).click(); await p.waitForSelector('dialog[open]'); await shot('history');
 

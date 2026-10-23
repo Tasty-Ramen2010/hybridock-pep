@@ -1,4 +1,4 @@
-// Every control of the four setup steps (Protein, Peptide, Binding site, Review), clicked and typed like a person would,
+// Every control of the setup steps (Protein, Peptide, Run; plus Binding site for a protein with no known site), clicked and typed like a person would,
 // including the 3D box (drag, resize, click the protein, keyboard) and every Expert setting's effect on the command.
 // No run is started. Needs a LIVE server for the command preview and time estimate; works on demo for the rest.
 import { browser, newPage, check, finish, shot, BASE, MDM2, sleep } from './lib.mjs';
@@ -18,7 +18,7 @@ const coords = async () => {
   return [await p.locator('[aria-label="Box centre X"]').inputValue(), await p.locator('[aria-label="Box centre Y"]').inputValue(), await p.locator('[aria-label="Box centre Z"]').inputValue()].map(Number);
 };
 const boxSize = async () => Number((await p.locator('output.mono').first().textContent()).replace(/[^\d.]/g, ''));
-const fresh = async () => { await p.goto(BASE + '/'); await p.waitForSelector('.hero-card'); await p.getByRole('button', { name: 'New prediction' }).click(); await p.waitForSelector('.pick'); };
+const fresh = async () => { await p.goto(BASE + '/'); await p.waitForSelector('.hero-card'); await p.locator('.start-card', { hasText: 'Test a peptide' }).getByRole('button').click(); await p.waitForSelector('.pick'); };
 
 await fresh();
 const isLive = await live();
@@ -26,7 +26,8 @@ console.log('server mode:', isLive ? 'live' : 'demo');
 
 // ======================================================================== step 1: protein
 check('step 1 is "Protein"', (await stepName()) === 'Protein', '');
-check('a protein (Tau) is already chosen, so a newcomer can simply press Continue', (await p.locator('.pick[aria-checked=true]').count()) === 1 && /Tau/.test(await p.locator('.pick[aria-checked=true]').first().textContent()), '');
+check('a protein (MDM2) is already chosen, so a newcomer can simply press Continue', (await p.locator('.pick[aria-checked=true]').count()) === 1 && /MDM2/.test(await p.locator('.pick[aria-checked=true]').first().textContent()), '');
+check('a built-in protein has a known site, so there are three steps: Protein, Peptide, Run', (await p.locator('.steps li').allTextContents()).map((t) => t.replace(/^\d/, '').trim()).join('|') === 'Protein|Peptide|Run', (await p.locator('.steps li').allTextContents()).join('|'));
 check('there is no Back button on step 1', (await p.getByRole('button', { name: 'Back' }).count()) === 0, '');
 const names = await p.locator('.pick > .pick-main').evaluateAll((els) => els.map((e) => e.childNodes[0].textContent.trim()));
 check('eight built-in proteins are listed', names.length === 8, names.join(' | '));
@@ -50,7 +51,8 @@ await p.locator('input[type=file]').first().setInputFiles(MDM2); await sleep(500
 check('an uploaded file becomes the selected protein', (await p.locator('.pick[aria-checked=true]').first().textContent()).includes('1YCR') || (await p.locator('.pick[aria-checked=true]').count()) === 1, (await p.locator('.pick[aria-checked=true]').first().textContent()).trim().slice(0, 50));
 
 // ======================================================================== step 2: peptide
-await search.fill(''); await p.locator('.pick', { has: p.locator('.mono', { hasText: 'PDB 1YCR' }) }).last().click(); // the built-in MDM2 row, not the uploaded copy
+await search.fill(''); // the uploaded copy stays selected: a file the app has no site for gets the extra "Binding site" step
+check('an uploaded protein has no known site, so a fourth step appears: Binding site', (await p.locator('.steps li').count()) === 4 && /Binding site/.test(await p.locator('.steps').innerText()), (await p.locator('.steps li').allTextContents()).join('|'));
 await cont().click(); await p.waitForSelector('#pep-input');
 check('step 2 is "Peptide"', (await stepName()) === 'Peptide', '');
 check('the Protein step is marked done in the progress list', (await p.locator('.steps li.done .name').first().textContent()).trim() === 'Protein', '');
@@ -187,24 +189,28 @@ await p.getByRole('radio', { name: /Find the pocket for me/ }).click(); await sl
 check('"Find the pocket for me" hides the box controls', (await p.locator('input[type=range]').count()) === 0, '');
 check('blind mode explains itself', /whole protein|pocket/i.test(await p.locator('.glass.panel').innerText()), '');
 await cont().click(); await p.waitForSelector('.summary');
-check('step 4 is "Review"', (await stepName()) === 'Review', '');
+check('step 4 is "Run"', (await stepName()) === 'Run', '');
 check('the summary says the whole protein is searched', /whole protein|blind|find/i.test(await p.locator('.summary').innerText()), (await p.locator('.summary').innerText()).replace(/\s+/g, ' '));
 await p.getByRole('button', { name: 'Back' }).click(); await p.waitForSelector('.choice');
 await p.getByRole('radio', { name: /I know where it binds/ }).click(); await sleep(300);
 // the 3D tests left the box wherever; put it back on the protein, as a person would, or Guided mode rightly blocks Continue
-await p.getByRole('button', { name: /Use the suggested site/ }).click(); await p.locator('input[type=range]').first().fill('30'); await sleep(300);
+// (an uploaded file has no suggested site, so the box goes back to where it started, by its coordinates)
+await coords(); // opens the Coordinates drawer if the step came back with it closed
+for (const [i, axis] of ['X', 'Y', 'Z'].entries()) await p.locator(`[aria-label="Box centre ${axis}"]`).fill(String(c0[i]));
+await p.locator('input[type=range]').first().fill('30'); await sleep(300);
 await cont().click(); await p.waitForSelector('.summary');
 
 // ======================================================================== step 4: review
 check('the primary button now says "Run prediction"', (await p.getByRole('button', { name: /Run prediction/ }).count()) === 1, '');
 const summary = (await p.locator('.summary').innerText()).replace(/\s+/g, ' ');
 check('the summary lists protein, peptide and site', /Protein/.test(summary) && /Peptide.*LIYKWVNK/.test(summary) && /Binding site/.test(summary), summary);
-const thoroughSet = [['Quick', '25 poses'], ['Half', '50 poses'], ['Full', '100 poses']];
-for (const [name, poses] of thoroughSet) {
-  await p.getByRole('radio', { name: new RegExp(name) }).click(); await sleep(150);
-  check(`"${name}" selects ${poses}`, (await p.getByRole('radio', { name: new RegExp(name) }).getAttribute('aria-checked')) === 'true' && (await p.locator('.small.muted', { hasText: /poses$/ }).first().textContent()).includes(poses), '');
+const thoroughSet = [['5 poses', 'Fastest'], ['10 poses', 'Balanced'], ['25 poses', 'Most thorough']];
+check('exactly three sizes are offered: 5, 10 and 25 poses', (await p.locator('[aria-label="How many poses?"] [role=radio]').count()) === 3, '');
+for (const [name, hint] of thoroughSet) {
+  await p.getByRole('radio', { name: new RegExp('^' + name) }).click(); await sleep(150);
+  check(`"${name}" is selected and described as ${hint}`, (await p.getByRole('radio', { name: new RegExp('^' + name) }).getAttribute('aria-checked')) === 'true' && (await p.locator('.small.muted', { hasText: new RegExp(`^${hint}$`) }).count()) >= 1, '');
 }
-await p.getByRole('radio', { name: /Full/ }).click();
+await p.getByRole('radio', { name: /^25 poses/ }).click();
 if (isLive) {
   await sleep(1500);
   check('a time estimate from the real server is shown', /estimate|about|minute|hour/i.test(await p.locator('.glass.panel').innerText()), '');
@@ -217,7 +223,7 @@ const tick = (label) => p.locator('label.check', { hasText: label }).locator('in
 if (isLive) {
   await sleep(1200);
   const base = await cmdText();
-  check('Expert command starts with the real dock command and the chosen peptide', /hybridock-pep dock/.test(base) && /--peptide LIYKWVNK/.test(base) && /--n-samples 100/.test(base), base.slice(0, 200));
+  check('Expert command starts with the real dock command and the chosen peptide', /hybridock-pep dock/.test(base) && /--peptide LIYKWVNK/.test(base) && /--n-samples 25/.test(base), base.slice(0, 200));
   await field('Long-peptide model starts at').fill('20'); await sleep(900);
   check('long-peptide threshold reaches --long-checkpoint-threshold', /--long-checkpoint-threshold 20/.test(await cmdText()), '');
   const ad4 = p.locator('option[value="vina,ad4"]');
@@ -278,7 +284,9 @@ const lines = [];
 for (let i = 0; i < names.length; i++) {
   await fresh();
   await p.locator('.pick').nth(i).click(); await cont().click(); await p.waitForSelector('#pep-input');
-  await p.locator('.pep-pick').first().click(); await cont().click(); await p.waitForSelector('.choice');
+  await p.locator('.pep-pick').first().click(); await cont().click(); await p.waitForSelector('.summary');
+  check(`built-in "${names[i]}": its site is already set, and the run screen says so`, /Ready/.test(await p.locator('.summary').innerText()), '');
+  await p.getByRole('button', { name: 'Expert' }).click(); await p.getByRole('button', { name: 'Adjust' }).click(); await p.waitForSelector('.choice'); // Expert can still mark it by hand
   await sleep(500);
   const sg = p.getByRole('button', { name: /Use the suggested site/ });
   if (await sg.isVisible()) await sg.click();

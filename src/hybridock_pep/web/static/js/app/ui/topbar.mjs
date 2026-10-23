@@ -4,7 +4,7 @@
 
 import { h } from './dom.mjs';
 import { icon, logo } from './icons.mjs';
-import { ACCENTS, backend } from '../config.mjs';
+import { ACCENTS, GITHUB_URL, backend } from '../config.mjs';
 import { initials } from '../jobs.mjs';
 import { adapter } from '../adapter.mjs';
 import { openHistory } from './history.mjs';
@@ -111,6 +111,7 @@ export function mountTopbar(ctx) {
       modeSeg,
       statusEl,
       themeBtn,
+      h('a', { class: 'btn icon bar-only', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer', 'aria-label': 'The project on GitHub', title: 'GitHub' }, icon('github', 18)),
       h('button', { class: 'btn icon bar-only', type: 'button', 'aria-label': 'History', title: 'History', onClick: () => openHistory(ctx) }, icon('history', 18)),
       h('button', { class: 'btn icon bar-only', type: 'button', 'aria-label': 'Help', title: 'Help', onClick: () => openHelp() }, icon('help', 18)),
       h('div', { class: 'rel' }, avatar, menuPop)),
@@ -147,10 +148,12 @@ export function mountTopbar(ctx) {
     polling = true;
     try {
       const m = await adapter.memory();
-      const lvl = meter.apply(m);
+      // a computer that stops its other work when a run starts looks full while idle: that is not a warning (see check_environment)
+      const roomy = !!adapter.env?.makes_room && store.get().run.status !== 'running';
+      const lvl = meter.apply(roomy ? null : m);
       if (envBtn) envBtn.setAttribute('aria-label', `${envBtn.title}. ${meter.describe() ? `Memory ${meter.describe()}.` : ''}${lvl.id === 'low' || lvl.id === 'full' ? ' Memory is low.' : ''}`.trim());
       if (memLine) {
-        memLine.textContent = meter.describe() || 'Not available on this computer';
+        memLine.textContent = roomy ? 'Shared with a helper model that steps aside when a run starts.' : meter.describe() || 'Not available on this computer';
         const g = meter.runGb();
         runLine.hidden = g == null; runLine.textContent = g == null ? '' : `This prediction is using about ${g < 10 ? g.toFixed(1) : Math.round(g)} GB.`;
       }

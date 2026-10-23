@@ -523,8 +523,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--allow-origin", action="append", default=[], metavar="URL",
                          help="With --public: a web page allowed to call this server, e.g. "
                               "https://tasty-ramen2010.github.io (repeatable).")
-    p_serve.add_argument("--max-samples", type=int, default=50, metavar="N",
-                         help="With --public: the most poses one visitor's run may ask for (default 50).")
+    p_serve.add_argument("--max-samples", type=int, default=25, metavar="N",
+                         help="With --public: the most poses one visitor's run may ask for (default 25; visitors choose 5, 10 or 25).")
 
     return parser
 

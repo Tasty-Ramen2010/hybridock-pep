@@ -1,0 +1,417 @@
+{
+ "grid": {
+  "8": {
+   "5": 58,
+   "10": 65,
+   "25": 98
+  },
+  "12": {
+   "5": 68,
+   "10": 82,
+   "25": 134
+  },
+  "13": {
+   "5": 95,
+   "10": 130,
+   "25": 250
+  },
+  "16": {
+   "5": 90,
+   "10": 128,
+   "25": 249
+  },
+  "25": {
+   "5": 150,
+   "10": 255,
+   "25": 560
+  }
+ },
+ "refLength": 12,
+ "cases": [
+  {
+   "length": 3,
+   "poses": 1,
+   "seconds": 47
+  },
+  {
+   "length": 3,
+   "poses": 5,
+   "seconds": 46
+  },
+  {
+   "length": 3,
+   "poses": 7,
+   "seconds": 45
+  },
+  {
+   "length": 3,
+   "poses": 10,
+   "seconds": 44
+  },
+  {
+   "length": 3,
+   "poses": 17,
+   "seconds": 48
+  },
+  {
+   "length": 3,
+   "poses": 25,
+   "seconds": 53
+  },
+  {
+   "length": 3,
+   "poses": 40,
+   "seconds": 62
+  },
+  {
+   "length": 8,
+   "poses": 1,
+   "seconds": 52
+  },
+  {
+   "length": 8,
+   "poses": 5,
+   "seconds": 58
+  },
+  {
+   "length": 8,
+   "poses": 7,
+   "seconds": 61
+  },
+  {
+   "length": 8,
+   "poses": 10,
+   "seconds": 65
+  },
+  {
+   "length": 8,
+   "poses": 17,
+   "seconds": 80
+  },
+  {
+   "length": 8,
+   "poses": 25,
+   "seconds": 98
+  },
+  {
+   "length": 8,
+   "poses": 40,
+   "seconds": 131
+  },
+  {
+   "length": 10,
+   "poses": 1,
+   "seconds": 55
+  },
+  {
+   "length": 10,
+   "poses": 5,
+   "seconds": 63
+  },
+  {
+   "length": 10,
+   "poses": 7,
+   "seconds": 67
+  },
+  {
+   "length": 10,
+   "poses": 10,
+   "seconds": 74
+  },
+  {
+   "length": 10,
+   "poses": 17,
+   "seconds": 93
+  },
+  {
+   "length": 10,
+   "poses": 25,
+   "seconds": 116
+  },
+  {
+   "length": 10,
+   "poses": 40,
+   "seconds": 159
+  },
+  {
+   "length": 12,
+   "poses": 1,
+   "seconds": 57
+  },
+  {
+   "length": 12,
+   "poses": 5,
+   "seconds": 68
+  },
+  {
+   "length": 12,
+   "poses": 7,
+   "seconds": 74
+  },
+  {
+   "length": 12,
+   "poses": 10,
+   "seconds": 82
+  },
+  {
+   "length": 12,
+   "poses": 17,
+   "seconds": 106
+  },
+  {
+   "length": 12,
+   "poses": 25,
+   "seconds": 134
+  },
+  {
+   "length": 12,
+   "poses": 40,
+   "seconds": 186
+  },
+  {
+   "length": 13,
+   "poses": 1,
+   "seconds": 67
+  },
+  {
+   "length": 13,
+   "poses": 5,
+   "seconds": 95
+  },
+  {
+   "length": 13,
+   "poses": 7,
+   "seconds": 109
+  },
+  {
+   "length": 13,
+   "poses": 10,
+   "seconds": 130
+  },
+  {
+   "length": 13,
+   "poses": 17,
+   "seconds": 186
+  },
+  {
+   "length": 13,
+   "poses": 25,
+   "seconds": 250
+  },
+  {
+   "length": 13,
+   "poses": 40,
+   "seconds": 370
+  },
+  {
+   "length": 14,
+   "poses": 1,
+   "seconds": 65
+  },
+  {
+   "length": 14,
+   "poses": 5,
+   "seconds": 93
+  },
+  {
+   "length": 14,
+   "poses": 7,
+   "seconds": 108
+  },
+  {
+   "length": 14,
+   "poses": 10,
+   "seconds": 129
+  },
+  {
+   "length": 14,
+   "poses": 17,
+   "seconds": 185
+  },
+  {
+   "length": 14,
+   "poses": 25,
+   "seconds": 250
+  },
+  {
+   "length": 14,
+   "poses": 40,
+   "seconds": 370
+  },
+  {
+   "length": 15,
+   "poses": 1,
+   "seconds": 62
+  },
+  {
+   "length": 15,
+   "poses": 5,
+   "seconds": 92
+  },
+  {
+   "length": 15,
+   "poses": 7,
+   "seconds": 106
+  },
+  {
+   "length": 15,
+   "poses": 10,
+   "seconds": 129
+  },
+  {
+   "length": 15,
+   "poses": 17,
+   "seconds": 185
+  },
+  {
+   "length": 15,
+   "poses": 25,
+   "seconds": 249
+  },
+  {
+   "length": 15,
+   "poses": 40,
+   "seconds": 370
+  },
+  {
+   "length": 16,
+   "poses": 1,
+   "seconds": 60
+  },
+  {
+   "length": 16,
+   "poses": 5,
+   "seconds": 90
+  },
+  {
+   "length": 16,
+   "poses": 7,
+   "seconds": 105
+  },
+  {
+   "length": 16,
+   "poses": 10,
+   "seconds": 128
+  },
+  {
+   "length": 16,
+   "poses": 17,
+   "seconds": 184
+  },
+  {
+   "length": 16,
+   "poses": 25,
+   "seconds": 249
+  },
+  {
+   "length": 16,
+   "poses": 40,
+   "seconds": 370
+  },
+  {
+   "length": 20,
+   "poses": 1,
+   "seconds": 62
+  },
+  {
+   "length": 20,
+   "poses": 5,
+   "seconds": 117
+  },
+  {
+   "length": 20,
+   "poses": 7,
+   "seconds": 144
+  },
+  {
+   "length": 20,
+   "poses": 10,
+   "seconds": 184
+  },
+  {
+   "length": 20,
+   "poses": 17,
+   "seconds": 279
+  },
+  {
+   "length": 20,
+   "poses": 25,
+   "seconds": 387
+  },
+  {
+   "length": 20,
+   "poses": 40,
+   "seconds": 590
+  },
+  {
+   "length": 25,
+   "poses": 1,
+   "seconds": 66
+  },
+  {
+   "length": 25,
+   "poses": 5,
+   "seconds": 150
+  },
+  {
+   "length": 25,
+   "poses": 7,
+   "seconds": 192
+  },
+  {
+   "length": 25,
+   "poses": 10,
+   "seconds": 255
+  },
+  {
+   "length": 25,
+   "poses": 17,
+   "seconds": 397
+  },
+  {
+   "length": 25,
+   "poses": 25,
+   "seconds": 560
+  },
+  {
+   "length": 25,
+   "poses": 40,
+   "seconds": 865
+  },
+  {
+   "length": 30,
+   "poses": 1,
+   "seconds": 70
+  },
+  {
+   "length": 30,
+   "poses": 5,
+   "seconds": 183
+  },
+  {
+   "length": 30,
+   "poses": 7,
+   "seconds": 240
+  },
+  {
+   "length": 30,
+   "poses": 10,
+   "seconds": 326
+  },
+  {
+   "length": 30,
+   "poses": 17,
+   "seconds": 516
+  },
+  {
+   "length": 30,
+   "poses": 25,
+   "seconds": 733
+  },
+  {
+   "length": 30,
+   "poses": 40,
+   "seconds": 1140
+  }
+ ]
+}

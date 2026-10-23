@@ -134,7 +134,8 @@ def test_env_and_examples_describe_limits_without_naming_this_computer(pub):
         assert status == 200
         assert str(Path.home()) not in text and str(REPO) not in text, f"{path} leaks a folder"
     _, env, _ = pub.call("GET", "/api/env")
-    assert env["public"]["blind"] is False and env["public"]["max_samples"] == 50
+    assert env["public"]["blind"] is False and env["public"]["max_samples"] == 25
+    assert env["public"]["allowed_samples"] == [5, 10, 25]
     _, ex, _ = pub.call("GET", "/api/examples")
     assert ex["examples"] and all(e["receptor_path"].startswith("example:") for e in ex["examples"])
 
@@ -193,7 +194,7 @@ def test_upload_rules(pub):
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.parametrize("over", [
-    {"blind": "y"}, {"n_samples": "100"}, {"n_samples": "0"}, {"n_samples": "-5"}, {"n_samples": "abc"},
+    {"blind": "y"}, {"n_samples": "100"}, {"n_samples": "50"}, {"n_samples": "7"}, {"n_samples": "0"}, {"n_samples": "-5"}, {"n_samples": "abc"},
     {"peptide": "A" * 26}, {"peptide": "AB"}, {"peptide": "AAAXAAA"}, {"peptide": "--output-dir"},
     {"site": "1 2"}, {"site": "1 2 --evil"}, {"box": "30; rm -rf"}, {"seed": "-1"},
 ])
@@ -201,6 +202,12 @@ def test_limits_and_odd_values_are_refused(pub, over):
     status, data, _ = pub.call("POST", "/api/run", form(**over), {"Origin": PAGE})
     assert status == 400, (over, data)
     assert pub.manager.started == []
+
+
+@pytest.mark.parametrize("n", ["5", "10", "25"])
+def test_the_three_offered_sizes_are_accepted(pub, n):
+    status, data, _ = pub.call("POST", "/api/run", form(n_samples=n), {"Origin": PAGE})
+    assert status == 200, (n, data)
 
 
 def test_a_comparison_is_capped_lower_than_a_single_run(pub):

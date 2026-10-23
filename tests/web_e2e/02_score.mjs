@@ -35,7 +35,7 @@ if (ok) {
   const v = parseFloat(n);
   check('score is physically sensible (-20 < dG < 0)', v < 0 && v > -20, String(v));
   check('result is not labelled Demo', (await p.locator('.big-number').locator('xpath=ancestor::*[contains(@class,"panel")]//*[contains(@class,"badge-demo")]').count()) === 0, '');
-  check('typical error is shown', (await p.locator('.err-line').textContent()).includes('1.6'), '');
+  check('no error figure is shown beside the number', (await p.locator('.err-line').count()) === 0, '');
 }
 // 5. the same inputs twice give the same number (scoring is deterministic)
 await openScore(); await fillScore();
