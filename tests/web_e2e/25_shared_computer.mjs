@@ -21,7 +21,7 @@ const chip = (await p.locator('.chip-text').first().textContent()).trim();
 check('the top bar says Live and GPU or CPU', /^Live · (GPU|CPU)$/.test(chip), chip);
 check('no "Demo mode" badge anywhere on the page', (await p.locator('.badge-demo').count()) === 0, '');
 const home = await p.locator('.hero-card').innerText();
-check('Home says where it runs and shows no preview or install notice', /Runs live on our/.test(home) && !/This is the preview|simulated/.test(home) && (await p.locator('.hero-card .notice').count()) === 0, home.replace(/\s+/g, ' ').slice(0, 160));
+check('Home shows no where-it-runs line, preview or install notice', !/Runs live on our|Every result below/.test(home) && !/This is the preview|simulated/.test(home) && (await p.locator('.hero-card .notice').count()) === 0, home.replace(/\s+/g, ' ').slice(0, 160));
 const apiOrigins = new Set(); p.on('request', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/api/')) apiOrigins.add(u.origin); });
 
 // the Predict screen follows the limits

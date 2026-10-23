@@ -81,7 +81,7 @@ export function mountHome(ctx) {
     h('button', { class: 'btn sm', type: 'button', onClick: () => location.reload() }, 'try again'), '.') : null;
 
   const where = live
-    ? (TIMING.machine ? `Runs live on our ${TIMING.machine}. Every result below is a real prediction.` : 'Runs live on our own computer. Every result below is a real prediction.')
+    ? ''
     : (backend.offline ? 'Our lab computer is offline for a moment, so new runs here are simulated and marked Demo. The results in the carousel are real.' : 'New runs in this preview are simulated and marked Demo. The results in the carousel are real.');
 
   // Only a computer nobody has measured, or one that has not run a prediction yet, has anything to add: the demo computer has neither.
@@ -103,7 +103,7 @@ export function mountHome(ctx) {
           h('a', { class: 'btn primary lg', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' }, icon('github', 20), 'View the project on GitHub'),
           h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, icon('play', 16),
             live ? 'Watch a live run' : 'Watch a demo run', exTime)),
-        h('p', { class: 'small muted where' }, where, extra.length ? ` ${extra.join(' ')}` : ''),
+        where || extra.length ? h('p', { class: 'small muted where' }, where, where && extra.length ? ' ' : '', extra.join(' ')) : null,
         offlineNotice,
         setupNotice),
       carousel ? carousel.el : slotEl),

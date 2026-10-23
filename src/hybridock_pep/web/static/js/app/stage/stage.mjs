@@ -18,6 +18,7 @@ import {
   clamp, lerp, smoothstep, easeInOut, qAxisAngle, qMul, qNormalize, qToMat3,
   mat3Apply, mat3ApplyInverse, convexHull, pointInPolygon,
 } from './math.mjs';
+import { clearShift, makeGrid } from './collide.mjs';
 import { helixPoints } from '../peptide.mjs';
 import { atomsInBox } from '../pdb.mjs';
 import { BOX_MIN, BOX_MAX } from '../config.mjs';
@@ -25,6 +26,8 @@ import { BOX_MIN, BOX_MAX } from '../config.mjs';
 const DEPTH_FACTOR = 4.5; // camera distance in protein radii: smaller = stronger perspective
 const FOCUS = 0.15; //       depth (−1 far … +1 near) that is perfectly sharp
 const TUBE_WIDTH = 1.05; //  protein tube thickness in Å
+const FLOAT_CLEARANCE = 4.2; // Å the floating or tumbling peptide keeps from the protein's backbone
+const SITE_CLEARANCE = 3.4; //  Å a placeholder peptide (shown in the search box before any result) keeps from it
 const QUALITY = [ // the stage starts at level 0 and steps down by itself if frames keep arriving late
   { dpr: 1.5, fps: 32, dof: true },
   { dpr: 1.25, fps: 24, dof: false },
@@ -171,6 +174,7 @@ export class Stage {
     this.structure = structure;
     this._fit = null;
     this.P = structure ? { ...buildTube(structure), center: structure.center, R: structure.radius, fitR: structure.fitRadius } : null;
+    this._grid = this.P ? makeGrid(this.P.pts, Math.max(FLOAT_CLEARANCE, SITE_CLEARANCE) + 0.5) : null;
     this._updateInside();
     this.invalidate();
   }
@@ -197,6 +201,7 @@ export class Stage {
   setDockPose(points) {
     const pep = this.pep;
     if (!points || points.length !== pep.n * 3) { pep.prev = pep.next = null; pep.tp = 1; this.invalidate(); return; }
+    pep.synthetic = false; // a real result: drawn exactly where it is
     pep.prev = this._dockedLocal();
     pep.next = Float32Array.from(points);
     pep.tp = pep.prev && !this.reduced ? 0 : 1;
@@ -211,6 +216,7 @@ export class Stage {
     for (let i = 0; i < n; i++) { c[0] += pep.next[i * 3]; c[1] += pep.next[i * 3 + 1]; c[2] += pep.next[i * 3 + 2]; }
     const d = [center[0] - c[0] / n, center[1] - c[1] / n, center[2] - c[2] / n];
     for (let i = 0; i < n; i++) { pep.next[i * 3] += d[0]; pep.next[i * 3 + 1] += d[1]; pep.next[i * 3 + 2] += d[2]; }
+    pep.synthetic = true; // a stand-in shown in the search box: kept out of the protein
     pep.prev = null; pep.tp = 1;
     this.invalidate();
   }
@@ -383,7 +389,7 @@ export class Stage {
     const tumble = pep.mode === 'tumble';
     const motion = this.reduced ? 0 : 1;
     const a = this.t * (tumble ? 0.9 : 0.28) * motion + 0.8;
-    const radius = F * (tumble ? 0.62 : 1.02); // floating: beside the protein, not tangled into it
+    const radius = F * (tumble ? 0.95 : 1.02); // beside the protein; the clearance step below keeps it from ever passing into it
     const oc = [Math.cos(a) * radius, Math.sin(a * 1.3) * F * (tumble ? 0.3 : 0.38) - F * 0.1, Math.sin(a) * radius * 0.9];
     const spin = qToMat3(qAxisAngle([0.3, 1, 0.2], this.t * (tumble ? 3.2 : 0.9) * motion));
     const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
@@ -403,6 +409,21 @@ export class Stage {
         const d = mat3Apply(M, sx, sy, sz); dx = d[0]; dy = d[1]; dz = d[2];
       }
       out[i * 3] = lerp(fx, dx, e); out[i * 3 + 1] = lerp(fy, dy, e); out[i * 3 + 2] = lerp(fz, dz, e);
+    }
+    // Keep it out of the protein: while floating or settling, and always for a stand-in (not a result). A real result that has
+    // finished settling is drawn exactly where it is.
+    const clearance = lerp(FLOAT_CLEARANCE, pep.synthetic || !docked ? SITE_CLEARANCE : 0, e);
+    if (clearance > 0.05 && this._grid) {
+      const local = new Float32Array(out.length);
+      for (let i = 0; i < n; i++) {
+        const q = mat3ApplyInverse(M, out[i * 3], out[i * 3 + 1], out[i * 3 + 2]);
+        local[i * 3] = q[0] + c[0]; local[i * 3 + 1] = q[1] + c[1]; local[i * 3 + 2] = q[2] + c[2];
+      }
+      const s = clearShift(this._grid, local, n, clearance);
+      if (s[0] || s[1] || s[2]) {
+        const v = mat3Apply(M, s[0], s[1], s[2]);
+        for (let i = 0; i < n; i++) { out[i * 3] += v[0]; out[i * 3 + 1] += v[1]; out[i * 3 + 2] += v[2]; }
+      }
     }
     return { v: out, sc };
   }

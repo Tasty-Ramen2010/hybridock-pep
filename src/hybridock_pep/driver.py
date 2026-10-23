@@ -378,6 +378,20 @@ def run_dock(
             record.pdb_path = min_path.resolve()
         logger.info("Stage 1.5 complete: %d poses minimized → %s", len(records), min_dir)
 
+    # Stage 1.55: slide poses that sit inside the receptor out to its surface (rigid move; the peptide's shape is untouched).
+    # RAPiDock's diffusion leaves a share of poses partly inside the protein; those look wrong and score badly.
+    if input_poses_dir is None and config.declash_poses and records:
+        from hybridock_pep.scoring.declash import declash_poses_batch  # noqa: PLC0415
+        from hybridock_pep.scoring.entropy import load_receptor_heavy_atom_coords as _load_rec  # noqa: PLC0415
+
+        clear_dir = (config.output_dir / "poses_clear").resolve()
+        cleared = declash_poses_batch(
+            [r.pdb_path.resolve() for r in records], _load_rec(config.receptor_path.resolve()), clear_dir,
+        )
+        for record, clear_path in zip(records, cleared):
+            record.pdb_path = clear_path.resolve()
+        logger.info("Stage 1.55 complete: poses cleared of receptor overlap → %s", clear_dir)
+
     # Stage 1.6: Write poses_scored/ — the exact pose files that will be scored.
     # Each file is either the minimized pose (Stage 1.5 succeeded) or the original
     # RAPiDock pose (minimization failed / displacement check rejected it).

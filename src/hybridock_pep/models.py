@@ -49,6 +49,8 @@ class DockConfig(BaseModel):
     run_id: str = ""
     verbosity: int = 0
     minimize_poses: bool = True
+    # Slide each RAPiDock pose out of the receptor (rigid move, peptide shape untouched) before scoring; see scoring/declash.py.
+    declash_poses: bool = True
     refine_topk: int | None = None
     # --ultra randomized-smoothing depth for rank_score (E314). 0 = off; >1 averages that many
     # feature-jittered evaluations to reduce ranking variance (~+2 pts within-target pairwise). It does

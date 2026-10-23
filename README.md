@@ -336,6 +336,7 @@ The default ΔG (`delta_g`) is the **AI-pose affinity model** — Vina is clash-
 | `--seed N` | deterministic run (modulo CUDA nondeterminism; logged to `run_metadata.json`) |
 | `--mmgbsa-ie` / `--mmgbsa-3traj` / `--mmgbsa-dielectric EPS` | interaction-entropy term · three-trajectory MM-GBSA · custom solute dielectric |
 | `--mmgbsa-cpu-only` / `--no-minimize` | force MM-GBSA onto CPU · skip the OpenMM pre-minimization |
+| `--no-declash` | keep RAPiDock poses exactly as sampled (by default a pose sitting partly inside the protein is slid out as a rigid body, `scoring/declash.py`) |
 
 #### Blind docking — no known pocket
 

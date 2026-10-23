@@ -52,6 +52,25 @@ def peptide_ca(pdb: Path, n: int) -> list[float]:
     return [round(v, 1) for v in pts[-3 * n:]]
 
 
+def heavy_atoms(pdb: Path):
+    import numpy as np  # noqa: PLC0415
+
+    return np.asarray([(float(l[30:38]), float(l[38:46]), float(l[46:54])) for l in pdb.read_text(encoding="utf-8", errors="ignore").splitlines()
+                       if l.startswith(("ATOM", "HETATM")) and not l[12:16].strip().startswith("H")]).reshape(-1, 3)
+
+
+#: a pose is shown only if no peptide heavy atom is closer than this to the protein (a tight hydrogen bond is ~2.6 Å)
+MIN_CLEARANCE = 2.6
+
+
+def clearance(pose: Path, receptor_xyz) -> float:
+    """Closest distance (Å) from any heavy atom of a pose file (the peptide alone) to any receptor heavy atom."""
+    import numpy as np  # noqa: PLC0415
+
+    pep = heavy_atoms(pose)
+    return float(np.linalg.norm(pep[:, None] - receptor_xyz[None], axis=2).min()) if len(pep) and len(receptor_xyz) else 99.0
+
+
 def find_pose(out: Path, name: str) -> Path | None:
     for sub in ("poses_scored", "poses_minimized", "poses", "poses_raw", ""):
         cand = out / sub / name if sub else out / name
@@ -133,11 +152,17 @@ def main() -> int:
             with csv_path.open(newline="", encoding="utf-8") as fh:
                 rows = list(csv.DictReader(fh))
             keep = []
-            for i, row in enumerate(rows[:KEEP], 1):
+            rec_file = out / "receptor_for_rapidock_full.pdb"
+            rec_xyz = heavy_atoms(rec_file) if rec_file.is_file() else None
+            for i, row in enumerate(rows, 1):
+                if len(keep) >= KEEP:
+                    break
                 dg = first_float(row, ("pooled_affinity_dg", "delta_g", "mmgbsa_dg"))
                 pose = find_pose(out, row.get("pose_filename", ""))
                 if dg is None or pose is None:
                     continue
+                if rec_xyz is not None and clearance(pose, rec_xyz) < MIN_CLEARANCE:
+                    continue  # still overlaps the protein: never shown
                 ca = peptide_ca(pose, len(seq))
                 if len(ca) == 3 * len(seq):
                     keep.append({"rank": int(row.get("rank") or i), "deltaG": round(dg, 2), "ca": ca})

@@ -289,6 +289,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_dock.add_argument(
+        "--no-declash",
+        action="store_true",
+        default=False,
+        help=(
+            "Keep RAPiDock poses exactly as sampled. By default a pose that sits partly inside the receptor is slid "
+            "(as a rigid body) out to its surface before scoring. Has no effect with --input-poses."
+        ),
+    )
+    p_dock.add_argument(
         "--ensemble",
         action="store_true",
         default=False,
@@ -686,6 +695,7 @@ def _run_dock(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             output_dir=Path(args.output_dir).resolve(),
             verbosity=args.verbose,
             minimize_poses=not args.no_minimize,
+            declash_poses=not args.no_declash,
             refine_topk=eff_refine_topk,
             ultra=args.ultra,
             ultra_charged=eff_ultra_charged,

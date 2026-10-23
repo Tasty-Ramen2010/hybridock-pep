@@ -362,3 +362,91 @@ test('the home page carries no error figures and the catalog data names a diseas
   const home = readFileSync(join(root, 'js/app/ui/home.mjs'), 'utf8');
   assert.ok(!/TYPICAL_ERROR|±/.test(home), 'no error figure on the home page');
 });
+
+// ---- the 3D view: the floating, tumbling and settling peptide never passes into the protein ----------------------------
+import { Stage } from '../../src/hybridock_pep/web/static/js/app/stage/stage.mjs';
+import { closestApproach, clearShift, makeGrid } from '../../src/hybridock_pep/web/static/js/app/stage/collide.mjs';
+import { helixPoints } from '../../src/hybridock_pep/web/static/js/app/peptide.mjs';
+import { qAxisAngle, qToMat3, mat3ApplyInverse } from '../../src/hybridock_pep/web/static/js/app/stage/math.mjs';
+
+test('clearShift moves a peptide that sits inside a protein until it is clear, and leaves a clear one alone', () => {
+  const pts = [];
+  for (let x = -20; x <= 20; x += 1.5) for (let y = -20; y <= 20; y += 1.5) pts.push(x, y, 0);
+  const grid = makeGrid(Float32Array.from(pts), 6);
+  const pep = Float32Array.from(helixPoints(10));
+  assert.ok(closestApproach(grid, pep, 10) < 2, 'the helix starts inside the wall');
+  const s = clearShift(grid, pep, 10, 4.2);
+  const moved = pep.map((v, i) => v + s[i % 3]);
+  assert.ok(closestApproach(grid, moved, 10) >= 4.2 - 0.05, `still ${closestApproach(grid, moved, 10).toFixed(2)} Å away`);
+  const far = pep.map((v, i) => v + (i % 3 === 2 ? 30 : 0));
+  assert.deepEqual(clearShift(grid, far, 10, 4.2), [0, 0, 0]);
+});
+
+function fakeStage(structure, mode, synthetic = false) {
+  const st = Object.create(Stage.prototype);
+  Object.assign(st, { reduced: false, t: 0, pep: { n: 12, shape: helixPoints(12), mode, dockT: 0, prev: null, next: null, tp: 1, alpha: 1, synthetic }, invalidate() {}, _updateInside() {} });
+  Stage.prototype._applyProtein.call(st, structure);
+  return st;
+}
+
+test('the floating and tumbling peptide stays clear of every bundled protein at every moment and angle', () => {
+  const rng = mulberry32(7);
+  for (const p of proteins) {
+    const structure = load(p);
+    for (const mode of ['float', 'tumble']) {
+      const st = fakeStage(structure, mode);
+      let worst = Infinity;
+      for (let step = 0; step < 240; step++) {
+        st.t = step * 0.5;
+        const M = qToMat3(qAxisAngle([rng() - 0.5, rng() - 0.5, rng() - 0.5], rng() * 6.28));
+        const { v } = Stage.prototype._peptideView.call(st, M, st.P.center, st.P.R);
+        const local = new Float32Array(v.length);
+        for (let i = 0; i < 12; i++) {
+          const q = mat3ApplyInverse(M, v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
+          local[i * 3] = q[0] + st.P.center[0]; local[i * 3 + 1] = q[1] + st.P.center[1]; local[i * 3 + 2] = q[2] + st.P.center[2];
+        }
+        worst = Math.min(worst, closestApproach(st._grid, local, 12));
+      }
+      assert.ok(worst >= 4.2 - 0.1, `${p.name} (${mode}): closest approach ${worst.toFixed(2)} Å`);
+    }
+  }
+});
+
+test('a stand-in peptide in the search box is kept out of the protein too', () => {
+  for (const p of proteins) {
+    const structure = load(p);
+    const st = fakeStage(structure, 'dock', true);
+    st.pep.dockT = 1;
+    st.pep.next = Float32Array.from(helixPoints(12), (v, i) => v + p.site[['x', 'y', 'z'][i % 3]]);
+    const M = qToMat3([0, 0, 0, 1]);
+    const { v } = Stage.prototype._peptideView.call(st, M, st.P.center, st.P.R);
+    const local = v.map((x, i) => x + st.P.center[i % 3]);
+    assert.ok(closestApproach(st._grid, local, 12) >= 3.4 - 0.1, `${p.name}: ${closestApproach(st._grid, local, 12).toFixed(2)} Å`);
+  }
+});
+
+test('settling onto a result never cuts through the protein on the way', () => {
+  const catalog = JSON.parse(readFileSync(join(root, 'data/catalog.json'), 'utf8'));
+  for (const p of proteins) {
+    const binder = (catalog.binders[p.key] || [])[0];
+    if (!binder) continue;
+    const pose = binder.poses[0].ca, n = binder.seq.length;
+    const structure = load(p);
+    const st = Object.create(Stage.prototype);
+    Object.assign(st, { reduced: false, t: 3, pep: { n, shape: helixPoints(n), mode: 'dock', dockT: 0, prev: null, next: Float32Array.from(pose), tp: 1, alpha: 1, synthetic: false }, invalidate() {}, _updateInside() {} });
+    Stage.prototype._applyProtein.call(st, structure);
+    const M = qToMat3(qAxisAngle([0.2, 1, 0.1], 1.1));
+    for (const dockT of [0, 0.1, 0.25, 0.5, 0.75]) {
+      st.pep.dockT = dockT;
+      const { v } = Stage.prototype._peptideView.call(st, M, st.P.center, st.P.R);
+      const local = new Float32Array(v.length);
+      for (let i = 0; i < n; i++) {
+        const q = mat3ApplyInverse(M, v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
+        local[i * 3] = q[0] + st.P.center[0]; local[i * 3 + 1] = q[1] + st.P.center[1]; local[i * 3 + 2] = q[2] + st.P.center[2];
+      }
+      const e = dockT < 0.5 ? 4 * dockT ** 3 : 1 - (-2 * dockT + 2) ** 3 / 2; // easeInOut
+      const want = 4.2 * (1 - e);
+      assert.ok(closestApproach(st._grid, local, n) >= want - 0.1, `${p.name} at ${dockT}: ${closestApproach(st._grid, local, n).toFixed(2)} Å, needs ${want.toFixed(2)}`);
+    }
+  }
+});
