@@ -130,7 +130,7 @@ export function createCatalog({ ctx, proteins, catalog, slotEl }) {
     slides.forEach((sl, k) => { sl.el.inert = k !== i; });
     const p = slides[i].protein;
     stage.setPeptide((bindersFor(catalog, p.key)[0]?.seq || p.examplePeptide || 'ETFSDLWKLLPE').length);
-    loadProtein(p).then(({ structure }) => { if (alive && my === token) stage.setProtein(structure); }).catch(() => {});
+    loadProtein(p).then(({ structure }) => { if (alive && my === token) stage.setProtein(structure, p.site); }).catch(() => {});
   }
   let settle = null;
   track.addEventListener('scroll', () => {

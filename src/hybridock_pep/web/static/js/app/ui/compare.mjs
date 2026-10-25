@@ -172,7 +172,7 @@ export function mountCompare(ctx) {
     stage.setSlot(slot);
     stage.setPeptideMode('float');
     const s = structs[C().focus];
-    if (s) stage.setProtein(s);
+    if (s) stage.setProtein(s, C()[C().focus].site);
     updateRun();
   }
 

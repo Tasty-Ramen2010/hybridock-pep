@@ -399,6 +399,7 @@ test('the floating and tumbling peptide stays clear of every bundled protein at 
       for (let step = 0; step < 240; step++) {
         st.t = step * 0.5;
         const M = qToMat3(qAxisAngle([rng() - 0.5, rng() - 0.5, rng() - 0.5], rng() * 6.28));
+        Stage.prototype._stepPeptide.call(st, 1 / 32, M); // the spring moves the peptide (and keeps it out) once a frame
         const { v } = Stage.prototype._peptideView.call(st, M, st.P.center, st.P.R);
         const local = new Float32Array(v.length);
         for (let i = 0; i < 12; i++) {

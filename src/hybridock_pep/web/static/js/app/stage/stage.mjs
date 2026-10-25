@@ -26,6 +26,8 @@ import { BOX_MIN, BOX_MAX } from '../config.mjs';
 const DEPTH_FACTOR = 4.5; // camera distance in protein radii: smaller = stronger perspective
 const FOCUS = 0.15; //       depth (−1 far … +1 near) that is perfectly sharp
 const TUBE_WIDTH = 1.05; //  protein tube thickness in Å
+const PEP_SPRING_W = 1.6; //     how fast the floating peptide is pulled back to its spot (rad/s)
+const PEP_SPRING_ZETA = 0.25; //   a few visible bounces, then it settles in about ten seconds
 const FLOAT_CLEARANCE = 4.2; // Å the floating or tumbling peptide keeps from the protein's backbone
 const SITE_CLEARANCE = 3.4; //  Å a placeholder peptide (shown in the search box before any result) keeps from it
 const QUALITY = [ // the stage starts at level 0 and steps down by itself if frames keep arriving late
@@ -77,6 +79,7 @@ export class Stage {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.level = 0; this._slow = 0; this._lastDrawAt = 0; this._hiddenAt = 0; this._occluded = false; this._scrollAt = 0;
+    this.site = null; this.pepC = null; this.pepV = [0, 0, 0]; // binding site (protein coords); floating peptide centre and velocity
     this.dpr = Math.min(window.devicePixelRatio || 1, QUALITY[0].dpr);
     this.W = 0; this.H = 0;
 
@@ -163,7 +166,8 @@ export class Stage {
   }
 
   /** Cross-fade to a new protein structure (from pdb.js parsePDB), or null to clear. */
-  setProtein(structure) {
+  setProtein(structure, site = null) {
+    this.site = site ? [site.x, site.y, site.z] : null;
     if (structure === this.structure && this.P) return;
     if (!this.P || this.reduced || this.modelAlpha < 0.05) { this._applyProtein(structure); return; }
     this._pendingProtein = { structure };
@@ -173,6 +177,7 @@ export class Stage {
   _applyProtein(structure) {
     this.structure = structure;
     this._fit = null;
+    this.pepC = null;
     this.P = structure ? { ...buildTube(structure), center: structure.center, R: structure.radius, fitR: structure.fitRadius } : null;
     this._grid = this.P ? makeGrid(this.P.pts, Math.max(FLOAT_CLEARANCE, SITE_CLEARANCE) + 0.5) : null;
     this._updateInside();
@@ -370,6 +375,7 @@ export class Stage {
     pep.alpha += (((pep.mode === 'hidden' || !pep.n) ? 0 : 1) - pep.alpha) * fade;
     if (pep.tp < 1) pep.tp = Math.min(1, pep.tp + dt / 0.7);
     this.boxAlpha += ((this.box ? 1 : 0) - this.boxAlpha) * fade;
+    if (this.pep.mode !== 'tumble') this._stepPeptide(dt, qToMat3(this.q));
   }
 
   // ---- peptide geometry --------------------------------------------------------------------
@@ -388,13 +394,19 @@ export class Stage {
    * and peptide length; because the peptide is fixed to the protein it turns with it and never has to be pushed away.
    */
   _anchorFor(n, fs) {
-    const key = `${n}|${fs.toFixed(3)}`;
+    const key = `${n}|${fs.toFixed(3)}|${this.site ? this.site.join(',') : ''}`;
     if (this._anchorP === this.P && this._anchorKey === key) return this._anchor;
     const P = this.P, shape = this.pep.shape, pts = P.pts, c = P.center, m = pts.length / 3;
-    const u = [0.8, 0.3, 0.5], ul = Math.hypot(u[0], u[1], u[2]);
+    // the spot is out from the protein's centre through its suggested binding site (or a fixed side when there is none)
+    let u = [0.8, 0.3, 0.5], d0 = 0;
+    if (this.site) {
+      const sv = [this.site[0] - c[0], this.site[1] - c[1], this.site[2] - c[2]], sl = Math.hypot(sv[0], sv[1], sv[2]);
+      if (sl > 1e-3) { u = sv; d0 = sl; }
+    }
+    const ul = Math.hypot(u[0], u[1], u[2]);
     const want = (FLOAT_CLEARANCE + 1) ** 2; // +1 Å: the links between residues sit a little off the residues
     let found = null;
-    for (let d = 0; d <= 4 * P.R + 20 && !found; d += 0.5) {
+    for (let d = d0; d <= d0 + 2 * P.R + 20 && !found; d += 0.5) {
       const A = [u[0] / ul * d, u[1] / ul * d, u[2] / ul * d];
       let ok = true;
       for (let i = 0; i < n && ok; i++) {
@@ -406,10 +418,51 @@ export class Stage {
       }
       if (ok) found = A;
     }
+    const far = d0 + P.R + FLOAT_CLEARANCE + 2;
     this._anchorP = P; this._anchorKey = key;
-    this._anchor = found || [u[0] / ul * (P.R + FLOAT_CLEARANCE + 2), u[1] / ul * (P.R + FLOAT_CLEARANCE + 2), u[2] / ul * (P.R + FLOAT_CLEARANCE + 2)];
+    this._anchor = found || [u[0] / ul * far, u[1] / ul * far, u[2] / ul * far];
     return this._anchor;
   }
+
+  /** How large the floating peptide is drawn (a fraction of the protein's visible size). */
+  _floatScale(n) {
+    const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
+    return clamp((0.26 * this.P.fitR) / halfLen, 0.8, 2.0);
+  }
+
+  /**
+   * The floating peptide is held by a soft spring: it is pulled towards its spot on the protein, so when the protein is turned it
+   * follows a little behind, bounces, and settles back within about ten seconds. If the lag would take it into the protein, it is
+   * moved back out, and it stops moving inward.
+   */
+  _stepPeptide(dt, M) {
+    const n = this.pep.n;
+    if (!n || !this.P || !this.pep.shape) return;
+    const fs = this._floatScale(n);
+    const A = this._anchorFor(n, fs);
+    const target = mat3Apply(M, A[0], A[1], A[2]);
+    if (!this.pepC || this.reduced || !(dt > 0)) { this.pepC = target; this.pepV = [0, 0, 0]; return; }
+    const C = this.pepC, V = this.pepV, w = PEP_SPRING_W, z = PEP_SPRING_ZETA;
+    for (let ax = 0; ax < 3; ax++) {
+      V[ax] += (w * w * (target[ax] - C[ax]) - 2 * z * w * V[ax]) * dt;
+      C[ax] += V[ax] * dt;
+    }
+    // keep it out of the protein (in the protein's own frame, like the rest of the clearance code)
+    const q = mat3ApplyInverse(M, C[0], C[1], C[2]), c = this.P.center, shape = this.pep.shape;
+    const local = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      local[i * 3] = q[0] + c[0] + shape[i * 3] * fs; local[i * 3 + 1] = q[1] + c[1] + shape[i * 3 + 1] * fs; local[i * 3 + 2] = q[2] + c[2] + shape[i * 3 + 2] * fs;
+    }
+    const sh = clearShift(this._grid, local, n, FLOAT_CLEARANCE);
+    if (sh[0] || sh[1] || sh[2]) {
+      const v = mat3Apply(M, sh[0], sh[1], sh[2]);
+      for (let ax = 0; ax < 3; ax++) C[ax] += v[ax];
+      const L = Math.hypot(v[0], v[1], v[2]) || 1, un = [v[0] / L, v[1] / L, v[2] / L];
+      const into = V[0] * un[0] + V[1] * un[1] + V[2] * un[2];
+      if (into < 0) for (let ax = 0; ax < 3; ax++) V[ax] -= into * un[ax];
+    }
+  }
+
 
   /** Peptide C-alpha positions in view space (Å), mixing "floating" and "settled" by dockT. */
   _peptideView(M, c, R) {
@@ -419,8 +472,7 @@ export class Stage {
     const tumble = pep.mode === 'tumble';
     const motion = this.reduced ? 0 : 1;
     const a = this.t * (tumble ? 0.45 : 0.28) * motion + 0.8;
-    const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
-    const floatScale = clamp((0.34 * F) / halfLen, 1, 2.4); // a little larger than life while floating so it reads on screen
+    const floatScale = this._floatScale(n);
     const spin = qToMat3(qAxisAngle([0.3, 1, 0.2], this.t * (tumble ? 1.2 : 0.9) * motion));
     // The floating peptide circles in a plane in front of the whole protein: past its outermost atom (R) plus its own reach.
     // Nothing of the protein can be that far out, however the protein is turned, so the peptide never has to be pushed
@@ -433,13 +485,14 @@ export class Stage {
     const sc = lerp(floatScale, 1, e);
     const docked = this._dockedLocal();
     const out = new Float32Array(n * 3);
-    const anchor = tumble ? null : this._anchorFor(n, floatScale);
+    if (!tumble && !this.pepC) this._stepPeptide(0, M); // the first frame starts on its spot
+    const hub = this.pepC;
     for (let i = 0; i < n; i++) {
       const sx = pep.shape[i * 3], sy = pep.shape[i * 3 + 1], sz = pep.shape[i * 3 + 2];
       let fx, fy, fz;
-      if (anchor) { // floating: fixed to the protein, so it turns with the protein and keeps its distance
-        const f = mat3Apply(M, anchor[0] + sx * floatScale, anchor[1] + sy * floatScale, anchor[2] + sz * floatScale);
-        fx = f[0]; fy = f[1]; fz = f[2];
+      if (!tumble) { // floating: turns with the protein, held on its spot by the spring in _stepPeptide
+        const f = mat3Apply(M, sx * floatScale, sy * floatScale, sz * floatScale);
+        fx = hub[0] + f[0]; fy = hub[1] + f[1]; fz = hub[2] + f[2];
       } else { // tumbling (while a run goes): the peptide circles in front of the protein
         const f = mat3Apply(spin, sx * floatScale, sy * floatScale, sz * floatScale);
         fx = oc[0] + f[0]; fy = oc[1] + f[1]; fz = oc[2] + f[2];
@@ -490,7 +543,7 @@ export class Stage {
       const offset = Math.hypot(b[0] - c0[0], b[1] - c0[1], b[2] - c0[2]);
       boxFit = Math.min((offset + this.box.size * 0.87) * 1.05, P.fitR * 3);
     }
-    const wantFit = Math.max(P.fitR * 1.1, boxFit);
+    const wantFit = Math.max(P.fitR * 0.95, boxFit);
     this._fit = this._fit == null || this.reduced ? wantFit : this._fit + (wantFit - this._fit) * 0.15;
     const R = P.R, S = (this.cur.size * 0.5) / this._fit, D = R * DEPTH_FACTOR;
     const M = qToMat3(this.q), c = P.center;
@@ -552,7 +605,7 @@ export class Stage {
     ctx.lineJoin = 'round';
     const pw = S * TUBE_WIDTH;
     // The peptide is drawn thicker once it settles, so it stays the star next to a big protein.
-    const peptideThick = lerp(0.95, 2.5, easeInOut(clamp(pep.dockT, 0, 1))); // slim while floating so the helix reads as a spring
+    const peptideThick = lerp(0.6, 2.0, easeInOut(clamp(pep.dockT, 0, 1))); // slim while floating so the helix reads as a spring
     for (let o = 0; o < total; o++) {
       const id = order[o];
       if (id < nSeg) {
@@ -574,15 +627,15 @@ export class Stage {
         const zn = clamp((ps.z[j] + ps.z[j + 1]) / (2 * R), -1.2, 1.2);
         const depth = clamp((zn + 1) / 2, 0, 1), bucket = Math.round(depth * 15);
         const f = (ps.sf[j] + ps.sf[j + 1]) / 2;
-        const w = Math.max(3.5, pw * peptideThick * f * Math.sqrt(ps.sc));
+        const w = Math.max(1.8, pw * peptideThick * f * Math.sqrt(ps.sc));
         const a = A * pep.alpha;
         ctx.beginPath(); ctx.moveTo(ps.sx[j], ps.sy[j]); ctx.lineTo(ps.sx[j + 1], ps.sy[j + 1]);
         ctx.globalAlpha = a; ctx.strokeStyle = this.pepPal.body[bucket]; ctx.lineWidth = w; ctx.stroke();
         if (j % ps.sub === 0) {
           ctx.globalAlpha = a; ctx.fillStyle = this.pepPal.body[bucket];
-          ctx.beginPath(); ctx.arc(ps.sx[j], ps.sy[j], w * 0.62, 0, 6.2832); ctx.fill();
+          ctx.beginPath(); ctx.arc(ps.sx[j], ps.sy[j], w * 0.45, 0, 6.2832); ctx.fill();
           ctx.globalAlpha = a * 0.7; ctx.fillStyle = this.pepPal.sheen[bucket];
-          ctx.beginPath(); ctx.arc(ps.sx[j] - w * 0.18, ps.sy[j] - w * 0.2, w * 0.2, 0, 6.2832); ctx.fill();
+          ctx.beginPath(); ctx.arc(ps.sx[j] - w * 0.14, ps.sy[j] - w * 0.15, w * 0.14, 0, 6.2832); ctx.fill();
         }
       }
     }
