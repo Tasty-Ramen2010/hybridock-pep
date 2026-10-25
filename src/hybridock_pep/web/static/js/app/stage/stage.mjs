@@ -26,8 +26,8 @@ import { BOX_MIN, BOX_MAX } from '../config.mjs';
 const DEPTH_FACTOR = 4.5; // camera distance in protein radii: smaller = stronger perspective
 const FOCUS = 0.15; //       depth (−1 far … +1 near) that is perfectly sharp
 const TUBE_WIDTH = 1.05; //  protein tube thickness in Å
-const PEP_SPRING_W = 1.6; //     how fast the floating peptide is pulled back to its spot (rad/s)
-const PEP_SPRING_ZETA = 0.25; //   a few visible bounces, then it settles in about ten seconds
+const PEP_SPRING_W = 8.0; //     how firmly the floating peptide is held to its spot (rad/s): stiff, so it moves with the protein
+const PEP_SPRING_ZETA = 0.9; //   near-critical damping: it follows closely and settles without bouncing
 const FLOAT_CLEARANCE = 4.2; // Å the floating or tumbling peptide keeps from the protein's backbone
 const SITE_CLEARANCE = 3.4; //  Å a placeholder peptide (shown in the search box before any result) keeps from it
 const QUALITY = [ // the stage starts at level 0 and steps down by itself if frames keep arriving late
@@ -424,10 +424,44 @@ export class Stage {
     return this._anchor;
   }
 
+  /**
+   * The smallest scale fit (see _draw) at which the floating peptide's resting spot and its whole length are still on screen,
+   * so the model only gets smaller on screens where it would otherwise be cut off. 0 when it fits anyway.
+   */
+  _screenFit() {
+    if (!this.cur || !this.W || !this.H || !this.P || !this.pep.n || !this.pep.shape || this.pep.mode === 'tumble') return 0;
+    const n = this.pep.n, fs = this._floatScale(n), A = this._anchorFor(n, fs);
+    let reach = 0;
+    for (let i = 0; i < n; i++) reach = Math.max(reach, Math.hypot(this.pep.shape[i * 3], this.pep.shape[i * 3 + 1], this.pep.shape[i * 3 + 2]));
+    const d = Math.hypot(A[0], A[1], A[2]) + reach * fs * 1.6; // Å from the protein centre to the far end of the helix
+    const half = Math.min(this.W, this.H) / 2 - 16;
+    return half > 0 ? (this.cur.size * 0.5 * d) / half : 0;
+  }
+
   /** How large the floating peptide is drawn (a fraction of the protein's visible size). */
   _floatScale(n) {
     const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
     return clamp((0.45 * this.P.fitR) / halfLen, 1.2, 3.0);
+  }
+
+  /**
+   * Keep the floating peptide on screen. Its centre is held inside the view, with room for its whole length, so a drag can
+   * swing it far out but it comes back into view instead of leaving the screen. Its velocity is cut where it hits the edge.
+   */
+  _keepOnScreen(C, V, n, fs) {
+    if (!this.cur || !this.W || !this.H) return; // no screen (tests, or before the first layout)
+    const S = (this.cur.size * 0.5) / (this._fit || this.P.fitR * 0.95);
+    const shape = this.pep.shape;
+    let reach = 0;
+    for (let i = 0; i < n; i++) reach = Math.max(reach, Math.hypot(shape[i * 3], shape[i * 3 + 1], shape[i * 3 + 2]));
+    const e = reach * fs * S * 1.6 + 16; // the helix's own reach on screen, with perspective and a margin
+    const clampAxis = (ax, c, size) => {
+      const a = (e - c) / S, b = (size - e - c) / S; // the screen's edges, in view units
+      if (a > b) return; // the screen is too small for the helix: leave it where it is
+      if (C[ax] < a) { C[ax] = a; V[ax] = 0; } else if (C[ax] > b) { C[ax] = b; V[ax] = 0; }
+    };
+    clampAxis(0, this.cur.cx, this.W);
+    clampAxis(1, this.cur.cy, this.H);
   }
 
   /**
@@ -453,6 +487,7 @@ export class Stage {
     for (let i = 0; i < n; i++) {
       local[i * 3] = q[0] + c[0] + shape[i * 3] * fs; local[i * 3 + 1] = q[1] + c[1] + shape[i * 3 + 1] * fs; local[i * 3 + 2] = q[2] + c[2] + shape[i * 3 + 2] * fs;
     }
+    this._keepOnScreen(C, V, n, fs);
     const sh = clearShift(this._grid, local, n, FLOAT_CLEARANCE);
     if (sh[0] || sh[1] || sh[2]) {
       const v = mat3Apply(M, sh[0], sh[1], sh[2]);
@@ -460,6 +495,7 @@ export class Stage {
       const L = Math.hypot(v[0], v[1], v[2]) || 1, un = [v[0] / L, v[1] / L, v[2] / L];
       const into = V[0] * un[0] + V[1] * un[1] + V[2] * un[2];
       if (into < 0) for (let ax = 0; ax < 3; ax++) V[ax] -= into * un[ax];
+      this._keepOnScreen(C, V, n, fs); // the last word: the screen wins over the protein's push
     }
   }
 
@@ -543,7 +579,7 @@ export class Stage {
       const offset = Math.hypot(b[0] - c0[0], b[1] - c0[1], b[2] - c0[2]);
       boxFit = Math.min((offset + this.box.size * 0.87) * 1.05, P.fitR * 3);
     }
-    const wantFit = Math.max(P.fitR * 0.95, boxFit);
+    const wantFit = Math.max(P.fitR * 0.95, boxFit, this._screenFit());
     this._fit = this._fit == null || this.reduced ? wantFit : this._fit + (wantFit - this._fit) * 0.15;
     const R = P.R, S = (this.cur.size * 0.5) / this._fit, D = R * DEPTH_FACTOR;
     const M = qToMat3(this.q), c = P.center;
