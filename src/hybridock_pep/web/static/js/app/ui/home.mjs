@@ -2,7 +2,7 @@
 // link as the main button, and on the right a carousel of diseases the team has already worked on, with finished results
 // ready to open and a button to run any of them again live.
 
-import { h } from './dom.mjs';
+import { fill, h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { fmt, fmtSigned } from '../interpret.mjs';
 import { EXAMPLE, EXPERT_DEFAULTS, GITHUB_URL, TIMING, backend, timingFor } from '../config.mjs';
@@ -39,7 +39,7 @@ export function mountHome(ctx) {
 
   function renderRecent(hist) {
     recentSection.hidden = !hist.length;
-    recentList.replaceChildren(...hist.slice(0, 4).map((e) => h('li', { class: 'recent-card' },
+    fill(recentList, ...hist.slice(0, 4).map((e) => h('li', { class: 'recent-card' },
       h('button', { class: 'recent-open', type: 'button', onClick: () => go(`/results/${e.id}`) },
         h('span', { class: 'name' }, e.name),
         h('span', { class: 'when' }, fmtDate(e.createdAt), e.demo && ' ', e.demo && h('span', { class: 'badge-demo' }, 'Demo')),
@@ -100,7 +100,6 @@ export function mountHome(ctx) {
         h('h1', { class: 'display home-title', id: 'home-title' }, 'Helping doctors find new cures, faster.'),
         h('p', { class: 'lede' }, 'Every medicine and vaccine starts by finding the one small molecule that can grab onto what is making people sick. Finding it used to take scientists years. We find the strongest matches on a computer, in minutes.'),
         h('div', { class: 'row cta-row' },
-          h('a', { class: 'btn primary lg', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' }, icon('github', 20), 'View the project on GitHub'),
           h('button', { class: 'btn ghost lg', type: 'button', onClick: runExample }, icon('play', 16),
             live ? 'Watch a live run' : 'Watch a demo run', exTime)),
         where || extra.length ? h('p', { class: 'small muted where' }, where, where && extra.length ? ' ' : '', extra.join(' ')) : null,

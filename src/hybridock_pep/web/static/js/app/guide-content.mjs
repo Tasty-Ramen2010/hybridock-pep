@@ -88,7 +88,7 @@ export const TOPICS = [
       { q: 'Couldn’t reach the server', text: 'The app has stopped. Start it again with `./launch_web.sh`, reload this page, and press **Check again**. A run already going keeps going.', only: 'local' },
       { q: '`command not found: hybridock-pep`', text: 'Start the app with `./launch_web.sh` from the app folder. It uses the right environment for you.', only: 'local' },
       { q: 'The 3D view is empty', text: 'Your browser may have blocked it. Try another browser.' },
-      { q: 'Where do I get the real app?', text: 'Press **View the project on GitHub** on Home, or open **Run it on your own computer** in this guide. It is three commands.', only: 'demo' },
+      { q: 'Where do I get the real app?', text: 'Open **Run it on your own computer** in this guide. It is three commands.', only: 'demo' },
       { q: 'The numbers say Demo', text: 'This page could not reach a computer to run on, so the run was simulated. The results in the carousel are real. Reload to try again.', only: 'demo' },
     ],
   },

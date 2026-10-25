@@ -2,7 +2,7 @@
 // tank whose liquid shows how full the computer's memory is, going from green (plenty free) through amber to red, and
 // spilling over when memory is nearly gone. A speech bubble warns when memory is low. Pure DOM: topbar.mjs does the polling.
 
-import { h } from './dom.mjs';
+import { fill, h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { memoryLevel } from '../config.mjs';
 

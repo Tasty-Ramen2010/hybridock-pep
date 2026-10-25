@@ -11,7 +11,7 @@ import { createRunner } from './runner.mjs';
 import { ACCENTS, GITHUB_URL, assetUrl } from './config.mjs';
 import { mountTopbar } from './ui/topbar.mjs';
 import { toast } from './ui/toast.mjs';
-import { h } from './ui/dom.mjs';
+import { fill, h } from './ui/dom.mjs';
 import { fetchRetry } from './structures.mjs';
 import { mountHome } from './ui/home.mjs';
 import { mountSetup } from './ui/setup.mjs';
@@ -75,7 +75,7 @@ async function render() {
   stage.editBox(null);
   stage.setBox(null);
   current = def.mount({ ...ctx, param, sub });
-  main.replaceChildren(current.el);
+  fill(main, current.el);
   document.title = name in SCREENS && name !== '' ? `${def.title} · HybriDock-Pep` : 'HybriDock-Pep: see how a peptide binds a protein';
   stage.setSlot(current.el.querySelector('[data-stage-slot]'));
   window.scrollTo(0, 0);

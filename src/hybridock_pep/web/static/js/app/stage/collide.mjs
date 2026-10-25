@@ -20,6 +20,21 @@ export function makeGrid(pts, cell) {
 
 const cellKey = (ix, iy, iz) => ((ix + HALF) * KEY + (iy + HALF)) * KEY + (iz + HALF);
 
+/** Calls `fn(dx, dy, dz, d)` for every protein point closer than `clearance` to (x, y, z); (dx, dy, dz) points from the protein to it. */
+function eachNear(grid, x, y, z, clearance, fn) {
+  const { pts, cell, cells } = grid;
+  const ix = Math.floor(x / cell), iy = Math.floor(y / cell), iz = Math.floor(z / cell);
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+    const bucket = cells.get(cellKey(ix + a, iy + b, iz + c));
+    if (!bucket) continue;
+    for (const j of bucket) {
+      const dx = x - pts[j * 3], dy = y - pts[j * 3 + 1], dz = z - pts[j * 3 + 2];
+      const d = Math.hypot(dx, dy, dz);
+      if (d < clearance && d > 1e-6) fn(dx, dy, dz, d);
+    }
+  }
+}
+
 /** The deepest overlap of one point with the grid: { d, dx, dy, dz } to the nearest too-close point, or null. */
 function nearest(grid, x, y, z, clearance) {
   const { pts, cell, cells } = grid;
@@ -59,13 +74,35 @@ export function closestApproach(grid, pep, n, within = 12) {
 }
 
 /**
+ * A gentle push: a fixed number of small steps away from every protein point that is closer than `clearance`. Every step
+ * changes smoothly with the peptide's position, so the push changes smoothly too (no jumps from frame to frame). It does not
+ * always reach clear space on its own; clearShift finishes the job when it does not.
+ */
+export function softShift(grid, pep, n, clearance, steps = 30) {
+  const shift = [0, 0, 0];
+  if (!grid || n < 1 || clearance <= 0) return shift;
+  const p = probes(pep, n), m = p.length / 3;
+  for (let step = 0; step < steps; step++) {
+    const g = [0, 0, 0];
+    for (let i = 0; i < m; i++) {
+      eachNear(grid, p[i * 3] + shift[0], p[i * 3 + 1] + shift[1], p[i * 3 + 2] + shift[2], clearance, (dx, dy, dz, d) => {
+        const w = (clearance - d) / d;
+        g[0] += w * dx; g[1] += w * dy; g[2] += w * dz;
+      });
+    }
+    shift[0] += g[0] * 0.08; shift[1] += g[1] * 0.08; shift[2] += g[2] * 0.08;
+  }
+  return shift;
+}
+
+/**
  * The rigid shift [x,y,z] that puts the peptide at least `clearance` Å from every protein point (zero when it already is).
  * It pushes away from the deepest overlap and tries again; if that has not settled in a few rounds it backs the whole peptide
  * straight out from the protein's middle, which always ends in clear space.
  */
-export function clearShift(grid, pep, n, clearance) {
-  const shift = [0, 0, 0];
-  if (!grid || n < 1 || clearance <= 0) return shift;
+export function clearShift(grid, pep, n, clearance, start = [0, 0, 0]) {
+  const shift = start.slice();
+  if (!grid || n < 1 || clearance <= 0) return [0, 0, 0];
   const p = probes(pep, n), m = p.length / 3;
   for (let round = 0; round < 14; round++) {
     let worst = null;

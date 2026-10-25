@@ -18,7 +18,7 @@ import {
   clamp, lerp, smoothstep, easeInOut, qAxisAngle, qMul, qNormalize, qToMat3,
   mat3Apply, mat3ApplyInverse, convexHull, pointInPolygon,
 } from './math.mjs';
-import { clearShift, makeGrid } from './collide.mjs';
+import { clearShift, makeGrid, softShift } from './collide.mjs';
 import { helixPoints } from '../peptide.mjs';
 import { atomsInBox } from '../pdb.mjs';
 import { BOX_MIN, BOX_MAX } from '../config.mjs';
@@ -420,7 +420,7 @@ export class Stage {
         const q = mat3ApplyInverse(M, out[i * 3], out[i * 3 + 1], out[i * 3 + 2]);
         local[i * 3] = q[0] + c[0]; local[i * 3 + 1] = q[1] + c[1]; local[i * 3 + 2] = q[2] + c[2];
       }
-      const s = clearShift(this._grid, local, n, clearance);
+      const s = clearShift(this._grid, local, n, clearance, softShift(this._grid, local, n, clearance));
       if (s[0] || s[1] || s[2]) {
         const v = mat3Apply(M, s[0], s[1], s[2]);
         for (let i = 0; i < n; i++) { out[i * 3] += v[0]; out[i * 3 + 1] += v[1]; out[i * 3 + 2] += v[2]; }

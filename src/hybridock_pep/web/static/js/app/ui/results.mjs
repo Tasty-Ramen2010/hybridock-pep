@@ -1,7 +1,7 @@
 // results.js — a finished run. One large number, what it means, the 3D viewer, the ranked poses, downloads.
 // Handles Predict binding ("dock") and Score a structure here; Compare has its own view in compare.js.
 
-import { h, saveBlob } from './dom.mjs';
+import { fill, h, saveBlob } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { compareResultView } from './compare.mjs';
 import { loadProtein } from '../structures.mjs';
@@ -57,7 +57,7 @@ export function mountResults(ctx) {
 
   el.append(h('div', { class: 'glass panel', style: { maxWidth: '520px', margin: '40px auto' } }, h('p', { class: 'muted' }, 'Loading your result…')));
   ensureResult().then((result) => { if (alive) render(result); }).catch((err) => {
-    if (alive) el.replaceChildren(h('div', { class: 'glass panel error-card', style: { maxWidth: '560px', margin: '40px auto' } }, h('h1', { class: 'panel-title' }, 'Couldn’t open this result'), h('p', {}, err.message), h('button', { class: 'btn', type: 'button', onClick: () => go('/') }, 'Back to home')));
+    if (alive) fill(el, h('div', { class: 'glass panel error-card', style: { maxWidth: '560px', margin: '40px auto' } }, h('h1', { class: 'panel-title' }, 'Couldn’t open this result'), h('p', {}, err.message), h('button', { class: 'btn', type: 'button', onClick: () => go('/') }, 'Back to home')));
   });
 
   function render(result) {
@@ -67,7 +67,7 @@ export function mountResults(ctx) {
       h('p', { class: 'hint pose-label', 'aria-live': 'polite' }),
       h('div', { class: 'legend' }, h('span', {}, h('i', { class: 'dot protein' }), 'Protein'), h('span', {}, h('i', { class: 'dot peptide' }), 'Peptide pose')));
     const panel = h('aside', { class: 'glass panel', 'aria-label': 'Result' });
-    el.replaceChildren(h('div', { class: 'row', style: { marginBottom: '14px' } }, h('button', { class: 'btn ghost sm', type: 'button', onClick: () => go('/') }, icon('chevronL', 15), 'Home'), h('span', { class: 'mono muted small' }, result.name)),
+    fill(el, h('div', { class: 'row', style: { marginBottom: '14px' } }, h('button', { class: 'btn ghost sm', type: 'button', onClick: () => go('/') }, icon('chevronL', 15), 'Home'), h('span', { class: 'mono muted small' }, result.name)),
       h('div', { class: 'split' }, slot, panel));
     stage.setSlot(slot); // the slot is new, so tell the stage where to float
 
@@ -103,7 +103,7 @@ export function mountResults(ctx) {
     kids.push(h('div', { class: 'panel-foot' },
       h('button', { class: 'btn', type: 'button', onClick: () => { store.set(isScore ? { score: freshScore() } : { setup: freshSetup() }); go(isScore ? '/score' : '/predict'); } }, isScore ? 'Score another' : 'Run another'),
       h('button', { class: 'btn primary', type: 'button', onClick: () => go('/') }, 'Done')));
-    panel.replaceChildren(...kids);
+    fill(panel, ...kids);
 
     stageFor(result.protein, result.peptide.length, isScore ? result.ca : result.poses[0]?.ca, result);
     function selectPose(rank) {

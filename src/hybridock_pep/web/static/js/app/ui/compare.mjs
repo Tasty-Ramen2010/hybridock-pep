@@ -90,7 +90,7 @@ export function mountCompare(ctx) {
 
     function fillOptions() {
       const cur = side().proteinRef;
-      select.replaceChildren(
+      fill(select,
         ...ctx.store.get().proteins.map((p) => h('option', { value: p.key, selected: cur?.key === p.key }, `${p.name} (${p.pdb})`)),
         cur && !cur.key ? h('option', { value: '__cur', selected: true }, `${cur.name} (your file)`) : null,
         h('option', { value: '__upload' }, 'Upload my own PDB file…'));
@@ -100,7 +100,7 @@ export function mountCompare(ctx) {
       fillOptions();
       about.textContent = ref?.about || (ref?.custom ? 'Your uploaded structure.' : '');
       const where = ref?.site && s.site && ref.site.x === s.site.x && ref.site.y === s.site.y && ref.site.z === s.site.z ? `Suggested site: ${ref.siteNote}.` : 'Custom site.';
-      siteLine.replaceChildren(`${where} Box ${s.box} Å`, h('span', { class: 'expert-only mono' }, s.site ? `  at (${s.site.x}, ${s.site.y}, ${s.site.z})` : ''));
+      fill(siteLine, `${where} Box ${s.box} Å`, h('span', { class: 'expert-only mono' }, s.site ? `  at (${s.site.x}, ${s.site.y}, ${s.site.z})` : ''));
     }
     function onSelect() {
       if (select.value === '__upload') { file.click(); refresh(); return; }
@@ -191,7 +191,7 @@ export function mountCompare(ctx) {
     const slot = h('div', { class: 'stage-slot', 'data-stage-slot': '' }, h('p', { class: 'hint' }, `Drag the box over the ${sideName(id).toLowerCase()} binding spot.`),
       h('div', { class: 'legend' }, h('span', {}, h('i', { class: 'dot protein' }), 'Protein'), h('span', {}, h('i', { class: 'dot peptide' }), 'Peptide'), h('span', {}, h('i', { class: 'dot box' }), 'Search box')));
     const done = () => { picker.deactivate(); renderMain(); };
-    el.replaceChildren(h('div', { class: 'split' }, slot,
+    fill(el, h('div', { class: 'split' }, slot,
       h('aside', { class: 'glass panel setup-panel', 'aria-label': 'Adjust site' },
         h('h1', { class: 'panel-title', tabindex: '-1' }, `Adjust the ${sideName(id).toLowerCase()} site`, h('span', { class: 'tech' }, C()[id].proteinRef.name)),
         picker.el,

@@ -2,7 +2,7 @@
 // avatar menu for appearance, accent colour and your name. On a phone the three destinations become a tab bar.
 // Built once; store changes update the pieces in place (so keyboard focus is never lost).
 
-import { h } from './dom.mjs';
+import { fill, h } from './dom.mjs';
 import { icon, logo } from './icons.mjs';
 import { ACCENTS, GITHUB_URL, backend } from '../config.mjs';
 import { initials } from '../jobs.mjs';
@@ -131,10 +131,10 @@ export function mountTopbar(ctx) {
       b.setAttribute('aria-pressed', String(s.accent === a.id));
     });
     const dark = s.theme === 'dark';
-    themeBtn.replaceChildren(icon(dark ? 'sun' : 'moon', 18));
+    fill(themeBtn, icon(dark ? 'sun' : 'moon', 18));
     themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to night mode');
     themeBtn.title = dark ? 'Light mode' : 'Night mode';
-    avatar.replaceChildren(s.userName ? initials(s.userName) : icon('user', 16));
+    fill(avatar, s.userName ? initials(s.userName) : icon('user', 16));
     if (document.activeElement !== nameInput) nameInput.value = s.userName;
     runPill.hidden = s.run.status !== 'running';
     const nowRunning = s.run.status === 'running';

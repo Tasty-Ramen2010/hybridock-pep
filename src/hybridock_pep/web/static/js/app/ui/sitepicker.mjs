@@ -5,7 +5,7 @@
 // the x/y/z centre (filled in automatically), the "is the box on the protein?" check, and a
 // "use the suggested site" button. Whatever the user does in 3D or in the panel stays in sync.
 
-import { h } from './dom.mjs';
+import { fill, h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { assessBox } from '../pdb.mjs';
 import { placeHelixAt } from '../placement.mjs';
@@ -88,9 +88,9 @@ export function createSitePicker(o) {
     if (document.activeElement !== cx) cx.value = v.site.x;
     if (document.activeElement !== cy) cy.value = v.site.y;
     if (document.activeElement !== cz) cz.value = v.site.z;
-    if (!a) { assessEl.className = 'msg empty'; assessEl.replaceChildren('Loading the protein…'); atomsEl.textContent = ''; return; }
+    if (!a) { assessEl.className = 'msg empty'; fill(assessEl, 'Loading the protein…'); atomsEl.textContent = ''; return; }
     assessEl.className = `msg ${a.level}`;
-    assessEl.replaceChildren(icon(a.level === 'ok' ? 'check' : 'alert', 18), h('span', {}, a.message));
+    fill(assessEl, icon(a.level === 'ok' ? 'check' : 'alert', 18), h('span', {}, a.message));
     atomsEl.textContent = a.atomsInside ? `${a.atomsInside.toLocaleString()} protein atoms inside the box` : '';
     const ref = o.getRef();
     suggestBtn.hidden = !ref?.site;

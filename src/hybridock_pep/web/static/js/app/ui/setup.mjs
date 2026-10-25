@@ -3,7 +3,7 @@
 // The 3D model sits on the left (the stage), a frosted-glass panel on the right.
 // On a narrow screen the panel drops below the model.
 
-import { h, readText } from './dom.mjs';
+import { fill, h, readText } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { createSitePicker, defaultSiteFor } from './sitepicker.mjs';
 import { loadProtein, registerUpload, fetchFromRCSB } from '../structures.mjs';
@@ -60,7 +60,7 @@ export function mountSetup(ctx) {
 
   function renderSteps() {
     const cur = S().step;
-    stepsEl.replaceChildren(...stepIds().map((id, i) => h('li', { class: i + 1 < cur ? 'done' : '', 'aria-current': i + 1 === cur ? 'step' : null },
+    fill(stepsEl, ...stepIds().map((id, i) => h('li', { class: i + 1 < cur ? 'done' : '', 'aria-current': i + 1 === cur ? 'step' : null },
       h('span', { class: 'num' }, i + 1 < cur ? icon('check', 14) : String(i + 1)), h('span', { class: 'name' }, STEP_LABELS[id]))));
   }
 
@@ -102,7 +102,7 @@ export function mountSetup(ctx) {
     // `keep` = coming back to a half-finished setup: leave the user's site and box alone.
     setS(keep ? { proteinRef: ref } : { proteinRef: ref, adjustSite: false, site: ref.site ? { ...ref.site } : null, box: ref.box || BOX_DEFAULT });
     status.className = 'msg empty';
-    status.replaceChildren('Loading the structure…');
+    fill(status, 'Loading the structure…');
     renderSteps(); // a protein with no known site (an upload) has a fourth step, so the progress list changes with the choice
     updateNav();
     try {
@@ -112,14 +112,14 @@ export function mountSetup(ctx) {
       if (!S().site) setS({ site: defaultSiteFor(st) });
       stage.setProtein(st);
       status.className = 'msg ok';
-      status.replaceChildren(icon('check', 18), `${st.ca.length.toLocaleString()} residues loaded.`);
+      fill(status, icon('check', 18), `${st.ca.length.toLocaleString()} residues loaded.`);
       picker.refresh();
       if (S().step >= 2) applyStage();
     } catch (err) {
       if (!alive || token !== loadToken) return;
       structure = null;
       status.className = 'msg error';
-      status.replaceChildren(icon('alert', 18), err.message);
+      fill(status, icon('alert', 18), err.message);
     }
     updateNav();
   }
@@ -154,7 +154,7 @@ export function mountSetup(ctx) {
           catch (err) { toast(err.message, 6000); }
         } }, h('span', {}, `Load PDB ${q.toUpperCase()} from the Protein Data Bank`, h('small', {}, 'Downloads the structure so you can use it')), icon('download', 18)));
       }
-      list.replaceChildren(...(rows.length ? rows : [h('p', { class: 'muted small' }, 'No match. Try a PDB ID like 1YCR, or upload a file.')]));
+      fill(list, ...(rows.length ? rows : [h('p', { class: 'muted small' }, 'No match. Try a PDB ID like 1YCR, or upload a file.')]));
     }
     async function onUpload(e) {
       const f = e.target.files[0];
@@ -168,7 +168,7 @@ export function mountSetup(ctx) {
       e.target.value = '';
     }
     renderList();
-    if (S().proteinRef) status.replaceChildren(structure ? icon('check', 18) : '', structure ? `${structure.ca.length.toLocaleString()} residues loaded.` : '');
+    if (S().proteinRef) fill(status, structure ? icon('check', 18) : '', structure ? `${structure.ca.length.toLocaleString()} residues loaded.` : '');
     return [
       title('Choose a protein', 'Receptor structure (PDB)'),
       note('The protein is what your peptide tries to stick to. Pick one below, search the Protein Data Bank, or upload your own structure.'),
@@ -194,16 +194,16 @@ export function mountSetup(ctx) {
       ta.setAttribute('aria-invalid', String(v.level === 'error'));
       const ic = { ok: 'check', warn: 'alert', error: 'alert' }[v.level];
       msg.className = `msg ${v.level}`;
-      msg.replaceChildren(ic ? icon(ic, 18) : '', v.message);
+      fill(msg, ic ? icon(ic, 18) : '', v.message);
       if (v.ok) {
         const st = peptideStats(v.seq);
         const long = v.seq.length >= Number(S().expert.longCheckpointThreshold);
-        stats.replaceChildren(`${st.length} amino acids, about ${Math.round(st.mass).toLocaleString()} Da, net charge ${st.charge > 0 ? '+' : st.charge < 0 ? '−' : ''}${Math.abs(st.charge)}`,
+        fill(stats, `${st.length} amino acids, about ${Math.round(st.mass).toLocaleString()} Da, net charge ${st.charge > 0 ? '+' : st.charge < 0 ? '−' : ''}${Math.abs(st.charge)}`,
           h('span', { class: 'expert-only' }, long ? (longModelAvailable(adapter.env) ? '. Uses the long-peptide model.' : '. The long-peptide model isn’t installed here, so the standard model is used.') : ''));
         stage.setPeptide(v.seq.length);
         const known = namedPeptide(v.seq);
-        nameLine.replaceChildren(...(known ? [h('b', {}, known.name), ` — ${known.about}`] : []));
-      } else { stats.textContent = ''; nameLine.replaceChildren(); }
+        fill(nameLine, ...(known ? [h('b', {}, known.name), ` — ${known.about}`] : []));
+      } else { stats.textContent = ''; fill(nameLine, ); }
       updateNav();
     }
     const examples = [...new Set([S().proteinRef?.examplePeptide, ...EXAMPLE_PEPTIDES].filter(Boolean))].slice(0, 4);
@@ -257,7 +257,7 @@ export function mountSetup(ctx) {
     function showProblems(list) {
       reviewProblems = list;
       problemsEl.hidden = !list.length;
-      problemsEl.replaceChildren(...(list.length ? [icon('alert', 18), h('div', {}, list.map((m) => h('div', {}, m)))] : []));
+      fill(problemsEl, ...(list.length ? [icon('alert', 18), h('div', {}, list.map((m) => h('div', {}, m)))] : []));
       if (nextBtn) { nextBtn.disabled = list.length > 0; nextBtn.title = list.length ? 'Fix the setting above first' : ''; }
     }
     function refreshCmd() {
@@ -353,7 +353,7 @@ export function mountSetup(ctx) {
     const body = { protein: stepProtein, peptide: stepPeptide, site: stepSite, review: stepReview }[id]();
     const back = step > 1 ? h('button', { class: 'btn ghost', type: 'button', onClick: () => goStep(step - 1) }, icon('chevronL', 16), 'Back') : h('span');
     nextBtn = h('button', { class: 'btn primary', type: 'button', onClick: () => (id === 'review' ? run() : goStep(step + 1)) }, id === 'review' ? 'Run prediction' : 'Continue');
-    panel.replaceChildren(...body.filter(Boolean), h('div', { class: 'panel-foot' }, back, nextBtn)); // (replaceChildren would print an empty slot as the word "null")
+    fill(panel, ...body.filter(Boolean), h('div', { class: 'panel-foot' }, back, nextBtn)); // (replaceChildren would print an empty slot as the word "null")
     updateNav();
     picker.setExpertOpen(store.get().mode === 'expert');
   }

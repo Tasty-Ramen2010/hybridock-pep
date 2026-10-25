@@ -5,7 +5,7 @@
 //   #/guide/<lesson>           a lesson, from its first step
 //   #/guide/<lesson>/<n>       a lesson, at step n
 
-import { h } from './dom.mjs';
+import { fill, h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { assetUrl } from '../config.mjs';
 import { adapter } from '../adapter.mjs';
@@ -107,7 +107,7 @@ export function mountGuide(ctx) {
       count.textContent = `Step ${i + 1} of ${total}`;
       [...bars.children].forEach((b, k) => { b.classList.toggle('on', k <= i); if (k === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); });
       back.hidden = i === 0;
-      next.replaceChildren(...(i === total - 1 ? ['Done', icon('check', 16)] : ['Next', icon('arrow', 16)]));
+      fill(next, ...(i === total - 1 ? ['Done', icon('check', 16)] : ['Next', icon('arrow', 16)]));
       try { history.replaceState(null, '', `#/guide/${t.id}/${i + 1}`); } catch { /* the page still shows the right step */ }
     }
 

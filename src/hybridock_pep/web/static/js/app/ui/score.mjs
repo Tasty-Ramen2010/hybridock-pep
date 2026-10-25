@@ -37,7 +37,7 @@ export function mountScore(ctx) {
       setS({ protein: ref });
       stage.setProtein(structure);
       msgProtein.className = 'msg ok';
-      msgProtein.replaceChildren(icon('check', 18), `${structure.ca.length.toLocaleString()} residues loaded.`);
+      fill(msgProtein, icon('check', 18), `${structure.ca.length.toLocaleString()} residues loaded.`);
       render();
     } catch (err) { toast(err.message, 6000); }
   }
@@ -49,7 +49,7 @@ export function mountScore(ctx) {
       const seq = sequenceOf(pepStruct);
       setS({ peptidePdb: { name: file.name, text }, peptide: validatePeptide(S().peptide).ok ? S().peptide : seq.replace(/X/g, '') });
       msgPose.className = 'msg ok';
-      msgPose.replaceChildren(icon('check', 18), `${pepStruct.ca.length} residues found in the pose.`);
+      fill(msgPose, icon('check', 18), `${pepStruct.ca.length} residues found in the pose.`);
       render();
     } catch (err) { toast(err.message, 6000); }
   }
@@ -57,13 +57,13 @@ export function mountScore(ctx) {
   function checkPep() {
     const v = validatePeptide(S().peptide);
     pepMsg.className = `msg ${v.level}`;
-    pepMsg.replaceChildren(v.level === 'ok' ? icon('check', 18) : v.level === 'empty' ? '' : icon('alert', 18), v.message);
+    fill(pepMsg, v.level === 'ok' ? icon('check', 18) : v.level === 'empty' ? '' : icon('alert', 18), v.message);
     const pose = S().peptidePdb;
     if (v.ok && pose) {
       const n = parsePDB(pose.text).ca.length;
       if (n && n !== v.seq.length) {
         pepMsg.className = 'msg warn';
-        pepMsg.replaceChildren(icon('alert', 18), `The sequence has ${v.seq.length} letters but the pose file has ${n} residues. Check that they match.`);
+        fill(pepMsg, icon('alert', 18), `The sequence has ${v.seq.length} letters but the pose file has ${n} residues. Check that they match.`);
       }
     }
     runBtn.disabled = !(v.ok && S().protein && pose);

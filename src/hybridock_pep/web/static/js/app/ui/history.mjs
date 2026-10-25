@@ -1,7 +1,7 @@
 // history.js — a drawer listing past runs (name, date, ΔG) that can be reopened.
 // Built on the native <dialog>, so Esc closes it and keyboard focus stays inside.
 
-import { h, fmtDate } from './dom.mjs';
+import { fill, fmtDate, h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { fmt, fmtSigned } from '../interpret.mjs';
 

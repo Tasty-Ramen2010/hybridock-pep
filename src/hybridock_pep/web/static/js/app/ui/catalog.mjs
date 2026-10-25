@@ -4,7 +4,7 @@
 //
 // The track is a plain scroll-snap row, so swiping, trackpads and the arrow keys all work without any script.
 
-import { h } from './dom.mjs';
+import { fill, h } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { fmtDuration } from './dom.mjs';
 import { fmt } from '../interpret.mjs';
@@ -168,7 +168,7 @@ export function createCatalog({ ctx, proteins, catalog, slotEl }) {
     el.querySelectorAll('.pin').forEach((btn) => {
       const on = pins.some((x) => binderKey(x.proteinKey, x.seq) === btn.dataset.key);
       btn.setAttribute('aria-pressed', String(on));
-      btn.replaceChildren(icon(on ? 'check' : 'plus', 14), h('span', {}, on ? 'Added' : 'Compare'));
+      fill(btn, icon(on ? 'check' : 'plus', 14), h('span', {}, on ? 'Added' : 'Compare'));
     });
     const items = pins.map((x) => {
       const p = proteins.find((q) => q.key === x.proteinKey);
