@@ -105,6 +105,8 @@ class PublicPolicy:
             tmp = target.with_name(f".{stored}.tmp")
             tmp.write_bytes(raw)
             tmp.replace(target)
+        else:
+            target.touch()  # sent again: keep it from being tidied away as old
         return f"upload:{stored}"
 
     def resolve_path(self, token: str, examples: dict[str, Path]) -> str:

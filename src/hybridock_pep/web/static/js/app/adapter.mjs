@@ -301,17 +301,20 @@ const safePdbName = (name, fallback) => {
   return /\.pdb$/i.test(base) ? base : base.replace(/\.[^.]*$/, '') + '.pdb';
 };
 
-const uploaded = new Map(); // protein id -> path on the server's disk
+const uploaded = new Map(); // protein id -> { path, at }: where the server has it, and when it was sent
+// The shared computer tidies uploads after a day. Sending the same file again refreshes it, so re-send after four hours.
+const UPLOAD_REFRESH_MS = 4 * 60 * 60 * 1000;
 
 /** Make sure the CLI can read this protein: bundled examples already live on the server, the rest are uploaded. */
 async function receptorOnServer(ref, signal) {
   if (ref.receptorPath) return ref.receptorPath; // a file the server already has (from /api/examples)
   const id = ref.id || ref.key || ref.name;
-  if (uploaded.has(id)) return uploaded.get(id);
+  const sent = uploaded.get(id);
+  if (sent && Date.now() - sent.at < UPLOAD_REFRESH_MS) return sent.path;
   const { text } = await loadProtein(ref);
   const name = `${safePdbName(ref.pdb || ref.name, 'protein')}`.replace(/\.pdb$/i, `_${hashString(text).toString(36)}.pdb`);
   const res = await API.post('/api/upload', { name, content: text }, signal);
-  uploaded.set(id, res.path);
+  uploaded.set(id, { path: res.path, at: Date.now() });
   return res.path;
 }
 
