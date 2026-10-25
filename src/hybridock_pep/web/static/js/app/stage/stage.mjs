@@ -18,7 +18,7 @@ import {
   clamp, lerp, smoothstep, easeInOut, qAxisAngle, qMul, qNormalize, qToMat3,
   mat3Apply, mat3ApplyInverse, convexHull, pointInPolygon,
 } from './math.mjs';
-import { clearShift, makeGrid, softShift } from './collide.mjs';
+import { clearShift, makeGrid } from './collide.mjs';
 import { helixPoints } from '../peptide.mjs';
 import { atomsInBox } from '../pdb.mjs';
 import { BOX_MIN, BOX_MAX } from '../config.mjs';
@@ -389,12 +389,18 @@ export class Stage {
     const e = easeInOut(clamp(pep.dockT, 0, 1));
     const tumble = pep.mode === 'tumble';
     const motion = this.reduced ? 0 : 1;
-    const a = this.t * (tumble ? 0.9 : 0.28) * motion + 0.8;
-    const radius = F * (tumble ? 0.95 : 1.02); // beside the protein; the clearance step below keeps it from ever passing into it
-    const oc = [Math.cos(a) * radius, Math.sin(a * 1.3) * F * (tumble ? 0.3 : 0.38) - F * 0.1, Math.sin(a) * radius * 0.9];
-    const spin = qToMat3(qAxisAngle([0.3, 1, 0.2], this.t * (tumble ? 3.2 : 0.9) * motion));
+    const a = this.t * (tumble ? 0.45 : 0.28) * motion + 0.8;
     const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
     const floatScale = clamp((0.34 * F) / halfLen, 1, 2.4); // a little larger than life while floating so it reads on screen
+    const spin = qToMat3(qAxisAngle([0.3, 1, 0.2], this.t * (tumble ? 1.2 : 0.9) * motion));
+    // The floating peptide circles in a plane in front of the whole protein: past its outermost atom (R) plus its own reach.
+    // Nothing of the protein can be that far out, however the protein is turned, so the peptide never has to be pushed
+    // (a push made it jitter every time its orbit crossed the protein's outer atoms).
+    let reach = 0;
+    for (let i = 0; i < n; i++) reach = Math.max(reach, Math.hypot(pep.shape[i * 3], pep.shape[i * 3 + 1], pep.shape[i * 3 + 2]));
+    const depth = this.P.R + FLOAT_CLEARANCE + reach * floatScale + 1;
+    const radius = F * (tumble ? 0.95 : 1.02);
+    const oc = [Math.cos(a) * radius, Math.sin(a * 1.3) * F * (tumble ? 0.3 : 0.38) - F * 0.1, depth];
     const sc = lerp(floatScale, 1, e);
     const docked = this._dockedLocal();
     const out = new Float32Array(n * 3);
@@ -420,7 +426,7 @@ export class Stage {
         const q = mat3ApplyInverse(M, out[i * 3], out[i * 3 + 1], out[i * 3 + 2]);
         local[i * 3] = q[0] + c[0]; local[i * 3 + 1] = q[1] + c[1]; local[i * 3 + 2] = q[2] + c[2];
       }
-      const s = clearShift(this._grid, local, n, clearance, softShift(this._grid, local, n, clearance));
+      const s = clearShift(this._grid, local, n, clearance);
       if (s[0] || s[1] || s[2]) {
         const v = mat3Apply(M, s[0], s[1], s[2]);
         for (let i = 0; i < n; i++) { out[i * 3] += v[0]; out[i * 3 + 1] += v[1]; out[i * 3 + 2] += v[2]; }
