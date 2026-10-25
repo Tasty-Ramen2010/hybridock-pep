@@ -358,11 +358,11 @@
 .btn.circle { width: 40px; height: 40px; border-radius: 50%; padding: 0; background: var(--field); }
 .btn.circle:hover:not(:disabled) { background: var(--group-hover); }
 .btn.circle:disabled { opacity: 0.35; cursor: default; }
-.catalog-slot { min-height: clamp(220px, 30vh, 320px); height: clamp(220px, 30vh, 320px); }
+.catalog-slot { min-height: clamp(300px, 40vh, 420px); height: clamp(300px, 40vh, 420px); }
 
 /* the cards: a scroll-snap row (swipe, trackpad and arrow keys work natively) */
 .catalog-track {
-  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
+  display: flex; align-items: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
   border-radius: 28px; outline-offset: 4px;
 }
 .catalog-track::-webkit-scrollbar { display: none; }
@@ -430,7 +430,7 @@
 @media (max-width: 900px) {
   .hero-card { gap: 28px; }
   .hero-copy { padding-top: 0; }
-  .catalog-slot { min-height: 220px; height: 220px; }
+  .catalog-slot { min-height: 340px; height: 340px; }
 }
 @media (max-width: 520px) {
   .slide { padding: 20px 18px 18px; }

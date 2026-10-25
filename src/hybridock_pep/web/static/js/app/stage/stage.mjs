@@ -427,7 +427,7 @@ export class Stage {
   /** How large the floating peptide is drawn (a fraction of the protein's visible size). */
   _floatScale(n) {
     const halfLen = Math.max(1, ((n - 1) * 1.5) / 2);
-    return clamp((0.26 * this.P.fitR) / halfLen, 0.8, 2.0);
+    return clamp((0.45 * this.P.fitR) / halfLen, 1.2, 3.0);
   }
 
   /**
