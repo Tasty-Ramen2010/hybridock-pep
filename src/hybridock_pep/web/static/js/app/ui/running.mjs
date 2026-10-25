@@ -1,7 +1,7 @@
 // running.js — a calm full-width progress track while a run is going. Never a blank spinner.
 // The floating molecule behind it is decoration only; the stages and bar are what the run reports.
 
-import { h, mmss } from './dom.mjs';
+import { fill, h, mmss } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein } from '../structures.mjs';
 import { RUN_STAGES } from '../config.mjs';
@@ -72,7 +72,7 @@ export function mountRunning(ctx) {
   }
 
   function paintBody() {
-    body.replaceChildren(
+    fill(body,
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
         h('div', {}, h('h1', { id: 'run-title' }, copy.title), h('p', { class: 'muted', style: { marginTop: '6px' } }, h('span', { class: 'mono' }, copy.sub(job)))),
         adapter.kind === 'demo' && h('span', { class: 'badge-demo' }, 'Demo')),
@@ -93,7 +93,7 @@ export function mountRunning(ctx) {
 
   function paintError(r) {
     clearInterval(timer);
-    body.replaceChildren(h('div', { class: 'error-card', role: 'alert' },
+    fill(body, h('div', { class: 'error-card', role: 'alert' },
       h('h2', {}, r.error.title),
       h('p', {}, r.error.body),
       r.error.detail && h('details', { class: 'adv' }, h('summary', {}, 'Technical details'), h('pre', { class: 'cmd', tabindex: '0', 'aria-label': 'Technical details' }, r.error.detail)),

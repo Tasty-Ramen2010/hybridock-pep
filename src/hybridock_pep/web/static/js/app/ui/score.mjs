@@ -1,7 +1,7 @@
 // score.js — "Score a structure": upload a protein and an existing bound peptide pose, get one ΔG.
 // Backend equivalent: `hybridock-pep crystal-score`.
 
-import { h, readText } from './dom.mjs';
+import { fill, h, readText } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { loadProtein, registerUpload } from '../structures.mjs';
 import { parsePDB, sequenceOf } from '../pdb.mjs';
@@ -85,7 +85,7 @@ export function mountScore(ctx) {
     const input = h('input', { class: 'field mono', id: 'sc-pep', type: 'text', autocomplete: 'off', spellcheck: 'false', style: { textTransform: 'uppercase' }, placeholder: 'e.g. LIYKWVNK', 'aria-describedby': 'sc-pep-msg', onInput: () => { setS({ peptide: input.value }); checkPep(); } });
     input.value = s.peptide;
     pepMsg.id = 'sc-pep-msg';
-    body.replaceChildren(
+    fill(body,
       h('div', { class: 'note guided-only' }, 'Scoring needs a pose that is already bound, such as one from a crystal structure. It measures how well the pose fits and doesn’t move it.'),
       h('div', {}, h('p', { class: 'field-label' }, '1. The protein', h('span', { class: 'tech' }, 'Receptor PDB, protein only')),
         dropZone({ title: 'Drop a protein file here', sub: 'A .pdb file, or click to browse', accept: '.pdb,.ent,.txt', onFile: chooseProtein, current: s.protein?.file }), msgProtein),

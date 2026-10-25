@@ -76,7 +76,7 @@ export class Stage {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.level = 0; this._slow = 0; this._lastDrawAt = 0; this._hiddenAt = 0; this._occluded = false;
+    this.level = 0; this._slow = 0; this._lastDrawAt = 0; this._hiddenAt = 0; this._occluded = false; this._scrollAt = 0;
     this.dpr = Math.min(window.devicePixelRatio || 1, QUALITY[0].dpr);
     this.W = 0; this.H = 0;
 
@@ -310,6 +310,7 @@ export class Stage {
     const gap = now - this._lastDrawAt;
     this._lastDrawAt = now;
     if (gap > 500 || this.dragging) return; // a pause (tab switch, sheet) says nothing about speed
+    if (now - this._scrollAt < 600) return; // scrolling makes the page busy for a moment; that is not a slow machine
     const target = 1000 / QUALITY[this.level].fps;
     this._slow = gap > target * 1.45 ? this._slow + 1 : Math.max(0, this._slow - 1);
     if (this._slow >= 24 && this.level < QUALITY.length - 1) {
@@ -497,8 +498,12 @@ export class Stage {
     const segs = P.segs, nSeg = segs.length, nPep = ps ? ps.m - 1 : 0, total = nSeg + nPep;
     if (!this._order || this._order.length < total) { this._order = new Int32Array(total); this._keys = new Float32Array(total); }
     const order = this._order.subarray(0, total), keys = this._keys;
-    for (let s = 0; s < nSeg; s++) { order[s] = s; keys[s] = vz[segs[s]] + vz[segs[s] + 1]; }
-    for (let j = 0; j < nPep; j++) { order[nSeg + j] = nSeg + j; keys[nSeg + j] = ps.z[j] + ps.z[j + 1]; }
+    // Depth keys are eased over frames, so two pieces at nearly the same depth cannot swap places every frame (the shimmer).
+    const fresh = !this._keysOk || this._keysOk < total; // a new or bigger buffer starts from the raw depths
+    const ease = fresh ? 1 : 0.35;
+    for (let s = 0; s < nSeg; s++) { const raw = vz[segs[s]] + vz[segs[s] + 1]; keys[s] = fresh ? raw : keys[s] + (raw - keys[s]) * ease; order[s] = s; }
+    for (let j = 0; j < nPep; j++) { const raw = ps.z[j] + ps.z[j + 1]; keys[nSeg + j] = fresh ? raw : keys[nSeg + j] + (raw - keys[nSeg + j]) * ease; order[nSeg + j] = nSeg + j; }
+    this._keysOk = total;
     order.sort((a, b) => keys[a] - keys[b]);
 
     ctx.lineCap = 'round';
@@ -627,7 +632,11 @@ export class Stage {
   _bindEvents() {
     const cv = this.canvas;
     this._onResize = () => this.resize();
-    this._onScroll = () => { if (this._scrollQueued) return; this._scrollQueued = true; requestAnimationFrame(() => { this._scrollQueued = false; this._measure(); }); };
+    this._onScroll = () => {
+      this._scrollAt = performance.now();
+      if (this._scrollQueued) return;
+      this._scrollQueued = true; requestAnimationFrame(() => { this._scrollQueued = false; this._measure(); });
+    };
     addEventListener('resize', this._onResize);
     addEventListener('scroll', this._onScroll, true);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.invalidate(); });

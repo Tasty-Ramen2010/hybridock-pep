@@ -2,7 +2,7 @@
 //   ΔΔG = ΔG(target) − ΔG(off-target), shown with its 95% interval and a three-way verdict.
 // Also exports compareResultView(), which results.js uses to show a finished comparison.
 
-import { h, readText } from './dom.mjs';
+import { fill, h, readText } from './dom.mjs';
 import { icon } from './icons.mjs';
 import { createSitePicker, defaultSiteFor } from './sitepicker.mjs';
 import { loadProtein, registerUpload } from '../structures.mjs';
@@ -72,7 +72,7 @@ export function mountCompare(ctx) {
     function checkPep() {
       const v = pep();
       pepMsg.className = `msg ${v.level}`;
-      pepMsg.replaceChildren(v.level === 'ok' || v.level === 'warn' ? icon(v.level === 'ok' ? 'check' : 'alert', 18) : v.level === 'error' ? icon('alert', 18) : '', v.message);
+      fill(pepMsg, v.level === 'ok' || v.level === 'warn' ? icon(v.level === 'ok' ? 'check' : 'alert', 18) : v.level === 'error' ? icon('alert', 18) : '', v.message);
       if (v.ok) stage.setPeptide(v.seq.length);
       updateRun();
     }
@@ -84,7 +84,7 @@ export function mountCompare(ctx) {
     const side = () => C()[id];
     const select = h('select', { class: 'field', 'aria-label': `${label} protein`, onChange: onSelect });
     const file = h('input', { type: 'file', accept: '.pdb,.ent,.txt', hidden: true, onChange: onUpload });
-    const about = h('p', { class: 'small muted' });
+    const about = h('p', { class: 'small muted pcard-about' });
     const siteLine = h('p', { class: 'small' });
     const adjust = h('button', { class: 'btn sm', type: 'button', onClick: () => editSite(id) }, icon('columns', 15), 'Adjust the site in 3D');
 
@@ -123,10 +123,9 @@ export function mountCompare(ctx) {
       e.target.value = '';
     }
     refresh();
-    const node = h('article', { class: `card pcard ${id === 'target' ? 'target' : ''}`, onFocusin: () => focusSide(id), onPointerenter: () => focusSide(id) },
+    const node = h('article', { class: `card pcard ${id === 'target' ? 'target' : ''}`, title: hint, onFocusin: () => focusSide(id), onPointerenter: () => focusSide(id) },
       h('span', { class: 'tag' }, label),
-      h('p', { class: 'small muted' }, hint),
-      h('div', {}, h('label', { class: 'field-label' }, 'Protein', h('span', { class: 'tech' }, 'Receptor structure')), select, file),
+      h('div', {}, h('label', { class: 'field-label' }, 'Protein'), select, file),
       about, siteLine, adjust);
     return { el: node, refresh };
   }
