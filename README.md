@@ -57,7 +57,7 @@ The software is split into 2 main parts: an AI diffusion generative model making
 folded, and a physics and geometry-based model that scores the poses and outputs a ΔG in kcal/mol.
 Happening in two Conda environments, the code is split and built for simple, fast pipelines.
 
-<img src="docs/images/pipeline.svg" alt="HybriDock-Pep dock pipeline: peptide and receptor go into the CLI or UI, driver.py orchestrates Stage 1 GPU sampling in the rapidock environment, then Stage 1.5 through 3.6 CPU clash-relief, ranking, clustering, and the primary AI-pose affinity ΔG in the score environment, ending in ranked_poses.csv and related output files.">
+<img src="docs/images/architecture.svg" alt="HybriDock-Pep architecture: the peptide sequence and protein binding site go in, the diffusion sampler (an equivariant tensor-product network with four score heads) generates poses over 16 iterations, cleanup and ranking filter and cluster them, a learned affinity model scores each one, and the outputs are the docked complex, the binding energy ΔG with a 95% confidence interval, the ranked poses and the binding modes." width="100%">
 
 **The main scorer ΔG** Stage 3.6 of the software scores the peptide's affinity to the protein with
 a self-made geometry-feature model and an ML model. While we could've used already existing scoring
