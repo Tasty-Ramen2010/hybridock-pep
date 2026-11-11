@@ -551,14 +551,47 @@ class TestComputeBatchSize:
         and deliberately sits just below the measured optimum, because
         overshooting costs 640% and undershooting ~15%."""
         rr = self._import_run_rapidock()
-        with self._mock_available_ram_gb(16.0):
-            assert rr._default_batch_cap() == 9
-        with self._mock_available_ram_gb(8.0):
-            assert rr._default_batch_cap() == 4
-        with self._mock_available_ram_gb(128.0):
-            assert rr._default_batch_cap() == 32   # absolute ceiling
-        with self._mock_available_ram_gb(1.0):
-            assert rr._default_batch_cap() == 2    # floor, never 0
+        with mock.patch.object(rr.sys, "platform", "linux"):
+            with self._mock_available_ram_gb(16.0):
+                assert rr._default_batch_cap() == 9
+            with self._mock_available_ram_gb(8.0):
+                assert rr._default_batch_cap() == 4
+            with self._mock_available_ram_gb(128.0):
+                assert rr._default_batch_cap() == 32   # absolute ceiling
+            with self._mock_available_ram_gb(1.0):
+                assert rr._default_batch_cap() == 2    # floor, never 0
+
+    def test_cap_on_apple_gpu_uses_measured_per_pose_cost(self) -> None:
+        """macOS/MPS: ~1.0 GB base + ~0.18 GB/pose (measured on an M3), a 30% RAM
+        budget, floor 4, ceiling 10 (the size benchmarked at N=100; 16 was slower).
+        The old 0.5 GB/pose estimate picked batch 5 with 8.6 GB free and made
+        Stage 1 ~2x slower than batch 10."""
+        rr = self._import_run_rapidock()
+        with mock.patch.object(rr.sys, "platform", "darwin"):
+            with self._mock_available_ram_gb(8.6):
+                assert rr._default_batch_cap() == 8
+            with self._mock_available_ram_gb(16.0):
+                assert rr._default_batch_cap() == 10   # ceiling
+            with self._mock_available_ram_gb(128.0):
+                assert rr._default_batch_cap() == 10
+            with self._mock_available_ram_gb(1.0):
+                assert rr._default_batch_cap() == 4    # floor
+
+    def test_mps_pool_budget_gates_empty_cache(self) -> None:
+        """The MPS cache is only released past a budget, not after every forward
+        (per-call clearing cost +50% model time + 2.5 s in empty_cache itself)."""
+        rr = self._import_run_rapidock()
+        rr._MPS_POOL_BUDGET.clear()
+        fake = mock.Mock()
+        with self._mock_available_ram_gb(10.0):   # budget = 3 GB
+            fake.mps.driver_allocated_memory.return_value = int(2.0e9)
+            assert rr._mps_pool_over_budget(fake) is False
+            fake.mps.driver_allocated_memory.return_value = int(3.5e9)
+            assert rr._mps_pool_over_budget(fake) is True
+        rr._MPS_POOL_BUDGET.clear()
+        fake.mps.driver_allocated_memory.side_effect = RuntimeError("no query")
+        assert rr._mps_pool_over_budget(fake) is True   # fail safe
+        rr._MPS_POOL_BUDGET.clear()
 
     def test_falls_back_to_total_ram_if_psutil_is_unavailable(self) -> None:
         """psutil is a declared dependency (see pyproject.toml) so this
@@ -573,7 +606,11 @@ class TestComputeBatchSize:
             sys.modules["psutil"] = None  # forces `import psutil` to raise
             rr._total_ram_gb = lambda: 16.0
             # fallback formula: int((total * 0.6) * 0.30 / 0.5) = int(9.6*0.3/0.5) = 5
-            assert rr._default_batch_cap() == 5
+            with mock.patch.object(rr.sys, "platform", "linux"):
+                assert rr._default_batch_cap() == 5
+            # macOS: int((9.6*0.30 - 1.0)/0.18) = 10 -> ceiling 10
+            with mock.patch.object(rr.sys, "platform", "darwin"):
+                assert rr._default_batch_cap() == 10
         finally:
             rr._total_ram_gb = orig_total
             if orig_psutil is not None:

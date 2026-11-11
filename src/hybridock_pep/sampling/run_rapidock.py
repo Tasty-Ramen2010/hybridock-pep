@@ -171,6 +171,18 @@ def _default_batch_cap():
         available_gb = psutil.virtual_memory().available / 1e9
     except Exception:  # pragma: no cover - psutil missing/broken
         available_gb = _total_ram_gb() * 0.6  # assume ~60% free, conservative
+    if sys.platform == "darwin":
+        # Apple GPU (MPS). Re-profiled 2026-11 on an M3 (1YCR/MDM2 + 12-mer, steady-state
+        # MPS driver memory after one forward at each batch size):
+        #     batch      4     8    16    32
+        #     GB       2.26  2.26  3.41  6.20      -> ~1.0 GB base + ~0.18 GB/pose
+        #     ms/pose  31.0  24.9  23.9  27.7      -> throughput plateaus at 8-16
+        # The old 0.5 GB/pose estimate was ~3x too pessimistic and picked batch 5 on a
+        # 17 GB machine with 8.6 GB free (31 ms/pose; batch 8-16 is 24). Budget 30% of
+        # available RAM for the MPS pool, never beyond 10 (the size measured at N=100; 16 was ~20% slower, and the old
+        # collapse at 15 on a loaded desktop says to stay conservative).
+        cap = int((available_gb * 0.30 - 1.0) / 0.18)
+        return max(4, min(10, cap))
     cap = int((available_gb * 0.30) / 0.5)
     return max(2, min(32, cap))
 
@@ -377,6 +389,31 @@ def _optimize_backends():
     return "CPU (threads tuned)"
 
 
+_MPS_POOL_BUDGET = {}
+
+
+def _mps_pool_over_budget(torch_mod):
+    # type: (object) -> bool
+    """True when the MPS driver pool is large enough to start starving the OS.
+
+    Budget = 30% of the RAM available when first asked (so ~2.6 GB on a 17 GB Mac with
+    a busy desktop), floored at 2 GB and capped at 6 GB. Batch sizes chosen by
+    :func:`_default_batch_cap` keep the steady-state pool below this, so in the normal
+    case the cache is never cleared and the allocator reuses its buffers between steps.
+    """
+    if "b" not in _MPS_POOL_BUDGET:
+        try:
+            import psutil  # type: ignore[import-not-found]
+            avail = psutil.virtual_memory().available
+        except Exception:  # pragma: no cover
+            avail = _total_ram_gb() * 0.6 * 1e9
+        _MPS_POOL_BUDGET["b"] = int(min(6e9, max(2e9, 0.30 * avail)))
+    try:
+        return torch_mod.mps.driver_allocated_memory() > _MPS_POOL_BUDGET["b"]
+    except Exception:  # pragma: no cover - old torch without the query
+        return True  # fail safe: behave like the old always-clear path
+
+
 PROGRESS_PREFIX = "[[HDP-PROGRESS]]"
 
 
@@ -426,8 +463,12 @@ def _install_progress_probe(rd_inference, rd_args):
         # 35s / 56 forward calls on a 17 GB M3 with a typical desktop session
         # open, while this process's own RSS stayed flat -- the growth is in
         # the MPS driver's cache, invisible to ps/RSS but very visible to the
-        # rest of the machine. Clearing it every forward call is cheap next
-        # to an actual diffusion step and keeps the run from starving the OS.
+        # rest of the machine. Clearing it unconditionally after every forward
+        # was the fix, but it is NOT cheap: the next forward must re-allocate
+        # the multi-hundred-MB per-edge weight tensors from scratch, which cost
+        # +50% on model time (21.0 s -> 31.4 s, plus 2.5 s in empty_cache itself,
+        # N=48 batch 12, M3). So only release when the pool exceeds a budget;
+        # a steady-state pool that is being *reused* is not a leak.
         try:
             import torch as _torch  # noqa: PLC0415
             _is_mps = next(model.parameters()).device.type == "mps"
@@ -441,7 +482,7 @@ def _install_progress_probe(rd_inference, rd_args):
             print("%s %d %d" % (PROGRESS_PREFIX, min(state["n"], total), total))
             sys.stdout.flush()
             result = _orig_forward(*fa, **fkw)
-            if _is_mps:
+            if _is_mps and _mps_pool_over_budget(_torch):
                 try:
                     _torch.mps.empty_cache()
                 except Exception:
